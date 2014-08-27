@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DOG", "DOG\DOG.vcxproj", "{
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SubSenseBS", "SubSenseBS\SubSenseBS.vcxproj", "{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MRFOptimze", "MRFOptimze\MRFOptimze.vcxproj", "{FA4E28A9-41D0-484D-809A-7E86C703A70D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -43,6 +45,10 @@ Global
 		{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}.Debug|Win32.Build.0 = Debug|Win32
 		{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}.Release|Win32.ActiveCfg = Release|Win32
 		{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}.Release|Win32.Build.0 = Release|Win32
+		{FA4E28A9-41D0-484D-809A-7E86C703A70D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{FA4E28A9-41D0-484D-809A-7E86C703A70D}.Debug|Win32.Build.0 = Debug|Win32
+		{FA4E28A9-41D0-484D-809A-7E86C703A70D}.Release|Win32.ActiveCfg = Release|Win32
+		{FA4E28A9-41D0-484D-809A-7E86C703A70D}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
