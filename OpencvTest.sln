@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Videoprocessing", "OpencvTest\OpencvTest.vcxproj", "{40864B4C-3B62-47F8-9E01-45ACFEF3BEFC}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FeatureTracker", "FeatureTracker\FeatureTracker.vcxproj", "{23CF7481-2C9F-4552-B183-82B9102F77CB}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Vibe", "Vibe\Vibe.vcxproj", "{AE95262F-1A87-483E-8AF5-772098A67A6C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MovingCameraBS", "MovingCameraBS\MovingCameraBS.vcxproj", "{30C2B621-5472-40C2-A223-B4F891F3CC34}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DOG", "DOG\DOG.vcxproj", "{12F1402C-3D5B-4D5C-BC5E-D823C8BB685E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SubSenseBS", "SubSenseBS\SubSenseBS.vcxproj", "{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{40864B4C-3B62-47F8-9E01-45ACFEF3BEFC}.Debug|Win32.ActiveCfg = Debug|Win32
+		{40864B4C-3B62-47F8-9E01-45ACFEF3BEFC}.Debug|Win32.Build.0 = Debug|Win32
+		{40864B4C-3B62-47F8-9E01-45ACFEF3BEFC}.Release|Win32.ActiveCfg = Release|Win32
+		{40864B4C-3B62-47F8-9E01-45ACFEF3BEFC}.Release|Win32.Build.0 = Release|Win32
+		{23CF7481-2C9F-4552-B183-82B9102F77CB}.Debug|Win32.ActiveCfg = Debug|Win32
+		{23CF7481-2C9F-4552-B183-82B9102F77CB}.Debug|Win32.Build.0 = Debug|Win32
+		{23CF7481-2C9F-4552-B183-82B9102F77CB}.Release|Win32.ActiveCfg = Release|Win32
+		{23CF7481-2C9F-4552-B183-82B9102F77CB}.Release|Win32.Build.0 = Release|Win32
+		{AE95262F-1A87-483E-8AF5-772098A67A6C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{AE95262F-1A87-483E-8AF5-772098A67A6C}.Debug|Win32.Build.0 = Debug|Win32
+		{AE95262F-1A87-483E-8AF5-772098A67A6C}.Release|Win32.ActiveCfg = Release|Win32
+		{AE95262F-1A87-483E-8AF5-772098A67A6C}.Release|Win32.Build.0 = Release|Win32
+		{30C2B621-5472-40C2-A223-B4F891F3CC34}.Debug|Win32.ActiveCfg = Debug|Win32
+		{30C2B621-5472-40C2-A223-B4F891F3CC34}.Debug|Win32.Build.0 = Debug|Win32
+		{30C2B621-5472-40C2-A223-B4F891F3CC34}.Release|Win32.ActiveCfg = Release|Win32
+		{30C2B621-5472-40C2-A223-B4F891F3CC34}.Release|Win32.Build.0 = Release|Win32
+		{12F1402C-3D5B-4D5C-BC5E-D823C8BB685E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{12F1402C-3D5B-4D5C-BC5E-D823C8BB685E}.Debug|Win32.Build.0 = Debug|Win32
+		{12F1402C-3D5B-4D5C-BC5E-D823C8BB685E}.Release|Win32.ActiveCfg = Release|Win32
+		{12F1402C-3D5B-4D5C-BC5E-D823C8BB685E}.Release|Win32.Build.0 = Release|Win32
+		{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}.Debug|Win32.Build.0 = Debug|Win32
+		{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}.Release|Win32.ActiveCfg = Release|Win32
+		{1530E50D-2ABC-4B74-BD97-5032E7B24C5B}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
