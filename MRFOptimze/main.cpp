@@ -3,7 +3,11 @@
 #include <hash_map>
 #include <iostream>
 #include <algorithm>
-
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/video/tracking.hpp>
 typedef std::pair<int,int> Point2i;
 
 bool compare(const Point2i& p1, const Point2i& p2)
@@ -19,6 +23,7 @@ struct SuperPixel
 	int lable;
 	std::vector<Point2i> pixels;
 	std::vector<SuperPixel*> neighbors;
+	unsigned avgColor;
 };
 
 typedef hash_map<int,SuperPixel*>SuperPixelMap;
@@ -117,6 +122,15 @@ int main()
 
 	PictureHandler	picHand;
 	picHand.GetPictureBuffer( string(filename), img, width, height );
+	cv::Mat Img = cv::imread(filename);
+	Img.convertTo(Img,CV_RGB2RGBA);
+	unsigned int* data = (unsigned*)Img.data;
+	for(int i=0; i<Img.cols*Img.rows; i++)
+	{
+		unsigned int ptr = data[i];
+		data[i] = ((ptr)>>8)|(ptr<<24);
+	}
+	
 	size_t sz = width*height;
 	int* labels = new int[sz];
 	int numlabels(0);
