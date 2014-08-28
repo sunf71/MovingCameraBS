@@ -76,11 +76,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="block.h" />
+    <ClInclude Include="energy.h" />
+    <ClInclude Include="GCoptimization.h" />
+    <ClInclude Include="graph.h" />
+    <ClInclude Include="LinkedBlockList.h" />
     <ClInclude Include="PictureHandler.h" />
     <ClInclude Include="SLIC.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="GCoptimization.cpp" />
+    <ClCompile Include="graph.cpp" />
+    <ClCompile Include="LinkedBlockList.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="maxflow.cpp" />
     <ClCompile Include="PictureHandler.cpp" />
     <ClCompile Include="SLIC.cpp" />
   </ItemGroup>
