@@ -25,9 +25,9 @@ public:
 			_initFlag = true;
 		}
 		_bgs(frame,output);
-		/*char fileName[50];
+		char fileName[50];
 		sprintf(fileName,"..\\result\\subsensem\\input0\\bin%06d.png",frameNo++);
-		imwrite(fileName,output);*/
+		imwrite(fileName,output);
 		imshow("input",frame);
 		//output = frame;
 	}

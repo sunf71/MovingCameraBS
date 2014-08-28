@@ -16,8 +16,8 @@ int main()
 		fileNames.push_back(name);
 	}
 	// Open video file
-	//processor.setInput(fileNames);
-	processor.setInput("..\\testvideo\\pets_2005_1.avi");
+	processor.setInput(fileNames);
+	//processor.setInput("..\\testvideo\\pets_2005_1.avi");
 	// set frame processor
 	processor.setFrameProcessor(&tracker);
 

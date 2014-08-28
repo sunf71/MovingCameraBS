@@ -157,9 +157,9 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 	cv::imwrite("avg.jpg",avgMat);
 }
 
-void GeneralGraph_DArraySArraySpatVarying(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height)
+void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
-	int *result = new int[num_pixels];   // stores result of optimization
+	
 
 	// first set up the array for data costs
 	int* data = new int[num_pixels*num_labels];
@@ -193,37 +193,26 @@ void GeneralGraph_DArraySArraySpatVarying(SuperPixel* spPtr, int num_pixels,floa
 			for(int j=0; j<spPtr[i].neighbors.size(); j++)
 			{
 				float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
-				gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)energy);
+				if (i<spPtr[i].neighbors[j]->idx)
+				{
+					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)energy);
+				}
 			}
 		}
 
 
-		printf("\nBefore optimization energy is %d",gc->compute_energy());
+		/*printf("\nBefore optimization energy is %d",gc->compute_energy());
 		printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());
+		printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());*/
 		gc->expansion(2);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
-		printf("\nAfter optimization energy is %d",gc->compute_energy());
+		/*printf("\nAfter optimization energy is %d",gc->compute_energy());
 		printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());
+		printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());*/
 
 		for ( int  i = 0; i < num_pixels; i++ )
 			result[i] = gc->whatLabel(i);
 
-		cv::Mat img(height,width,CV_8U);
-		img = cv::Scalar(0);
-		unsigned char* imgPtr = img.data;
-		for(int i=0; i<num_pixels; i++)
-		{
-			if(result[i] == 1)			
-			{
-				for(int j=0; j<spPtr[i].pixels.size(); j++)
-				{
-					int idx = spPtr[i].pixels[j].first + spPtr[i].pixels[j].second*width;
-					imgPtr[idx] = 0xff;
-				}
-			}	
-		}
-		cv::imwrite("result.jpg",img);
+		
 
 		delete gc;
 	}
@@ -231,11 +220,77 @@ void GeneralGraph_DArraySArraySpatVarying(SuperPixel* spPtr, int num_pixels,floa
 		e.Report();
 	}
 
-	delete [] result;
+	
 	delete [] smooth;
 	delete [] data;
 
 
+}
+
+void TestSuperpixel(string& filename, string& savename,  string& saveLocation)
+{
+	int width(0);
+	int height(0);
+	UINT* img = NULL;
+	PictureHandler	picHand;
+	picHand.GetPictureBuffer( filename, img, width, height );
+	cv::Mat Img = cv::imread(filename);
+	uchar* camData = new uchar[Img.total()*4];
+	cv::Mat continuousRGBA(Img.size(), CV_8UC4, camData);	
+	cv::cvtColor(Img,continuousRGBA,CV_BGR2RGBA,4);
+	unsigned int* data = (unsigned*)camData;
+	
+	
+	size_t sz = width*height;
+	int* labels = new int[sz];
+	int numlabels(0);
+	SLIC slic;
+	slic.PerformSLICO_ForGivenK(data, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
+	//slic.PerformSLICO_ForGivenStepSize(img, width, height, labels, numlabels, m_stepsize, m_compactness);//for a given grid step size
+	//slic.DrawContoursAroundSegments(img, labels, width, height, 0);//for black contours around superpixels
+	slic.DrawContoursAroundSegmentsTwoColors(data, labels, width, height);//for black-and-white contours around superpixels
+	slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);
+	
+	picHand.SavePicture(data, width, height, savename, saveLocation, 1, "_SLICO");// 0 is for BMP and 1 for JPEG)
+	SuperPixel* spPtr = NULL;
+	size_t spSize(0);
+	GetSegment2DArray(spPtr,spSize,labels,width,height);
+	std::cout<<std::endl;
+	std::cout<<spSize<<std::endl;
+	std::cout<<spPtr[0].lable<<std::endl;
+	std::cout<<spPtr[0].pixels.size()<<std::endl;
+	std::cout<<spPtr[0].neighbors.size()<<std::endl;
+	bool suc = true;
+	for(int k=0; k<spSize; k++)
+	{
+		std::sort(spPtr[k].pixels.begin(),spPtr[k].pixels.end(),compare);
+		std::vector<Point2i> pixel0;
+		for(int i=0; i<width; i++)
+		{
+			for(int j=0; j<height; j++)
+			{
+				int idx = i + j*width;
+				if (labels[idx] == spPtr[k].lable)
+					pixel0.push_back(Point2i(i,j));
+			}
+		}
+		
+		for(int i=0; i<pixel0.size(); i++)
+		{
+			if(pixel0[i].first!=spPtr[k].pixels[i].first || pixel0[i].second!= spPtr[k].pixels[i].second)
+			{
+				suc = false;
+				break;
+			}
+		}
+		if (!suc)
+			break;
+	}
+	if (suc)
+		std::cout<<"yes"<<endl;
+
+	if(labels) delete [] labels;
+	if(camData) delete [] camData;
 }
 ////////////////////////////////////////////////////////////////////////////////
 // in this version, set data and smoothness terms using arrays
@@ -321,44 +376,38 @@ void testGCO()
 	// which actually is a grid. Also uses spatially varying terms
 	GeneralGraph_DArraySArraySpatVarying(width,height,num_pixels,num_labels);
 }
-int main()
+void testSuperpixel()
 {
-	/*testGCO();*/
-	const int nLabels(2);
-	
-	using namespace std;
-	const char filename[] = "..\\PTZ\\input0\\in000002.jpg";
-	string maskFileName = "..\\result\\subsensem\\input0\\bin000002.png";
+	const char filename[] = "..\\PTZ\\input0\\in000483.jpg";
 	string savename = "output";
 	string saveLocation = ".\\";
-	unsigned int* img = NULL;
-	int width(0);
-	int height(0);
-
-	PictureHandler	picHand;
-	picHand.GetPictureBuffer( string(filename), img, width, height );
-	cv::Mat Img = cv::imread(filename);
+	TestSuperpixel(string(filename),savename,saveLocation);
+}
+//用MRF对前景结果进行优化
+void MRFOptimize(const string& originalImgName, const string& maskImgName, const string& resultImgName)
+{
+	//superpixel
+	cv::Mat Img = cv::imread(originalImgName);
 	uchar* camData = new uchar[Img.total()*4];
 	cv::Mat continuousRGBA(Img.size(), CV_8UC4, camData);	
 	cv::cvtColor(Img,continuousRGBA,CV_BGR2RGBA,4);
 	unsigned int* data = (unsigned*)camData;
-	cv::Mat maskImg = cv::imread(maskFileName);
+	cv::Mat maskImg = cv::imread(maskImgName);
 	cv::cvtColor(maskImg,maskImg,CV_BGR2GRAY);
 	maskImg.convertTo(maskImg,CV_8U);
 	const unsigned char* maskImgData = maskImg.data;
-	
+	int width = Img.cols;
+	int height = Img.rows;
 	
 	size_t sz = width*height;
 	int* labels = new int[sz];
 	int numlabels(0);
 	SLIC slic;
-	slic.PerformSLICO_ForGivenK(data, width, height, labels, numlabels, 200, 20);//for a given number K of superpixels
-	//slic.PerformSLICO_ForGivenStepSize(img, width, height, labels, numlabels, m_stepsize, m_compactness);//for a given grid step size
-	//slic.DrawContoursAroundSegments(img, labels, width, height, 0);//for black contours around superpixels
-	slic.DrawContoursAroundSegmentsTwoColors(data, labels, width, height);//for black-and-white contours around superpixels
-	slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);
+	slic.PerformSLICO_ForGivenK(data, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
 	
-	picHand.SavePicture(data, width, height, savename, saveLocation, 1, "_SLICO");// 0 is for BMP and 1 for JPEG)
+	slic.DrawContoursAroundSegmentsTwoColors(data, labels, width, height);//for black-and-white contours around superpixels
+	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
+	//picHand.SavePicture(data, width, height, savename, saveLocation, 1, "_SLICO");// 0 is for BMP and 1 for JPEG)
 	SuperPixel* spPtr = NULL;
 	size_t spSize(0);
 	GetSegment2DArray(spPtr,spSize,labels,width,height);
@@ -376,43 +425,50 @@ int main()
 	}
 	avgE /= count;
 	avgE = 1/(2*avgE);
-	GeneralGraph_DArraySArraySpatVarying(spPtr,spSize,avgE,2,width,height);
-	std::cout<<std::endl;
-	std::cout<<spSize<<std::endl;
-	std::cout<<spPtr[0].lable<<std::endl;
-	std::cout<<spPtr[0].pixels.size()<<std::endl;
-	std::cout<<spPtr[0].neighbors.size()<<std::endl;
-	bool suc = true;
-	for(int k=0; k<spSize; k++)
-	{
-		std::sort(spPtr[k].pixels.begin(),spPtr[k].pixels.end(),compare);
-		std::vector<Point2i> pixel0;
-		for(int i=0; i<width; i++)
-		{
-			for(int j=0; j<height; j++)
-			{
-				int idx = i + j*width;
-				if (labels[idx] == spPtr[k].lable)
-					pixel0.push_back(Point2i(i,j));
-			}
-		}
-		
-		for(int i=0; i<pixel0.size(); i++)
-		{
-			if(pixel0[i].first!=spPtr[k].pixels[i].first || pixel0[i].second!= spPtr[k].pixels[i].second)
-			{
-				suc = false;
-				break;
-			}
-		}
-		if (!suc)
-			break;
-	}
-	if (suc)
-		std::cout<<"yes"<<endl;
+	int *result = new int[spSize];   // stores result of optimization
+	GraphCutOptimize(spPtr,spSize,avgE,2,width,height,result);
 
-	if(labels) delete [] labels;
-	if(img) delete [] img;
+	cv::Mat img(height,width,CV_8U);
+	img = cv::Scalar(0);
+	unsigned char* imgPtr = img.data;
+	for(int i=0; i<spSize; i++)
+	{
+		if(result[i] == 1)			
+		{
+			for(int j=0; j<spPtr[i].pixels.size(); j++)
+			{
+				int idx = spPtr[i].pixels[j].first + spPtr[i].pixels[j].second*width;
+				imgPtr[idx] = 0xff;
+			}
+		}	
+	}
+	cv::imwrite(resultImgName,img);
+
+	delete[] result;
+	
+
+}
+int main()
+{
+	/*testGCO();*/
+	//testSuperpixel();
+	const int nLabels(2);
+	
+	using namespace std;
+	char imgFileName[150];
+	char maskFileName[150];
+	char resultFileName[150];
+	for(int i=1; i<=1;i++)
+	{
+		sprintf(imgFileName,"..\\PTZ\\input0\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensem\\input0\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\input0\\bin%06d.jpg",i);
+		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
+	}
+	
+	
+
+	
 	
 	return 0;
 }
