@@ -217,7 +217,35 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 	//cv::imwrite("prob.jpg",psMat);
 	//cv::imwrite("avg.jpg",avgMat);
 }
+void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
+{
+	size_t num_edges = 0;
+	for(int i=0; i<num_pixels; i++)
+		num_edges += spPtr[i].neighbors.size();
+	num_edges /= 2;
 
+	typedef Graph<float,float,float> GraphType;
+	GraphType *g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
+
+	for(int i=0; i<num_pixels; i++)
+	{
+		g->add_node();
+		float d = min(1.0f,theta*spPtr[i].ps*2);
+		d = max(1e-20f,d);
+		float d1 = -log(d);
+		float d2 =  - log(1-d);
+		g->add_tweights(i,d1,d2);
+
+		for(int j=0; j<spPtr[i].neighbors.size(); j++)
+		{
+			float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
+			g->add_edge(i,spPtr[i].neighbors[j]->idx,energy,energy);
+		}
+	}
+	float flow = g -> maxflow();
+	for ( int  i = 0; i < num_pixels; i++ )
+		result[i] = g->what_segment(i) == GraphType::SOURCE ? 0xff : 0;
+}
 void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
 	// first set up the array for data costs
@@ -562,6 +590,7 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 #endif
 	int *result = new int[spSize];   // stores result of optimization
 	GraphCutOptimize(spPtr,spSize,avgE,2,width,height,result);
+	MaxFlowOptimize(spPtr,spSize,avgE,2,width,height,result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()<<std::endl;
@@ -604,10 +633,10 @@ int main()
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=470; i<=1700;i++)
+	for(int i=789; i<=789;i++)
 	{
 		sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"H:\\changeDetection2012\\SOBS_20\\results\\baseline\\highway\\bin%06d.png",i);
+		sprintf(maskFileName,"E:\\changedetection12\\results\\baseline\\highway\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);
 		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
 	}
