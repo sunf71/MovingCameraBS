@@ -1,20 +1,18 @@
 #include "PictureHandler.h"
 #include "SLIC.h"
 #include "GCoptimization.h"
+#include "timer.h"
 #include <math.h>
 #include <hash_map>
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/tracking.hpp>
-
-const float theta(0.35);
-const float lmd1(0.3);
-const float lmd2(3.0);
-
+#include <opencv2/calib3d/calib3d.hpp>
 typedef std::pair<int,int> Point2i;
 
 bool compare(const Point2i& p1, const Point2i& p2)
@@ -36,6 +34,65 @@ struct SuperPixel
 };
 
 typedef hash_map<int,SuperPixel*>SuperPixelMap;
+
+const float theta(0.35);
+const float lmd1(0.3);
+const float lmd2(3.0);
+cv::Mat prevImg;
+cv::Mat currImg;
+
+void findHomography(const cv::Mat& prevImg, const cv::Mat& currImg, cv::Mat & homography)
+{
+	std::vector<cv::Point2f> initial;   // initial position of tracked points
+	std::vector<cv::Point2f> features;  // detected features
+	int max_count(500);	  // maximum number of features to detect
+	double qlevel(0.01);    // quality level for feature detection
+	double minDist(10.);   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	std::vector<cv::Point2f> points[2]; // tracked features from 0->1
+	// detect the features
+	cv::goodFeaturesToTrack(currImg, // the image 
+		points[0],   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
+
+	// 2. track features
+		cv::calcOpticalFlowPyrLK(currImg, prevImg, // 2 consecutive images
+			points[0], // input point position in first image
+			points[1], // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
+
+		// 2. loop over the tracked points to reject the undesirables
+		int k=0;
+
+		for( int i= 0; i < points[1].size(); i++ ) {
+
+			// do we keep this point?
+			if (status[i] == 1) {
+
+				// keep this point in vector
+				points[0][k] = points[0][i];
+				points[1][k++] = points[1][i];
+			}
+		}
+		// eliminate unsuccesful points
+		points[0].resize(k);
+		points[1].resize(k);
+
+		//perspective transform
+		std::vector<uchar> inliers(points[0].size(),0);
+		homography= cv::findHomography(
+			cv::Mat(points[0]), // corresponding
+			cv::Mat(points[1]), // points
+			inliers, // outputted inliers matches
+			CV_RANSAC, // RANSAC method
+			1.); // max distance to reprojection point
+}
+
+
 //save superpixels to an array with neighbor and pixels info
 void GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* lables, const int width,const int height)
 {
@@ -56,7 +113,7 @@ void GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* la
 	while(ptr >= 0)
 	{
 		if (ptr>QSIZE)
-		std::cout<<ptr<<std::endl;
+			std::cout<<ptr<<std::endl;
 		Point2i pt = stack[ptr--];
 		int idx = pt.first + pt.second*width;
 		if (!visited[idx])
@@ -68,7 +125,7 @@ void GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* la
 				superpixels[spSize].lable = lables[idx];		
 				superpixels[spSize].idx = spSize;
 				SPPtr = &superpixels[spSize++];
-			
+
 				map[lables[idx]] = SPPtr;
 			}
 			else
@@ -123,7 +180,7 @@ void GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* la
 	delete[] stack;
 }
 
-void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, const int height, const unsigned char* imgData, const unsigned char* maskData)
+void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, const int height,  const unsigned int* imgData, const unsigned char* maskData)
 {
 	cv::Mat psMat(height,width,CV_8U);
 	psMat = cv::Scalar(0);
@@ -131,6 +188,7 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 	cv::Mat avgMat(height,width,CV_8U);
 	avgMat = cv::Scalar(0);
 	uchar* avgImg = avgMat.data;
+	unsigned char* cimgData = (unsigned char*)imgData;
 	for(int i=0; i<spSize; i++)
 	{
 		float tmp = 0;
@@ -138,9 +196,12 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 		for( int j=0; j<superpixels[i].pixels.size(); j++)
 		{
 			int idx = (superpixels[i].pixels[j].first + superpixels[i].pixels[j].second*width);
-			int idxC = idx*4;
+			int idxC = (superpixels[i].pixels[j].first + superpixels[i].pixels[j].second*width)*4;
 			for (int c=1; c<4; c++)
-				tmp += imgData[idxC+c]; 
+			{
+				/*std::cout<<(int)cimgData[idxC+c]<<std::endl; */
+				tmp += cimgData[idxC+c];
+			}
 			if (maskData[idx] == 0xff)
 				mtmp++;
 		}
@@ -153,23 +214,21 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 			avgImg[idx] = uchar(superpixels[i].avgColor);
 		}
 	}
-	cv::imwrite("prob.jpg",psMat);
-	cv::imwrite("avg.jpg",avgMat);
+	//cv::imwrite("prob.jpg",psMat);
+	//cv::imwrite("avg.jpg",avgMat);
 }
 
 void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
-	
-
 	// first set up the array for data costs
 	int* data = new int[num_pixels*num_labels];
-	
+
 	for(int i=0; i<num_pixels; i++)
 	{
 		for(int j=0; j<num_labels; j++)
 		{
 			float d = min(1.0f,theta*spPtr[i].ps*2);
-			d = max(0.00001f,d);
+			d = max(1e-20f,d);
 			float d1 = -log(d)*j;
 			float d2 =  - log(1-d)*(1-j);
 			data[i*num_labels + j] =(int)(d1+d2);
@@ -185,42 +244,40 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 	try{
 		GCoptimizationGeneralGraph *gc = new GCoptimizationGeneralGraph(num_pixels,num_labels);
 		gc->setDataCost(data);
+		//gc->setSmoothCost(&smoothFn);
 		gc->setSmoothCost(smooth);
-
+		//std::ofstream file("out.txt");
 		// now set up a grid neighborhood system
 		for(int i=0; i<num_pixels; i++)
 		{
 			for(int j=0; j<spPtr[i].neighbors.size(); j++)
-			{
-				float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
+			{				
 				if (i<spPtr[i].neighbors[j]->idx)
 				{
-					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)energy);
+					int energy = (int)(lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
+					//file<<energy<<std::endl;
+					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,energy);
 				}
 			}
 		}
-
-
-		/*printf("\nBefore optimization energy is %d",gc->compute_energy());
-		printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());*/
+		//file.close();
+		//printf("\nBefore optimization energy is %d",gc->compute_energy());
+		//printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
+		//printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());
 		gc->expansion(2);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
-		/*printf("\nAfter optimization energy is %d",gc->compute_energy());
-		printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());*/
+		//printf("\nAfter optimization energy is %d",gc->compute_energy());
+		//printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
+		//printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());
 
 		for ( int  i = 0; i < num_pixels; i++ )
 			result[i] = gc->whatLabel(i);
-
-		
-
 		delete gc;
 	}
 	catch (GCException e){
 		e.Report();
 	}
 
-	
+
 	delete [] smooth;
 	delete [] data;
 
@@ -237,10 +294,10 @@ void TestSuperpixel(string& filename, string& savename,  string& saveLocation)
 	cv::Mat Img = cv::imread(filename);
 	uchar* camData = new uchar[Img.total()*4];
 	cv::Mat continuousRGBA(Img.size(), CV_8UC4, camData);	
-	cv::cvtColor(Img,continuousRGBA,CV_BGR2RGBA,4);
+	cv::cvtColor(Img,continuousRGBA,CV_BGR2BGRA,4);
 	unsigned int* data = (unsigned*)camData;
-	
-	
+
+
 	size_t sz = width*height;
 	int* labels = new int[sz];
 	int numlabels(0);
@@ -250,7 +307,7 @@ void TestSuperpixel(string& filename, string& savename,  string& saveLocation)
 	//slic.DrawContoursAroundSegments(img, labels, width, height, 0);//for black contours around superpixels
 	slic.DrawContoursAroundSegmentsTwoColors(data, labels, width, height);//for black-and-white contours around superpixels
 	slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);
-	
+
 	picHand.SavePicture(data, width, height, savename, saveLocation, 1, "_SLICO");// 0 is for BMP and 1 for JPEG)
 	SuperPixel* spPtr = NULL;
 	size_t spSize(0);
@@ -260,9 +317,29 @@ void TestSuperpixel(string& filename, string& savename,  string& saveLocation)
 	std::cout<<spPtr[0].lable<<std::endl;
 	std::cout<<spPtr[0].pixels.size()<<std::endl;
 	std::cout<<spPtr[0].neighbors.size()<<std::endl;
+
+	cv::Mat neighborImg(height,width,CV_8U);
+	int c = 250;
 	bool suc = true;
 	for(int k=0; k<spSize; k++)
 	{
+		if (k==c)
+		{
+			for(int i = 0; i<spPtr[k].pixels.size(); i++)
+			{
+				neighborImg.data[spPtr[k].pixels[i].first + width*spPtr[k].pixels[i].second] = 0xff;
+			}
+			for( int i=0; i<spPtr[k].neighbors.size(); i++)
+			{
+				for(int j=0; j<spPtr[k].neighbors[i]->pixels.size(); j++)
+					neighborImg.data[spPtr[k].neighbors[i]->pixels[j].first + width*spPtr[k].neighbors[i]->pixels[j].second] = 0xcc;
+				/*for(int j=0; j<spPtr[spPtr[k].neighbors[i]->idx].pixels.size(); j++)
+					neighborImg.data[spPtr[spPtr[k].neighbors[i]->idx].pixels[j].first + width*spPtr[spPtr[k].neighbors[i]->idx].pixels[j].second] = 0x55;*/
+				
+			}
+			cv::imwrite("neighborImg.jpg",neighborImg);
+		
+		}
 		std::sort(spPtr[k].pixels.begin(),spPtr[k].pixels.end(),compare);
 		std::vector<Point2i> pixel0;
 		for(int i=0; i<width; i++)
@@ -274,7 +351,7 @@ void TestSuperpixel(string& filename, string& savename,  string& saveLocation)
 					pixel0.push_back(Point2i(i,j));
 			}
 		}
-		
+
 		for(int i=0; i<pixel0.size(); i++)
 		{
 			if(pixel0[i].first!=spPtr[k].pixels[i].first || pixel0[i].second!= spPtr[k].pixels[i].second)
@@ -314,55 +391,55 @@ void GeneralGraph_DArraySArraySpatVarying(int width,int height,int num_pixels,in
 				if(  l == 5 ) data[i*num_labels+l] = 0;
 				else data[i*num_labels+l] = 10;
 			}
-	// next set up the array for smooth costs
-	int *smooth = new int[num_labels*num_labels];
-	for ( int l1 = 0; l1 < num_labels; l1++ )
-		for (int l2 = 0; l2 < num_labels; l2++ )
-			smooth[l1+l2*num_labels] = (l1-l2)*(l1-l2) <= 4  ? (l1-l2)*(l1-l2):4;
+			// next set up the array for smooth costs
+			int *smooth = new int[num_labels*num_labels];
+			for ( int l1 = 0; l1 < num_labels; l1++ )
+				for (int l2 = 0; l2 < num_labels; l2++ )
+					smooth[l1+l2*num_labels] = (l1-l2)*(l1-l2) <= 4  ? (l1-l2)*(l1-l2):4;
 
 
-	try{
-		GCoptimizationGeneralGraph *gc = new GCoptimizationGeneralGraph(num_pixels,num_labels);
-		gc->setDataCost(data);
-		gc->setSmoothCost(smooth);
+			try{
+				GCoptimizationGeneralGraph *gc = new GCoptimizationGeneralGraph(num_pixels,num_labels);
+				gc->setDataCost(data);
+				gc->setSmoothCost(smooth);
 
-		// now set up a grid neighborhood system
-		// first set up horizontal neighbors
-		for (int y = 0; y < height; y++ )
-			for (int  x = 1; x < width; x++ ){
-				int p1 = x-1+y*width;
-				int p2 =x+y*width;
-				gc->setNeighbors(p1,p2,p1+p2);
+				// now set up a grid neighborhood system
+				// first set up horizontal neighbors
+				for (int y = 0; y < height; y++ )
+					for (int  x = 1; x < width; x++ ){
+						int p1 = x-1+y*width;
+						int p2 =x+y*width;
+						gc->setNeighbors(p1,p2,p1+p2);
+					}
+
+					// next set up vertical neighbors
+					for (int y = 1; y < height; y++ )
+						for (int  x = 0; x < width; x++ ){
+							int p1 = x+(y-1)*width;
+							int p2 =x+y*width;
+							gc->setNeighbors(p1,p2,p1*p2);
+						}
+
+						printf("\nBefore optimization energy is %d",gc->compute_energy());
+						printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
+						printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());
+						gc->expansion(20);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
+						printf("\nAfter optimization energy is %d",gc->compute_energy());
+						printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
+						printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());
+
+						for ( int  i = 0; i < num_pixels; i++ )
+							result[i] = gc->whatLabel(i);
+
+						delete gc;
+			}
+			catch (GCException e){
+				e.Report();
 			}
 
-		// next set up vertical neighbors
-		for (int y = 1; y < height; y++ )
-			for (int  x = 0; x < width; x++ ){
-				int p1 = x+(y-1)*width;
-				int p2 =x+y*width;
-				gc->setNeighbors(p1,p2,p1*p2);
-			}
-
-		printf("\nBefore optimization energy is %d",gc->compute_energy());
-		printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());
-		gc->expansion(20);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
-		printf("\nAfter optimization energy is %d",gc->compute_energy());
-		printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());
-
-		for ( int  i = 0; i < num_pixels; i++ )
-			result[i] = gc->whatLabel(i);
-
-		delete gc;
-	}
-	catch (GCException e){
-		e.Report();
-	}
-
-	delete [] result;
-	delete [] smooth;
-	delete [] data;
+			delete [] result;
+			delete [] smooth;
+			delete [] data;
 
 
 }
@@ -383,35 +460,83 @@ void testSuperpixel()
 	string saveLocation = ".\\";
 	TestSuperpixel(string(filename),savename,saveLocation);
 }
+void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat& mPrev, cv::Mat & prev, cv::Mat& homography)
+{
+	std::vector<cv::Point2f> currPoints, trackedPoints;
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	for(int i=0; i<mCurr.cols; i++)
+	{
+		for(int j=0; j<mCurr.rows; j++)
+			if(mCurr.data[i + j*mCurr.cols] == 0xff)
+				currPoints.push_back(cv::Point2f(i,j));
+	}
+
+}
 //用MRF对前景结果进行优化
 void MRFOptimize(const string& originalImgName, const string& maskImgName, const string& resultImgName)
 {
 	//superpixel
 	cv::Mat Img = cv::imread(originalImgName);
+	
 	uchar* camData = new uchar[Img.total()*4];
 	cv::Mat continuousRGBA(Img.size(), CV_8UC4, camData);	
-	cv::cvtColor(Img,continuousRGBA,CV_BGR2RGBA,4);
-	unsigned int* data = (unsigned*)camData;
+	cv::cvtColor(Img,continuousRGBA,CV_BGR2BGRA,4);
+	
+	//convert to ARGB data array
+	unsigned int* idata = new unsigned int[Img.total()];
+	for(int i=0; i<Img.cols; i++)
+	{
+		unsigned char tmp[4];
+		
+		for(int j=0; j<Img.rows; j++)
+		{
+			for(int k=0; k<4; k++)
+				tmp[k] = continuousRGBA.data[continuousRGBA.step[0]*j + continuousRGBA.step[1]*i + continuousRGBA.elemSize1()*k];
+			idata[i + j*Img.cols] = tmp[0]<<24 | tmp[1]<<16| tmp[2]<<8 | tmp[3];
+		}
+	}
+		
 	cv::Mat maskImg = cv::imread(maskImgName);
 	cv::cvtColor(maskImg,maskImg,CV_BGR2GRAY);
 	maskImg.convertTo(maskImg,CV_8U);
 	const unsigned char* maskImgData = maskImg.data;
 	int width = Img.cols;
 	int height = Img.rows;
-	
+
 	size_t sz = width*height;
 	int* labels = new int[sz];
 	int numlabels(0);
+#ifdef REPORT
+	nih::Timer timer;
+	timer.start();
+#endif
 	SLIC slic;
-	slic.PerformSLICO_ForGivenK(data, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
-	
-	slic.DrawContoursAroundSegmentsTwoColors(data, labels, width, height);//for black-and-white contours around superpixels
+	slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 8000, 20);//for a given number K of superpixels
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
+#endif
+	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
-	//picHand.SavePicture(data, width, height, savename, saveLocation, 1, "_SLICO");// 0 is for BMP and 1 for JPEG)
+#ifdef REPORT
+	
+	timer.start();
+#endif
 	SuperPixel* spPtr = NULL;
 	size_t spSize(0);
 	GetSegment2DArray(spPtr,spSize,labels,width,height);
-	ComputeAvgColor(spPtr,spSize,width,height,(unsigned char*)data,maskImgData);
+	delete[] labels;
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GetSegment2DArray  "<<timer.seconds()<<std::endl;
+#endif
+
+#ifdef REPORT
+	
+	timer.start();
+#endif
+	ComputeAvgColor(spPtr,spSize,width,height,idata,maskImgData);
 	float avgE = 0;
 	size_t count = 0;
 	for(int i=0; i<spSize; i++)
@@ -420,14 +545,32 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 		{
 			avgE += abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor);
 			count++;
-			
+
 		}
 	}
 	avgE /= count;
 	avgE = 1/(2*avgE);
+
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"ComputeAvgColor  "<<timer.seconds()<<std::endl;
+#endif
+
+#ifdef REPORT
+	
+	timer.start();
+#endif
 	int *result = new int[spSize];   // stores result of optimization
 	GraphCutOptimize(spPtr,spSize,avgE,2,width,height,result);
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GraphCutOptimize  "<<timer.seconds()<<std::endl;
+#endif
 
+#ifdef REPORT
+	
+	timer.start();
+#endif
 	cv::Mat img(height,width,CV_8U);
 	img = cv::Scalar(0);
 	unsigned char* imgPtr = img.data;
@@ -443,32 +586,35 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 		}	
 	}
 	cv::imwrite(resultImgName,img);
-
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"imwrite  "<<timer.seconds()<<std::endl;
+#endif
 	delete[] result;
-	
-
+	delete[] camData;
+	delete[] spPtr;
+	delete[] idata;
 }
 int main()
 {
 	/*testGCO();*/
-	//testSuperpixel();
-	const int nLabels(2);
-	
+	/*testSuperpixel();*/
+	//return 0;
 	using namespace std;
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=1; i<=1;i++)
+	for(int i=470; i<=1700;i++)
 	{
-		sprintf(imgFileName,"..\\PTZ\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensem\\input0\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\input0\\bin%06d.jpg",i);
+		sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
+		sprintf(maskFileName,"H:\\changeDetection2012\\SOBS_20\\results\\baseline\\highway\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);
 		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
 	}
-	
-	
 
-	
-	
+
+
+
+
 	return 0;
 }
