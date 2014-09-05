@@ -38,8 +38,8 @@ typedef hash_map<int,SuperPixel*>SuperPixelMap;
 const float theta(0.35);
 const float lmd1(0.3);
 const float lmd2(3.0);
-cv::Mat prevImg;
-cv::Mat currImg;
+cv::Mat g_prevImg;
+cv::Mat g_currImg;
 
 void findHomography(const cv::Mat& prevImg, const cv::Mat& currImg, cv::Mat & homography)
 {
@@ -235,21 +235,27 @@ void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_label
 		float d1 = -log(d);
 		float d2 =  - log(1-d);
 		g->add_tweights(i,d1,d2);
-
+	}
+	for(int i=0; i<num_pixels; i++)
+	{
 		for(int j=0; j<spPtr[i].neighbors.size(); j++)
 		{
-			float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
-			g->add_edge(i,spPtr[i].neighbors[j]->idx,energy,energy);
+			if (i < spPtr[i].neighbors[j]->idx)
+			{
+				float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
+				g->add_edge(i,spPtr[i].neighbors[j]->idx,energy,energy);
+			}
 		}
 	}
+
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
-		result[i] = g->what_segment(i) == GraphType::SOURCE ? 0xff : 0;
+		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
 }
 void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
 	// first set up the array for data costs
-	int* data = new int[num_pixels*num_labels];
+	float* data = new float[num_pixels*num_labels];
 
 	for(int i=0; i<num_pixels; i++)
 	{
@@ -259,11 +265,11 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 			d = max(1e-20f,d);
 			float d1 = -log(d)*j;
 			float d2 =  - log(1-d)*(1-j);
-			data[i*num_labels + j] =(int)(d1+d2);
+			data[i*num_labels + j] =(d1+d2);
 		}
 	}
 	// next set up the array for smooth costs
-	int *smooth = new int[num_labels*num_labels];
+	float *smooth = new float[num_labels*num_labels];
 	for ( int l1 = 0; l1 < num_labels; l1++ )
 		for (int l2 = 0; l2 < num_labels; l2++ )
 			smooth[l1+l2*num_labels] = abs(l1-l2);
@@ -280,9 +286,9 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 		{
 			for(int j=0; j<spPtr[i].neighbors.size(); j++)
 			{				
-				if (i<spPtr[i].neighbors[j]->idx)
+				if (i>spPtr[i].neighbors[j]->idx)
 				{
-					int energy = (int)(lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
+					float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
 					//file<<energy<<std::endl;
 					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,energy);
 				}
@@ -292,7 +298,7 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 		//printf("\nBefore optimization energy is %d",gc->compute_energy());
 		//printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
 		//printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());
-		gc->expansion(2);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
+		gc->expansion(5);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
 		//printf("\nAfter optimization energy is %d",gc->compute_energy());
 		//printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
 		//printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());
@@ -408,7 +414,7 @@ void GeneralGraph_DArraySArraySpatVarying(int width,int height,int num_pixels,in
 	int *result = new int[num_pixels];   // stores result of optimization
 
 	// first set up the array for data costs
-	int *data = new int[num_pixels*num_labels];
+	float *data = new float[num_pixels*num_labels];
 	for ( int i = 0; i < num_pixels; i++ )
 		for (int l = 0; l < num_labels; l++ )
 			if (i < 25 ){
@@ -420,7 +426,7 @@ void GeneralGraph_DArraySArraySpatVarying(int width,int height,int num_pixels,in
 				else data[i*num_labels+l] = 10;
 			}
 			// next set up the array for smooth costs
-			int *smooth = new int[num_labels*num_labels];
+			float *smooth = new float[num_labels*num_labels];
 			for ( int l1 = 0; l1 < num_labels; l1++ )
 				for (int l2 = 0; l2 < num_labels; l2++ )
 					smooth[l1+l2*num_labels] = (l1-l2)*(l1-l2) <= 4  ? (l1-l2)*(l1-l2):4;
@@ -488,8 +494,9 @@ void testSuperpixel()
 	string saveLocation = ".\\";
 	TestSuperpixel(string(filename),savename,saveLocation);
 }
-void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat& mPrev, cv::Mat & prev, cv::Mat& homography)
+void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
 {
+	float threshold = 5.0;
 	std::vector<cv::Point2f> currPoints, trackedPoints;
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
@@ -499,7 +506,53 @@ void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat& mPrev, cv::Mat &
 			if(mCurr.data[i + j*mCurr.cols] == 0xff)
 				currPoints.push_back(cv::Point2f(i,j));
 	}
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(curr, prev, // 2 consecutive images
+		currPoints, // input point position in first image
+		trackedPoints, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+	
+	// 2. loop over the tracked points to reject the undesirables
+		int k=0;
 
+		for( int i= 0; i < currPoints.size(); i++ ) {
+
+			// do we keep this point?
+			if (status[i] == 1) {
+
+				// keep this point in vector
+				currPoints[k] = currPoints[i];
+				trackedPoints[k++] = trackedPoints[i];
+			}
+		}
+		// eliminate unsuccesful points
+		currPoints.resize(k);
+		trackedPoints.resize(k);
+
+		float distance = 0;
+		for(int i=0; i<k; i++)
+		{
+			cv::Point2f pt = currPoints[i];
+			double* data = (double*)homography.data;
+			float x = data[0]*pt.x + data[1]*pt.y + data[2];
+			float y = data[3]*pt.x + data[4]*pt.y + data[5];
+			float w = data[6]*pt.x + data[7]*pt.y + data[8];
+			x /= w;
+			y /= w;
+			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
+			distance += d;
+			if (d < threshold)
+			{
+				mCurr.data[(int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols] = 0x0f;
+				
+			}
+
+		}
+		distance /= k;
+		char name[20];
+		cv::imshow("win",mCurr);
+		cv::waitKey();
 }
 //用MRF对前景结果进行优化
 void MRFOptimize(const string& originalImgName, const string& maskImgName, const string& resultImgName)
@@ -521,7 +574,7 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 		{
 			for(int k=0; k<4; k++)
 				tmp[k] = continuousRGBA.data[continuousRGBA.step[0]*j + continuousRGBA.step[1]*i + continuousRGBA.elemSize1()*k];
-			idata[i + j*Img.cols] = tmp[0]<<24 | tmp[1]<<16| tmp[2]<<8 | tmp[3];
+			idata[i + j*Img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
 		
@@ -590,7 +643,7 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 #endif
 	int *result = new int[spSize];   // stores result of optimization
 	GraphCutOptimize(spPtr,spSize,avgE,2,width,height,result);
-	MaxFlowOptimize(spPtr,spSize,avgE,2,width,height,result);
+	//MaxFlowOptimize(spPtr,spSize,avgE,2,width,height,result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()<<std::endl;
@@ -624,19 +677,51 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	delete[] spPtr;
 	delete[] idata;
 }
-int main()
+
+void HomoTest(const char* originalImgName, const char* maskImgName)
 {
-	/*testGCO();*/
-	/*testSuperpixel();*/
-	//return 0;
+	cv::Mat currImg = cv::imread(originalImgName);
+	cv::cvtColor(currImg,g_currImg,CV_BGR2GRAY);
+
+	cv::Mat currFImg = cv::imread(maskImgName);
+	cv::cvtColor(currFImg,currFImg,CV_BGR2GRAY);
+	if (g_prevImg.empty())
+		g_currImg.copyTo(g_prevImg);
+	cv::Mat homography;
+	findHomography(g_prevImg,g_currImg,homography);
+	MaskHomographyTest(currFImg,g_currImg,g_prevImg,homography);
+
+	cv::swap(g_prevImg,g_currImg);
+
+}
+void testHomo()
+{
 	using namespace std;
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=789; i<=789;i++)
+	for(int i=188; i<=200;i++)
+	{
+		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensem\\input3\\bin%06d.png",i);
+		//sprintf(maskFileName,"H:\\changeDetection2014\\dataset2014\\dataset\\PTZ\\continuousPan\\groundtruth\\gt%06d.png",i);
+		HomoTest(imgFileName,maskFileName);
+	}
+}
+int main()
+{
+	/*testGCO();*/
+	/*testSuperpixel();*/
+	testHomo();
+	return 0;
+	using namespace std;
+	char imgFileName[150];
+	char maskFileName[150];
+	char resultFileName[150];
+	for(int i=470; i<=1700;i++)
 	{
 		sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"E:\\changedetection12\\results\\baseline\\highway\\bin%06d.png",i);
+		sprintf(maskFileName,"H:\\changeDetection2012\\SOBS_20\\results\\baseline\\highway\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);
 		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
 	}
