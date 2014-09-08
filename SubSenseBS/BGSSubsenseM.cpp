@@ -54,7 +54,6 @@ static const size_t s_nDescMaxDataRange_1ch = LBSP::DESC_SIZE*8;
 static const size_t s_nColorMaxDataRange_3ch = s_nColorMaxDataRange_1ch*3;
 static const size_t s_nDescMaxDataRange_3ch = s_nDescMaxDataRange_1ch*3;
 
-
 void BGSSubsenseM::cloneModels()
 {
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
@@ -174,38 +173,55 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	{
 		m_gray.copyTo(m_preGray);
 	}
+	std::vector<cv::Point2f> initial;   // initial position of tracked points
+	std::vector<cv::Point2f> features;  // detected features
+	int max_count(500);	  // maximum number of features to detect
+	double qlevel(0.01);    // quality level for feature detection
+	double minDist(10.);   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	
+	// detect the features
+	cv::goodFeaturesToTrack(m_gray, // the image 
+		m_points[0],   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
 
 	// 2. track features
-	cv::calcOpticalFlowPyrLK(m_gray,m_preGray,  // 2 consecutive images
-		m_points[0], // input point position in first image
-		m_points[1], // output point postion in the second image
-		m_status,    // tracking success
-		m_err);      // tracking error
+		cv::calcOpticalFlowPyrLK(m_gray, m_preGray, // 2 consecutive images
+			m_points[0], // input point position in first image
+			m_points[1], // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
 
-	// 2. loop over the tracked points to reject the undesirables
-	int k=0;
-	std::vector<cv::Point2f> prev;
-	prev.reserve(m_points[1].size());
-	for( int i= 0; i < m_points[1].size(); i++ ) {
+		// 2. loop over the tracked points to reject the undesirables
+		int k=0;
 
-		// do we keep this point?
-		if (m_status[i] == 1) {
+		for( int i= 0; i < m_points[1].size(); i++ ) {
 
-			// keep this point in vector
-			prev.push_back(m_points[0][i]);
-			m_points[1][k++] = m_points[1][i];
+			// do we keep this point?
+			if (status[i] == 1) {
+
+				// keep this point in vector
+				m_points[0][k] = m_points[0][i];
+				m_points[1][k++] = m_points[1][i];
+			}
 		}
-	}
+		// eliminate unsuccesful points
+		m_points[0].resize(k);
+		m_points[1].resize(k);
 
-	// eliminate unsuccesful points
-	m_points[1].resize(k);
-	std::vector<uchar> inliers(k,0);
-	homography= cv::findHomography(
-		cv::Mat(prev), // corresponding
-		cv::Mat(m_points[1]), // points
-		inliers, // outputted inliers matches
-		CV_RANSAC, // RANSAC method
-		1.);
+		//perspective transform
+		std::vector<uchar> inliers(m_points[0].size(),0);
+		homography= cv::findHomography(
+			cv::Mat(m_points[0]), // corresponding
+			cv::Mat(m_points[1]), // points
+			inliers, // outputted inliers matches
+			CV_RANSAC, // RANSAC method
+			1.); // max distance to reprojection point
+
+
 
 	cv::swap(m_preGray, m_gray);
 }
@@ -235,7 +251,7 @@ void BGSSubsenseM::motionCompensate()
 void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride)
 {
 	getHomography(_image.getMat(),m_homography);
-	cv::Mat wImage(_image.getMat().size(),_image.getMat().type());
+	
 	//std::cout<<m_homography;
 	cloneModels();
 	//std::ofstream file("homo.txt");
@@ -265,6 +281,7 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 	// == process
 	CV_DbgAssert(m_bInitialized);
 	cv::Mat oInputImg = _image.getMat();
+	//cv::GaussianBlur(oInputImg,oInputImg,cv::Size(5,5),0,0);
 	CV_DbgAssert(oInputImg.type()==m_nImgType && oInputImg.size()==m_oImgSize);
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
@@ -633,7 +650,7 @@ failedcheck3ch:
 					const size_t s_rand = rand()%m_nBGSamples;
 					for(size_t c=0; c<3; ++c) {
 						//*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
-						*(w_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
+						*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
 					}
 				}
 				continue;
@@ -651,15 +668,15 @@ failedcheck3ch:
 				
 		}		
 	}
-	char name[50];
-	char wname[50];
-	sprintf(name,"sample%d_frame%d.jpg",1,m_nFrameIndex);
-	/*sprintf(wname,"wsample%d_frame%d.jpg",1,m_nFrameIndex);*/
-	cv::Mat avgBGColor(m_oImgSize,CV_8UC3);
-	avgBGColor =  cv::Scalar_<uchar>::all(0);
-	for(int i=0; i<m_nBGSamples; i++)
-		cv::addWeighted(m_voBGColorSamples[i],1.0/m_nBGSamples,avgBGColor,1.0,0.0,avgBGColor);
-	cv::imwrite(name,avgBGColor);
+	//char name[50];
+	//char wname[50];
+	//sprintf(name,"sample%d_frame%d.jpg",1,m_nFrameIndex);
+	///*sprintf(wname,"wsample%d_frame%d.jpg",1,m_nFrameIndex);*/
+	//cv::Mat avgBGColor(m_oImgSize,CV_8UC3);
+	//avgBGColor =  cv::Scalar_<uchar>::all(0);
+	//for(int i=0; i<m_nBGSamples; i++)
+	//	cv::addWeighted(m_voBGColorSamples[i],1.0/m_nBGSamples,avgBGColor,1.0,0.0,avgBGColor);
+	//cv::imwrite(name,avgBGColor);
 #if DISPLAY_SUBSENSE_DEBUG_INFO
 	std::cout << std::endl;
 	cv::Point dbgpt(nDebugCoordX,nDebugCoordY);
@@ -709,19 +726,20 @@ failedcheck3ch:
 	cv::bitwise_or(m_oRawFGBlinkMask_curr,wRawFGBlinkMask_last,m_oBlinksFrame);
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	//cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
-	//m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	//cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
-	//cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
-	//cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
-	//cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
-	//cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
-	//cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	//cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
-	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	//m_oFGMask_last.copyTo(oCurrFGMask);
+	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
+	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
+	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	m_oFGMask_last.copyTo(oCurrFGMask);
+	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
 	const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
@@ -780,6 +798,8 @@ failedcheck3ch:
 		}
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
+
+		
 	}
 }
 

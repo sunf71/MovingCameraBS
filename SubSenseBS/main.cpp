@@ -8,16 +8,16 @@ int main()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	for(int i=1; i<=1130;i++)
+	for(int i=1; i<=2300;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\PTZ\\input3\\in%06d.jpg",i);
+		sprintf(name,"..\\PTZ\\input2\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
 	// Open video file
 	processor.setInput(fileNames);
-	//processor.setInput("..\\testvideo\\pets_2005_1.avi");
+	//processor.setInput("..\\ptz\\woman.avi");
 	// set frame processor
 	processor.setFrameProcessor(&tracker);
 

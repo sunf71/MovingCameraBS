@@ -1,16 +1,18 @@
 #pragma once
-
+#include <opencv2\calib3d\calib3d.hpp>
+#include <opencv2\features2d\features2d.hpp>
+#include <opencv2/video/tracking.hpp>
 #include "BackgroundSubtractorSuBSENSE.h"
 #include "DistanceUtils.h"
 #include "RandUtils.h"
-
+#include <iostream>
 class BGSSubsenseM : public BackgroundSubtractorSuBSENSE
 {
 public:
 	BGSSubsenseM():BackgroundSubtractorSuBSENSE(),m_qlevel(0.01),m_minDist(10.){}
 	virtual ~BGSSubsenseM()
 	{
-		
+
 	}
 	//! (re)initiaization method; needs to be called before starting background subtraction (note: also reinitializes the keypoints vector)
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
@@ -20,6 +22,72 @@ public:
 	virtual void operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRateOverride=0);
 	virtual void motionCompensate();
 	virtual void getHomography(const cv::Mat& oInitImg, cv::Mat&  homography);
+	//检测所求出前景的运动是否与背景一致，去掉错误前景
+	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
+	{
+		/*std::cout<<homography;*/
+		float threshold = 0.6;
+		std::vector<cv::Point2f> currPoints, trackedPoints;
+		std::vector<uchar> status; // status of tracked features
+		std::vector<float> err;    // error in tracking
+		for(int i=0; i<mCurr.cols; i++)
+		{
+			for(int j=0; j<mCurr.rows; j++)
+				if(mCurr.data[i + j*mCurr.cols] == 0xff)
+					currPoints.push_back(cv::Point2f(i,j));
+		}
+		if (currPoints.size() <=0)
+			return;
+		// 2. track features
+		cv::calcOpticalFlowPyrLK(curr, prev, // 2 consecutive images
+			currPoints, // input point position in first image
+			trackedPoints, // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
+
+		// 2. loop over the tracked points to reject the undesirables
+		int k=0;
+
+		for( int i= 0; i < currPoints.size(); i++ ) {
+
+			// do we keep this point?
+			if (status[i] == 1) {
+
+				// keep this point in vector
+				currPoints[k] = currPoints[i];
+				trackedPoints[k++] = trackedPoints[i];
+			}
+		}
+		// eliminate unsuccesful points
+		currPoints.resize(k);
+		trackedPoints.resize(k);
+
+		float distance = 0;
+		for(int i=0; i<k; i++)
+		{
+			cv::Point2f pt = currPoints[i];
+			double* data = (double*)homography.data;
+			float x = data[0]*pt.x + data[1]*pt.y + data[2];
+			float y = data[3]*pt.x + data[4]*pt.y + data[5];
+			float w = data[6]*pt.x + data[7]*pt.y + data[8];
+			x /= w;
+			y /= w;
+			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
+			distance += d;
+			if (d < threshold)
+			{
+				mCurr.data[(int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols] = 0x0;
+				const unsigned char idx_uchar_rgb = (pt.x + pt.y* this->m_oImgSize.width)*3;
+				unsigned char* anCurrColor = curr.data + idx_uchar_rgb;
+				//update model
+				const size_t s_rand = rand()%m_nBGSamples;
+					for(size_t c=0; c<3; ++c) {
+						//*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+						*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
+					}
+			}
+		}		
+	}
 	void cloneModels();
 protected:
 	//! points used to compute the homography matrix between two continuous frames

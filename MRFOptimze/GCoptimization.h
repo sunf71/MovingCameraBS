@@ -154,9 +154,9 @@ public:
 #ifdef GCO_ENERGYTYPE32
 	typedef int EnergyType;        // 32-bit energy total
 #else
-	typedef double EnergyType;  // 64-bit energy total
+	typedef long long  EnergyType;  // 64-bit energy total
 #endif
-	typedef float EnergyTermType;    // 32-bit energy terms
+	typedef int EnergyTermType;    // 32-bit energy terms
 	typedef Energy<EnergyTermType,EnergyTermType,EnergyType> EnergyT;
 	typedef EnergyT::Var VarID;
 	typedef int LabelID;                     // Type for labels
