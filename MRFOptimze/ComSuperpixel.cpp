@@ -39,10 +39,17 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 	GetRGBXYSeeds_ForGivenK(kseedsr,kseedsg,kseedsb,kseedsx,kseedsy,num,true,edgemag);
 
 	//iteration
+	vector<double> sigmal(num, 0);
+	vector<double> sigmaa(num, 0);
+	vector<double> sigmab(num, 0);
+	vector<double> sigmax(num, 0);
+	vector<double> sigmay(num, 0);
+	vector<int> clustersize(num, 0);
+	vector<double> inv(num, 0);//to store 1/clustersize[k] values
 	int itr = 0;
-	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
-	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
-	while(itr < 1)
+	const int dx4[4] = {-1,  0,  1, 0,};
+	const int dy4[4] = { 0, -1, 0, 1};
+	while(itr < 10)
 	{
 		itr++;
 		
@@ -55,10 +62,10 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 			{
 				int np(0);
 				std::vector<int> nl;
-				for( int i = 0; i < 8; i++ )
+				for( int i = 0; i < 4; i++ )
 				{
-					int x = k + dx8[i];
-					int y = j + dy8[i];
+					int x = k + dx4[i];
+					int y = j + dy4[i];
 
 					if( (x >= 0 && x < m_width) && (y >= 0 && y < m_height) )
 					{
@@ -93,6 +100,45 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 				
 			}
 		}
+
+				//-----------------------------------------------------------------
+		// Recalculate the centroid and store in the seed values
+		//-----------------------------------------------------------------
+		sigmal.assign(num, 0);
+		sigmaa.assign(num, 0);
+		sigmab.assign(num, 0);
+		sigmax.assign(num, 0);
+		sigmay.assign(num, 0);
+		clustersize.assign(num, 0);
+
+		for( int j = 0; j < sz; j++ )
+		{
+			int temp = labels[j];
+			if (labels[j] < 0) continue;
+			sigmal[labels[j]] += m_rvec[j];
+			sigmaa[labels[j]] += m_gvec[j];
+			sigmab[labels[j]] += m_bvec[j];
+			sigmax[labels[j]] += (j%m_width);
+			sigmay[labels[j]] += (j/m_width);
+
+			clustersize[labels[j]]++;
+		}
+
+		{for( int k = 0; k < num; k++ )
+		{
+			//_ASSERT(clustersize[k] > 0);
+			if( clustersize[k] <= 0 ) clustersize[k] = 1;
+			inv[k] = 1.0/double(clustersize[k]);//computing inverse now to multiply, than divide later
+		}}
+		
+		{for( int k = 0; k < num; k++ )
+		{
+			kseedsr[k] = sigmal[k]*inv[k];
+			kseedsg[k] = sigmaa[k]*inv[k];
+			kseedsb[k] = sigmab[k]*inv[k];
+			kseedsx[k] = sigmax[k]*inv[k];
+			kseedsy[k] = sigmay[k]*inv[k];
+		}}
 	}
 }
 
@@ -153,6 +199,7 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenK(
 {
 	int sz = m_width*m_height;
 	double step = sqrt(double(sz)/double(K));
+	m_radius = step/2;
 	int T = step;
 	int xoff = step/2;
 	int yoff = step/2;
@@ -178,12 +225,13 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenK(
 			//kseedsb[n] = m_bvec[i];
 			//kseedsx[n] = X;
 			//kseedsy[n] = Y;
-			kseedsl.push_back(m_rvec[i]);
-			kseedsa.push_back(m_gvec[i]);
-			kseedsb.push_back(m_bvec[i]);
+			
 			kseedsx.push_back(X);
 			kseedsy.push_back(Y);
-
+			double avgR(0);
+			double avgG(0);
+			double avgB(0);
+			int count(0);
 			for(int k= X - xoff; k<= X + xoff; k++)
 			{
 				if (k>m_width-1)
@@ -192,9 +240,17 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenK(
 				{
 					if (j>m_height-1)
 						break;
-					m_labels[k + j*m_width] = n;
+					int idx  = k + j*m_width;
+					avgR += m_rvec[idx];
+					avgG += m_gvec[idx];
+					avgB += m_bvec[idx];
+					m_labels[idx] = n;
+					count++;
 				}
 			}
+			kseedsl.push_back(avgR/count);
+			kseedsa.push_back(avgG/count);
+			kseedsb.push_back(avgB/count);
 			n++;
 		}
 		r++;

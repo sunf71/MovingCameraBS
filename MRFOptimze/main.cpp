@@ -741,8 +741,8 @@ int main()
 		/*sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\subsensem\\input3\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);*/
-		sprintf(imgFileName,"H:\\changeDetection2012\\baseline\\baseline\\highway\\input\\in%06d.jpg",i);
-		sprintf(maskFileName,"H:\\changeDetection2012\\SOBS_20\\results\\baseline\\highway\\bin%06d.png",i);
+		sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);
 		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
 	}
