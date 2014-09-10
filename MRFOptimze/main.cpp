@@ -1,5 +1,6 @@
 #include "PictureHandler.h"
 #include "SLIC.h"
+#include "ComSuperpixel.h"
 #include "GCoptimization.h"
 #include "timer.h"
 #include <math.h>
@@ -577,7 +578,7 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 		{
 			for(int k=0; k<4; k++)
 				tmp[k] = continuousRGBA.data[continuousRGBA.step[0]*j + continuousRGBA.step[1]*i + continuousRGBA.elemSize1()*k];
-			idata[i + j*Img.cols] = tmp[0]<<24 | tmp[1]<<16| tmp[2]<<8 | tmp[3];
+			idata[i + j*Img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
 		
@@ -590,13 +591,23 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 
 	size_t sz = width*height;
 	int* labels = new int[sz];
+	int* clabels = new int[sz];
+	
 	int numlabels(0);
+	ComSuperpixel CS;
+	CS.Superixel(idata,width,height,1000,0.9,clabels);
+	SLIC aslic;
+	aslic.DrawContoursAroundSegments(idata, clabels, width, height,0x00ff00);
+	PictureHandler handler;
+	handler.SavePicture(idata,width,height,std::string("mysuper.jpg"),std::string(".\\"));
+	delete[] clabels;
+	return;
 #ifdef REPORT
 	nih::Timer timer;
 	timer.start();
 #endif
 	SLIC slic;
-	slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 10000, 20);//for a given number K of superpixels
+	slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
@@ -627,14 +638,18 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	{
 		for (int j=0; j< spPtr[i].neighbors.size(); j++)
 		{
-			avgE += abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor);
-			count++;
+			/*if (i < spPtr[i].neighbors[j]->idx)*/
+			{
+
+				avgE += abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor);
+				count++;
+			}
 
 		}
 	}
 	avgE /= count;
 	avgE = 1/(2*avgE);
-
+	//std::cout<<"avg e"<<avgE<<std::endl;
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()<<std::endl;
@@ -721,14 +736,14 @@ int main()
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=1; i<=1130;i++)
+	for(int i=794; i<=794;i++)
 	{
-		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		/*sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\subsensem\\input3\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);
-		/*sprintf(imgFileName,"F:\\TDDOWNLOAD\\dataset2014\\dataset\\baseline\\highway\\input\\in%06d.jpg",i);
-		sprintf(maskFileName,"F:\\TDDOWNLOAD\\dataset2014\\dataset\\baseline\\highway\\groundtruth\\gt%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);*/
+		sprintf(imgFileName,"H:\\changeDetection2012\\baseline\\baseline\\highway\\input\\in%06d.jpg",i);
+		sprintf(maskFileName,"H:\\changeDetection2012\\SOBS_20\\results\\baseline\\highway\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);
 		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
 	}
 

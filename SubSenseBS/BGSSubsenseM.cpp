@@ -643,13 +643,14 @@ failedcheck3ch:
 			if (warpMask == 0)
 			{
 				const uchar* const anCurrColor = oInputImg.data+idx_uchar*3;
+				ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
 				//相机移动后在原模型中不存在的部分，不处理
 			/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);*/
 				/*if((rand()%nLearningRate)==0) */
 				{
 					const size_t s_rand = rand()%m_nBGSamples;
 					for(size_t c=0; c<3; ++c) {
-						//*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+						*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anLastIntraDesc[c];
 						*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
 					}
 				}
