@@ -43,6 +43,7 @@ public:
 	vector<double>&				kseedsx,
 	vector<double>&				kseedsy)
 	{
+		
 		int idx = x + y*m_width;
 		double dr = abs(m_rvec[idx] - kseedsl[labelIdx]);
 		double dg = abs(m_gvec[idx] - kseedsa[labelIdx]) ;
@@ -51,7 +52,7 @@ public:
 		double dx = abs(x - kseedsx[labelIdx]);
 		double dy =  abs(y - kseedsy[labelIdx]);
 		double d_xy = sqrt(dx*dx + dy*dy);
-		return (1-m_alpha)*d_rgb + m_alpha*d_xy/m_radius;
+		return (1-m_alpha)*d_rgb + m_alpha*d_xy/(m_radius*2);
 	}
 	void Superixel(unsigned * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* lables);
 private:
@@ -62,5 +63,6 @@ private:
 	double* m_bvec;
 	float m_alpha;
 	int* m_labels;
+	int m_nSuperpixels;
 	double m_radius;
 };

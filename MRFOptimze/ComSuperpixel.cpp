@@ -39,13 +39,13 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 	GetRGBXYSeeds_ForGivenK(kseedsr,kseedsg,kseedsb,kseedsx,kseedsy,num,true,edgemag);
 
 	//iteration
-	vector<double> sigmal(num, 0);
-	vector<double> sigmaa(num, 0);
-	vector<double> sigmab(num, 0);
-	vector<double> sigmax(num, 0);
-	vector<double> sigmay(num, 0);
-	vector<int> clustersize(num, 0);
-	vector<double> inv(num, 0);//to store 1/clustersize[k] values
+	vector<double> sigmal(m_nSuperpixels, 0);
+	vector<double> sigmaa(m_nSuperpixels, 0);
+	vector<double> sigmab(m_nSuperpixels, 0);
+	vector<double> sigmax(m_nSuperpixels, 0);
+	vector<double> sigmay(m_nSuperpixels, 0);
+	vector<int> clustersize(m_nSuperpixels, 0);
+	vector<double> inv(m_nSuperpixels, 0);//to store 1/clustersize[k] values
 	int itr = 0;
 	const int dx4[4] = {-1,  0,  1, 0,};
 	const int dy4[4] = { 0, -1, 0, 1};
@@ -84,7 +84,7 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 				if( np > 1 )//change to 2 or 3 for thinner lines
 				{
 					double min = Distance(k,j,labels[mainindex],kseedsr,kseedsb,kseedsb,kseedsx,kseedsy);
-					int idx = 0;
+					int idx = -1;
 					for(int i=0; i<nl.size(); i++)
 					{
 						double dis = Distance(k,j,nl[i],kseedsr,kseedsb,kseedsb,kseedsx,kseedsy);
@@ -94,27 +94,28 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 							idx = i;
 						}
 					}
+					if (idx >0)
 					labels[mainindex] = nl[idx];
 				}
 				mainindex++;
-				
+				//std::cout<<mainindex<<std::endl;
 			}
 		}
 
-				//-----------------------------------------------------------------
+		//-----------------------------------------------------------------
 		// Recalculate the centroid and store in the seed values
 		//-----------------------------------------------------------------
-		sigmal.assign(num, 0);
-		sigmaa.assign(num, 0);
-		sigmab.assign(num, 0);
-		sigmax.assign(num, 0);
-		sigmay.assign(num, 0);
-		clustersize.assign(num, 0);
+		sigmal.assign(m_nSuperpixels, 0);
+		sigmaa.assign(m_nSuperpixels, 0);
+		sigmab.assign(m_nSuperpixels, 0);
+		sigmax.assign(m_nSuperpixels, 0);
+		sigmay.assign(m_nSuperpixels, 0);
+		clustersize.assign(m_nSuperpixels, 0);
 
 		for( int j = 0; j < sz; j++ )
 		{
 			int temp = labels[j];
-			if (labels[j] < 0) continue;
+			//std::cout<<j<<":"<<labels[j]<<std::endl;
 			sigmal[labels[j]] += m_rvec[j];
 			sigmaa[labels[j]] += m_gvec[j];
 			sigmab[labels[j]] += m_bvec[j];
@@ -201,20 +202,26 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenK(
 	double step = sqrt(double(sz)/double(K));
 	m_radius = step/2;
 	int T = step;
-	int xoff = step/2;
-	int yoff = step/2;
+	int xoff = T/2;
+	int yoff = T/2;
 
 	int n(0);int r(0);
-	for( int y = 0; y < m_height; y++ )
+	for( int y = 0; y <= m_height/T; y++ )
 	{
-		int Y = y*step + yoff;
-		if( Y > m_height-1 ) break;
-
-		for( int x = 0; x < m_width; x++ )
+		int Y = y*T + yoff;
+		if( Y > m_height-1 )
 		{
-			int X = x*step + xoff;//square grid
+			Y = (y*T + m_height-1)/2;
+		}
+
+		for( int x = 0; x <= m_width/T; x++ )
+		{
+			int X = x*T + xoff;//square grid
 			//int X = x*step + (xoff<<(r&0x1));//hex grid
-			if(X > m_width-1) break;
+			if(X > m_width-1)
+			{
+				X = (x*T + m_width-1)/2;
+			}
 
 			int i = Y*m_width + X;
 
@@ -235,11 +242,11 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenK(
 			for(int k= X - xoff; k<= X + xoff; k++)
 			{
 				if (k>m_width-1)
-					break;
+					continue;
 				for(int j=Y-yoff; j<= Y+yoff; j++)
 				{
 					if (j>m_height-1)
-						break;
+						continue;
 					int idx  = k + j*m_width;
 					avgR += m_rvec[idx];
 					avgG += m_gvec[idx];
@@ -253,9 +260,9 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenK(
 			kseedsb.push_back(avgB/count);
 			n++;
 		}
-		r++;
+		//r++;
 	}
-
+	m_nSuperpixels = n;
 	if(perturbseeds)
 	{
 		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);
