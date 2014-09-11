@@ -94,7 +94,7 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 							idx = i;
 						}
 					}
-					if (idx >0)
+					if (idx >=0)
 					labels[mainindex] = nl[idx];
 				}
 				mainindex++;

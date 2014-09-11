@@ -595,7 +595,7 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	
 	int numlabels(0);
 	ComSuperpixel CS;
-	CS.Superixel(idata,width,height,8,0.1,clabels);
+	CS.Superixel(idata,width,height,800,0.9,clabels);
 	SLIC aslic;
 	aslic.DrawContoursAroundSegments(idata, clabels, width, height,0x00ff00);
 	PictureHandler handler;
