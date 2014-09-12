@@ -197,7 +197,7 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 		for( int j=0; j<superpixels[i].pixels.size(); j++)
 		{
 			int idx = (superpixels[i].pixels[j].first + superpixels[i].pixels[j].second*width);
-			int idxC = (superpixels[i].pixels[j].first + superpixels[i].pixels[j].second*width)*4;
+			int idxC = idx*4;
 			for (int c=1; c<4; c++)
 			{
 				/*std::cout<<(int)cimgData[idxC+c]<<std::endl; */
@@ -208,15 +208,15 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 		}
 		superpixels[i].avgColor = tmp/superpixels[i].pixels.size()/3;
 		superpixels[i].ps = mtmp/superpixels[i].pixels.size();
-		for(int p=0; p<superpixels[i].pixels.size(); p++)
+	/*	for(int p=0; p<superpixels[i].pixels.size(); p++)
 		{
 			int idx = superpixels[i].pixels[p].first + superpixels[i].pixels[p].second*width;
 			psImg[idx] = uchar(superpixels[i].ps*255);
 			avgImg[idx] = uchar(superpixels[i].avgColor);
-		}
+		}*/
 	}
-	//cv::imwrite("prob.jpg",psMat);
-	//cv::imwrite("avg.jpg",avgMat);
+	/*cv::imwrite("prob.jpg",psMat);
+	cv::imwrite("avg.jpg",avgMat);*/
 }
 void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
@@ -266,7 +266,7 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 			d = max(1e-20f,d);
 			float d1 = -log(d)*j;
 			float d2 =  - log(1-d)*(1-j);
-			data[i*num_labels + j] =(int)(d1+d2);
+			data[i*num_labels + j] =(int)5*(d1+d2);
 		}
 	}
 	// next set up the array for smooth costs
@@ -291,18 +291,18 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 				{
 					float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
 					//file<<energy<<std::endl;
-					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)energy);
+					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)(energy+0.5));
 				}
 			}
 		}
-		//file.close();
-		//printf("\nBefore optimization energy is %d",gc->compute_energy());
-		//printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
-		//printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());
-		gc->expansion(5);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
-		//printf("\nAfter optimization energy is %d",gc->compute_energy());
-		//printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
-		//printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());
+		/*file.close();
+		printf("\nBefore optimization energy is %d",gc->compute_energy());
+		printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
+		printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());*/
+		gc->expansion(10);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
+		/*printf("\nAfter optimization energy is %d",gc->compute_energy());
+		printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
+		printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());*/
 
 		for ( int  i = 0; i < num_pixels; i++ )
 			result[i] = gc->whatLabel(i);
@@ -591,23 +591,23 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 
 	size_t sz = width*height;
 	int* labels = new int[sz];
-	int* clabels = new int[sz];
+	//int* clabels = new int[sz];
 	
 	int numlabels(0);
 	ComSuperpixel CS;
-	CS.Superixel(idata,width,height,800,0.9,clabels);
-	SLIC aslic;
-	aslic.DrawContoursAroundSegments(idata, clabels, width, height,0x00ff00);
-	PictureHandler handler;
-	handler.SavePicture(idata,width,height,std::string("mysuper.jpg"),std::string(".\\"));
-	delete[] clabels;
-	return;
+	CS.Superixel(idata,width,height,7000,0.9,labels);
+	//SLIC aslic;
+	//aslic.DrawContoursAroundSegments(idata, labels, width, height,0x00ff00);
+	//PictureHandler handler;
+	//handler.SavePicture(idata,width,height,std::string("mysuper.jpg"),std::string(".\\"));
+	//delete[] labels;
+	//return;
 #ifdef REPORT
 	nih::Timer timer;
 	timer.start();
 #endif
-	SLIC slic;
-	slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
+	//SLIC slic;
+	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
@@ -638,7 +638,7 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	{
 		for (int j=0; j< spPtr[i].neighbors.size(); j++)
 		{
-			/*if (i < spPtr[i].neighbors[j]->idx)*/
+			if (i < spPtr[i].neighbors[j]->idx)
 			{
 
 				avgE += abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor);
@@ -648,8 +648,9 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 		}
 	}
 	avgE /= count;
+	
 	avgE = 1/(2*avgE);
-	//std::cout<<"avg e"<<avgE<<std::endl;
+	//std::cout<<"avg e "<<avgE<<std::endl;
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()<<std::endl;
@@ -736,14 +737,14 @@ int main()
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=794; i<=794;i++)
+	for(int i=1; i<=19;i++)
 	{
-		/*sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensem\\input3\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);*/
-		sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
+		sprintf(imgFileName,"..\\moseg\\cars1\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensem\\moseg\\cars1\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\moseg\\cars1\\bin%06d.png",i);
+	/*	sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
 		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
 	}
 
