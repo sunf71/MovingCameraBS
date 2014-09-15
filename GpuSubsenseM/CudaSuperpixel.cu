@@ -1,6 +1,6 @@
 #include "CudaSuperpixel.h"
 
-__global__ void kInitClusterCenters( float4* floatBuffer, int nWidth, int nHeight, int nSegs, SLICClusterCenter* vSLICCenterList )
+__global__ void kInitClusterCentersKernel( float4* floatBuffer, int nWidth, int nHeight, int nSegs, SLICClusterCenter* vSLICCenterList )
 {
 
 
@@ -41,4 +41,14 @@ __global__ void kInitClusterCenters( float4* floatBuffer, int nWidth, int nHeigh
 	vSLICCenterList[clusterIdx].xy=avXY;
 	vSLICCenterList[clusterIdx].nPoints=0;
 	
+}
+
+
+void InitClusterCenters(float4* d_rgbaBuffer, int width, int height, int step, int &nSeg, SLICClusterCenter* d_centers)
+{
+	dim3 blockDim = (width+ step-1) / step ;
+	dim3 gridDim = (height + step -1) / step;
+	nSeg = blockDim.x * gridDim.x;
+	
+	kInitClusterCentersKernel<<<gridDim,blockDim>>>(d_rgbaBuffer,width,height,nSeg,d_centers);
 }

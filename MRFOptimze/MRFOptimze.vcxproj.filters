@@ -53,9 +53,6 @@
     <ClCompile Include="SLIC.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="GCoptimization.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="graph.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -70,6 +67,9 @@
     </ClCompile>
     <ClCompile Include="ComSuperpixel.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GCoptimization.cpp">
+      <Filter>头文件</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
