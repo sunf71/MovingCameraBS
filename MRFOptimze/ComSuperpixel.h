@@ -29,7 +29,15 @@ public:
 	const int&					K,
 	const bool&					perturbseeds,
 	const vector<double>&		edgemag);
-
+void GetRGBXYSeeds_ForGivenStep(
+	vector<double>&				kseedsl,
+	vector<double>&				kseedsa,
+	vector<double>&				kseedsb,
+	vector<double>&				kseedsx,
+	vector<double>&				kseedsy,
+	const int&					S,
+	const bool&					perturbseeds,
+	const vector<double>&		edgemag);
 	void PerturbSeeds(
 	vector<double>&				kseedsl,
 	vector<double>&				kseedsa,
@@ -55,6 +63,7 @@ public:
 		return (1-m_alpha)*d_rgb + m_alpha*d_xy/(m_radius/2);
 	}
 	void Superixel(unsigned * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* lables);
+	void Superixel(unsigned * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
 private:
 	unsigned m_height;
 	unsigned m_width;

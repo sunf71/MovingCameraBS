@@ -291,7 +291,7 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 				{
 					float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
 					//file<<energy<<std::endl;
-					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)(energy+0.5));
+					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)(energy));
 				}
 			}
 		}
@@ -595,7 +595,8 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	
 	int numlabels(0);
 	ComSuperpixel CS;
-	CS.Superixel(idata,width,height,7000,0.9,labels);
+	//CS.Superixel(idata,width,height,7000,0.9,labels);
+	CS.Superixel(idata,width,height,5,0.9,numlabels,labels);
 	//SLIC aslic;
 	//aslic.DrawContoursAroundSegments(idata, labels, width, height,0x00ff00);
 	//PictureHandler handler;
@@ -737,12 +738,12 @@ int main()
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=1; i<=19;i++)
+	for(int i=1; i<=20;i++)
 	{
 		sprintf(imgFileName,"..\\moseg\\cars1\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\subsensem\\moseg\\cars1\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\moseg\\cars1\\bin%06d.png",i);
-	/*	sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
+		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
 		MRFOptimize(string(imgFileName),string(maskFileName),string(resultFileName));
