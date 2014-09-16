@@ -64,7 +64,7 @@ template <
     typename            ValueInputIterator,             ///< Random-access input iterator type for values
     typename            ValueOutputIterator,            ///< Random-access output iterator type for values
     typename            NumSegmentsIterator,            ///< Output iterator type for recording number of segments encountered
-    typename            ScanTileState,             ///< Tile status interface type
+    typename            ScanTileState,                  ///< Tile status interface type
     typename            EqualityOp,                     ///< Key equality operator type
     typename            ReductionOp,                    ///< Value reduction operator type
     typename            Offset>                         ///< Signed integer type for global offsets
@@ -75,7 +75,7 @@ __global__ void ReduceByKeyRegionKernel(
     ValueInputIterator  d_values_in,                    ///< [in] Pointer to consecutive runs of input values
     ValueOutputIterator d_values_out,                   ///< [in] Pointer to output value aggregates (one aggregate per run)
     NumSegmentsIterator d_num_segments,                 ///< [in] Pointer to total number of runs
-    ScanTileState  tile_status,                    ///< [in] Tile status interface
+    ScanTileState  tile_status,                         ///< [in] Tile status interface
     EqualityOp          equality_op,                    ///< [in] Key equality operator
     ReductionOp         reduction_op,                   ///< [in] Value reduction operator
     Offset              num_items,                      ///< [in] Total number of items to select from
@@ -248,16 +248,16 @@ struct DeviceReduceByKeyDispatch
      * Tuning policies of current PTX compiler pass
      ******************************************************************************/
 
-#if (CUB_PTX_VERSION >= 350)
+#if (CUB_PTX_ARCH >= 350)
     typedef Policy350 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 300)
+#elif (CUB_PTX_ARCH >= 300)
     typedef Policy300 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 200)
+#elif (CUB_PTX_ARCH >= 200)
     typedef Policy200 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 130)
+#elif (CUB_PTX_ARCH >= 130)
     typedef Policy130 PtxPolicy;
 
 #else
@@ -277,12 +277,12 @@ struct DeviceReduceByKeyDispatch
      * Initialize kernel dispatch configurations with the policies corresponding to the PTX assembly we will use
      */
     template <typename KernelConfig>
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static void InitConfigs(
         int             ptx_version,
         KernelConfig    &reduce_by_key_range_config)
     {
-    #if (CUB_PTX_VERSION > 0)
+    #if (CUB_PTX_ARCH > 0)
 
         // We're on the device, so initialize the kernel dispatch configurations with the current PTX policy
         reduce_by_key_range_config.template Init<PtxReduceByKeyPolicy>();
@@ -328,7 +328,7 @@ struct DeviceReduceByKeyDispatch
         cudaSharedMemConfig     smem_config;
 
         template <typename BlockRangeReduceByKeyPolicy>
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Init()
         {
             block_threads               = BlockRangeReduceByKeyPolicy::BLOCK_THREADS;
@@ -339,7 +339,7 @@ struct DeviceReduceByKeyDispatch
             smem_config                 = cudaSharedMemBankSizeEightByte;
         }
 
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Print()
         {
             printf("%d, %d, %d, %d, %d",
@@ -363,7 +363,7 @@ struct DeviceReduceByKeyDispatch
     template <
         typename                    ScanInitKernelPtr,              ///< Function type of cub::ScanInitKernel
         typename                    ReduceByKeyRegionKernelPtr>     ///< Function type of cub::ReduceByKeyRegionKernelPtr
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                        *d_temp_storage,                ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,            ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -440,7 +440,10 @@ struct DeviceReduceByKeyDispatch
                 tile_status,
                 num_tiles);
 
-            // Sync the stream if specified
+            // Check for failure to launch
+            if (CubDebug(error = cudaPeekAtLastError())) break;
+
+            // Sync the stream if specified to flush runtime errors
             if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
 
             // Get SM occupancy for reduce_by_key_range_kernel
@@ -472,7 +475,7 @@ struct DeviceReduceByKeyDispatch
                     reduce_by_key_range_occupancy;         // Fill the device with threadblocks
             }
 
-#if (CUB_PTX_VERSION == 0)
+#if (CUB_PTX_ARCH == 0)
             // Get current smem bank configuration
             cudaSharedMemConfig original_smem_config;
             if (CubDebug(error = cudaDeviceGetSharedMemConfig(&original_smem_config))) break;
@@ -504,10 +507,13 @@ struct DeviceReduceByKeyDispatch
                 num_tiles,
                 queue);
 
-            // Sync the stream if specified
+            // Check for failure to launch
+            if (CubDebug(error = cudaPeekAtLastError())) break;
+
+            // Sync the stream if specified to flush runtime errors
             if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
 
-#if (CUB_PTX_VERSION == 0)
+#if (CUB_PTX_ARCH == 0)
             // Reset smem config if necessary
             if (current_smem_config != original_smem_config)
             {
@@ -527,7 +533,7 @@ struct DeviceReduceByKeyDispatch
     /**
      * Internal dispatch routine
      */
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                        *d_temp_storage,                ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,            ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -547,10 +553,10 @@ struct DeviceReduceByKeyDispatch
         {
             // Get PTX version
             int ptx_version;
-    #if (CUB_PTX_VERSION == 0)
+    #if (CUB_PTX_ARCH == 0)
             if (CubDebug(error = PtxVersion(ptx_version))) break;
     #else
-            ptx_version = CUB_PTX_VERSION;
+            ptx_version = CUB_PTX_ARCH;
     #endif
 
             // Get kernel kernel dispatch configurations

@@ -74,3 +74,4 @@ packages/
 *.png
 *.avi
 *.pgm
+GpuSubsenseM/vc100.pdb

@@ -109,7 +109,7 @@ struct DeviceReduce
      * struct CustomMin
      * {
      *     template <typename T>
-     *     __host__ __device__ __forceinline__
+     *     CUB_RUNTIME_FUNCTION __forceinline__
      *     T operator()(const T &a, const T &b) const {
      *         return (b < a) ? b : a;
      *     }
@@ -145,7 +145,7 @@ struct DeviceReduce
         typename                    InputIterator,
         typename                    OutputIterator,
         typename                    ReductionOp>
-    __host__ __device__
+    CUB_RUNTIME_FUNCTION
     static cudaError_t Reduce(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -222,7 +222,7 @@ struct DeviceReduce
     template <
         typename                    InputIterator,
         typename                    OutputIterator>
-    __host__ __device__
+    CUB_RUNTIME_FUNCTION
     static cudaError_t Sum(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -294,7 +294,7 @@ struct DeviceReduce
     template <
         typename                    InputIterator,
         typename                    OutputIterator>
-    __host__ __device__
+    CUB_RUNTIME_FUNCTION
     static cudaError_t Min(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -371,7 +371,7 @@ struct DeviceReduce
     template <
         typename                    InputIterator,
         typename                    OutputIterator>
-    __host__ __device__
+    CUB_RUNTIME_FUNCTION
     static cudaError_t ArgMin(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -447,7 +447,7 @@ struct DeviceReduce
     template <
         typename                    InputIterator,
         typename                    OutputIterator>
-    __host__ __device__
+    CUB_RUNTIME_FUNCTION
     static cudaError_t Max(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -524,7 +524,7 @@ struct DeviceReduce
     template <
         typename                    InputIterator,
         typename                    OutputIterator>
-    __host__ __device__
+    CUB_RUNTIME_FUNCTION
     static cudaError_t ArgMax(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -597,7 +597,7 @@ struct DeviceReduce
      * struct CustomMin
      * {
      *     template <typename T>
-     *     __host__ __device__ __forceinline__
+     *     CUB_RUNTIME_FUNCTION __forceinline__
      *     T operator()(const T &a, const T &b) const {
      *         return (b < a) ? b : a;
      *     }
@@ -616,13 +616,13 @@ struct DeviceReduce
      * // Determine temporary device storage requirements
      * void     *d_temp_storage = NULL;
      * size_t   temp_storage_bytes = 0;
-     * cub::DeviceSelect::ReduceByKey(d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out, d_num_segments, reduction_op, num_items);
+     * cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out, d_num_segments, reduction_op, num_items);
      *
      * // Allocate temporary storage
      * cudaMalloc(&d_temp_storage, temp_storage_bytes);
      *
      * // Run reduce-by-key
-     * cub::DeviceSelect::ReduceByKey(d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out, d_num_segments, reduction_op, num_items);
+     * cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out, d_num_segments, reduction_op, num_items);
      *
      * // d_keys_out        <-- [0, 2, 9, 5, 8]
      * // d_values_out      <-- [0, 1, 6, 2, 4]
@@ -644,7 +644,7 @@ struct DeviceReduce
         typename                    ValueOutputIterator,
         typename                    NumSegmentsIterator,
         typename                    ReductionOp>
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t ReduceByKey(
         void                        *d_temp_storage,                ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,            ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -726,13 +726,13 @@ struct DeviceReduce
      * // Determine temporary device storage requirements
      * void     *d_temp_storage = NULL;
      * size_t   temp_storage_bytes = 0;
-     * cub::DeviceSelect::RunLengthEncode(d_temp_storage, temp_storage_bytes, d_in, d_compacted_out, d_counts_out, d_num_segments, num_items);
+     * cub::DeviceReduce::RunLengthEncode(d_temp_storage, temp_storage_bytes, d_in, d_compacted_out, d_counts_out, d_num_segments, num_items);
      *
      * // Allocate temporary storage
      * cudaMalloc(&d_temp_storage, temp_storage_bytes);
      *
      * // Run encoding
-     * cub::DeviceSelect::RunLengthEncode(d_temp_storage, temp_storage_bytes, d_in, d_compacted_out, d_counts_out, d_num_segments, num_items);
+     * cub::DeviceReduce::RunLengthEncode(d_temp_storage, temp_storage_bytes, d_in, d_compacted_out, d_counts_out, d_num_segments, num_items);
      *
      * // d_keys_out        <-- [0, 2, 9, 5, 8]
      * // d_values_out      <-- [1, 2, 1, 3, 1]
@@ -750,7 +750,7 @@ struct DeviceReduce
         typename                    OutputIterator,
         typename                    CountsOutputIterator,
         typename                    NumSegmentsIterator>
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t RunLengthEncode(
         void                        *d_temp_storage,                ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,            ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation

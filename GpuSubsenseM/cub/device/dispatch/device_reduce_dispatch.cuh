@@ -358,16 +358,16 @@ struct DeviceReduceDispatch
      * Tuning policies of current PTX compiler pass
      ******************************************************************************/
 
-#if (CUB_PTX_VERSION >= 350)
+#if (CUB_PTX_ARCH >= 350)
     typedef Policy350 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 300)
+#elif (CUB_PTX_ARCH >= 300)
     typedef Policy300 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 200)
+#elif (CUB_PTX_ARCH >= 200)
     typedef Policy200 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 130)
+#elif (CUB_PTX_ARCH >= 130)
     typedef Policy130 PtxPolicy;
 
 #else
@@ -388,13 +388,13 @@ struct DeviceReduceDispatch
      * Initialize kernel dispatch configurations with the policies corresponding to the PTX assembly we will use
      */
     template <typename KernelConfig>
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static void InitConfigs(
         int             ptx_version,
         KernelConfig    &reduce_range_config,
         KernelConfig    &single_tile_config)
     {
-    #if (CUB_PTX_VERSION > 0)
+    #if (CUB_PTX_ARCH > 0)
 
         // We're on the device, so initialize the kernel dispatch configurations with the current PTX policy
         reduce_range_config.template Init<PtxReduceRegionPolicy>();
@@ -446,7 +446,7 @@ struct DeviceReduceDispatch
         GridMappingStrategy     grid_mapping;
 
         template <typename BlockPolicy>
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Init()
         {
             block_threads               = BlockPolicy::BLOCK_THREADS;
@@ -457,7 +457,7 @@ struct DeviceReduceDispatch
             grid_mapping                = BlockPolicy::GRID_MAPPING;
         }
 
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Print()
         {
             printf("%d threads, %d per thread, %d veclen, %d algo, %d loadmod, %d mapping",
@@ -486,7 +486,7 @@ struct DeviceReduceDispatch
         typename                    AggregateTileKernelPtr,             ///< Function type of cub::SingleTileKernel for consuming partial reductions (T*)
         typename                    SingleTileKernelPtr,                ///< Function type of cub::SingleTileKernel for consuming input (InputIterator)
         typename                    FillAndResetDrainKernelPtr>         ///< Function type of cub::FillAndResetDrainKernel
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -543,13 +543,16 @@ struct DeviceReduceDispatch
                     single_tile_config.block_threads, (long long) stream, single_tile_config.items_per_thread);
 
                 // Invoke single_kernel
-                single_kernel<<<1, single_tile_config.block_threads>>>(
+                single_kernel<<<1, single_tile_config.block_threads, 0, stream>>>(
                     d_in,
                     d_out,
                     num_items,
                     reduction_op);
 
-                // Sync the stream if specified
+                // Check for failure to launch
+                if (CubDebug(error = cudaPeekAtLastError())) break;
+
+                // Sync the stream if specified to flush runtime errors
                 if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
 
             }
@@ -628,7 +631,10 @@ struct DeviceReduceDispatch
                     // Invoke prepare_drain_kernel
                     prepare_drain_kernel<<<1, 1, 0, stream>>>(queue, num_items);
 
-                    // Sync the stream if specified
+                    // Check for failure to launch
+                    if (CubDebug(error = cudaPeekAtLastError())) break;
+
+                    // Sync the stream if specified to flush runtime errors
                     if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
                 }
 
@@ -645,7 +651,10 @@ struct DeviceReduceDispatch
                     queue,
                     reduction_op);
 
-                // Sync the stream if specified
+                // Check for failure to launch
+                if (CubDebug(error = cudaPeekAtLastError())) break;
+
+                // Sync the stream if specified to flush runtime errors
                 if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
 
                 // Log single_kernel configuration
@@ -659,7 +668,10 @@ struct DeviceReduceDispatch
                     reduce_range_grid_size,
                     reduction_op);
 
-                // Sync the stream if specified
+                // Check for failure to launch
+                if (CubDebug(error = cudaPeekAtLastError())) break;
+
+                // Sync the stream if specified to flush runtime errors
                 if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
             }
         }
@@ -674,7 +686,7 @@ struct DeviceReduceDispatch
     /**
      * Internal dispatch routine for computing a device-wide reduction
      */
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -690,10 +702,10 @@ struct DeviceReduceDispatch
         {
             // Get PTX version
             int ptx_version;
-    #if (CUB_PTX_VERSION == 0)
+    #if (CUB_PTX_ARCH == 0)
             if (CubDebug(error = PtxVersion(ptx_version))) break;
     #else
-            ptx_version = CUB_PTX_VERSION;
+            ptx_version = CUB_PTX_ARCH;
     #endif
 
             // Get kernel kernel dispatch configurations

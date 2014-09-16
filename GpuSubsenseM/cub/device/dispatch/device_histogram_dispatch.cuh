@@ -134,7 +134,7 @@ __global__ void HistoAggregateKernel(
     int block_offset = blockIdx.x * (num_threadblocks * BINS);
     int block_end = block_offset + (num_threadblocks * BINS);
 
-#if CUB_PTX_VERSION >= 200
+#if CUB_PTX_ARCH >= 200
     #pragma unroll 32
 #endif
     while (block_offset < block_end)
@@ -225,13 +225,13 @@ struct DeviceHistogramDispatch
      * Tuning policies of current PTX compiler pass
      ******************************************************************************/
 
-#if (CUB_PTX_VERSION >= 350)
+#if (CUB_PTX_ARCH >= 350)
     typedef Policy350 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 300)
+#elif (CUB_PTX_ARCH >= 300)
     typedef Policy300 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 200)
+#elif (CUB_PTX_ARCH >= 200)
     typedef Policy200 PtxPolicy;
 
 #else
@@ -251,12 +251,12 @@ struct DeviceHistogramDispatch
      * Initialize kernel dispatch configurations with the policies corresponding to the PTX assembly we will use
      */
     template <typename KernelConfig>
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static void InitConfigs(
         int             ptx_version,
         KernelConfig    &histo_range_config)
     {
-    #if (CUB_PTX_VERSION > 0)
+    #if (CUB_PTX_ARCH > 0)
 
         // We're on the device, so initialize the kernel dispatch configurations with the current PTX policy
         histo_range_config.template Init<PtxHistoRegionPolicy>();
@@ -296,7 +296,7 @@ struct DeviceHistogramDispatch
         GridMappingStrategy             grid_mapping;
 
         template <typename BlockPolicy>
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Init()
         {
             block_threads               = BlockPolicy::BLOCK_THREADS;
@@ -305,7 +305,7 @@ struct DeviceHistogramDispatch
             grid_mapping                = BlockPolicy::GRID_MAPPING;
         }
 
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Print()
         {
             printf("%d, %d, %d, %d", block_threads, items_per_thread, block_algorithm, grid_mapping);
@@ -326,7 +326,7 @@ struct DeviceHistogramDispatch
         typename                    InitHistoKernelPtr,                 ///< Function type of cub::HistoInitKernel
         typename                    HistoRegionKernelPtr,               ///< Function type of cub::HistoRegionKernel
         typename                    AggregateHistoKernelPtr>            ///< Function type of cub::HistoAggregateKernel
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                        *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -442,7 +442,10 @@ struct DeviceHistogramDispatch
             // Invoke init_kernel to initialize counters and queue descriptor
             init_kernel<<<ACTIVE_CHANNELS, BINS, 0, stream>>>(queue, d_histo_wrapper, num_samples);
 
-            // Sync the stream if specified
+            // Check for failure to launch
+            if (CubDebug(error = cudaPeekAtLastError())) break;
+
+            // Sync the stream if specified to flush runtime errors
             if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
 
             // Whether we need privatized histograms (i.e., non-global atomics and multi-block)
@@ -462,7 +465,10 @@ struct DeviceHistogramDispatch
                 even_share,
                 queue);
 
-            // Sync the stream if specified
+            // Check for failure to launch
+            if (CubDebug(error = cudaPeekAtLastError())) break;
+
+            // Sync the stream if specified to flush runtime errors
             if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
 
             // Aggregate privatized block histograms if necessary
@@ -478,7 +484,10 @@ struct DeviceHistogramDispatch
                     d_histo_wrapper,
                     histo_range_grid_size);
 
-                // Sync the stream if specified
+                // Check for failure to launch
+                if (CubDebug(error = cudaPeekAtLastError())) break;
+
+                // Sync the stream if specified to flush runtime errors
                 if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
             }
         }
@@ -493,7 +502,7 @@ struct DeviceHistogramDispatch
     /**
      * Internal dispatch routine
      */
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                *d_temp_storage,                    ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t              &temp_storage_bytes,                ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -508,10 +517,10 @@ struct DeviceHistogramDispatch
         {
             // Get PTX version
             int ptx_version;
-    #if (CUB_PTX_VERSION == 0)
+    #if (CUB_PTX_ARCH == 0)
             if (CubDebug(error = PtxVersion(ptx_version))) break;
     #else
-            ptx_version = CUB_PTX_VERSION;
+            ptx_version = CUB_PTX_ARCH;
     #endif
 
             // Get kernel kernel dispatch configurations

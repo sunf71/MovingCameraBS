@@ -36,6 +36,7 @@
 #include "block_reduce_raking.cuh"
 #include "../../warp/warp_reduce.cuh"
 #include "../../thread/thread_reduce.cuh"
+#include "../../util_ptx.cuh"
 #include "../../util_namespace.cuh"
 
 /// Optional outer namespace(s)
@@ -50,33 +51,46 @@ namespace cub {
  */
 template <
     typename    T,              ///< Data type being reduced
-    int         BLOCK_THREADS>  ///< The thread block size in threads
+    int         BLOCK_DIM_X,    ///< The thread block length in threads along the X dimension
+    int         BLOCK_DIM_Y,    ///< The thread block length in threads along the Y dimension
+    int         BLOCK_DIM_Z,    ///< The thread block length in threads along the Z dimension
+    int         PTX_ARCH>       ///< The PTX compute capability for which to to specialize this collective
 struct BlockReduceRakingCommutativeOnly
 {
+    /// Constants
+    enum
+    {
+        /// The thread block size in threads
+        BLOCK_THREADS = BLOCK_DIM_X * BLOCK_DIM_Y * BLOCK_DIM_Z,
+    };
+
     // The fall-back implementation to use when BLOCK_THREADS is not a multiple of the warp size or not all threads have valid values
-    typedef BlockReduceRaking<T, BLOCK_THREADS> FallBack;
+    typedef BlockReduceRaking<T, BLOCK_DIM_X, BLOCK_DIM_Y, BLOCK_DIM_Z, PTX_ARCH> FallBack;
 
     /// Constants
     enum
     {
+        /// Number of warp threads
+        WARP_THREADS = CUB_WARP_THREADS(PTX_ARCH),
+
         /// Whether or not to use fall-back
-        USE_FALLBACK = ((BLOCK_THREADS % CUB_PTX_WARP_THREADS != 0) || (BLOCK_THREADS <= CUB_PTX_WARP_THREADS)),
+        USE_FALLBACK = ((BLOCK_THREADS % WARP_THREADS != 0) || (BLOCK_THREADS <= WARP_THREADS)),
 
         /// Number of raking threads
-        RAKING_THREADS = CUB_PTX_WARP_THREADS,
+        RAKING_THREADS = WARP_THREADS,
 
         /// Number of threads actually sharing items with the raking threads
         SHARING_THREADS = CUB_MAX(1, BLOCK_THREADS - RAKING_THREADS),
 
         /// Number of raking elements per warp synchronous raking thread
-        SEGMENT_LENGTH = SHARING_THREADS / CUB_PTX_WARP_THREADS,
+        SEGMENT_LENGTH = SHARING_THREADS / WARP_THREADS,
     };
 
     ///  WarpReduce utility type
-    typedef WarpReduce<T, 1, RAKING_THREADS> WarpReduce;
+    typedef WarpReduce<T, RAKING_THREADS, PTX_ARCH> WarpReduce;
 
     /// Layout type for padded thread block raking grid
-    typedef BlockRakingLayout<T, SHARING_THREADS> BlockRakingLayout;
+    typedef BlockRakingLayout<T, SHARING_THREADS, PTX_ARCH> BlockRakingLayout;
 
     /// Shared memory storage layout type
     struct _TempStorage
@@ -104,11 +118,10 @@ struct BlockReduceRakingCommutativeOnly
 
     /// Constructor
     __device__ __forceinline__ BlockReduceRakingCommutativeOnly(
-        TempStorage &temp_storage,
-        int linear_tid)
+        TempStorage &temp_storage)
     :
         temp_storage(temp_storage.Alias()),
-        linear_tid(linear_tid)
+        linear_tid(RowMajorTid(BLOCK_DIM_X, BLOCK_DIM_Y, BLOCK_DIM_Z))
     {}
 
 
@@ -120,7 +133,7 @@ struct BlockReduceRakingCommutativeOnly
     {
         if (USE_FALLBACK || !FULL_TILE)
         {
-            return FallBack(temp_storage.fallback_storage, linear_tid).template Sum<FULL_TILE>(partial, num_valid);
+            return FallBack(temp_storage.fallback_storage).template Sum<FULL_TILE>(partial, num_valid);
         }
         else
         {
@@ -138,7 +151,7 @@ struct BlockReduceRakingCommutativeOnly
                 partial = ThreadReduce<SEGMENT_LENGTH>(raking_segment, cub::Sum(), partial);
 
                 // Warpscan
-                partial = WarpReduce(temp_storage.warp_storage, 0, linear_tid).Sum(partial);
+                partial = WarpReduce(temp_storage.warp_storage).Sum(partial);
             }
         }
 
@@ -157,7 +170,7 @@ struct BlockReduceRakingCommutativeOnly
     {
         if (USE_FALLBACK || !FULL_TILE)
         {
-            return FallBack(temp_storage.fallback_storage, linear_tid).template Reduce<FULL_TILE>(partial, num_valid, reduction_op);
+            return FallBack(temp_storage.fallback_storage).template Reduce<FULL_TILE>(partial, num_valid, reduction_op);
         }
         else
         {
@@ -175,7 +188,7 @@ struct BlockReduceRakingCommutativeOnly
                 partial = ThreadReduce<SEGMENT_LENGTH>(raking_segment, reduction_op, partial);
 
                 // Warpscan
-                partial = WarpReduce(temp_storage.warp_storage, 0, linear_tid).Reduce(partial, reduction_op);
+                partial = WarpReduce(temp_storage.warp_storage).Reduce(partial, reduction_op);
             }
         }
 

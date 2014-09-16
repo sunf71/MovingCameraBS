@@ -149,26 +149,101 @@ void UpdateBoundary(float4* imgBuffer, int nHeight, int nWidth,int * labels,SLIC
 	UpdateBoundaryKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters,alpha,radius);
 
 }
+// CustomMin functor
+struct CustomMin
+{
+    template <typename T>
+    __device__ __forceinline__
+    T operator()(const T &a, const T &b) const {
+        return (b < a) ? b : a;
+    }
+};
+struct CustomType
+{
+	__device__ __host__ bool operator < (const CustomType& a) const 
+	{
+		return rgba< a.rgba;
+	}
+	__device__ __host__ CustomType()
+	{}
+	__device__ __host__ CustomType(int v)
+	{
+		rgba = v;
 
+	}
+	float rgba;
+	
+};
+void testReducebykey()
+{
+	// Declare, allocate, and initialize device pointers for input and output
+	int          num_items = 640*480;          // e.g., 8
+	int          *d_keys_in;         // e.g., [0, 2, 2, 9, 5, 5, 5, 8]
+	CustomType          *d_values_in;       // e.g., [0, 7, 1, 6, 2, 5, 3, 4]
+	int          *d_keys_out;        // e.g., [ ,  ,  ,  ,  ,  ,  ,  ]
+	CustomType          *d_values_out;      // e.g., [ ,  ,  ,  ,  ,  ,  ,  ]
+	int          *d_num_segments;    // e.g., [ ]
+	cudaMalloc(&d_keys_in,sizeof(int)*num_items);
+	cudaMalloc(&d_keys_out,sizeof(int)*num_items);
+	cudaMalloc(&d_values_out,sizeof(CustomType)*num_items);
+	cudaMalloc(&d_values_in,sizeof(CustomType)*num_items);
+	cudaMalloc(&d_num_segments,sizeof(int));
+	int* h_keys_in = new int[num_items];
+	CustomType* h_values_in = new CustomType[num_items];
+	for(int i=0; i<num_items; i++)
+	{
+		h_keys_in[i] = rand()%num_items;
+		h_values_in[i] = CustomType(i);
+	}
+	cudaMemcpy(d_keys_in,h_keys_in,sizeof(CustomType)*num_items,cudaMemcpyHostToDevice);
+	cudaMemcpy(d_values_in,h_values_in,sizeof(CustomType)*num_items,cudaMemcpyHostToDevice);
+	CustomMin    reduction_op;
+	
+	// Determine temporary device storage requirements
+	void     *d_temp_storage = NULL;
+	size_t   temp_storage_bytes = 0;
+	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out, d_num_segments, reduction_op, num_items);
+	// Allocate temporary storage
+	cudaMalloc(&d_temp_storage, temp_storage_bytes);
+	// Run reduce-by-key
+	cudaError_t error = cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out, d_num_segments, reduction_op, num_items);
+
+	int num;
+	cudaMemcpy(&num,d_num_segments,sizeof(int),cudaMemcpyDeviceToHost);
+	std::cout<<num;
+
+	cudaFree(d_keys_in);
+	cudaFree(d_keys_out);
+	cudaFree(d_values_in);
+	cudaFree(d_values_out);
+	cudaFree(d_num_segments);
+	delete[] h_keys_in;
+	delete[] h_values_in;
+}
 void testReduce()
 {
 	void     *d_temp_storage = NULL;
-	int size = 8;
+	int width = 20;
+	int height  = 20;
+	int size = width*height;
+	int nSuperPixels = 50;
 	size_t   temp_storage_bytes = 0;
-	int h_labels_in[] = { 1,1,2,2,3,3,4,4};
-	int h_labels_out[8];
+	int* h_labels_in = new int[size];
+	for(int i=0; i<size; i++)
+		h_labels_in[i] = rand()%nSuperPixels;
+	int* h_labels_out = new int[size];
 	float4 fakeColor;
 	fakeColor.x = 0;
 	fakeColor.y = 1;
 	fakeColor.z = 2;
 	fakeColor.w = 3;
-	SLICClusterCenter h_centers_out[8];
-	SLICClusterCenter h_centers_in[8];
-	for(int i=0; i<4; i++)
+	SLICClusterCenter* h_centers_out = new SLICClusterCenter[size];
+	SLICClusterCenter* h_centers_in =  new SLICClusterCenter[size];
+	for(int i=0; i<width; i++)
 	{
-		for(int j=0;j<2;j++)
+		for(int j=0;j<height;j++)
 		{
-			int idx = i + j*4;
+			int idx = i + j*width;
 			h_centers_in[idx].xy.x = i;
 			h_centers_in[idx].xy.y = j;
 			h_centers_in[idx].rgb = fakeColor;
@@ -182,8 +257,10 @@ void testReduce()
 	cudaMalloc(&d_num_segments,sizeof(int));
 	cudaMalloc(&d_labels_out,sizeof(int)*size);
 	cudaMalloc(&d_labels_in,sizeof(int)*size);
-	cudaMemcpy(d_centers_in,h_centers_in,sizeof(SLICClusterCenter)*8,cudaMemcpyHostToDevice);
-	cudaMemcpy(d_labels_in,h_labels_in,sizeof(int)*8,cudaMemcpyHostToDevice);
+	cudaMalloc(&d_centers_in,sizeof(SLICClusterCenter)*size);
+	cudaMalloc(&d_centers_out,sizeof(SLICClusterCenter)*size);
+	cudaMemcpy(d_centers_in,h_centers_in,sizeof(SLICClusterCenter)*size,cudaMemcpyHostToDevice);
+	cudaMemcpy(d_labels_in,h_labels_in,sizeof(int)*size,cudaMemcpyHostToDevice);
 	CustomAvg reduction_op;
 	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, d_labels_in, d_labels_out, d_centers_in, d_centers_out, d_num_segments, reduction_op, size);
 
@@ -191,15 +268,29 @@ void testReduce()
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
 	// Run reduce-by-key
 	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, d_labels_in, d_labels_out, d_centers_in, d_centers_out, d_num_segments, reduction_op, size);
-
+	int num;
+	cudaMemcpy(&num,d_num_segments,sizeof(int),cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_labels_out,d_labels_out,sizeof(int)*num,cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_centers_out,d_centers_out,sizeof(SLICClusterCenter)*num,cudaMemcpyDeviceToHost);
+	/*for(int i=0; i<num;i++)
+		std::cout<<h_labels_out[i]<<std::endl;
+	std::cout<<"centers"<<std::endl;
+	for(int i=0; i<num; i++)
+		std::cout<<h_centers_out[i].xy.x<<","<<h_centers_out[i].xy.y<<std::endl;*/
 	cudaFree(d_centers_in);
 	cudaFree(d_centers_out);
 	cudaFree(d_labels_out);
 	cudaFree(d_labels_in);
 	cudaFree(d_num_segments);
+	delete[] h_labels_in;
+	delete[] h_labels_out;
+	delete[] h_centers_in;
+	delete[] h_centers_out;
 }
 void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_centers, int nClusters)
 {
+	testReducebykey();
+	testReduce();
 	/*dim3 blockDim(16,16);
 	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
 	UpdateClustersKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters);*/
@@ -208,11 +299,11 @@ void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLIC
 	int size = nHeight*nWidth;
 	size_t   temp_storage_bytes = 0;
 	int* d_labels_out;
-	SLICClusterCenter* d_centers_in;
+	SLICClusterCenter* d_centers_in, *d_centers_out;
 	int * d_num_segments;
 	cudaMalloc(&d_num_segments,sizeof(int));
 	cudaMalloc(&d_labels_out,sizeof(int)*size);
-	//cudaMalloc(&d_centers_out,sizeof(SLICClusterCenter)*size);
+	cudaMalloc(&d_centers_out,sizeof(SLICClusterCenter)*size);
 	cudaMalloc(&d_centers_in,sizeof(SLICClusterCenter)*size);
 	dim3 blockDim(16,16);
 	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
@@ -226,17 +317,17 @@ void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLIC
 	}*/
 
 	CustomAvg reduction_op;
-	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, labels, d_labels_out, d_centers_in, d_centers, d_num_segments, reduction_op, size);
+	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, labels, d_labels_out, d_centers_in, d_centers_out, d_num_segments, reduction_op, size);
 
 	// Allocate temporary storage
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
 	// Run reduce-by-key
-	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, labels, d_labels_out, d_centers_in, d_centers, d_num_segments, reduction_op, size);
+	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, labels, d_labels_out, d_centers_in, d_centers_out, d_num_segments, reduction_op, size);
 
 	int h_num_segments;
 	cudaMemcpy(&h_num_segments,d_num_segments,sizeof(int),cudaMemcpyDeviceToHost);
 	SLICClusterCenter* h_centers = new SLICClusterCenter[h_num_segments];
-	cudaMemcpy(h_centers,d_centers,sizeof(SLICClusterCenter)*h_num_segments,cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_centers,d_centers_out,sizeof(SLICClusterCenter)*h_num_segments,cudaMemcpyDeviceToHost);
 	for(int i=0; i<h_num_segments; i++)
 	{
 		std::cout<<h_centers[i].xy.x<<" ,"<<h_centers[i].xy.y<<std::endl;
@@ -245,4 +336,5 @@ void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLIC
 	cudaFree(d_centers_in);
 	cudaFree(d_labels_out);
 	cudaFree(d_num_segments);
+	delete[] h_centers;
 }

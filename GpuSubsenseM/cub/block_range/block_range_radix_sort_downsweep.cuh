@@ -242,6 +242,9 @@ struct BlockRangeRadixSortDownsweep
     // The least-significant bit position of the current digit to extract
     int             current_bit;
 
+    // Number of bits in current digit
+    int             num_bits;
+
     // Whether to short-ciruit
     bool            short_circuit;
 
@@ -261,7 +264,7 @@ struct BlockRangeRadixSortDownsweep
         #pragma unroll
         for (int KEY = 0; KEY < ITEMS_PER_THREAD; KEY++)
         {
-            UnsignedBits digit = BFE(twiddled_keys[KEY], current_bit, RADIX_BITS);
+            UnsignedBits digit = BFE(twiddled_keys[KEY], current_bit, num_bits);
 
             // Lookup base digit offset from shared memory
             relative_bin_offsets[KEY] = temp_storage.relative_bin_offsets[digit];
@@ -522,6 +525,7 @@ struct BlockRangeRadixSortDownsweep
             twiddled_keys,
             ranks,
             current_bit,
+            num_bits,
             inclusive_digit_prefix);
 
         // Update global scatter base offsets for each digit
@@ -533,7 +537,7 @@ struct BlockRangeRadixSortDownsweep
             if (DESCENDING)
             {
                 // Get the prefix from the next thread (higher bins come first)
-#if CUB_PTX_VERSION >= 300
+#if CUB_PTX_ARCH >= 300
                 exclusive_digit_prefix = ShuffleDown(inclusive_digit_prefix, 1);
                 if (threadIdx.x == RADIX_DIGITS - 1)
                     exclusive_digit_prefix = 0;
@@ -547,7 +551,7 @@ struct BlockRangeRadixSortDownsweep
             else
             {
                 // Get the prefix from the previous thread (lower bins come first)
-#if CUB_PTX_VERSION >= 300
+#if CUB_PTX_ARCH >= 300
                 exclusive_digit_prefix = ShuffleUp(inclusive_digit_prefix, 1);
                 if (threadIdx.x == 0)
                     exclusive_digit_prefix = 0;
@@ -639,7 +643,8 @@ struct BlockRangeRadixSortDownsweep
         Key         *d_keys_out,
         Value       *d_values_in,
         Value       *d_values_out,
-        int         current_bit)
+        int         current_bit,
+        int         num_bits)
     :
         temp_storage(temp_storage.Alias()),
         bin_offset(bin_offset),
@@ -648,6 +653,7 @@ struct BlockRangeRadixSortDownsweep
         d_values_in(d_values_in),
         d_values_out(d_values_out),
         current_bit(current_bit),
+        num_bits(num_bits),
         short_circuit(false)
     {}
 
@@ -663,14 +669,16 @@ struct BlockRangeRadixSortDownsweep
         Key         *d_keys_out,
         Value       *d_values_in,
         Value       *d_values_out,
-        int         current_bit)
+        int         current_bit,
+        int         num_bits)
     :
         temp_storage(temp_storage.Alias()),
         d_keys_in(reinterpret_cast<UnsignedBits*>(d_keys_in)),
         d_keys_out(reinterpret_cast<UnsignedBits*>(d_keys_out)),
         d_values_in(d_values_in),
         d_values_out(d_values_out),
-        current_bit(current_bit)
+        current_bit(current_bit),
+        num_bits(num_bits)
     {
         // Load digit bin offsets (each of the first RADIX_DIGITS threads will load an offset for that digit)
         if (threadIdx.x < RADIX_DIGITS)

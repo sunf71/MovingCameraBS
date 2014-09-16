@@ -246,16 +246,16 @@ struct DeviceSelectDispatch
      * Tuning policies of current PTX compiler pass
      ******************************************************************************/
 
-#if (CUB_PTX_VERSION >= 350)
+#if (CUB_PTX_ARCH >= 350)
     typedef Policy350 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 300)
+#elif (CUB_PTX_ARCH >= 300)
     typedef Policy300 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 200)
+#elif (CUB_PTX_ARCH >= 200)
     typedef Policy200 PtxPolicy;
 
-#elif (CUB_PTX_VERSION >= 130)
+#elif (CUB_PTX_ARCH >= 130)
     typedef Policy130 PtxPolicy;
 
 #else
@@ -275,12 +275,12 @@ struct DeviceSelectDispatch
      * Initialize kernel dispatch configurations with the policies corresponding to the PTX assembly we will use
      */
     template <typename KernelConfig>
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static void InitConfigs(
         int             ptx_version,
         KernelConfig    &select_range_config)
     {
-    #if (CUB_PTX_VERSION > 0)
+    #if (CUB_PTX_ARCH > 0)
 
         // We're on the device, so initialize the kernel dispatch configurations with the current PTX policy
         select_range_config.template Init<PtxSelectRegionPolicy>();
@@ -325,7 +325,7 @@ struct DeviceSelectDispatch
         BlockScanAlgorithm      scan_algorithm;
 
         template <typename BlockRangeSelectPolicy>
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Init()
         {
             block_threads               = BlockRangeSelectPolicy::BLOCK_THREADS;
@@ -335,7 +335,7 @@ struct DeviceSelectDispatch
             scan_algorithm              = BlockRangeSelectPolicy::SCAN_ALGORITHM;
         }
 
-        __host__ __device__ __forceinline__
+        CUB_RUNTIME_FUNCTION __forceinline__
         void Print()
         {
             printf("%d, %d, %d, %d, %d",
@@ -359,7 +359,7 @@ struct DeviceSelectDispatch
     template <
         typename                    ScanInitKernelPtr,              ///< Function type of cub::ScanInitKernel
         typename                    SelectRegionKernelPtr>          ///< Function type of cub::SelectRegionKernelPtr
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                        *d_temp_storage,                ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,            ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -435,7 +435,10 @@ struct DeviceSelectDispatch
                 tile_status,
                 num_tiles);
 
-            // Sync the stream if specified
+            // Check for failure to launch
+            if (CubDebug(error = cudaPeekAtLastError())) break;
+
+            // Sync the stream if specified to flush runtime errors
             if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
 
             // Get SM occupancy for select_range_kernel
@@ -484,7 +487,10 @@ struct DeviceSelectDispatch
                 num_tiles,
                 queue);
 
-            // Sync the stream if specified
+            // Check for failure to launch
+            if (CubDebug(error = cudaPeekAtLastError())) break;
+
+            // Sync the stream if specified to flush runtime errors
             if (debug_synchronous && (CubDebug(error = SyncStream(stream)))) break;
         }
         while (0);
@@ -498,7 +504,7 @@ struct DeviceSelectDispatch
     /**
      * Internal dispatch routine
      */
-    __host__ __device__ __forceinline__
+    CUB_RUNTIME_FUNCTION __forceinline__
     static cudaError_t Dispatch(
         void                        *d_temp_storage,                ///< [in] %Device allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
         size_t                      &temp_storage_bytes,            ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
@@ -517,10 +523,10 @@ struct DeviceSelectDispatch
         {
             // Get PTX version
             int ptx_version;
-    #if (CUB_PTX_VERSION == 0)
+    #if (CUB_PTX_ARCH == 0)
             if (CubDebug(error = PtxVersion(ptx_version))) break;
     #else
-            ptx_version = CUB_PTX_VERSION;
+            ptx_version = CUB_PTX_ARCH;
     #endif
 
             // Get kernel kernel dispatch configurations

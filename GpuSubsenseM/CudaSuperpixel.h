@@ -2,7 +2,14 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-
+struct ClusterCenter
+{
+	float* r;
+	float* g;
+	float* b;
+	float* x;
+	float* y;
+};
 struct SLICClusterCenter
 {
 	__host__ __device__ SLICClusterCenter(){}
