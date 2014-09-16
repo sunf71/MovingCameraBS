@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="CudaSuperpixel.h">
+      <Filter>Cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="GpuSuperpixel.h">
+      <Filter>Cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="PictureHandler.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SLIC.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CudaSuperpixel.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Cuda">
+      <UniqueIdentifier>{267f348e-8bcb-4258-a27b-aa0ae1c25522}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{d2bfdca8-b7fd-45be-b97c-3fb477cc412e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{9da2b47e-1a84-4b3c-a2e8-320da75a0ef5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="GpuSuperpixel.cpp">
+      <Filter>Cuda</Filter>
+    </ClCompile>
+    <ClCompile Include="ComSuperpixel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SLIC.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="PictureHandler.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

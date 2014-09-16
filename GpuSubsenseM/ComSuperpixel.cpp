@@ -220,7 +220,6 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 								np++;
 								nl.push_back(labels[index]);
 							}
-							 istaken[index] = true;
 						}
 					}
 				}

@@ -12,10 +12,10 @@ public:
 	{
 		Release();
 	}
-	void Superixel(float4* rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
+	void Superixel(float4* rgbaBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
 
 protected:
-	void Init();
+	void Init(float4* h_rgbaBuffer);
 	void Release();
 private:
 	unsigned m_height;
@@ -24,8 +24,8 @@ private:
 	unsigned m_nPixels;
 	float4* d_rgbaBuffer;
 	SLICClusterCenter* d_centers;
-	float m_alpha;
 	int* d_labels;
+	float m_alpha;
 	int m_nSuperpixels;
 	double m_step;
 };
