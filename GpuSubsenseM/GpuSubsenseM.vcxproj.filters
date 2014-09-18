@@ -13,6 +13,9 @@
     <ClInclude Include="SLIC.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="GpuTimer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu">

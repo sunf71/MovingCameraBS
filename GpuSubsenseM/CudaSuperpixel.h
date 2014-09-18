@@ -41,7 +41,7 @@ struct SLICClusterCenter
 
 	float4 rgb;
 	float2 xy;
-	int nPoints;
+	int pixelVal;
 
 };
 __global__ void InitClusterCentersKernel(float4* floatBuffer, int* labels,
@@ -51,10 +51,14 @@ __global__ void InitClustersKernel(float4* imgBuffer, int nHeight, int nWidth, S
 
 __global__ void UpdateBoundaryKernel(float4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius);
 
-__global__ void UpdateClustersKernel(float4* imgBuffer, int nHeight, int nWidth, SLICClusterCenter* d_ceneters, int nClusters);
+//调整超像素中心，
+//@nClusters实际超像素数量，
+//@d_keys,与输入d_inCenters对应的超像素值
+//@tNClusters理论总超像素数量（根据step和image size计算得到）
+__global__ void UpdateClustersKernel(int nHeight, int nWidth, int* d_keys,SLICClusterCenter* d_inCenters,SLICClusterCenter* d_outCenters, int nClusters,int tNClusters );
 
 void InitClusterCenters(float4* d_imgBuffer,int* d_labels, int nWidth, int nHeight, int step, int& nSeg, SLICClusterCenter* d_center);
 
 void UpdateBoundary(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius);
 
-void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth, int* labels, SLICClusterCenter* d_centers, int nClusters);
+void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth, int* labels, SLICClusterCenter* d_centers, int& nClusters);

@@ -26,6 +26,7 @@ private:
 	SLICClusterCenter* d_centers;
 	int* d_labels;
 	float m_alpha;
+	//³¬ÏñËØÊıÁ¿
 	int m_nSuperpixels;
 	double m_step;
 };

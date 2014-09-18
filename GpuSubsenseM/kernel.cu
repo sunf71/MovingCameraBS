@@ -47,7 +47,7 @@ int main (int argc, char* argv[])
 {
 	using namespace cv;
 	Mat img = imread("in000001.jpg");
-	//cv::resize(img,img,cv::Size(32,32));
+	cv::resize(img,img,cv::Size(16,16));
 	float4* imgData = new float4[img.rows*img.cols];
 	unsigned int* idata = new unsigned int[img.rows*img.cols];
 	for(int i=0; i< img.cols; i++)
@@ -69,7 +69,7 @@ int main (int argc, char* argv[])
 	GpuSuperpixel gs;
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
-	gs.Superixel(imgData,img.cols,img.rows,5,0.9,num,labels);
+	gs.Superixel(imgData,img.cols,img.rows,3,0.9,num,labels);
 
 	SLIC aslic;
 	

@@ -151,6 +151,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClInclude Include="CudaSuperpixel.h" />
     <ClInclude Include="GpuSuperpixel.h" />
+    <ClInclude Include="GpuTimer.h" />
     <ClInclude Include="PictureHandler.h" />
     <ClInclude Include="SLIC.h" />
   </ItemGroup>

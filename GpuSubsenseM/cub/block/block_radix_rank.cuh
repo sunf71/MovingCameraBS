@@ -198,17 +198,13 @@ private:
             UnsignedBits    (&keys)[KEYS_PER_THREAD],               // Key to decode
             DigitCounter    (&thread_prefixes)[KEYS_PER_THREAD],    // Prefix counter value (out parameter)
             DigitCounter*   (&digit_counters)[KEYS_PER_THREAD],     // Counter smem offset (out parameter)
-            int             current_bit,                            // The least-significant bit position of the current digit to extract
-            int             num_bits)                               // The number of bits in the current digit
+            int             current_bit)                            // The least-significant bit position of the current digit to extract
         {
-            // Get digit
-            UnsignedBits digit = BFE(keys[COUNT], current_bit, num_bits);
-
             // Get sub-counter
-            UnsignedBits sub_counter = digit >> LOG_COUNTER_LANES;
+            UnsignedBits sub_counter = BFE(keys[COUNT], current_bit + LOG_COUNTER_LANES, LOG_PACKING_RATIO);
 
             // Get counter lane
-            UnsignedBits counter_lane = digit & (COUNTER_LANES - 1);
+            UnsignedBits counter_lane = BFE(keys[COUNT], current_bit, LOG_COUNTER_LANES);
 
             if (DESCENDING)
             {
@@ -226,7 +222,7 @@ private:
             *digit_counters[COUNT] = thread_prefixes[COUNT] + 1;
 
             // Iterate next key
-            Iterate<COUNT + 1, MAX>::DecodeKeys(cta, keys, thread_prefixes, digit_counters, current_bit, num_bits);
+            Iterate<COUNT + 1, MAX>::DecodeKeys(cta, keys, thread_prefixes, digit_counters, current_bit);
         }
 
 
@@ -257,9 +253,7 @@ private:
             UnsignedBits    (&keys)[KEYS_PER_THREAD],
             DigitCounter    (&thread_prefixes)[KEYS_PER_THREAD],
             DigitCounter*   (&digit_counters)[KEYS_PER_THREAD],
-            int             current_bit,                            // The least-significant bit position of the current digit to extract
-            int             num_bits)                               // The number of bits in the current digit
-        {}
+            int             current_bit) {}
 
 
         // UpdateRanks
@@ -267,8 +261,7 @@ private:
         static __device__ __forceinline__ void UpdateRanks(
             int             (&ranks)[KEYS_PER_THREAD],
             DigitCounter    (&thread_prefixes)[KEYS_PER_THREAD],
-            DigitCounter    *(&digit_counters)[KEYS_PER_THREAD])
-        {}
+            DigitCounter    *(&digit_counters)[KEYS_PER_THREAD]) {}
     };
 
 
@@ -423,8 +416,7 @@ public:
     __device__ __forceinline__ void RankKeys(
         UnsignedBits    (&keys)[KEYS_PER_THREAD],           ///< [in] Keys for this tile
         int             (&ranks)[KEYS_PER_THREAD],          ///< [out] For each key, the local rank within the tile
-        int             current_bit,                        ///< [in] The least-significant bit position of the current digit to extract
-        int             num_bits)                           ///< [in] The number of bits in the current digit
+        int             current_bit)                        ///< [in] The least-significant bit position of the current digit to extract
     {
         DigitCounter    thread_prefixes[KEYS_PER_THREAD];   // For each key, the count of previous keys in this tile having the same digit
         DigitCounter*   digit_counters[KEYS_PER_THREAD];    // For each key, the byte-offset of its corresponding digit counter in smem
@@ -433,7 +425,7 @@ public:
         ResetCounters();
 
         // Decode keys and update digit counters
-        Iterate<0, KEYS_PER_THREAD>::DecodeKeys(*this, keys, thread_prefixes, digit_counters, current_bit, num_bits);
+        Iterate<0, KEYS_PER_THREAD>::DecodeKeys(*this, keys, thread_prefixes, digit_counters, current_bit);
 
         __syncthreads();
 
@@ -457,11 +449,10 @@ public:
         UnsignedBits    (&keys)[KEYS_PER_THREAD],           ///< [in] Keys for this tile
         int             (&ranks)[KEYS_PER_THREAD],          ///< [out] For each key, the local rank within the tile (out parameter)
         int             current_bit,                        ///< [in] The least-significant bit position of the current digit to extract
-        int             num_bits,                           ///< [in] The number of bits in the current digit
         int             &inclusive_digit_prefix)            ///< [out] The incluisve prefix sum for the digit threadIdx.x
     {
         // Rank keys
-        RankKeys(keys, ranks, current_bit, num_bits);
+        RankKeys(keys, ranks, current_bit);
 
         // Get the inclusive and exclusive digit totals corresponding to the calling thread.
         if ((BLOCK_THREADS == RADIX_DIGITS) || (linear_tid < RADIX_DIGITS))

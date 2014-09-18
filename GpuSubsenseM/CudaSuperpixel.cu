@@ -1,7 +1,15 @@
 #include "CudaSuperpixel.h"
 #include "cub/cub.cuh"
 #include <iostream>
-
+#include <thrust/reduce.h>
+#include <thrust/device_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/pair.h>
+#include <thrust/reduce.h>
+#include <thrust/sequence.h>
+#include <thrust/fill.h>
+#include <thrust/copy.h>
+#include <thrust/sort.h>
 // CustomAvg functor
 struct CustomAvg
 {
@@ -56,8 +64,13 @@ __global__ void InitClusterCentersKernel( float4* floatBuffer, int* labels, int 
 	vSLICCenterList[clusterIdx].nPoints=0;
 	
 }
-__global__ void UpdateClustersKernel(float4* imgBuffer, int nHeight, int nWidth, SLICClusterCenter* d_ceneters, int nClusters)
+__global__ void UpdateClustersKernel(int nHeight, int nWidth, int* keys,SLICClusterCenter* d_inCenters,SLICClusterCenter* d_outCenters, int nClusters,int tNClusters  )
 {
+	//每个超像素一个线程
+	int clusterIdx=blockIdx.x*blockDim.x+threadIdx.x;
+	if (clusterIdx >= nClusters)
+		return;
+	d_outCenters[keys[clusterIdx]] = d_inCenters[clusterIdx];
 
 }
 __global__ void InitClustersKernel(float4* imgBuffer, int nHeight, int nWidth, SLICClusterCenter* d_ceneters)
@@ -287,54 +300,39 @@ void testReduce()
 	delete[] h_centers_in;
 	delete[] h_centers_out;
 }
-void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_centers, int nClusters)
+void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_centers, int& nClusters)
 {
-	testReducebykey();
-	testReduce();
-	/*dim3 blockDim(16,16);
-	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
-	UpdateClustersKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters);*/
-	// Determine temporary device storage requirements
-	void     *d_temp_storage = NULL;
+	typedef thrust::device_vector<int>::iterator  dIter;
+	typedef thrust::device_vector<SLICClusterCenter>::iterator  vIter;
+	CustomAvg op;
+	thrust::equal_to<int> binary_pred;
+
 	int size = nHeight*nWidth;
-	size_t   temp_storage_bytes = 0;
-	int* d_labels_out;
-	SLICClusterCenter* d_centers_in, *d_centers_out;
-	int * d_num_segments;
-	cudaMalloc(&d_num_segments,sizeof(int));
-	cudaMalloc(&d_labels_out,sizeof(int)*size);
-	cudaMalloc(&d_centers_out,sizeof(SLICClusterCenter)*size);
+
+	SLICClusterCenter* d_centers_in;
+
+	
 	cudaMalloc(&d_centers_in,sizeof(SLICClusterCenter)*size);
 	dim3 blockDim(16,16);
 	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
 	InitClustersKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,d_centers_in);
-
-	/*SLICClusterCenter* h_centers_in = new SLICClusterCenter[size];
-	cudaMemcpy(h_centers_in,d_centers_in,sizeof(SLICClusterCenter)*size,cudaMemcpyDeviceToHost);
-	for(int i=0; i<size; i++)
-	{
-		std::cout<<h_centers_in[i].xy.x<<" ,"<<h_centers_in[i].xy.y<<std::endl;
-	}*/
-
-	CustomAvg reduction_op;
-	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, labels, d_labels_out, d_centers_in, d_centers_out, d_num_segments, reduction_op, size);
-
-	// Allocate temporary storage
-	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	// Run reduce-by-key
-	cub::DeviceReduce::ReduceByKey(d_temp_storage, temp_storage_bytes, labels, d_labels_out, d_centers_in, d_centers_out, d_num_segments, reduction_op, size);
-
-	int h_num_segments;
-	cudaMemcpy(&h_num_segments,d_num_segments,sizeof(int),cudaMemcpyDeviceToHost);
-	SLICClusterCenter* h_centers = new SLICClusterCenter[h_num_segments];
-	cudaMemcpy(h_centers,d_centers_out,sizeof(SLICClusterCenter)*h_num_segments,cudaMemcpyDeviceToHost);
-	for(int i=0; i<h_num_segments; i++)
-	{
-		std::cout<<h_centers[i].xy.x<<" ,"<<h_centers[i].xy.y<<std::endl;
-	}
-
+	thrust::device_ptr<SLICClusterCenter> d_ptrV(d_centers_in);
+	thrust::device_vector<SLICClusterCenter> valueVector(d_ptrV,d_ptrV+size);
+	thrust::device_ptr<int> d_ptrK(labels);
+	thrust::device_vector<int> keyVector(d_ptrK,d_ptrK+size);
+	thrust::sort(keyVector.begin(),keyVector.end());
+	//thrust::sequence(keyVector.begin(), keyVector.end());
+	thrust::device_vector<int> outKeyVector(size);
+	thrust::device_vector<SLICClusterCenter> outValueVector(size);
+	thrust::pair<dIter, vIter>  new_end;
+	std::cout<<"keys in\n";
+	thrust::copy(keyVector.begin(), keyVector.end(), std::ostream_iterator<int>(std::cout, "\n"));
+	new_end = thrust::reduce_by_key(keyVector.begin(),keyVector.end(),valueVector.begin(),outKeyVector.begin(),outValueVector.begin(),binary_pred,op);
+	std::cout<<"keys out\n";
+	thrust::copy(outKeyVector.begin(), new_end.first , std::ostream_iterator<int>(std::cout, "\n"));
+	nClusters = new_end.first - outKeyVector.begin(); 
+	std::cout << "Number of results are: \n" << new_end.first - outKeyVector.begin() << std::endl;
 	cudaFree(d_centers_in);
-	cudaFree(d_labels_out);
-	cudaFree(d_num_segments);
-	delete[] h_centers;
+	
+	
 }

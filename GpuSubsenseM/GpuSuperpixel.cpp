@@ -26,7 +26,7 @@ void GpuSuperpixel::Superixel(float4 * rgbaBuffer,unsigned width, unsigned heigh
 	int itrNum(0);
 	while(itrNum < 1)
 	{
-		UpdateBoundary(d_rgbaBuffer, m_height, m_width,d_labels, d_centers,  m_nSuperpixels,m_alpha, m_step/2);
+		UpdateBoundary(d_rgbaBuffer, m_height, m_width,d_labels, d_centers,m_alpha, m_step/2);
 		UpdateClusters(d_rgbaBuffer,m_height,m_width,d_labels,d_centers,m_nSuperpixels);
 		itrNum++;
 	}
