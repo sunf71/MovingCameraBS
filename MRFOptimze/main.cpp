@@ -596,23 +596,31 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	int numlabels(0);
 	ComSuperpixel CS;
 	//CS.Superixel(idata,width,height,7000,0.9,labels);
-	CS.Superixel(idata,width,height,5,0.9,numlabels,labels);
-	//SLIC aslic;
-	//aslic.DrawContoursAroundSegments(idata, labels, width, height,0x00ff00);
-	//PictureHandler handler;
-	//handler.SavePicture(idata,width,height,std::string("mysuper.jpg"),std::string(".\\"));
-	//delete[] labels;
-	//return;
 #ifdef REPORT
 	nih::Timer timer;
 	timer.start();
 #endif
-	//SLIC slic;
-	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
+	CS.Superixel(idata,width,height,5,0.9,numlabels,labels);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
 #endif
+	SLIC aslic;
+	aslic.DrawContoursAroundSegments(idata, labels, width, height,0x00ff00);
+	PictureHandler handler;
+	handler.SavePicture(idata,width,height,std::string("mysuper.jpg"),std::string(".\\"));
+	//delete[] labels;
+	//return;
+//#ifdef REPORT
+//	nih::Timer timer;
+//	timer.start();
+//#endif
+//	//SLIC slic;
+//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
+//#ifdef REPORT
+//	timer.stop();
+//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
+//#endif
 	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
 #ifdef REPORT
@@ -738,11 +746,11 @@ int main()
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=1; i<=20;i++)
+	for(int i=470; i<=470;i++)
 	{
-		sprintf(imgFileName,"..\\moseg\\cars1\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensem\\moseg\\cars1\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\moseg\\cars1\\bin%06d.png",i);
+		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/

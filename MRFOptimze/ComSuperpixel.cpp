@@ -224,7 +224,7 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 						}
 					}
 				}
-				if( np > 1 )//change to 2 or 3 for thinner lines
+				if( np > 0 )//change to 2 or 3 for thinner lines
 				{
 					double min = Distance(k,j,labels[mainindex],kseedsr,kseedsb,kseedsb,kseedsx,kseedsy);
 					int idx = -1;

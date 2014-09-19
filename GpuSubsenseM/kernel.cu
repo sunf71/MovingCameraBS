@@ -4,6 +4,7 @@
 #include "GpuSuperpixel.h"
 #include "SLIC.h"
 #include "PictureHandler.h"
+#include "GpuTimer.h"
 void testCudaGpu()
 {
 	try
@@ -46,8 +47,8 @@ void testCudaGpu()
 int main (int argc, char* argv[])
 {
 	using namespace cv;
-	Mat img = imread("in000001.jpg");
-	cv::resize(img,img,cv::Size(16,16));
+	Mat img = imread("in000470.jpg");
+	//cv::resize(img,img,cv::Size(16,16));
 	float4* imgData = new float4[img.rows*img.cols];
 	unsigned int* idata = new unsigned int[img.rows*img.cols];
 	for(int i=0; i< img.cols; i++)
@@ -69,13 +70,14 @@ int main (int argc, char* argv[])
 	GpuSuperpixel gs;
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
-	gs.Superixel(imgData,img.cols,img.rows,3,0.9,num,labels);
-
+	GpuTimer timer;
+	timer.Start();
+	gs.Superixel(imgData,img.cols,img.rows,5,0.9,num,labels);
+	timer.Stop();
+	std::cout<<timer.Elapsed()<<"ms"<<std::endl;
 	SLIC aslic;
 	
 	PictureHandler handler;
-	Mat fimg(img.rows,img.cols,CV_32FC4,imgData);
-	imwrite("border.jpg",fimg);
 	aslic.DrawContoursAroundSegments(idata, labels, img.cols,img.rows,0x00ff00);
 	handler.SavePicture(idata,img.cols,img.rows,std::string("mysuper.jpg"),std::string(".\\"));
 	delete[] labels;
