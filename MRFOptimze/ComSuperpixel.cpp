@@ -191,7 +191,7 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 	int itr = 0;
 	const int dx4[4] = {-1,  0,  1, 0,};
 	const int dy4[4] = { 0, -1, 0, 1};
-	while(itr < 10)
+	while(itr < 6)
 	{
 		itr++;
 		

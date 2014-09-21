@@ -4,7 +4,9 @@
 #include "GpuSuperpixel.h"
 #include "SLIC.h"
 #include "PictureHandler.h"
+#include "ComSuperpixel.h"
 #include "GpuTimer.h"
+#include "timer.h"
 void testCudaGpu()
 {
 	try
@@ -44,6 +46,31 @@ void testCudaGpu()
 	}
 }
 
+void CpuSuperpixel(unsigned int* data, int width, int height, int step, float alpha = 0.9)
+{
+	int size = width*height;
+	int* labels = new int[size];
+	unsigned int* idata = new unsigned int[size];
+	memcpy(idata,data,sizeof(unsigned int)*size);
+	int numlabels(0);
+	ComSuperpixel CS;
+	//CS.Superixel(idata,width,height,7000,0.9,labels);
+#ifdef REPORT
+	nih::Timer timer;
+	timer.start();
+#endif
+	CS.Superixel(idata,width,height,step,alpha,numlabels,labels);
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
+#endif
+	SLIC aslic;
+	aslic.DrawContoursAroundSegments(idata, labels, width, height,0x00ff00);
+	PictureHandler handler;
+	handler.SavePicture(idata,width,height,std::string("cpusuper.jpg"),std::string(".\\"));
+	delete[] labels;
+	delete[] idata;
+}
 int main (int argc, char* argv[])
 {
 	using namespace cv;
@@ -67,12 +94,13 @@ int main (int argc, char* argv[])
 			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
-	GpuSuperpixel gs;
+	CpuSuperpixel(idata,img.cols,img.rows,5);
+	GpuSuperpixel gs(img.cols,img.rows,5);
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
 	GpuTimer timer;
 	timer.Start();
-	gs.Superixel(imgData,img.cols,img.rows,5,0.9,num,labels);
+	gs.Superixel(imgData,num,labels);
 	timer.Stop();
 	std::cout<<timer.Elapsed()<<"ms"<<std::endl;
 	SLIC aslic;
@@ -81,7 +109,8 @@ int main (int argc, char* argv[])
 	aslic.DrawContoursAroundSegments(idata, labels, img.cols,img.rows,0x00ff00);
 	handler.SavePicture(idata,img.cols,img.rows,std::string("mysuper.jpg"),std::string(".\\"));
 	delete[] labels;
-
+	delete[] idata;
+	delete[] imgData;
 	return 0;
 
 }

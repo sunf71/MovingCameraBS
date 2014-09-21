@@ -47,10 +47,12 @@ __global__ void UpdateBoundaryKernel(float4* imgBuffer, int nHeight, int nWidth,
 //@tNClusters理论总超像素数量（根据step和image size计算得到）
 __global__ void UpdateClustersKernel(int nHeight, int nWidth, int* d_keys,SLICClusterCenter* d_inCenters,SLICClusterCenter* d_outCenters, int nClusters,int tNClusters );
 
+__global__ void UpdateClusterCenterKernel(float4* imgBuffer, int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters);
 void InitClusterCenters(float4* d_imgBuffer,int* d_labels, int nWidth, int nHeight, int step, int& nSeg, SLICClusterCenter* d_center);
-
+void UpdateClusterCenter(float4* imgBuffer, int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters);
 void UpdateBoundary(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius);
-
+void UpdateBoundary(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_cenetersIn, SLICClusterCenter* d_centersOut, int nClusters,float alpha, float radius);
+void AvgClusterCenter(SLICClusterCenter* d_cenetersIn, int nClusters);
 void UpdateClusters(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_centers_in,
 	thrust::device_ptr<int>& outKeyPtr,
 	thrust::device_ptr<SLICClusterCenter>& outValuePtr,

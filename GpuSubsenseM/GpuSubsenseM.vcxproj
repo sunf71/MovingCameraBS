@@ -110,7 +110,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;REPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -152,17 +152,20 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ComSuperpixel.h" />
     <ClInclude Include="CudaSuperpixel.h" />
     <ClInclude Include="GpuSuperpixel.h" />
     <ClInclude Include="GpuTimer.h" />
     <ClInclude Include="PictureHandler.h" />
     <ClInclude Include="SLIC.h" />
+    <ClInclude Include="timer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ComSuperpixel.cpp" />
     <ClCompile Include="GpuSuperpixel.cpp" />
     <ClCompile Include="PictureHandler.cpp" />
     <ClCompile Include="SLIC.cpp" />
+    <ClCompile Include="timer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
