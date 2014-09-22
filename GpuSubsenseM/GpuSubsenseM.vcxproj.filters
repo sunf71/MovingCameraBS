@@ -22,12 +22,30 @@
     <ClInclude Include="timer.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="block.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="energy.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GCoptimization.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="graph.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="LinkedBlockList.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="MRFOptimize.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="kernel.cu">
+    <CudaCompile Include="CudaSuperpixel.cu">
       <Filter>Cuda</Filter>
     </CudaCompile>
-    <CudaCompile Include="CudaSuperpixel.cu">
+    <CudaCompile Include="kernel.cu">
       <Filter>Cuda</Filter>
     </CudaCompile>
   </ItemGroup>
@@ -56,6 +74,21 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="timer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GCoptimization.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="graph.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LinkedBlockList.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="maxflow.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MRFOptimize.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

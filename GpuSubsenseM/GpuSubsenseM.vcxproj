@@ -110,7 +110,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;REPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -124,7 +124,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
 copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
     <CudaCompile>
-      <CodeGeneration>compute_20,sm_20</CodeGeneration>
+      <CodeGeneration>compute_35,sm_35</CodeGeneration>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -149,20 +149,33 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu" />
-    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="kernel.cu">
+      <FileType>Document</FileType>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="block.h" />
     <ClInclude Include="ComSuperpixel.h" />
     <ClInclude Include="CudaSuperpixel.h" />
+    <ClInclude Include="energy.h" />
+    <ClInclude Include="GCoptimization.h" />
     <ClInclude Include="GpuSuperpixel.h" />
     <ClInclude Include="GpuTimer.h" />
+    <ClInclude Include="graph.h" />
+    <ClInclude Include="LinkedBlockList.h" />
+    <ClInclude Include="MRFOptimize.h" />
     <ClInclude Include="PictureHandler.h" />
     <ClInclude Include="SLIC.h" />
     <ClInclude Include="timer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ComSuperpixel.cpp" />
+    <ClCompile Include="GCoptimization.cpp" />
     <ClCompile Include="GpuSuperpixel.cpp" />
+    <ClCompile Include="graph.cpp" />
+    <ClCompile Include="LinkedBlockList.cpp" />
+    <ClCompile Include="maxflow.cpp" />
+    <ClCompile Include="MRFOptimize.cpp" />
     <ClCompile Include="PictureHandler.cpp" />
     <ClCompile Include="SLIC.cpp" />
     <ClCompile Include="timer.cpp" />

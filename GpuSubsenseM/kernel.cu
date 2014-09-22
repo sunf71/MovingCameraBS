@@ -7,13 +7,14 @@
 #include "ComSuperpixel.h"
 #include "GpuTimer.h"
 #include "timer.h"
+#include "MRFOptimize.h"
 void testCudaGpu()
 {
 	try
 
 	{
 
-		cv::Mat src_host = cv::imread("in0000001.jpg");
+		cv::Mat src_host = cv::imread("in000001.jpg");
 
 		cv::gpu::GpuMat dst, src;
 
@@ -22,9 +23,7 @@ void testCudaGpu()
 		cv::gpu::cvtColor(src,src,CV_BGR2GRAY);
 
 		cv::gpu::threshold(src, dst, 128.0, 255.0, CV_THRESH_BINARY);
-
-
-
+		
 		//cv::Mat result_host = dst;
 
 		cv::Mat result_host;
@@ -71,10 +70,11 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 	delete[] labels;
 	delete[] idata;
 }
-int main (int argc, char* argv[])
+
+void TestSuperpixel()
 {
 	using namespace cv;
-	Mat img = imread("in000470.jpg");
+	Mat img = imread("in000001.jpg");
 	//cv::resize(img,img,cv::Size(16,16));
 	float4* imgData = new float4[img.rows*img.cols];
 	unsigned int* idata = new unsigned int[img.rows*img.cols];
@@ -111,6 +111,33 @@ int main (int argc, char* argv[])
 	delete[] labels;
 	delete[] idata;
 	delete[] imgData;
+}
+
+void MRFOptimization()
+{
+	using namespace std;
+	char imgFileName[150];
+	char maskFileName[150];
+	char resultFileName[150];
+	int cols = 704;
+	int rows = 480;
+	GpuSuperpixel gs(cols,rows,5);
+	for(int i=90; i<=90;i++)
+	{
+		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
+		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
+		MRFOptimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
+	}
+}
+int main (int argc, char* argv[])
+{
+	MRFOptimization();
+	//TestSuperpixel();
+	//testCudaGpu();
 	return 0;
 
 }

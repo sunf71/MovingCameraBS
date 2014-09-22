@@ -67,6 +67,18 @@ __global__ void UpdateClustersKernel(int nHeight, int nWidth, int* keys,SLICClus
 	d_outCenters[keys[clusterIdx]] = d_inCenters[clusterIdx] * (1.0/d_inCenters[clusterIdx].nPoints);
 	
 }
+__global__ void UpdateClusterCenterKernel(int heigth,int width, int step, int* d_labels, SLICClusterCenter* d_inCenters,int nClusters)
+{
+	const int size = 5*5;
+	__shared__ int sLabels[size];
+	__shared__ float4 sPixels[size];
+	__shared__ float4 Rgb[size];
+	__shared__ float2 XY[size];
+	__shared__ int flag[size];
+	int clusterIdx = blockIdx.x;
+	int cx = d_inCenters[clusterIdx].xy.x;
+	int cy = d_inCenters[clusterIdx].xy.y;
+}
 __global__ void UpdateClusterCenterKernel(float4* imgBuffer, int height, int width, int step,int * d_labels, SLICClusterCenter* d_inCenters,int nClusters)
 {
 	//每个超像素一个线程
@@ -250,8 +262,8 @@ void UpdateClusterCenter(float4* imgBuffer, int height, int width, int step, int
 }
 void InitClusterCenters(float4* d_rgbaBuffer, int* d_labels,int width, int height, int step, int &nSeg, SLICClusterCenter* d_centers)
 {
-	GpuTimer timer;
-	timer.Start();
+	/*GpuTimer timer;
+	timer.Start();*/
 	dim3 blockDim = (width+ step-1) / step ;
 	dim3 gridDim = (height + step -1) / step;
 	nSeg = blockDim.x * gridDim.x;
@@ -259,8 +271,8 @@ void InitClusterCenters(float4* d_rgbaBuffer, int* d_labels,int width, int heigh
 		d_rgbaBuffer,
 		sizeof(float4)*width*height );
 	InitClusterCentersKernel<<<gridDim,blockDim>>>(d_rgbaBuffer,d_labels,width,height,step,nSeg,d_centers);
-	timer.Stop();
-	std::cout<<" InitClusterCentersKernel"<<timer.Elapsed()<<std::endl;
+	/*timer.Stop();
+	std::cout<<" InitClusterCentersKernel"<<timer.Elapsed()<<std::endl;*/
 }
 void UpdateBoundary(float4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_cenetersIn, SLICClusterCenter* d_centersOut, int nClusters,float alpha, float radius)
 {

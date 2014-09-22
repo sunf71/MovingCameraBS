@@ -82,6 +82,7 @@
     <ClInclude Include="GCoptimization.h" />
     <ClInclude Include="graph.h" />
     <ClInclude Include="LinkedBlockList.h" />
+    <ClInclude Include="MRFOptimize.h" />
     <ClInclude Include="PictureHandler.h" />
     <ClInclude Include="SLIC.h" />
     <ClInclude Include="timer.h" />
@@ -93,6 +94,7 @@
     <ClCompile Include="LinkedBlockList.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="maxflow.cpp" />
+    <ClCompile Include="MRFOptimize.cpp" />
     <ClCompile Include="PictureHandler.cpp" />
     <ClCompile Include="SLIC.cpp" />
     <ClCompile Include="timer.cpp" />
