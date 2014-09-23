@@ -28,13 +28,48 @@ struct SuperPixel
 
 typedef std::hash_map<int,SuperPixel*>SuperPixelMap;
 
-const float theta(0.35);
-const float lmd1(0.3);
-const float lmd2(3.0);
+class MRFOptimize
+{
+public:
+	MRFOptimize(int width, int height,int step):m_width(width),
+		m_height(height),
+		m_theta(0.35),
+		m_lmd1(0.3),
+		m_lmd2(3),
+		m_step(step)
+	{
+		Init();
+	}
+	~MRFOptimize()
+	{
+		Release();
+	}
+	void Init();
+	void Release();
+	void GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* lables, const int width,const int height);
 
-void GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* lables, const int width,const int height);
-
-void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, const int height,  const unsigned int* imgData, const unsigned char* maskData);
-void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
-void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
-void MRFOptimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName);
+	void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, const int height,  const unsigned int* imgData, const unsigned char* maskData);
+	void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
+	void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
+	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName);
+private:
+	SuperPixel* m_spPtr;
+	int m_nPixel;
+	int m_width;
+	int m_height;
+	bool * m_visited;
+	Point2i *m_stack;
+	int* m_labels;
+	int* m_result;
+	int m_step;
+	int* m_data;
+	int* m_smooth;
+	unsigned char* m_resultImgData;
+	float m_theta;
+	float m_lmd1;
+	float m_lmd2;
+	size_t m_QSIZE;
+	uchar* m_camData;
+	float4* m_imgData;
+	unsigned int* m_idata;
+};

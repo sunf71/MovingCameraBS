@@ -122,7 +122,12 @@ void MRFOptimization()
 	int cols = 704;
 	int rows = 480;
 	GpuSuperpixel gs(cols,rows,5);
-	for(int i=90; i<=90;i++)
+	MRFOptimize optimizer(cols,rows,5);
+	nih::Timer timer;
+	timer.start();
+	int start = 1;
+	int end = 100;
+	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",i);
@@ -130,8 +135,10 @@ void MRFOptimization()
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
-		MRFOptimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
+		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
 	}
+	timer.stop();
+	std::cout<<timer.seconds()/(end-start+1)<<" fps\n";
 }
 int main (int argc, char* argv[])
 {
