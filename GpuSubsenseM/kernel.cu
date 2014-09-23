@@ -98,6 +98,7 @@ void TestSuperpixel()
 	GpuSuperpixel gs(img.cols,img.rows,5);
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
+
 	GpuTimer timer;
 	timer.Start();
 	gs.Superixel(imgData,num,labels);
@@ -125,8 +126,8 @@ void MRFOptimization()
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 1;
-	int end = 100;
+	int start = 90;
+	int end = 90;
 	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
@@ -138,7 +139,7 @@ void MRFOptimization()
 		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
 	}
 	timer.stop();
-	std::cout<<timer.seconds()/(end-start+1)<<" fps\n";
+	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";
 }
 int main (int argc, char* argv[])
 {

@@ -6,6 +6,7 @@
 #include "PictureHandler.h"
 #include "timer.h"
 #include "GpuTimer.h"
+
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -17,11 +18,11 @@ void MRFOptimize::Init()
 {
 	m_QSIZE = 1024*1024;
 	int size = m_width*m_height;
-	
+
 	m_visited = new bool[size];
 	m_stack = new Point2i[m_QSIZE];
 	m_nPixel =  ((m_width+ m_step-1) / m_step) * ((m_height + m_step -1) / m_step);
-	
+	m_centers = new SLICClusterCenter[m_nPixel];
 	m_data = new int[m_nPixel*2];
 	m_smooth = new int[m_nPixel*2];
 	m_result= new int[m_nPixel];   // stores result of optimization
@@ -35,7 +36,7 @@ void MRFOptimize::Release()
 {
 	delete[] m_visited;
 	delete[] m_stack;
-	
+
 	delete[] m_data;
 	delete[] m_smooth;
 	delete[] m_imgData;
@@ -43,7 +44,7 @@ void MRFOptimize::Release()
 	delete[] m_camData;
 	delete[] m_result;
 	delete[] m_labels;
-
+	delete[] m_centers;
 }
 
 //save superpixels to an array with neighbor and pixels info
@@ -56,7 +57,7 @@ void MRFOptimize::GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, 
 	spSize = 0;
 	const int dx[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
 	const int dy[8] = { 0, -1, -1, -1, 0, 1, 1,  1};	
-	
+
 	int ptr = -1;
 	m_stack[++ptr] = Point2i(0,0);
 	while(ptr >= 0)
@@ -201,7 +202,7 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 void MRFOptimize::GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
 	// first set up the array for data costs
-	
+
 
 	for(int i=0; i<num_pixels; i++)
 	{
@@ -261,6 +262,12 @@ void MRFOptimize::GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta,
 //用MRF对前景结果进行优化
 void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName)
 {
+#ifdef REPORT
+	nih::Timer timer;
+	nih::Timer timer0;
+	timer0.start();
+	timer.start();
+#endif
 	m_spPtr = new SuperPixel[m_nPixel];
 	//superpixel
 	cv::Mat img = cv::imread(originalImgName);		
@@ -280,21 +287,24 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 			m_idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
-		
+
 	cv::Mat maskImg = cv::imread(maskImgName);
 	cv::cvtColor(maskImg,maskImg,CV_BGR2GRAY);
 	maskImg.convertTo(maskImg,CV_8U);
 	const unsigned char* maskImgData = maskImg.data;
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
+#endif
 
-	
 	int numlabels(0);
-		
+
 #ifdef REPORT
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
-	GS->Superixel(m_imgData,numlabels,m_labels);
-	
+	GS->Superixel(m_imgData,numlabels,m_labels,m_centers);
+
 #ifdef REPORT
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
@@ -302,11 +312,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	/*std::ofstream fileout("out.tmp.");
 	for(int i=0; i<width; i++)
 	{
-		for(int j=0; j<height; j++)
-		{
-			fileout<<labels[i+j*width]<<"\t ";
-		}
-		fileout<<"\n";
+	for(int j=0; j<height; j++)
+	{
+	fileout<<labels[i+j*width]<<"\t ";
+	}
+	fileout<<"\n";
 	}
 	fileout.close();*/
 
@@ -316,43 +326,48 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	/*return;*/
-//#ifdef REPORT
-//	nih::Timer timer;
-//	timer.start();
-//#endif
-//	//SLIC slic;
-//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
-//#ifdef REPORT
-//	timer.stop();
-//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
-//#endif
+	//#ifdef REPORT
+	//	nih::Timer timer;
+	//	timer.start();
+	//#endif
+	//	//SLIC slic;
+	//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
+	//#ifdef REPORT
+	//	timer.stop();
+	//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
+	//#endif
 	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
 #ifdef REPORT
-	nih::Timer timer;
 	timer.start();
 #endif
 
 	size_t spSize(0);
-	GetSegment2DArray(m_spPtr,spSize,m_labels,m_width,m_height);
-	
+	//GetSegment2DArray(m_spPtr,spSize,m_labels,m_width,m_height);
+
 #ifdef REPORT
 	timer.stop();
-	std::cout<<"GetSegment2DArray  "<<timer.seconds()<<std::endl;
+	std::cout<<"GetSegment2DArray  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
 #ifdef REPORT
-	
+
 	timer.start();
 #endif
-	ComputeAvgColor(m_spPtr,spSize,m_width,m_height,m_idata,maskImgData);
+	//ComputeAvgColor(m_spPtr,spSize,m_width,m_height,m_idata,maskImgData);
+	GetSuperpixels(maskImgData);
+	/*for(int i=0; i<m_spPtr[0].neighbors.size(); i++)
+	{
+	std::cout<<m_spPtr[0].neighbors[i]->idx<<std::endl;
+	std::cout<<m_spPtr[0].neighbors[i]->nn<<std::endl;
+	}*/
 	float avgE = 0;
 	size_t count = 0;
-	for(int i=0; i<spSize; i++)
+	for(int i=0; i<m_nPixel; i++)
 	{
 		for (int j=0; j< m_spPtr[i].neighbors.size(); j++)
 		{
-			if (i < m_spPtr[i].neighbors[j]->idx)
+			if (m_spPtr[i].lable < m_spPtr[i].neighbors[j]->lable)
 			{
 
 				avgE += abs(m_spPtr[i].avgColor-m_spPtr[i].neighbors[j]->avgColor);
@@ -362,28 +377,27 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 		}
 	}
 	avgE /= count;
-	
+
 	avgE = 1/(2*avgE);
-	//std::cout<<"avg e "<<avgE<<std::endl;
+	std::cout<<"avg e "<<avgE<<std::endl;
 #ifdef REPORT
 	timer.stop();
-	std::cout<<"ComputeAvgColor  "<<timer.seconds()<<std::endl;
+	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
 #ifdef REPORT
-	
+
 	timer.start();
 #endif
-	
-	GraphCutOptimize(m_spPtr,spSize,avgE,2,m_width,m_height,m_result);
+
+	GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//MaxFlowOptimize(spPtr,spSize,avgE,2,width,height,result);
 #ifdef REPORT
 	timer.stop();
-	std::cout<<"GraphCutOptimize  "<<timer.seconds()<<std::endl;
+	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
-	
+#ifdef REPORT	
 	timer.start();
 #endif
 	cv::Mat rimg(m_height,m_width,CV_8U);
@@ -393,17 +407,74 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	{
 		if(m_result[i] == 1)			
 		{
-			for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+			/*for(int j=0; j<m_spPtr[i].pixels.size(); j++)
 			{
-				int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
-				imgPtr[idx] = 0xff;
+			int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
+			imgPtr[idx] = 0xff;
+			}*/
+			int k = m_centers[i].xy.x;
+			int j = m_centers[i].xy.y;
+			int radius = m_step;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					if (m_labels[idx] == i)
+					{					
+						imgPtr[idx] = 0xff;
+					}					
+				}
 			}
 		}	
 	}
 	cv::imwrite(resultImgName,rimg);
 #ifdef REPORT
 	timer.stop();
-	std::cout<<"imwrite  "<<timer.seconds()<<std::endl;
+	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	delete[] m_spPtr;
+
+#ifdef REPORT
+	timer0.stop();
+	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
+#endif
+}
+
+void MRFOptimize::GetSuperpixels(const unsigned char* mask)
+{
+	for(int i=0; i<m_nPixel; i++)
+	{
+		int k = m_centers[i].xy.x;
+		int j = m_centers[i].xy.y;
+		m_spPtr[i].avgColor = (m_centers[i].rgb.x+m_centers[i].rgb.y + m_centers[i].rgb.z)/3;
+		m_spPtr[i].idx = i;
+		m_spPtr[i].lable = i;
+
+		float n = 0;
+		//以原来的中心点为中心，step +１　为半径进行更新
+		int radius = m_step;
+		for (int x = k- radius; x<= k+radius; x++)
+		{
+			for(int y = j - radius; y<= j+radius; y++)
+			{
+				if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+					continue;
+				int idx = x+y*m_width;
+				if (m_labels[idx] == i && mask[idx] == 0xff)
+				{					
+					n++;
+				}
+				else if(m_labels[idx]!= i)
+				{
+					if (find(m_spPtr[i].neighbors.begin(),m_spPtr[i].neighbors.end(),&m_spPtr[m_labels[idx]]) == m_spPtr[i].neighbors.end())
+						m_spPtr[i].neighbors.push_back(&m_spPtr[m_labels[idx]]);
+				}
+			}
+		}
+		m_spPtr[i].ps = n/m_centers[i].nPoints;
+	}
+
 }
