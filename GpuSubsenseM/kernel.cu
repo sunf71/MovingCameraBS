@@ -138,7 +138,7 @@ void MRFOptimization()
 		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
 	}
 	timer.stop();
-	std::cout<<timer.seconds()/(end-start+1)<<" fps\n";
+	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";
 }
 int main (int argc, char* argv[])
 {
