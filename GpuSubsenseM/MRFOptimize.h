@@ -11,6 +11,7 @@
 #include <opencv2/video/tracking.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 #include "GpuSuperpixel.h"
+
 using namespace std;
 typedef std::pair<int,int> Point2i;
 
@@ -70,8 +71,8 @@ private:
 	float m_theta;
 	float m_lmd1;
 	float m_lmd2;
-	size_t m_QSIZE;
-	uchar* m_camData;
+	size_t m_QSIZE;	
 	float4* m_imgData;
 	unsigned int* m_idata;
+	
 };
