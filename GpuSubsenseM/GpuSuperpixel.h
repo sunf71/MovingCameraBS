@@ -17,7 +17,7 @@ public:
 		Release();
 	}
 	void Superixel(float4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers);
-	void GpuSuperpixel::Superixel(float4* rgbaBuffer, int& num,int* labels);
+	void Superixel(float4* rgbaBuffer, int& num,int* labels);
 protected:
 	void Init(unsigned width, unsigned height,unsigned step, float alpha);
 	void Release();
