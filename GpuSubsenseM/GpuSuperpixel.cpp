@@ -19,6 +19,22 @@ void GpuSuperpixel::Release()
 	cudaFree(d_centers);
 	cudaFree(d_labels);	
 }
+void GpuSuperpixel::Superixel(float4* rgbaBuffer, int& num,int* labels,SLICClusterCenter* centers)
+{
+	cudaMemcpy(d_rgbaBuffer,rgbaBuffer,sizeof(float4)*m_size,cudaMemcpyHostToDevice);
+	InitClusterCenters(d_rgbaBuffer,d_labels,m_width,m_height,m_step, m_nSuperpixels,d_centers);
+	int itrNum(0);
+	while(itrNum < 10)
+	{
+		UpdateBoundary(d_rgbaBuffer, m_height, m_width,d_labels, d_centers, m_nPixels,m_alpha, m_radius);		
+		UpdateClusterCenter(d_rgbaBuffer,m_height,m_width,m_step,d_labels,d_centers,m_nPixels);
+		itrNum++;
+	}
+	
+	cudaMemcpy(labels,d_labels,sizeof(int)*m_size,cudaMemcpyDeviceToHost);
+	cudaMemcpy(centers,d_centers,sizeof(SLICClusterCenter)*m_nPixels,cudaMemcpyDeviceToHost);
+}
+
 void GpuSuperpixel::Superixel(float4* rgbaBuffer, int& num,int* labels)
 {
 	cudaMemcpy(d_rgbaBuffer,rgbaBuffer,sizeof(float4)*m_size,cudaMemcpyHostToDevice);
@@ -30,7 +46,7 @@ void GpuSuperpixel::Superixel(float4* rgbaBuffer, int& num,int* labels)
 		UpdateClusterCenter(d_rgbaBuffer,m_height,m_width,m_step,d_labels,d_centers,m_nPixels);
 		itrNum++;
 	}
-	UpdateBoundary(d_rgbaBuffer, m_height, m_width,d_labels, d_centers,  m_nSuperpixels,m_alpha, m_radius);
+	
 	cudaMemcpy(labels,d_labels,sizeof(int)*m_size,cudaMemcpyDeviceToHost);
 	
 }
