@@ -25,6 +25,7 @@ struct SuperPixel
 	std::vector<SuperPixel*> neighbors;
 	float avgColor;
 	float ps;
+	int n[8];
 };
 
 typedef std::hash_map<int,SuperPixel*>SuperPixelMap;
@@ -54,6 +55,7 @@ public:
 	void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName);
 	void GetSuperpixels(const unsigned char* mask);
+	
 private:
 	SuperPixel* m_spPtr;
 	SLICClusterCenter* m_centers;

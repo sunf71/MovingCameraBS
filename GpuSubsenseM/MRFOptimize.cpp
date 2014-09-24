@@ -66,7 +66,7 @@ void MRFOptimize::GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, 
 	m_stack[++ptr] = Point2i(0,0);
 	while(ptr >= 0)
 	{
-		std::cout<<spSize<<std::endl;
+		//std::cout<<spSize<<std::endl;
 		if (ptr>m_QSIZE)
 			std::cout<<ptr<<std::endl;
 		Point2i pt = m_stack[ptr--];
@@ -218,7 +218,7 @@ void MRFOptimize::GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta,
 			d = max(1e-20f,d);
 			float d1 = -log(d)*j;
 			float d2 =  - log(1-d)*(1-j);
-			m_data[i*num_labels + j] =(int)5*(d1+d2);
+			m_data[i*num_labels + j] =(int)10*(d1+d2);
 			/*dfile<<m_data[i*num_labels + j]<<std::endl;*/
 		}
 	}
@@ -280,7 +280,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	timer0.start();
 	timer.start();
 #endif
-	m_spPtr = new SuperPixel[m_nPixel];
+	m_spPtr = new SuperPixel[m_width*m_height];
 	//superpixel
 	cv::Mat img = cv::imread(originalImgName);		
 	cv::Mat continuousRGBA(img.size(), CV_8UC4, m_idata);	
@@ -304,9 +304,9 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
-	//GS->Superixel(m_imgData,numlabels,m_labels,m_centers);
-	ComSuperpixel cs;
-	cs.Superixel(m_idata,m_width,m_height,5,0.9,numlabels,m_labels);
+	GS->Superixel(m_imgData,numlabels,m_labels,m_centers);
+	//ComSuperpixel cs;
+	//cs.Superixel(m_idata,m_width,m_height,5,0.9,numlabels,m_labels);
 #ifdef REPORT
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
@@ -346,7 +346,17 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 
 	size_t spSize(0);
 	GetSegment2DArray(m_spPtr,spSize,m_labels,m_width,m_height);
-
+	std::ofstream outFile("nb1.tmp");
+	for(int id = 0; id<m_nPixel; id++)
+	{
+		outFile<<id<<" ";
+		for(int i=0; i<m_spPtr[id].neighbors.size();i++)
+		{
+			outFile<<m_spPtr[id].neighbors[i]->lable<<" ";
+		}
+		outFile<<std::endl;
+	}
+	outFile.close();
 //#ifdef REPORT
 //	timer.stop();
 //	std::cout<<"GetSegment2DArray  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -358,6 +368,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 #endif
 	ComputeAvgColor(m_spPtr,spSize,m_width,m_height,m_idata,maskImgData);
 	//GetSuperpixels(maskImgData);
+	
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -412,12 +423,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	{
 		if(m_result[i] == 1)			
 		{
-			for(int j=0; j<m_spPtr[i].pixels.size(); j++)
-			{
-			int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
-			imgPtr[idx] = 0xff;
-			}
-			/*int k = m_centers[i].xy.x;
+			//for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+			//{
+			//int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
+			//imgPtr[idx] = 0xff;
+			//}
+			int k = m_centers[i].xy.x;
 			int j = m_centers[i].xy.y;
 			int radius = m_step+5;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -432,7 +443,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 						imgPtr[idx] = 0xff;
 					}					
 				}
-			}*/
+			}
 		}	
 	}
 	cv::imwrite(resultImgName,rimg);
@@ -497,8 +508,10 @@ void ProbImage(SuperPixel* sp, int * labels,int nPixel, int width, int height)
 	cv::imwrite("avg.jpg",img);
 	cv::imwrite("prob.jpg",pimg);
 }
+
 void MRFOptimize::GetSuperpixels(const unsigned char* mask)
 {
+	
 	for(int i=0; i<m_nPixel; i++)
 	{
 		int k = m_centers[i].xy.x;
