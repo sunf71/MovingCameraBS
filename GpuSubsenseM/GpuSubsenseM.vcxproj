@@ -157,23 +157,30 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="block.h" />
     <ClInclude Include="ComSuperpixel.h" />
     <ClInclude Include="CudaSuperpixel.h" />
+    <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="energy.h" />
     <ClInclude Include="GCoptimization.h" />
+    <ClInclude Include="GpuBackgroundSubtractor.h" />
     <ClInclude Include="GpuSuperpixel.h" />
     <ClInclude Include="GpuTimer.h" />
     <ClInclude Include="graph.h" />
     <ClInclude Include="LinkedBlockList.h" />
     <ClInclude Include="MRFOptimize.h" />
     <ClInclude Include="PictureHandler.h" />
+    <ClInclude Include="RandUtils.h" />
     <ClInclude Include="SLIC.h" />
+    <ClInclude Include="SubSenseBSProcessor.h" />
     <ClInclude Include="timer.h" />
+    <ClInclude Include="videoprocessor.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ComSuperpixel.cpp" />
     <ClCompile Include="GCoptimization.cpp" />
+    <ClCompile Include="GpuBackgroundSubtrator.cpp" />
     <ClCompile Include="GpuSuperpixel.cpp" />
     <ClCompile Include="graph.cpp" />
     <ClCompile Include="LinkedBlockList.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="maxflow.cpp" />
     <ClCompile Include="MRFOptimize.cpp" />
     <ClCompile Include="PictureHandler.cpp" />

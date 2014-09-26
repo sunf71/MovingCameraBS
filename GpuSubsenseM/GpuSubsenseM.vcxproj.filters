@@ -40,6 +40,21 @@
     <ClInclude Include="MRFOptimize.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="GpuBackgroundSubtractor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RandUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DistanceUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SubSenseBSProcessor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="videoprocessor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
@@ -89,6 +104,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="MRFOptimize.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GpuBackgroundSubtrator.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

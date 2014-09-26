@@ -1,13 +1,13 @@
 #pragma once
 #include <vector>
-#include "BackgroundSubtractorSuBSENSE.h"
-#include "BGSSubsenseM.h"
+#include "GpuBackgroundSubtractor.h"
 #include "videoprocessor.h"
-
+#include <opencv2\opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
 class SubSenseBSProcessor : public FrameProcessor
 {
 private:
-	BackgroundSubtractorSuBSENSE _bgs;
+	GpuBackgroundSubtractor _bgs;
 	//BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;

@@ -1,9 +1,9 @@
+#include "GpuBackgroundSubtractor.h"
 #include "SubSenseBSProcessor.h"
+#include "videoprocessor.h"
 #include "timer.h"
-using namespace cv;
-int main()
+void TestGpuSubsense()
 {
-	
 	VideoProcessor processor;
 	
 	// Create feature tracker instance
@@ -44,5 +44,12 @@ int main()
 	cv::waitKey();
 
 
+	
+
+}
+
+int main()
+{
+	TestGpuSubsense();
 	return 0;
 }

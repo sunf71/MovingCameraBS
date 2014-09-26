@@ -8,6 +8,7 @@
 #include "GpuTimer.h"
 #include "timer.h"
 #include "MRFOptimize.h"
+
 void testCudaGpu()
 {
 	try
@@ -141,7 +142,9 @@ void MRFOptimization()
 	timer.stop();
 	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";
 }
-int main (int argc, char* argv[])
+
+
+int cuda_main (int argc, char* argv[])
 {
 	MRFOptimization();
 	//TestSuperpixel();
