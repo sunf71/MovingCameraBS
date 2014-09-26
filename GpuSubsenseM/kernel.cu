@@ -127,7 +127,7 @@ void MRFOptimization()
 	nih::Timer timer;
 	timer.start();
 	int start = 1;
-	int end = 1;
+	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);

@@ -161,13 +161,12 @@ __global__  void UpdateBoundaryKernel(float4* imgBuffer, int nHeight, int nWidth
 		{
 			int index = y*nWidth + x;
 			if( labels[mainindex] != labels[index] ) 
-			{
-				
+			{				
 				nl[np++] = labels[index];
 			}			
 		}
 	}
-	if( np > 0 )//change to 2 or 3 for thinner lines
+	if( np > 1 )//change to 2 or 3 for thinner lines
 	{
 		double min = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,labels[mainindex],d_ceneters);
 		int idx = -1;

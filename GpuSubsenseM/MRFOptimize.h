@@ -21,6 +21,10 @@ struct SuperPixel
 {
 	int idx;
 	int lable;
+	bool operator < (const SuperPixel& a)
+	{
+		return lable < a.lable;
+	}
 	std::vector<Point2i> pixels;
 	std::vector<SuperPixel*> neighbors;
 	float avgColor;
@@ -76,5 +80,5 @@ private:
 	size_t m_QSIZE;	
 	float4* m_imgData;
 	unsigned int* m_idata;
-	
+	std::vector<std::vector<int>> m_neighbor;
 };
