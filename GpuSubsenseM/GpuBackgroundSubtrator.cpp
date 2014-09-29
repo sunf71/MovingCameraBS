@@ -106,6 +106,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	const size_t nOrigKeyPointsCount = voNewKeyPoints.size();
 	CV_Assert(nOrigKeyPointsCount>0);
 	//LBSP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
+	cv::KeyPointsFilter::runByImageBorder(voNewKeyPoints,oInitImg.size(),LBSP_PATCH_SIZE/2);
 	CV_Assert(!voNewKeyPoints.empty());
 	m_voKeyPoints = voNewKeyPoints;
 	m_nKeyPoints = m_voKeyPoints.size();
@@ -626,14 +627,14 @@ void GpuBackgroundSubtractor::operator()(cv::InputArray _image, cv::OutputArray 
 	cv::bitwise_or(m_oRawFGBlinkMask_curr,m_oRawFGBlinkMask_last,m_oBlinksFrame);
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());	
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);	
 	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
 	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
-	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);	
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);	
+	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);	
 	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);

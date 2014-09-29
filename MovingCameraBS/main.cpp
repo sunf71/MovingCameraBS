@@ -147,6 +147,9 @@ void TestPerspective()
 	cvtColor(img1, gray1, CV_BGR2GRAY); 
 	cvtColor(img2, gray2, CV_BGR2GRAY);
 
+	cv::GaussianBlur(gray1,gray1,cv::Size(3,3),0.1);
+	cv::GaussianBlur(gray2,gray2,cv::Size(3,3),0.1);
+
 	std::vector<cv::Point2f> features1,features2;  // detected features
 
 	int max_count = 500;	  // maximum number of features to detect
@@ -176,7 +179,9 @@ void TestPerspective()
 		CV_RANSAC, // RANSAC method
 		1.); // max distance to reprojection point
 
-
+	Mat affine = estimateRigidTransform(features1,features2,true);
+	Mat Affineresult;
+	warpAffine(gray1,Affineresult,affine,cv::Size(gray1.cols,gray1.rows));
 
 	// Warp image 1 to image 2
 	cv::Mat result;
@@ -187,7 +192,7 @@ void TestPerspective()
 
 	
 	Mat ErrImg = gray2 - result;
-
+	Mat ErrAImg = gray2 - Affineresult;
 	// Display the warp image
 	cv::namedWindow("After warping");
 	cv::imshow("After warping",result);
@@ -199,15 +204,18 @@ void TestPerspective()
 
 	cv::namedWindow("error");
 	cv::imshow("error",ErrImg);
-
+	cv::Mat absDiff;
+	cv::absdiff(gray2,result,absDiff);
+	std::cout<<"perspective abs diff ="<<cv::sum(absDiff)<<std::endl;
+	cv::absdiff(gray2,Affineresult,absDiff);
+	std::cout<<"affine abs diff ="<<cv::sum(absDiff)<<std::endl;
 	cv::waitKey();
 }
 int main()
 {
-	/*TestAffine();
-	return 0;*/
-	//TestPerspective();
-	//return 0;
+	TestPerspective();	
+	TestAffine();
+	return 0;
 	// Create video procesor instance
 	VideoProcessor processor;
 	

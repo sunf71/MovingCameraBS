@@ -2,6 +2,7 @@
 #include <opencv2\calib3d\calib3d.hpp>
 #include <opencv2\features2d\features2d.hpp>
 #include <opencv2/video/tracking.hpp>
+#include <opencv2\highgui\highgui.hpp>
 #include "BackgroundSubtractorSuBSENSE.h"
 #include "DistanceUtils.h"
 #include "RandUtils.h"
@@ -26,7 +27,11 @@ public:
 	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
 	{
 		/*std::cout<<homography;*/
-		float threshold = 0.6;
+		cv::Mat mask(m_oImgSize,CV_8UC1);
+		mask = cv::Scalar(0);
+		uchar* ptr = mask.data;
+
+		float threshold = 0.5;
 		std::vector<cv::Point2f> currPoints, trackedPoints;
 		std::vector<uchar> status; // status of tracked features
 		std::vector<float> err;    // error in tracking
@@ -74,19 +79,45 @@ public:
 			y /= w;
 			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
 			distance += d;
+			const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
+			const size_t idx_flt32 = idx_char*4;
 			if (d < threshold)
 			{
-				mCurr.data[(int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols] = 0x0;
-				const unsigned char idx_uchar_rgb = (pt.x + pt.y* this->m_oImgSize.width)*3;
-				unsigned char* anCurrColor = curr.data + idx_uchar_rgb;
-				//update model
-				const size_t s_rand = rand()%m_nBGSamples;
+				
+				float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
+				//std::cout<<*pfCurrDistThresholdFactor<<std::endl;
+				*pfCurrDistThresholdFactor += 0.2;
+				ptr[idx_char] = 128;
+				mCurr.data[idx_char] = 0x0;
+				if (m_nImgChannels == 3)
+				{
+					const unsigned char idx_uchar_rgb = (pt.x + pt.y* this->m_oImgSize.width)*3;
+					unsigned char* anCurrColor = curr.data + idx_uchar_rgb;
+					//update model
+					const size_t s_rand = rand()%m_nBGSamples;
 					for(size_t c=0; c<3; ++c) {
 						//*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
 						*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
 					}
+
+				}
+				else
+				{
+					const size_t s_rand = rand()%m_nBGSamples;
+					const unsigned char idx_uchar = (pt.x + pt.y* this->m_oImgSize.width);
+					unsigned char* anCurrColor = curr.data + idx_uchar;
+					*(m_voBGColorSamples[s_rand].data+idx_uchar) = anCurrColor[0];
+
+				}
+			}
+			else
+			{
+				ptr[idx_char] = 255;
 			}
 		}		
+		/*char filename[150];
+		sprintf(filename,"homoTest%d.jpg",m_nFrameIndex-1);
+		cv::imwrite(filename,mask);*/
 	}
 	void cloneModels();
 protected:
@@ -133,4 +164,6 @@ protected:
 
 	std::vector<cv::Mat> w_voBGColorSamples;
 	std::vector<cv::Mat> w_voBGDescSamples;
+
+	size_t m_nOutPixels;
 };

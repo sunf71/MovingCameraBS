@@ -26,7 +26,7 @@ public:
 		}
 		_bgs(gray,output);
 		char fileName[50];
-		sprintf(fileName,"..\\result\\subsense\\baseline\\input0\\bin%06d.png",frameNo++);
+		sprintf(fileName,"..\\result\\subsensex\\baseline\\input0\\bin%06d.png",frameNo++);
 		imwrite(fileName,output);
 		//imshow("input",frame);
 		//output = frame;

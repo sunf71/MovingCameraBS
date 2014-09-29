@@ -151,6 +151,7 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 
 	w_voBGColorSamples.resize(m_nBGSamples);
 	w_voBGDescSamples.resize(m_nBGSamples);
+	m_nOutPixels = 0;
 	cloneModels();
 }
 
@@ -266,7 +267,10 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 		y/=w;
 		//std::cout<<x<<","<<y<<std::endl;
 		if (x<2 || x>= m_oImgSize.width-2 || y<2 || y>=m_oImgSize.height-2)
+		{
 			m_warpMask.at<uchar>((int)m_voKeyPoints[i].pt.y,(int)m_voKeyPoints[i].pt.x) = 0;
+			m_nOutPixels ++;
+		}
 		else
 			m_warpMask.at<uchar>((int)m_voKeyPoints[i].pt.y,(int)m_voKeyPoints[i].pt.x) = 255;
 		m_voTKeyPoints[i] = cv::KeyPoint(x,y,1.f);
@@ -281,7 +285,7 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 	// == process
 	CV_DbgAssert(m_bInitialized);
 	cv::Mat oInputImg = _image.getMat();
-	//cv::GaussianBlur(oInputImg,oInputImg,cv::Size(5,5),0,0);
+	cv::GaussianBlur(oInputImg,oInputImg,cv::Size(3,3),0.1);
 	CV_DbgAssert(oInputImg.type()==m_nImgType && oInputImg.size()==m_oImgSize);
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
@@ -431,6 +435,71 @@ failedcheck1ch:
 			nLastIntraDesc = nCurrIntraDesc;
 			nLastColor = nCurrColor;
 		}
+		for(size_t k=0; k<m_nKeyPoints; ++k) {
+			const int x = (int)m_voKeyPoints[k].pt.x;
+			const int y = (int)m_voKeyPoints[k].pt.y;
+			const size_t idx_uchar = m_oImgSize.width*y + x;
+			uchar warpMask = m_warpMask.data[idx_uchar];
+
+			const size_t idx_ushrt = idx_uchar*2;
+			const size_t idx_flt32 = idx_uchar*4;
+		
+			//变换后在前一帧图像中的位置
+			const int wx = (int)m_voTKeyPoints[k].pt.x;
+			const int wy = (int)m_voTKeyPoints[k].pt.y;
+			const size_t widx_uchar = m_oImgSize.width*wy + wx;
+			const size_t widx_ushrt = widx_uchar*2;
+			const size_t widx_flt32 = widx_uchar*4;
+			
+			//warped models
+			float* wpfCurrDistThresholdFactor = (float*)(w_oDistThresholdFrame.data+widx_flt32);
+			float* wpfCurrVariationFactor = (float*)(w_oVariationModulatorFrame.data+widx_flt32);
+			float* wpfCurrLearningRate = ((float*)(w_oUpdateRateFrame.data+widx_flt32));
+			float* wpfCurrMeanLastDist = ((float*)(w_oMeanLastDistFrame.data+widx_flt32));
+			float* wpfCurrMeanMinDist_LT = ((float*)(w_oMeanMinDistFrame_LT.data+widx_flt32));
+			float* wpfCurrMeanMinDist_ST = ((float*)(w_oMeanMinDistFrame_ST.data+widx_flt32));
+			float* wpfCurrMeanRawSegmRes_LT = ((float*)(w_oMeanRawSegmResFrame_LT.data+widx_flt32));
+			float* wpfCurrMeanRawSegmRes_ST = ((float*)(w_oMeanRawSegmResFrame_ST.data+widx_flt32));
+			float* wpfCurrMeanFinalSegmRes_LT = ((float*)(w_oMeanFinalSegmResFrame_LT.data+widx_flt32));
+			float* wpfCurrMeanFinalSegmRes_ST = ((float*)(w_oMeanFinalSegmResFrame_ST.data+widx_flt32));
+
+			float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
+			float* pfCurrVariationFactor = (float*)(m_oVariationModulatorFrame.data+idx_flt32);
+			float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
+			float* pfCurrMeanLastDist = ((float*)(m_oMeanLastDistFrame.data+idx_flt32));
+			float* pfCurrMeanMinDist_LT = ((float*)(m_oMeanMinDistFrame_LT.data+idx_flt32));
+			float* pfCurrMeanMinDist_ST = ((float*)(m_oMeanMinDistFrame_ST.data+idx_flt32));
+			float* pfCurrMeanRawSegmRes_LT = ((float*)(m_oMeanRawSegmResFrame_LT.data+idx_flt32));
+			float* pfCurrMeanRawSegmRes_ST = ((float*)(m_oMeanRawSegmResFrame_ST.data+idx_flt32));
+			float* pfCurrMeanFinalSegmRes_LT = ((float*)(m_oMeanFinalSegmResFrame_LT.data+idx_flt32));
+			float* pfCurrMeanFinalSegmRes_ST = ((float*)(m_oMeanFinalSegmResFrame_ST.data+idx_flt32));
+			if (warpMask == 0)
+			{
+				const uchar* const anCurrColor = oInputImg.data+idx_uchar;
+				ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
+				//相机移动后在原模型中不存在的部分，不处理
+				/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);*/
+				/*if((rand()%nLearningRate)==0) */
+				{
+					const size_t s_rand = rand()%m_nBGSamples;
+					*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt)) = anLastIntraDesc[0];
+					*(m_voBGColorSamples[s_rand].data+idx_uchar) = anCurrColor[0];
+					
+				}
+				continue;
+			}
+			*pfCurrDistThresholdFactor = *wpfCurrDistThresholdFactor;
+			*pfCurrVariationFactor = *wpfCurrVariationFactor;
+			*pfCurrLearningRate = *wpfCurrLearningRate;
+			*pfCurrMeanLastDist = *wpfCurrMeanLastDist;
+			*pfCurrMeanMinDist_LT = *wpfCurrMeanMinDist_LT;
+			*pfCurrMeanMinDist_ST = *wpfCurrMeanMinDist_ST;
+			*pfCurrMeanRawSegmRes_LT = *wpfCurrMeanRawSegmRes_LT;
+			*pfCurrMeanRawSegmRes_ST = *wpfCurrMeanRawSegmRes_ST;
+			*pfCurrMeanFinalSegmRes_LT = *wpfCurrMeanFinalSegmRes_LT;
+			*pfCurrMeanFinalSegmRes_ST = *wpfCurrMeanFinalSegmRes_ST;
+
+		}		
 	}
 	else { //m_nImgChannels==3
 		
@@ -741,6 +810,10 @@ failedcheck3ch:
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	m_oFGMask_last.copyTo(oCurrFGMask);
 	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
+
+	/*char filename[150];
+	sprintf(filename,"blink_%d.jpg",m_nFrameIndex-1);
+	cv::imwrite(filename,m_oBlinksFrame);*/
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
 	const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
@@ -799,8 +872,11 @@ failedcheck3ch:
 		}
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
-
 		
+		if (m_nFrameIndex > 200 && m_nFrameIndex%50 ==0)
+		{
+			refreshModel(0.1);
+		}
 	}
 }
 

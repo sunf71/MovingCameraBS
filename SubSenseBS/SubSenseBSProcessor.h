@@ -7,8 +7,8 @@
 class SubSenseBSProcessor : public FrameProcessor
 {
 private:
-	BackgroundSubtractorSuBSENSE _bgs;
-	//BGSSubsenseM _bgs;
+	//BackgroundSubtractorSuBSENSE _bgs;
+	BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;
 public:
@@ -18,16 +18,21 @@ public:
 	{
 		cv::Mat gray;
 		cv::cvtColor(frame, gray, CV_BGR2GRAY); 
+		/*cv::Mat edges;
+		cv::Canny(gray,edges,125,350);*/
+		//cv::GaussianBlur(gray,gray,cv::Size(3,3),0.1);
 		static int frameNo = 1;
 		if (!_initFlag)
 		{
-			_bgs.initialize(gray,_voKeyPoints);
+			_bgs.initialize(frame,_voKeyPoints);
 			_initFlag = true;
 		}
-		_bgs(gray,output);
+		_bgs(frame,output);
 		char fileName[50];
-		sprintf(fileName,"..\\result\\subsense\\baseline\\input0\\bin%06d.png",frameNo++);
+		sprintf(fileName,"..\\result\\subsensem\\ptz\\input3\\bin%06d.png",frameNo++);
 		imwrite(fileName,output);
+	/*	sprintf(fileName,"..\\result\\subsensem\\ptz\\input3\\edge%06d.png",frameNo-1);
+		imwrite(fileName,edges);*/
 		//imshow("input",frame);
 		//output = frame;
 	}
