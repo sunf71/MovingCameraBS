@@ -19,6 +19,8 @@ public:
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
 	//! refreshes all samples based on the last analyzed frame
 	virtual void refreshModel(float fSamplesRefreshFrac);
+	//reset parameters
+	void resetPara();
 	//! primary model update function; the learning param is used to override the internal learning thresholds (ignored when <= 0)
 	virtual void operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRateOverride=0);
 	virtual void motionCompensate();
@@ -79,46 +81,51 @@ public:
 			y /= w;
 			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
 			distance += d;
-			const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
-			const size_t idx_flt32 = idx_char*4;
+			
 			if (d < threshold)
 			{
-				
+				const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
+				const size_t idx_flt32 = idx_char*4;
+			
+				float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
+
 				float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
 				//std::cout<<*pfCurrDistThresholdFactor<<std::endl;
-				*pfCurrDistThresholdFactor += 0.2;
+				*pfCurrDistThresholdFactor += 0.1;
 				ptr[idx_char] = 128;
 				mCurr.data[idx_char] = 0x0;
+				
 				if (m_nImgChannels == 3)
 				{
-					const unsigned char idx_uchar_rgb = (pt.x + pt.y* this->m_oImgSize.width)*3;
-					unsigned char* anCurrColor = curr.data + idx_uchar_rgb;
+					const size_t idx_ushrt_rgb = idx_char*2*3;
+					const size_t idx_uchar_rgb = idx_char*3;
+					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
+					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
 					//update model
-					const size_t s_rand = rand()%m_nBGSamples;
-					for(size_t c=0; c<3; ++c) {
-						//*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
-						*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
-					}
-
+					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,anLastIntraDesc,anLastColor);
+					
 				}
 				else
 				{
-					const size_t s_rand = rand()%m_nBGSamples;
-					const unsigned char idx_uchar = (pt.x + pt.y* this->m_oImgSize.width);
-					unsigned char* anCurrColor = curr.data + idx_uchar;
-					*(m_voBGColorSamples[s_rand].data+idx_uchar) = anCurrColor[0];
+					const size_t idx_ushrt = idx_char*2;
+					const size_t idx_uchar = idx_char;
+					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
+					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar;
+					//update model
+					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,anLastIntraDesc,anLastColor);
 
 				}
 			}
-			else
+			/*else
 			{
 				ptr[idx_char] = 255;
-			}
+			}*/
 		}		
 		/*char filename[150];
 		sprintf(filename,"homoTest%d.jpg",m_nFrameIndex-1);
 		cv::imwrite(filename,mask);*/
 	}
+	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
 	void cloneModels();
 protected:
 	//! points used to compute the homography matrix between two continuous frames

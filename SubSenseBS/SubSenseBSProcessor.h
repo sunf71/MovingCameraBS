@@ -16,8 +16,8 @@ public:
 	{}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
 	{
-		cv::Mat gray;
-		cv::cvtColor(frame, gray, CV_BGR2GRAY); 
+		/*cv::Mat gray;
+		cv::cvtColor(frame, gray, CV_BGR2GRAY); */
 		/*cv::Mat edges;
 		cv::Canny(gray,edges,125,350);*/
 		//cv::GaussianBlur(gray,gray,cv::Size(3,3),0.1);
@@ -29,7 +29,7 @@ public:
 		}
 		_bgs(frame,output);
 		char fileName[50];
-		sprintf(fileName,"..\\result\\subsensem\\ptz\\input3\\bin%06d.png",frameNo++);
+		sprintf(fileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",frameNo++);
 		imwrite(fileName,output);
 	/*	sprintf(fileName,"..\\result\\subsensem\\ptz\\input3\\edge%06d.png",frameNo-1);
 		imwrite(fileName,edges);*/
