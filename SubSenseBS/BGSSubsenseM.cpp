@@ -153,17 +153,7 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 	w_voBGDescSamples.resize(m_nBGSamples);
 	m_nOutPixels = 0;
 	cloneModels();
-
-	m_blockSize = 7;
-
-	m_blockDim = (oInitImg.cols+m_blockSize-1)/m_blockSize*( oInitImg.rows+m_blockSize-1)/m_blockSize;
-	m_blockCount =  new int[m_blockDim];
-	m_blockData = new int[m_blockDim];
-	memset(m_blockCount,0,sizeof(int)*m_blockDim);
-	memset(m_blockData,0,sizeof(int)*m_blockDim);
-	m_blockWidth = (oInitImg.cols+m_blockSize-1)/m_blockSize;
-	m_blkConfidenceMat.create(oInitImg.rows,oInitImg.cols,CV_8U);
-	m_blkConfidenceMat = cv::Scalar(0);
+	
 }
 
 //! refreshes all samples based on the last analyzed frame
@@ -221,9 +211,6 @@ void BGSSubsenseM::resetPara()
 }
 void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 {
-	memset(m_blockCount,0,sizeof(int)*m_blockDim);
-	memset(m_blockData,0,sizeof(int)*m_blockDim);
-	m_blkConfidenceMat = cv::Scalar(0);
 	// convert to gray-level image
 	if (image.channels() ==3)
 	{
@@ -267,14 +254,11 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 
 		// 2. loop over the tracked points to reject the undesirables
 		int k=0;
-		float errThreshold = 1;
-		for(int i=0; i< m_points[1].size(); i++)
-			if (err[i] > errThreshold)
-				errThreshold = err[i];
+		
 		for( int i= 0; i < m_points[1].size(); i++ ) {
 
 			// do we keep this point?
-			if (status[i] == 1 && err[i] < 0.6*errThreshold) {
+			if (status[i] == 1) {
 
 				// keep this point in vector
 				m_points[0][k] = m_points[0][i];
@@ -294,40 +278,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 			CV_RANSAC, // RANSAC method
 			0.25); // max distance to reprojection point
 
-		m_gray.copyTo(tmp);
-
 	
-	for(int i=0; i<m_points[0].size(); i++)
-	{
-		if (inliers[i] == 1)
-		{
-			int blkIdx = (int)m_points[0][i].x /m_blockSize + (int)m_points[0][i].y/m_blockSize*m_blockWidth;
-			m_blockData[blkIdx]++;
-			/*cv::circle(tmp,m_points[0][i],1,cv::Scalar(255));
-			cv::line(tmp,m_points[0][i],m_points[1][i],cv::Scalar(200));
-			cv::circle(tmp,m_points[1][i],1,cv::Scalar(128));*/
-		}
-	}
-	
-	for(int i=0; i<(m_gray.rows+m_blockSize-1)/m_blockSize; i++)
-	{
-		for(int j=0; j<m_blockWidth; j++)
-		{
-			int blkIdx = i*m_blockWidth + j;
-			if (m_blockData[blkIdx] > 0)
-			{
-				for(int x = m_blockSize*j; x<std::min(m_gray.cols*1.0,m_blockSize*(j+1)*1.0); x++)
-				{
-					for(int y = m_blockSize*i; y<std::min(m_gray.rows*1.0,m_blockSize*(i+1)*1.0); y++)
-					{
-						m_blkConfidenceMat.data[x+y*m_gray.cols] = 0xff;
-					}
-				}
-			}
-		}
-	}
-	
-	cv::bitwise_not(m_blkConfidenceMat,m_blkConfidenceMat);
 	/*char filename[20];
 	sprintf(filename,"block%d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,m_blkConfidenceMat);
