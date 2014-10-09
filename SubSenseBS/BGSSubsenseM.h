@@ -33,7 +33,7 @@ public:
 		mask = cv::Scalar(0);
 		uchar* ptr = mask.data;
 
-		float threshold = 0.5;
+		float threshold = 0.6;
 		std::vector<cv::Point2f> currPoints, trackedPoints;
 		std::vector<uchar> status; // status of tracked features
 		std::vector<float> err;    // error in tracking
@@ -81,7 +81,6 @@ public:
 			y /= w;
 			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
 			distance += d;
-			
 			if (d < threshold)
 			{
 				const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
