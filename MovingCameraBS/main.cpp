@@ -137,11 +137,29 @@ void TestAffine()
 
 	cv::waitKey();
 }
+template<typename T>
+T LinearInterData(int width, int height, T*data, float x, float y)
+{
+	if ( x >=0 && x <width && y>=0&& y< height)
+	{
+		int sx = (int)x;
+		int sy = (int)y;
+		int bx = sx +1;
+		int by = sy +1;
+		float tx = x - sx;
+		float ty = y - sy;
+		return ty*((1-tx)*data[sx+sy*width]+tx*data[bx+sy*width]) + (1-ty)*((1-tx)*data[sx+by*width] + tx*data[bx+by*width]);
+
+	}
+	else
+		return 0;
+}
+
 void TestPerspective()
 {
 	using namespace cv;
-	Mat img1 = imread("..//PTZ//input0//in000001.jpg");
-	Mat img2 = imread("..//PTZ//input0//in000020.jpg");
+	Mat img1 = imread("..//PTZ//input0//in000089.jpg");
+	Mat img2 = imread("..//PTZ//input0//in000090.jpg");
 
 	Mat gray1,gray2;
 	cvtColor(img1, gray1, CV_BGR2GRAY); 
@@ -189,8 +207,39 @@ void TestPerspective()
 		result,			// output image
 		homography,		// homography
 		cv::Size(gray1.cols,gray1.rows)); // size of output image
-
 	
+	double * M = (double*) homography.data;
+	int width = gray1.cols;
+	int height = gray1.rows;
+	cv::Mat warpMask(height,width,CV_8U);
+	warpMask = cv::Scalar(0);
+	cv::Mat warpEMask;
+	warpMask.copyTo(warpEMask);
+	double x,y,w;
+	for(int i=0; i<width; i++)
+	{
+		for(int j=0; j<height; j++)
+		{
+			x = M[0]*i + M[1]*j + M[2];
+            y  = M[3]*i + M[4]*j + M[5];
+            w = M[6]*i + M[7]*j + M[8];
+			w = w? 1.0/w : 1;
+			x *= w;
+			y *= w;
+			int ix = int(x+0.5);
+			int iy = int(y+0.5);
+			uchar interColor = LinearInterData(width,height,gray2.data,x,y);
+			if (ix >=0 && ix < width && iy >=0 && iy < height)
+			{
+				int idx = i+j*width;
+				int widx = ix + iy*width;
+				warpEMask.data[idx] = abs(gray2.data[widx] - gray1.data[idx]);
+				warpMask.data[idx] = abs(interColor - gray1.data[idx]);
+			}
+		}
+	}
+	cv::imshow("warpError",warpEMask);
+	cv::imshow("warpMask",warpMask);
 	Mat ErrImg = gray2 - result;
 	Mat ErrAImg = gray2 - Affineresult;
 	// Display the warp image
@@ -214,7 +263,7 @@ void TestPerspective()
 int main()
 {
 	TestPerspective();	
-	TestAffine();
+	//TestAffine();
 	return 0;
 	// Create video procesor instance
 	VideoProcessor processor;
