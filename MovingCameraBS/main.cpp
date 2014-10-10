@@ -103,7 +103,7 @@ void TestAffine()
 	cv::warpPerspective(gray1, // input image
 		presult,			// output image
 		homography,		// homography
-		cv::Size(gray1.cols,gray1.rows)); // size of output image
+		cv::Size(gray1.cols,gray1.rows),INTER_LINEAR | WARP_INVERSE_MAP); // size of output image
 
 	Mat ErrImg = abs(gray2 - result);
 	ErrImg.convertTo(ErrImg,CV_8U);
@@ -154,12 +154,20 @@ T LinearInterData(int width, int height, T*data, float x, float y)
 	else
 		return 0;
 }
+<<<<<<< HEAD
 
 void TestPerspective()
 {
 	using namespace cv;
 	Mat img1 = imread("..//PTZ//input0//in000089.jpg");
 	Mat img2 = imread("..//PTZ//input0//in000090.jpg");
+=======
+void TestPerspective()
+{
+	using namespace cv;
+	Mat img1 = imread("..//PTZ//input3//in000289.jpg");
+	Mat img2 = imread("..//PTZ//input3//in000290.jpg");
+>>>>>>> e72b57787f309af8f2698afa49a6f23632be9714
 
 	Mat gray1,gray2;
 	cvtColor(img1, gray1, CV_BGR2GRAY); 
@@ -196,10 +204,70 @@ void TestPerspective()
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
 		1.); // max distance to reprojection point
+	double* ptr = (double*)homography.data;
+	cv::Mat diffMask(gray1.rows,gray1.cols,CV_8U);
+	diffMask = cv::Scalar(0);
+	cv::Mat diffMinMask;
+	diffMask.copyTo(diffMinMask);
+	cv::Mat gradient1,gradient2;
+	cv::Sobel(gray1,gradient1,0,1,1);
+	cv::Sobel(gray2,gradient2,0,1,1);
+	for(int i=0; i<gray1.rows; i++)
+	{
+		for(int j=0; j<gray1.cols; j++)
+		{
+			float x,y,w;
+			x = j*ptr[0] + i*ptr[1] + ptr[2];
+			y = j*ptr[3] + i*ptr[4] + ptr[5];
+			w = j*ptr[6] + i*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			int wx = int(x+0.5);
+			int wy = int(y+0.5);
+			uchar color = gray1.data[j+i*gray1.cols];
+			uchar grad = gradient1.data[j+i*gray1.cols];
 
+			//在s*s的区域内搜索与原图像最接近的点
+			int s = 3;
+			float alpha = 1;
+			float min = 16384;
+			int wwx = wx;
+			int wwy = wy;
+			for(int m=-s; m<s; m++)
+			{
+				for(int n=-s; n<s; n++)
+				{
+					int mx = m+wx;
+					int ny = n+wy;
+					if (mx >=0 && mx<gray1.cols && ny>=0 && ny<gray1.rows)
+					{
+						int idx = mx+ny*gray1.cols;
+						float diff = std::abs(gray2.data[idx] - color) + (1-alpha)*std::abs(gradient2.data[idx]-grad);
+						if (diff<min)
+						{
+							min = diff;
+							wwx = mx;
+							wwy = ny;
+						}
+					}
+				}
+			}
+			if (wx >= 0 && wx<gray1.cols && wy >=0 && wy<gray1.rows)
+			{
+				diffMask.data[j+i*gray1.cols] = abs(color-gray2.data[wx+wy*gray1.cols]);
+			}
+			if (wwx >= 0 && wwx<gray1.cols && wwy >=0 && wwy<gray1.rows)
+			{
+				diffMinMask.data[j+i*gray1.cols] = abs(color-gray2.data[wwx+wwy*gray1.cols]);
+			}
+		}
+	}
+	cv::imshow("diffMask",diffMask);
+	cv::imshow("diffMinMask",diffMinMask);
 	Mat affine = estimateRigidTransform(features1,features2,true);
 	Mat Affineresult;
 	warpAffine(gray1,Affineresult,affine,cv::Size(gray1.cols,gray1.rows));
+	
 
 	// Warp image 1 to image 2
 	cv::Mat result;
