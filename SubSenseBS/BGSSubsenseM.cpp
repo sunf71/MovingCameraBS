@@ -1,8 +1,4 @@
 #include "BGSSubsenseM.h"
-#include <opencv2/features2d/features2d.hpp>
-#include <opencv2/video/tracking.hpp>
-#include <opencv2/calib3d/calib3d.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 #include <fstream>
 /*
@@ -218,6 +214,11 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	}
 	else
 		m_gray = image;
+	cv::Sobel(m_gray,m_grad,0,1,1);
+	if (m_preGrad.empty())
+	{
+		m_grad.copyTo(m_preGrad);
+	}
 	if (m_preGray.empty())
 	{
 		m_gray.copyTo(m_preGray);
@@ -236,8 +237,8 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		max_count,  // the maximum number of features 
 		qlevel,     // quality level
 		minDist);   // min distance between two features
-	cv::Mat tmp;
-	m_gray.copyTo(tmp);
+	/*cv::Mat tmp;
+	m_gray.copyTo(tmp);*/
 
 	//for(int i=0; i<m_points[0].size(); i++)
 	//{
@@ -285,6 +286,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	sprintf(filename,"tracking%d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,tmp);*/
 	cv::swap(m_preGray, m_gray);
+	cv::swap(m_preGrad, m_grad);
 }
 void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, size_t idx_ushrt, size_t idx_uchar, const ushort* anCurrIntraDesc, const uchar* anCurrColor)
 {
@@ -367,31 +369,31 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 		else
 			m_warpMask.at<uchar>((int)m_voKeyPoints[i].pt.y,(int)m_voKeyPoints[i].pt.x) = 255;
 		//在s*s的区域内搜索与原图像最接近的点
-		//int s = 3;
-		//float alpha = 0.7;
-		//float min = 16384;
-		//int wwx = x;
-		//int wwy = y;
-		//uchar color = m_preGray.data[(int)m_voKeyPoints[i].pt.y*m_oImgSize.width+(int)m_voKeyPoints[i].pt.x];
-		//for(int m=-s; m<s; m++)
-		//{
-		//	for(int n=-s; n<s; n++)
-		//	{
-		//		int mx = m+x;
-		//		int ny = n+y;
-		//		if (mx >=0 && mx<m_oImgSize.width && ny>=0 && ny<m_oImgSize.height)
-		//		{
-		//			int idx = mx+ny*m_oImgSize.width;
-		//			float diff = std::abs(m_gray.data[idx] - color);
-		//			if (diff<min)
-		//			{
-		//				min = diff;
-		//				wwx = mx;
-		//				wwy = ny;
-		//			}
-		//		}
-		//	}
-		//}
+		/*int s = 1;
+		float alpha = 0.7;
+		float min = 16384;
+		int wwx = x;
+		int wwy = y;
+		uchar grad = m_preGrad.data[(int)m_voKeyPoints[i].pt.y*m_oImgSize.width+(int)m_voKeyPoints[i].pt.x];
+		for(int m=-s; m<=s; m++)
+		{
+			for(int n=-s; n<=s; n++)
+			{
+				int mx = m+x;
+				int ny = n+y;
+				if (mx >=0 && mx<m_oImgSize.width && ny>=0 && ny<m_oImgSize.height)
+				{
+					int idx = mx+ny*m_oImgSize.width;
+					float diff = std::abs(m_grad.data[idx] - grad);
+					if (diff<min)
+					{
+						min = diff;
+						wwx = mx;
+						wwy = ny;
+					}
+				}
+			}
+		}*/
 		m_voTKeyPoints[i] = cv::KeyPoint(x,y,1.f);
 		ptr = (double*)invHomo.data;
 		x = m_voKeyPoints[i].pt.x*ptr[0] + m_voKeyPoints[i].pt.y*ptr[1] + ptr[2];
@@ -713,6 +715,17 @@ failedcheck3ch:
 			}
 			const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
+			if (x==138 && y==167 && m_nFrameIndex == 2)
+			{
+				
+				std::cout<<"threshold: "<<nCurrSCColorDistThreshold<<std::endl;
+				std::cout<<"currunt color: "<<(int)anCurrColor[0]<<" , "<<(int)anCurrColor[1]<<" , "<<(int)anCurrColor[2]<<std::endl;
+				for(int i=0; i<m_nBGSamples; i++)
+				{
+					uchar* bgColor = 	w_voBGColorSamples[i].data+idx_uchar_rgb;
+					std::cout<<"background "<<i<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+				}
+			}
 			if(nGoodSamplesCount<m_nRequiredBGSamples) {
 				// == foreground
 				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
@@ -929,19 +942,19 @@ failedcheck3ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
-	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
-	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
-	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
-	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
-	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
-	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
-	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	m_oFGMask_last.copyTo(oCurrFGMask);
+	//cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	//m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	//cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	//cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	//cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	//cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
+	//cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
+	//cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
+	//cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
+	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	//cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
+	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	//m_oFGMask_last.copyTo(oCurrFGMask);
 	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 
 	/*char filename[150];

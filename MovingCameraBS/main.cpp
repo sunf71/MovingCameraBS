@@ -137,6 +137,23 @@ void TestAffine()
 
 	cv::waitKey();
 }
+template<typename T>
+T LinearInterData(int width, int height, T*data, float x, float y)
+{
+	if ( x >=0 && x <width && y>=0&& y< height)
+	{
+		int sx = (int)x;
+		int sy = (int)y;
+		int bx = sx +1;
+		int by = sy +1;
+		float tx = x - sx;
+		float ty = y - sy;
+		return ty*((1-tx)*data[sx+sy*width]+tx*data[bx+sy*width]) + (1-ty)*((1-tx)*data[sx+by*width] + tx*data[bx+by*width]);
+
+	}
+	else
+		return 0;
+}
 void TestPerspective()
 {
 	using namespace cv;
@@ -203,7 +220,7 @@ void TestPerspective()
 
 			//在s*s的区域内搜索与原图像最接近的点
 			int s = 3;
-			float alpha = 0.1;
+			float alpha = 1;
 			float min = 16384;
 			int wwx = wx;
 			int wwy = wy;
