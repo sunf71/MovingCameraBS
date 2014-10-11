@@ -214,16 +214,16 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	}
 	else
 		m_gray = image;
-	cv::Mat gx,gy;
-	cv::Sobel(m_gray,gx,0,1,0);
-	cv::Sobel(m_gray,gy,0,0,1);	
-	convertScaleAbs( gx, gx );	
-	convertScaleAbs(gy,gy);
-	addWeighted( gx, 0.5, gy, 0.5, 0, m_grad );
-	if (m_preGrad.empty())
+	
+	
+	cv::Mat edges,edges1;
+	cv::Canny(m_gray,m_edges,100,300);
+	cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1),3);
+	if (m_preEdges.empty())
 	{
-		m_grad.copyTo(m_preGrad);
+		m_edges.copyTo(m_preEdges);
 	}
+	cv::bitwise_or(m_edges,m_preEdges,m_mixEdges);
 	if (m_preGray.empty())
 	{
 		m_gray.copyTo(m_preGray);
@@ -290,8 +290,8 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	cv::imwrite(filename,m_blkConfidenceMat);
 	sprintf(filename,"tracking%d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,tmp);*/
-	cv::swap(m_preGray, m_gray);
-	cv::swap(m_preGrad, m_grad);
+	cv::swap(m_preGray, m_gray);	
+	cv::swap(m_preEdges,m_edges);
 }
 void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, size_t idx_ushrt, size_t idx_uchar, const ushort* anCurrIntraDesc, const uchar* anCurrColor)
 {
@@ -726,90 +726,92 @@ failedcheck1ch:
 						nMinTotSumDist = nTotSumDist;
 					nGoodSamplesCount++;
 				}
-				if (nGoodSamplesCount < m_nRequiredBGSamples && (m_preGrad.data[oidx_uchar] > 50 ||
-					m_grad.data[idx_uchar] > 50 ))
-				{
-					int s = 1;
-					for(int m=-s; m<=s; m++)
-					{
-						for(int n=-s; n<=s; n++)
-						{
-							int rx = m+wx;
-							int ry = n+wy;
-							size_t ridx = rx + ry*m_oImgSize.width;
-							size_t ridx_rgb = ridx * 3;
-							uchar* bgColor = 	w_voBGColorSamples[nSampleIdx].data+ridx_rgb;
-							bool pass = true;
-							for(size_t c=0;c<3; ++c) {
-								const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
-								if(nColorDist>nCurrSCColorDistThreshold)
-								{
-									pass = false;
-									break;
-								}
-							}
-							if (pass)
-								nGoodSamplesCount++;
-							//std::cout<<"neighbour background "<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
-						}
-					}
-				}
+				//if (nGoodSamplesCount < m_nRequiredBGSamples && (m_preEdges.data[oidx_uchar] > 50))
+				//{
+				//	int s = 2;
+				//	for(int m=-s; m<=s; m++)
+				//	{
+				//		for(int n=-s; n<=s; n++)
+				//		{
+				//			int rx = m+wx;
+				//			int ry = n+wy;
+				//			size_t ridx = rx + ry*m_oImgSize.width;
+				//			size_t ridx_rgb = ridx * 3;
+				//			uchar* bgColor = 	w_voBGColorSamples[nSampleIdx].data+ridx_rgb;
+				//			bool pass = true;
+				//			for(size_t c=0;c<3; ++c) {
+				//				const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
+				//				if(nColorDist>nCurrSCColorDistThreshold)
+				//				{
+				//					pass = false;
+				//					break;
+				//				}
+				//			}
+				//			if (pass)
+				//				nGoodSamplesCount++;
+				//			//std::cout<<"neighbour background "<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+				//		}
+				//	}
+				//	nGoodSamplesCount /=25;
+				//}
 				
 
 				nSampleIdx++;
 			}
+		/*	if (x==315 && y==94)
+				std::cout<<m_nFrameIndex<<":"<<nGoodSamplesCount<<std::endl;*/
 			const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
-			if (x==309 && y==36 && m_nFrameIndex == 3 && nGoodSamplesCount<m_nRequiredBGSamples)
-			{
-				std::cout<<"grad "<<(int)m_preGrad.data[oidx_uchar]<<std::endl;
-				std::cout<<"grad "<<(int)m_grad.data[idx_uchar]<<std::endl;
-				int x_rand,y_rand;
-				getRandNeighborPosition_3x3(x_rand,y_rand,wx,wy,LBSP::PATCH_SIZE/2,m_oImgSize);
-				std::cout<<"threshold: "<<nCurrSCColorDistThreshold<<std::endl;
-				std::cout<<"currunt color: "<<(int)anCurrColor[0]<<" , "<<(int)anCurrColor[1]<<" , "<<(int)anCurrColor[2]<<std::endl;
-				size_t ng=0, i=0;
-				while(ng<m_nRequiredBGSamples && i<m_nBGSamples) 
-				{
-					
-					uchar* bgColor = 	w_voBGColorSamples[i].data+idx_uchar_rgb;
-					//std::cout<<"background "<<i<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
-					bool pass = true;
-					for(size_t c=0;c<3; ++c) {
-						const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
-						if(nColorDist>nCurrSCColorDistThreshold)
-							pass = false;;
-					}
-					if (pass)
-						ng++;
-					int s = 1;
-					for(int m=-s; m<=s; m++)
-					{
-						for(int n=-s; n<=s; n++)
-						{
-							int rx = m+wx;
-							int ry = n+wy;
-							size_t ridx = rx + ry*m_oImgSize.width;
-							size_t ridx_rgb = ridx * 3;
-							bgColor = 	w_voBGColorSamples[i].data+ridx_rgb;
-							bool pass = true;
-							for(size_t c=0;c<3; ++c) {
-								const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
-								if(nColorDist>nCurrSCColorDistThreshold)
-									pass = false;;
-							}
-							if (pass)
-								ng++;
-							//std::cout<<"neighbour background "<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
-						}
-					}
-					i++;
-				}
-				if (ng < m_nRequiredBGSamples)
-					std::cout<<"foreground???"<<std::endl;
-				else
-					std::cout<<"background!!"<<std::endl;
-			}
+			//if (x==314 && y==100 && m_nFrameIndex == 5)
+			//{
+			//	std::cout<<"grad "<<(int)m_mixEdges.data[oidx_uchar]<<std::endl;
+			//	//std::cout<<"grad "<<(int)m_edges.data[idx_uchar]<<std::endl;
+			//	int x_rand,y_rand;
+			//	getRandNeighborPosition_3x3(x_rand,y_rand,wx,wy,LBSP::PATCH_SIZE/2,m_oImgSize);
+			//	std::cout<<"threshold: "<<nCurrSCColorDistThreshold<<std::endl;
+			//	std::cout<<"currunt color: "<<(int)anCurrColor[0]<<" , "<<(int)anCurrColor[1]<<" , "<<(int)anCurrColor[2]<<std::endl;
+			//	size_t ng=0, i=0;
+			//	while(ng<m_nRequiredBGSamples && i<m_nBGSamples) 
+			//	{
+			//		
+			//		uchar* bgColor = 	w_voBGColorSamples[i].data+idx_uchar_rgb;
+			//		//std::cout<<"background "<<i<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+			//		bool pass = true;
+			//		for(size_t c=0;c<3; ++c) {
+			//			const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
+			//			if(nColorDist>nCurrSCColorDistThreshold)
+			//				pass = false;;
+			//		}
+			//		if (pass)
+			//			ng++;
+			//		int s = 2;
+			//		for(int m=-s; m<=s; m++)
+			//		{
+			//			for(int n=-s; n<=s; n++)
+			//			{
+			//				int rx = m+wx;
+			//				int ry = n+wy;
+			//				size_t ridx = rx + ry*m_oImgSize.width;
+			//				size_t ridx_rgb = ridx * 3;
+			//				bgColor = 	w_voBGColorSamples[i].data+ridx_rgb;
+			//				bool pass = true;
+			//				for(size_t c=0;c<3; ++c) {
+			//					const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
+			//					if(nColorDist>nCurrSCColorDistThreshold)
+			//						pass = false;;
+			//				}
+			//				if (pass)
+			//					ng++;
+			//				//std::cout<<"neighbour background "<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+			//			}
+			//		}
+			//		i++;
+			//	}
+			//	if (ng < m_nRequiredBGSamples * 5)
+			//		std::cout<<ng<<" foreground!"<<std::endl;
+			//	else
+			//		std::cout<<ng<<" background!"<<std::endl;
+			//}
 			if(nGoodSamplesCount<m_nRequiredBGSamples) {
 				// == foreground
 				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
@@ -1026,19 +1028,19 @@ failedcheck1ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	//cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
-	//m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	//cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
-	//cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
-	//cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
-	//cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
-	//cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
-	//cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	//cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
-	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	//m_oFGMask_last.copyTo(oCurrFGMask);
+	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
+	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
+	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	m_oFGMask_last.copyTo(oCurrFGMask);
 	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 
 	/*char filename[150];

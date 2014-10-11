@@ -154,20 +154,13 @@ T LinearInterData(int width, int height, T*data, float x, float y)
 	else
 		return 0;
 }
-<<<<<<< HEAD
 
-void TestPerspective()
-{
-	using namespace cv;
-	Mat img1 = imread("..//PTZ//input0//in000089.jpg");
-	Mat img2 = imread("..//PTZ//input0//in000090.jpg");
-=======
 void TestPerspective()
 {
 	using namespace cv;
 	Mat img1 = imread("..//PTZ//input3//in000289.jpg");
 	Mat img2 = imread("..//PTZ//input3//in000290.jpg");
->>>>>>> e72b57787f309af8f2698afa49a6f23632be9714
+
 
 	Mat gray1,gray2;
 	cvtColor(img1, gray1, CV_BGR2GRAY); 

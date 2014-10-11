@@ -1,16 +1,18 @@
 #include "SubSenseBSProcessor.h"
+#include "BGSMovieMaker.h"
 #include "timer.h"
 using namespace cv;
 int main()
 {
-	
+	/*BGSMovieMaker::MakeMovie("..\\result\\subsensem\\ptz\\input3","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout.avi");
+	return 0;*/
 	VideoProcessor processor;
 	
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start = 85;
-	int end = 95;
+	int start = 1;
+	int end = 1700;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
@@ -40,7 +42,7 @@ int main()
 
 	std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
 	
-
+	//BGSMovieMaker::MakeMovie("..\\result\\subsensem\\ptz\\input3","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout.avi");
 	cv::waitKey();
 
 

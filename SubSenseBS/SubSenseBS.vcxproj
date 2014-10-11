@@ -78,6 +78,7 @@
   <ItemGroup>
     <ClInclude Include="BackgroundSubtractorLBSP.h" />
     <ClInclude Include="BackgroundSubtractorSuBSENSE.h" />
+    <ClInclude Include="BGSMovieMaker.h" />
     <ClInclude Include="BGSSubsenseM.h" />
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="LBSP.h" />
