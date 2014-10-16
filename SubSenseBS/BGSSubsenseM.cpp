@@ -1,6 +1,7 @@
 #include "BGSSubsenseM.h"
 #include <iostream>
 #include <fstream>
+#include "LSBSP.h"
 /*
 *
 * Intrinsic parameters for our method are defined here; tuning these for better
@@ -149,7 +150,7 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 	w_voBGDescSamples.resize(m_nBGSamples);
 	m_nOutPixels = 0;
 	cloneModels();
-	
+
 }
 
 //! refreshes all samples based on the last analyzed frame
@@ -160,49 +161,49 @@ void BGSSubsenseM::refreshModel(float fSamplesRefreshFrac)
 }
 void BGSSubsenseM::resetPara()
 {
-	
+
 	m_oUpdateRateFrame = cv::Scalar(m_fCurrLearningRateLowerCap);
 
 	m_oDistThresholdFrame = cv::Scalar(1.0f);
-	
+
 	m_oVariationModulatorFrame = cv::Scalar(10.0f); // should always be >= FEEDBACK_V_DECR
-	
+
 	m_oMeanLastDistFrame = cv::Scalar(0.0f);
 
 	m_oMeanMinDistFrame_LT = cv::Scalar(0.0f);
-	
+
 	m_oMeanMinDistFrame_ST = cv::Scalar(0.0f);
-	
+
 	m_oMeanDownSampledLastDistFrame_LT = cv::Scalar(0.0f);
-	
+
 	m_oMeanDownSampledLastDistFrame_ST = cv::Scalar(0.0f);
-	
+
 	m_oMeanRawSegmResFrame_LT = cv::Scalar(0.0f);
-	
+
 	m_oMeanRawSegmResFrame_ST = cv::Scalar(0.0f);
-	
+
 	m_oMeanFinalSegmResFrame_LT = cv::Scalar(0.0f);
 
 	m_oMeanFinalSegmResFrame_ST = cv::Scalar(0.0f);
-	
+
 	m_oUnstableRegionMask = cv::Scalar_<uchar>(0);
-	
+
 	m_oBlinksFrame = cv::Scalar_<uchar>(0);
-	
+
 	m_oDownSampledColorFrame = cv::Scalar_<uchar>::all(0);
-	
+
 	m_oLastColorFrame = cv::Scalar_<uchar>::all(0);
 
 	m_oLastDescFrame = cv::Scalar_<ushort>::all(0);
-	
+
 	m_oRawFGMask_last = cv::Scalar_<uchar>(0);
-	
-	
+
+
 
 	m_oRawFGBlinkMask_curr = cv::Scalar_<uchar>(0);
-	
+
 	m_oRawFGBlinkMask_last = cv::Scalar_<uchar>(0);
-	
+
 
 }
 void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
@@ -214,8 +215,8 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	}
 	else
 		m_gray = image;
-	
-	
+
+
 	cv::Mat edges,edges1;
 	cv::Canny(m_gray,m_edges,100,300);
 	cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1),3);
@@ -235,7 +236,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	double minDist(10.);   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
-	
+
 	// detect the features
 	cv::goodFeaturesToTrack(m_gray, // the image 
 		m_points[0],   // the output detected features
@@ -252,39 +253,39 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	//cv::imwrite("gf.jpg",tmp);
 
 	// 2. track features
-		cv::calcOpticalFlowPyrLK(m_gray, m_preGray, // 2 consecutive images
-			m_points[0], // input point position in first image
-			m_points[1], // output point postion in the second image
-			status,    // tracking success
-			err);      // tracking error
+	cv::calcOpticalFlowPyrLK(m_gray, m_preGray, // 2 consecutive images
+		m_points[0], // input point position in first image
+		m_points[1], // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
 
-		// 2. loop over the tracked points to reject the undesirables
-		int k=0;
-		
-		for( int i= 0; i < m_points[1].size(); i++ ) {
+	// 2. loop over the tracked points to reject the undesirables
+	int k=0;
 
-			// do we keep this point?
-			if (status[i] == 1) {
+	for( int i= 0; i < m_points[1].size(); i++ ) {
 
-				// keep this point in vector
-				m_points[0][k] = m_points[0][i];
-				m_points[1][k++] = m_points[1][i];
-			}
+		// do we keep this point?
+		if (status[i] == 1) {
+
+			// keep this point in vector
+			m_points[0][k] = m_points[0][i];
+			m_points[1][k++] = m_points[1][i];
 		}
-		// eliminate unsuccesful points
-		m_points[0].resize(k);
-		m_points[1].resize(k);
+	}
+	// eliminate unsuccesful points
+	m_points[0].resize(k);
+	m_points[1].resize(k);
 
-		//perspective transform
-		std::vector<uchar> inliers(m_points[0].size(),0);
-		homography= cv::findHomography(
-			cv::Mat(m_points[0]), // corresponding
-			cv::Mat(m_points[1]), // points
-			inliers, // outputted inliers matches
-			CV_RANSAC, // RANSAC method
-			0.25); // max distance to reprojection point
+	//perspective transform
+	std::vector<uchar> inliers(m_points[0].size(),0);
+	homography= cv::findHomography(
+		cv::Mat(m_points[0]), // corresponding
+		cv::Mat(m_points[1]), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.25); // max distance to reprojection point
 
-	
+
 	/*char filename[20];
 	sprintf(filename,"block%d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,m_blkConfidenceMat);
@@ -296,34 +297,34 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, size_t idx_ushrt, size_t idx_uchar, const ushort* anCurrIntraDesc, const uchar* anCurrColor)
 {
 	const size_t nLearningRate = (size_t)ceil(*pfCurrLearningRate);
-				if((rand()%nLearningRate)==0) {
-					const size_t s_rand = rand()%m_nBGSamples;
-					for(size_t c=0; c<m_nImgChannels; ++c) {
-						*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt+2*c)) = anCurrIntraDesc[c];
-						*(m_voBGColorSamples[s_rand].data+idx_uchar+c) = anCurrColor[c];
-					}
+	if((rand()%nLearningRate)==0) {
+		const size_t s_rand = rand()%m_nBGSamples;
+		for(size_t c=0; c<m_nImgChannels; ++c) {
+			*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt+2*c)) = anCurrIntraDesc[c];
+			*(m_voBGColorSamples[s_rand].data+idx_uchar+c) = anCurrColor[c];
+		}
 
-				}
-				int x_rand,y_rand;
-				const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar];
-				if(bCurrUsing3x3Spread)
-					getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
-				else
-					getRandNeighborPosition_5x5(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
-				const size_t n_rand = rand();
-				const size_t idx_rand_uchar = m_oImgSize.width*y_rand + x_rand;
-				const size_t idx_rand_flt32 = idx_rand_uchar*4;
-				const float fRandMeanLastDist = *((float*)(w_oMeanLastDistFrame.data+idx_rand_flt32));
-				const float fRandMeanRawSegmRes = *((float*)(w_oMeanRawSegmResFrame_ST.data+idx_rand_flt32));
-				if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
-					|| (fRandMeanRawSegmRes>GHOSTDET_S_MIN && fRandMeanLastDist<GHOSTDET_D_MAX && (n_rand%((size_t)m_fCurrLearningRateLowerCap))==0)) {
-						const size_t idx_rand_ushrt = idx_rand_uchar*2;
-						const size_t s_rand = rand()%m_nBGSamples;
-						for(size_t c=0; c<m_nImgChannels; ++c) {
-						*((ushort*)(m_voBGDescSamples[s_rand].data+idx_rand_ushrt+2*c)) = anCurrIntraDesc[c];
-						*(m_voBGColorSamples[s_rand].data+idx_rand_uchar+c) = anCurrColor[c];
-					}				
-				}
+	}
+	int x_rand,y_rand;
+	const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar];
+	if(bCurrUsing3x3Spread)
+		getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+	else
+		getRandNeighborPosition_5x5(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+	const size_t n_rand = rand();
+	const size_t idx_rand_uchar = m_oImgSize.width*y_rand + x_rand;
+	const size_t idx_rand_flt32 = idx_rand_uchar*4;
+	const float fRandMeanLastDist = *((float*)(w_oMeanLastDistFrame.data+idx_rand_flt32));
+	const float fRandMeanRawSegmRes = *((float*)(w_oMeanRawSegmResFrame_ST.data+idx_rand_flt32));
+	if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
+		|| (fRandMeanRawSegmRes>GHOSTDET_S_MIN && fRandMeanLastDist<GHOSTDET_D_MAX && (n_rand%((size_t)m_fCurrLearningRateLowerCap))==0)) {
+			const size_t idx_rand_ushrt = idx_rand_uchar*2;
+			const size_t s_rand = rand()%m_nBGSamples;
+			for(size_t c=0; c<m_nImgChannels; ++c) {
+				*((ushort*)(m_voBGDescSamples[s_rand].data+idx_rand_ushrt+2*c)) = anCurrIntraDesc[c];
+				*(m_voBGColorSamples[s_rand].data+idx_rand_uchar+c) = anCurrColor[c];
+			}				
+	}
 }
 
 void BGSSubsenseM::motionCompensate()
@@ -347,6 +348,32 @@ void BGSSubsenseM::motionCompensate()
 		//cv::imshow("after warp",*m_modelsPtr[i]);
 	}
 }
+
+template <typename T>
+void LinearInterData(int width, int height, T* data, float x, float y,T* out, int step = 3)
+{
+	
+		if ( x >=0 && x <width && y>=0&& y< height)
+		{
+			int sx = (int)x;
+			int sy = (int)y;
+			int bx = sx +1;
+			int by = sy +1;
+			float tx = x - sx;
+			float ty = y - sy;
+			size_t idx_rgb_ll = (sx+sy*width)*step;
+			size_t idx_rgb_rl = (bx+sy*width)*step;
+			size_t idx_rgb_lr =(sx+by*width)*step;
+			size_t idx_rgb_rr = (bx*by*width)*step;
+			for(int c=0; c<3; c++)
+			{
+				out[c] = ty*((1-tx)*data[idx_rgb_ll+c]+tx*data[idx_rgb_rl+c]) + (1-ty)*((1-tx)*data[idx_rgb_lr+c] + tx*data[idx_rgb_rr+c]);
+			}
+
+		}
+	
+	
+}
 //! primary model update function; the learning param is used to override the internal learning thresholds (ignored when <= 0)
 void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride)
 {
@@ -357,7 +384,7 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 	//std::ofstream file("homo.txt");
 	for(int i=0; i<m_voKeyPoints.size(); i++)
 	{
-		
+
 		double* ptr = (double*)m_homography.data;
 		float x,y,w;
 		x = m_voKeyPoints[i].pt.x*ptr[0] + m_voKeyPoints[i].pt.y*ptr[1] + ptr[2];
@@ -382,22 +409,22 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 		uchar grad = m_preGrad.data[(int)m_voKeyPoints[i].pt.y*m_oImgSize.width+(int)m_voKeyPoints[i].pt.x];
 		for(int m=-s; m<=s; m++)
 		{
-			for(int n=-s; n<=s; n++)
-			{
-				int mx = m+x;
-				int ny = n+y;
-				if (mx >=0 && mx<m_oImgSize.width && ny>=0 && ny<m_oImgSize.height)
-				{
-					int idx = mx+ny*m_oImgSize.width;
-					float diff = std::abs(m_grad.data[idx] - grad);
-					if (diff<min)
-					{
-						min = diff;
-						wwx = mx;
-						wwy = ny;
-					}
-				}
-			}
+		for(int n=-s; n<=s; n++)
+		{
+		int mx = m+x;
+		int ny = n+y;
+		if (mx >=0 && mx<m_oImgSize.width && ny>=0 && ny<m_oImgSize.height)
+		{
+		int idx = mx+ny*m_oImgSize.width;
+		float diff = std::abs(m_grad.data[idx] - grad);
+		if (diff<min)
+		{
+		min = diff;
+		wwx = mx;
+		wwy = ny;
+		}
+		}
+		}
 		}*/
 		m_voTKeyPoints[i] = cv::KeyPoint(x,y,1.f);
 		ptr = (double*)invHomo.data;
@@ -520,29 +547,30 @@ failedcheck1ch:
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
 				UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt,oidx_uchar,(const ushort*)(&nCurrIntraDesc),&nCurrColor);
+
 				/*const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);
 				if((rand()%nLearningRate)==0) {
-					const size_t s_rand = rand()%m_nBGSamples;
-					*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt)) = nCurrIntraDesc;
-					w_voBGColorSamples[s_rand].data[idx_uchar] = nCurrColor;
+				const size_t s_rand = rand()%m_nBGSamples;
+				*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt)) = nCurrIntraDesc;
+				w_voBGColorSamples[s_rand].data[idx_uchar] = nCurrColor;
 				}
 				int x_rand,y_rand;
 				const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar];
 				if(bCurrUsing3x3Spread)
-					getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+				getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
 				else
-					getRandNeighborPosition_5x5(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+				getRandNeighborPosition_5x5(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
 				const size_t n_rand = rand();
 				const size_t idx_rand_uchar = m_oImgSize.width*y_rand + x_rand;
 				const size_t idx_rand_flt32 = idx_rand_uchar*4;
 				const float fRandMeanLastDist = *((float*)(w_oMeanLastDistFrame.data+idx_rand_flt32));
 				const float fRandMeanRawSegmRes = *((float*)(w_oMeanRawSegmResFrame_ST.data+idx_rand_flt32));
 				if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
-					|| (fRandMeanRawSegmRes>GHOSTDET_S_MIN && fRandMeanLastDist<GHOSTDET_D_MAX && (n_rand%((size_t)m_fCurrLearningRateLowerCap))==0)) {
-						const size_t idx_rand_ushrt = idx_rand_uchar*2;
-						const size_t s_rand = rand()%m_nBGSamples;
-						*((ushort*)(w_voBGDescSamples[s_rand].data+idx_rand_ushrt)) = nCurrIntraDesc;
-						w_voBGColorSamples[s_rand].data[idx_rand_uchar] = nCurrColor;
+				|| (fRandMeanRawSegmRes>GHOSTDET_S_MIN && fRandMeanLastDist<GHOSTDET_D_MAX && (n_rand%((size_t)m_fCurrLearningRateLowerCap))==0)) {
+				const size_t idx_rand_ushrt = idx_rand_uchar*2;
+				const size_t s_rand = rand()%m_nBGSamples;
+				*((ushort*)(w_voBGDescSamples[s_rand].data+idx_rand_ushrt)) = nCurrIntraDesc;
+				w_voBGColorSamples[s_rand].data[idx_rand_uchar] = nCurrColor;
 				}*/
 			}
 			if(m_oFGMask_last.data[idx_uchar] || (std::min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && oCurrFGMask.data[oidx_uchar])) {
@@ -582,14 +610,14 @@ failedcheck1ch:
 
 			const size_t idx_ushrt = idx_uchar*2;
 			const size_t idx_flt32 = idx_uchar*4;
-		
+
 			//变换后在前一帧图像中的位置
-			const int wx = (int)m_voTKeyPoints[k].pt.x;
-			const int wy = (int)m_voTKeyPoints[k].pt.y;
+			const int wx = (int)(m_voTKeyPoints[k].pt.x+0.5);
+			const int wy = (int)(m_voTKeyPoints[k].pt.y+0.5);
 			const size_t widx_uchar = m_oImgSize.width*wy + wx;
 			const size_t widx_ushrt = widx_uchar*2;
 			const size_t widx_flt32 = widx_uchar*4;
-			
+
 			//warped models
 			float* wpfCurrDistThresholdFactor = (float*)(w_oDistThresholdFrame.data+widx_flt32);
 			float* wpfCurrVariationFactor = (float*)(w_oVariationModulatorFrame.data+widx_flt32);
@@ -623,7 +651,7 @@ failedcheck1ch:
 					const size_t s_rand = rand()%m_nBGSamples;
 					*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt)) = anLastIntraDesc[0];
 					*(m_voBGColorSamples[s_rand].data+idx_uchar) = anCurrColor[0];
-					
+
 				}
 				continue;
 			}
@@ -641,7 +669,8 @@ failedcheck1ch:
 		}		
 	}
 	else { //m_nImgChannels==3
-		
+		cv::Mat smask(m_oImgSize,CV_8U);
+		smask = cv::Scalar(0);
 		for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
@@ -650,9 +679,21 @@ failedcheck1ch:
 			const size_t oidx_uchar_rgb = oidx_uchar*3;
 			const size_t oidx_ushrt_rgb = oidx_uchar_rgb*2;
 			const uchar* const anCurrColor = oInputImg.data+oidx_uchar_rgb;
-			
+
 			const int wx = (int)(m_voTKeyPoints[k].pt.x+0.5);
 			const int wy = (int)(m_voTKeyPoints[k].pt.y+0.5);
+			if (x>2 && x< m_oImgSize.width-3 && y>2 && y<m_oImgSize.height-3
+				&& wx>2 && wx< m_oImgSize.width-3 && wy>2 && wy<m_oImgSize.height-3)
+			{
+				ushort res1,res2;
+				LSBSP::LSBSPcomputeGrayscaleDescriptor(m_preGray,x,y,255,res1);
+				LSBSP::LSBSPcomputeGrayscaleDescriptor(m_gray,wx,wy,255,res2);
+				if (hdist_ushort_8bitLUT(res1,res2) >5)
+				{
+					smask.data[x+y*m_oImgSize.width] = 0xff;
+				}
+				
+			}
 			const size_t idx_uchar = m_oImgSize.width*wy +wx;
 			const size_t idx_flt32 = idx_uchar*4;
 			const size_t idx_uchar_rgb = idx_uchar*3;
@@ -726,9 +767,9 @@ failedcheck1ch:
 						nMinTotSumDist = nTotSumDist;
 					nGoodSamplesCount++;
 				}
-				//if (nGoodSamplesCount < m_nRequiredBGSamples && (m_preEdges.data[oidx_uchar] > 50))
+				//if (nGoodSamplesCount < m_nRequiredBGSamples && (m_preEdges.data[oidx_uchar] > 20))
 				//{
-				//	int s = 2;
+				//	int s = 1;
 				//	for(int m=-s; m<=s; m++)
 				//	{
 				//		for(int n=-s; n<=s; n++)
@@ -748,70 +789,164 @@ failedcheck1ch:
 				//				}
 				//			}
 				//			if (pass)
+				//			{
 				//				nGoodSamplesCount++;
-				//			//std::cout<<"neighbour background "<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+				//				//std::cout<<"neighbour background "<<": "<<x<<" , "<<y<<std::endl;
+				//			}
 				//		}
 				//	}
-				//	nGoodSamplesCount /=25;
+				//	nGoodSamplesCount /=2;
 				//}
-				
+
 
 				nSampleIdx++;
 			}
-		/*	if (x==315 && y==94)
-				std::cout<<m_nFrameIndex<<":"<<nGoodSamplesCount<<std::endl;*/
+			/*if (x==8 && y==18 && m_nFrameIndex == 2)
+			{
+				std::cout<<m_nFrameIndex<<":"<<nGoodSamplesCount<<std::endl;
+				int s = 2;
+			
+				for(int c=0; c<3; c++)
+				{	
+					std::cout<<"current"<<std::endl;
+					for(int n=-s; n<=s; n++)
+					{
+						for(int m=-s; m<=s; m++)
+						{
+							int rx = m+x;
+							int ry = n+y;
+							size_t ridx = rx + ry*m_oImgSize.width;
+							std::cout<<(int)oInputImg.data[ridx*3+c]<<" ";
+						}
+						std::cout<<std::endl;
+					}
+					std::cout<<"pre"<<std::endl;
+					for(int n=-s; n<=s; n++)
+					{
+						for(int m=-s; m<=s; m++)
+						{
+							int rx = m+wx;
+							int ry = n+wy;
+							size_t ridx = rx + ry*m_oImgSize.width;
+							std::cout<<(int)m_oLastColorFrame.data[ridx*3+c]<<" ";
+						}
+						std::cout<<std::endl;
+					}
+				}
+
+			}*/
 			const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
-			//if (x==314 && y==100 && m_nFrameIndex == 5)
-			//{
-			//	std::cout<<"grad "<<(int)m_mixEdges.data[oidx_uchar]<<std::endl;
-			//	//std::cout<<"grad "<<(int)m_edges.data[idx_uchar]<<std::endl;
-			//	int x_rand,y_rand;
-			//	getRandNeighborPosition_3x3(x_rand,y_rand,wx,wy,LBSP::PATCH_SIZE/2,m_oImgSize);
-			//	std::cout<<"threshold: "<<nCurrSCColorDistThreshold<<std::endl;
-			//	std::cout<<"currunt color: "<<(int)anCurrColor[0]<<" , "<<(int)anCurrColor[1]<<" , "<<(int)anCurrColor[2]<<std::endl;
-			//	size_t ng=0, i=0;
-			//	while(ng<m_nRequiredBGSamples && i<m_nBGSamples) 
-			//	{
-			//		
-			//		uchar* bgColor = 	w_voBGColorSamples[i].data+idx_uchar_rgb;
-			//		//std::cout<<"background "<<i<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
-			//		bool pass = true;
-			//		for(size_t c=0;c<3; ++c) {
-			//			const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
-			//			if(nColorDist>nCurrSCColorDistThreshold)
-			//				pass = false;;
-			//		}
-			//		if (pass)
-			//			ng++;
-			//		int s = 2;
-			//		for(int m=-s; m<=s; m++)
-			//		{
-			//			for(int n=-s; n<=s; n++)
-			//			{
-			//				int rx = m+wx;
-			//				int ry = n+wy;
-			//				size_t ridx = rx + ry*m_oImgSize.width;
-			//				size_t ridx_rgb = ridx * 3;
-			//				bgColor = 	w_voBGColorSamples[i].data+ridx_rgb;
-			//				bool pass = true;
-			//				for(size_t c=0;c<3; ++c) {
-			//					const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
-			//					if(nColorDist>nCurrSCColorDistThreshold)
-			//						pass = false;;
-			//				}
-			//				if (pass)
-			//					ng++;
-			//				//std::cout<<"neighbour background "<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
-			//			}
-			//		}
-			//		i++;
-			//	}
-			//	if (ng < m_nRequiredBGSamples * 5)
-			//		std::cout<<ng<<" foreground!"<<std::endl;
-			//	else
-			//		std::cout<<ng<<" background!"<<std::endl;
-			//}
+			if (x==8 && y==18 && m_nFrameIndex == 2)
+			{
+				
+				std::cout<<wx<<" , "<<wy<<std::endl;
+				std::cout<<"grad "<<(int)m_mixEdges.data[oidx_uchar]<<std::endl;
+				//std::cout<<"grad "<<(int)m_edges.data[idx_uchar]<<std::endl;
+				std::cout<<"threshold: "<<nCurrSCColorDistThreshold<<std::endl;
+				std::cout<<"currunt color: "<<(int)anCurrColor[0]<<" , "<<(int)anCurrColor[1]<<" , "<<(int)anCurrColor[2]<<std::endl;
+				std::cout<<"currunt intra desc: "<<anCurrIntraDesc[0]<<" , "<<anCurrIntraDesc[1]<<" , "<<anCurrIntraDesc[2]<<std::endl;
+				size_t ng=0, i=0;
+				while(ng<m_nRequiredBGSamples && i<m_nBGSamples) 
+				{
+					int s = 2;
+
+					for(int c=0; c<3; c++)
+					{	
+						std::cout<<"color background"<<std::endl;
+						for(int n=-s; n<=s; n++)
+						{
+							for(int m=-s; m<=s; m++)
+							{
+								int rx = m+wx;
+								int ry = n+wy;
+								size_t ridx = rx + ry*m_oImgSize.width;
+								std::cout<<(int)w_voBGColorSamples[i].data[ridx*3+c]<<" ";
+							}
+							std::cout<<std::endl;
+						}	
+						std::cout<<"desc background"<<std::endl;
+						for(int n=-s; n<=s; n++)
+						{
+							for(int m=-s; m<=s; m++)
+							{
+								int rx = m+wx;
+								int ry = n+wy;
+								size_t ridx = rx + ry*m_oImgSize.width;
+								ushort* ptr = (ushort*)(w_voBGDescSamples[i].data + ridx*6+c);
+								std::cout<<*ptr<<" ";
+							}
+							std::cout<<std::endl;
+						}
+						
+					}
+					const ushort* const anBGIntraDesc = (ushort*)(w_voBGDescSamples[i].data+idx_ushrt_rgb);
+					uchar* bgColor = 	w_voBGColorSamples[i].data+idx_uchar_rgb;
+					std::cout<<"background "<<i<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+					std::cout<<"background desc "<<i<<": "<<(int)anBGIntraDesc[0]<<" , "<<(int)anBGIntraDesc[1]<<" , "<<(int)anBGIntraDesc[2]<<std::endl;
+					
+					float x = m_voTKeyPoints[k].pt.x;
+					float y = m_voTKeyPoints[k].pt.y;
+					uchar ibgColor[3];
+					ushort ibgDesc[3];
+					LinearInterData(m_oImgSize.width,m_oImgSize.height,w_voBGColorSamples[i].data,x,y,ibgColor);
+					std::cout<<"background linear interpolation "<<i<<": "<<(int)ibgColor[0]<<" , "<<(int)ibgColor[1]<<" , "<<(int)ibgColor[2]<<std::endl;
+					LinearInterData(m_oImgSize.width,m_oImgSize.height,(ushort*)w_voBGDescSamples[i].data,x,y,ibgDesc,2);
+					std::cout<<"background desc linear interpolation "<<i<<": "<<(int)ibgDesc[0]<<" , "<<(int)ibgDesc[1]<<" , "<<(int)ibgDesc[2]<<std::endl;
+					bool pass = true;
+					size_t nTotDescDist = 0;
+					size_t nTotSumDist = 0;
+					for(size_t c=0;c<3; ++c) {
+						const size_t nColorDist = absdiff_uchar(anCurrColor[c],ibgColor[c]);
+						if(nColorDist>nCurrSCColorDistThreshold)
+							pass = false;
+						size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
+						LBSP::computeSingleRGBDescriptor(oInputImg,bgColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[bgColor[c]],anCurrInterDesc[c]);
+						size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
+						const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
+						const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
+						if(nSumDist>nCurrSCColorDistThreshold)
+						{
+							pass = false; 
+							break;
+						}
+						nTotDescDist += nDescDist;
+						nTotSumDist += nSumDist;
+					}
+					if(pass && (nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold))
+						pass =false;
+					if (pass)
+						ng++;
+					//int s = 1;
+					//for(int m=-s; m<=s; m++)
+					//{
+					//	for(int n=-s; n<=s; n++)
+					//	{
+					//		int rx = m+wx;
+					//		int ry = n+wy;
+					//		size_t ridx = rx + ry*m_oImgSize.width;
+					//		size_t ridx_rgb = ridx * 3;
+					//		bgColor = 	w_voBGColorSamples[i].data+ridx_rgb;
+					//		bool pass = true;
+					//		for(size_t c=0;c<3; ++c) {
+					//			const size_t nColorDist = absdiff_uchar(anCurrColor[c],bgColor[c]);
+					//			if(nColorDist>nCurrSCColorDistThreshold)
+					//				pass = false;;
+					//		}
+					//		if (pass)
+					//			ng++;
+					//		//std::cout<<"neighbour background "<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+					//	}
+					//}
+
+
+					i++;
+				}
+				if (ng < m_nRequiredBGSamples )
+					std::cout<<ng<<" foreground!"<<std::endl;
+				else
+					std::cout<<ng<<" background!"<<std::endl;
+			}
 			if(nGoodSamplesCount<m_nRequiredBGSamples) {
 				// == foreground
 				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
@@ -836,34 +971,34 @@ failedcheck1ch:
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
 				UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt_rgb,oidx_uchar_rgb,(const ushort*)(anCurrIntraDesc),anCurrColor);
-			/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);
+				/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);
 				if((rand()%nLearningRate)==0) {
-					const size_t s_rand = rand()%m_nBGSamples;
-					for(size_t c=0; c<3; ++c) {
-						*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
-						*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
-					}
+				const size_t s_rand = rand()%m_nBGSamples;
+				for(size_t c=0; c<3; ++c) {
+				*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+				*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
+				}
 				}
 				int x_rand,y_rand;
 				const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar];
 				if(bCurrUsing3x3Spread)
-					getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+				getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
 				else
-					getRandNeighborPosition_5x5(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+				getRandNeighborPosition_5x5(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
 				const size_t n_rand = rand();
 				const size_t idx_rand_uchar = m_oImgSize.width*y_rand + x_rand;
 				const size_t idx_rand_flt32 = idx_rand_uchar*4;
 				const float fRandMeanLastDist = *((float*)(w_oMeanLastDistFrame.data+idx_rand_flt32));
 				const float fRandMeanRawSegmRes = *((float*)(w_oMeanRawSegmResFrame_ST.data+idx_rand_flt32));
 				if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
-					|| (fRandMeanRawSegmRes>GHOSTDET_S_MIN && fRandMeanLastDist<GHOSTDET_D_MAX && (n_rand%((size_t)m_fCurrLearningRateLowerCap))==0)) {
-						const size_t idx_rand_uchar_rgb = idx_rand_uchar*3;
-						const size_t idx_rand_ushrt_rgb = idx_rand_uchar_rgb*2;
-						const size_t s_rand = rand()%m_nBGSamples;
-						for(size_t c=0; c<3; ++c) {
-							*((ushort*)(m_voBGDescSamples[s_rand].data+idx_rand_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
-							*(m_voBGColorSamples[s_rand].data+idx_rand_uchar_rgb+c) = anCurrColor[c];
-						}
+				|| (fRandMeanRawSegmRes>GHOSTDET_S_MIN && fRandMeanLastDist<GHOSTDET_D_MAX && (n_rand%((size_t)m_fCurrLearningRateLowerCap))==0)) {
+				const size_t idx_rand_uchar_rgb = idx_rand_uchar*3;
+				const size_t idx_rand_ushrt_rgb = idx_rand_uchar_rgb*2;
+				const size_t s_rand = rand()%m_nBGSamples;
+				for(size_t c=0; c<3; ++c) {
+				*((ushort*)(m_voBGDescSamples[s_rand].data+idx_rand_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+				*(m_voBGColorSamples[s_rand].data+idx_rand_uchar_rgb+c) = anCurrColor[c];
+				}
 				}*/
 			}
 			if(m_oFGMask_last.data[idx_uchar] || (std::min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && oCurrFGMask.data[oidx_uchar])) {
@@ -897,14 +1032,14 @@ failedcheck1ch:
 				anLastColor[c] = anCurrColor[c];
 			}
 		}
-		
+
 		/*cv::imwrite(wname,w_voBGColorSamples[1]);*/
 		for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
 			const size_t idx_uchar = m_oImgSize.width*y + x;
 			uchar warpMask = m_warpMask.data[idx_uchar];
-			
+
 			const size_t idx_ushrt = idx_uchar*2;
 			const size_t idx_flt32 = idx_uchar*4;
 			const size_t idx_uchar_rgb = idx_uchar*3;
@@ -918,7 +1053,7 @@ failedcheck1ch:
 			const size_t widx_uchar_rgb = widx_uchar*3;
 			const size_t widx_ushrt_rgb = widx_ushrt*3;
 
-			
+
 			//warped models
 			float* wpfCurrDistThresholdFactor = (float*)(w_oDistThresholdFrame.data+widx_flt32);
 			float* wpfCurrVariationFactor = (float*)(w_oVariationModulatorFrame.data+widx_flt32);
@@ -946,7 +1081,7 @@ failedcheck1ch:
 				const uchar* const anCurrColor = oInputImg.data+idx_uchar*3;
 				ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
 				//相机移动后在原模型中不存在的部分，不处理
-			/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);*/
+				/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);*/
 				/*if((rand()%nLearningRate)==0) */
 				{
 					const size_t s_rand = rand()%m_nBGSamples;
@@ -967,8 +1102,11 @@ failedcheck1ch:
 			*pfCurrMeanRawSegmRes_ST = *wpfCurrMeanRawSegmRes_ST;
 			*pfCurrMeanFinalSegmRes_LT = *wpfCurrMeanFinalSegmRes_LT;
 			*pfCurrMeanFinalSegmRes_ST = *wpfCurrMeanFinalSegmRes_ST;
-				
+
 		}		
+		char wname[50];
+		sprintf(wname,"smask%d.jpg",m_nFrameIndex);
+		cv::imwrite(wname,smask);
 	}
 	//char name[50];
 	//char wname[50];
@@ -1028,7 +1166,7 @@ failedcheck1ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	/*cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
 	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
 	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
@@ -1040,7 +1178,7 @@ failedcheck1ch:
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	m_oFGMask_last.copyTo(oCurrFGMask);
+	m_oFGMask_last.copyTo(oCurrFGMask);*/
 	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 
 	/*char filename[150];
@@ -1104,8 +1242,8 @@ failedcheck1ch:
 		}
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
-		
-		
+
+
 	}
 	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	{
