@@ -28,11 +28,11 @@ public:
 	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
 	{
 		/*std::cout<<homography;*/
-		/*cv::Mat mask(m_oImgSize,CV_8UC1);
+		cv::Mat mask(m_oImgSize,CV_8UC1);
 		mask = cv::Scalar(0);
 		uchar* ptr = mask.data;
 		
-		cv::Mat gradMat(m_oImgSize,CV_8UC1);
+		/*cv::Mat gradMat(m_oImgSize,CV_8UC1);
 		gradMat = cv::Scalar::all(0);
 		mCurr.copyTo(gradMat);*/
 		
@@ -73,7 +73,7 @@ public:
 		currPoints.resize(k);
 		trackedPoints.resize(k);
 
-		float distance = 0;
+		
 		for(int i=0; i<k; i++)
 		{
 			cv::Point2f pt = currPoints[i];
@@ -84,10 +84,11 @@ public:
 			x /= w;
 			y /= w;
 			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
-			distance += d;
+			const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
+			
 			if (d < threshold)
 			{
-				const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
+				
 				const size_t idx_flt32 = idx_char*4;
 			
 				float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
@@ -95,7 +96,7 @@ public:
 				float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
 				//std::cout<<*pfCurrDistThresholdFactor<<std::endl;
 				*pfCurrDistThresholdFactor += 0.1;
-				/*ptr[idx_char] = 128;*/
+				ptr[idx_char] = 128;
 				mCurr.data[idx_char] = 0x0;
 				
 				if (m_nImgChannels == 3)
@@ -119,10 +120,10 @@ public:
 
 				}
 			}
-			/*else
+			else
 			{
 				ptr[idx_char] = 255;
-			}*/
+			}
 		}		
 		
 		//for(int i=0; i<m_voKeyPoints.size(); i++)
@@ -140,9 +141,9 @@ public:
 		//		}
 		//	}
 		//}
-		//char filename[150];
-		//sprintf(filename,"homoTest%d.jpg",m_nFrameIndex-1);
-		//cv::imwrite(filename,gradMat);
+		/*char filename[150];
+		sprintf(filename,"homoTest%d.jpg",m_nFrameIndex-1);
+		cv::imwrite(filename,mask);*/
 	}
 	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
 	void cloneModels();

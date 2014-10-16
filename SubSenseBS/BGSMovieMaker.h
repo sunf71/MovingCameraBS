@@ -11,7 +11,7 @@ public:
 	{
 		char fileName[200];
 		cv::VideoWriter writer;
-		writer.open(std::string(outFileName),0,25,size);
+		writer.open(std::string(outFileName),CV_FOURCC('X', 'V', 'I', 'D'),25,size);
 		
 		for(int i=from; i<=to; i++)
 		{
@@ -39,7 +39,7 @@ public:
 			}
 			char text[20];
 			sprintf(text,"%d",i);
-			cv::putText(img,text,cv::Point(10,20),CV_FONT_ITALIC,1,CV_RGB(250,250,250));
+			cv::putText(img,text,cv::Point(10,20),CV_FONT_ITALIC,1,CV_RGB(255,215,0));
 			writer<<img;
 			/*sprintf(fileName,"%06d.jpg",i);
 			cv::imwrite(fileName,img);*/
