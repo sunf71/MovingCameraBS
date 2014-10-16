@@ -28,122 +28,121 @@ public:
 	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
 	{
 		/*std::cout<<homography;*/
-		cv::Mat mask(m_oImgSize,CV_8UC1);
+		/*cv::Mat mask(m_oImgSize,CV_8UC1);
 		mask = cv::Scalar(0);
-		uchar* ptr = mask.data;
+		uchar* ptr = mask.data;*/
 		
-		/*cv::Mat gradMat(m_oImgSize,CV_8UC1);
+		cv::Mat gradMat(m_oImgSize,CV_8UC1);
 		gradMat = cv::Scalar::all(0);
-		mCurr.copyTo(gradMat);*/
+		mCurr.copyTo(gradMat);
 		
 
-		float threshold = 0.6;
-		std::vector<cv::Point2f> currPoints, trackedPoints;
-		std::vector<uchar> status; // status of tracked features
-		std::vector<float> err;    // error in tracking
-		for(int i=0; i<mCurr.cols; i++)
-		{
-			for(int j=0; j<mCurr.rows; j++)
-				if(mCurr.data[i + j*mCurr.cols] == 0xff)
-					currPoints.push_back(cv::Point2f(i,j));
-		}
-		if (currPoints.size() <=0)
-			return;
-		// 2. track features
-		cv::calcOpticalFlowPyrLK(curr, prev, // 2 consecutive images
-			currPoints, // input point position in first image
-			trackedPoints, // output point postion in the second image
-			status,    // tracking success
-			err);      // tracking error
-
-		// 2. loop over the tracked points to reject the undesirables
-		int k=0;
-
-		for( int i= 0; i < currPoints.size(); i++ ) {
-
-			// do we keep this point?
-			if (status[i] == 1) {
-
-				// keep this point in vector
-				currPoints[k] = currPoints[i];
-				trackedPoints[k++] = trackedPoints[i];
-			}
-		}
-		// eliminate unsuccesful points
-		currPoints.resize(k);
-		trackedPoints.resize(k);
-
-		
-		for(int i=0; i<k; i++)
-		{
-			cv::Point2f pt = currPoints[i];
-			double* data = (double*)homography.data;
-			float x = data[0]*pt.x + data[1]*pt.y + data[2];
-			float y = data[3]*pt.x + data[4]*pt.y + data[5];
-			float w = data[6]*pt.x + data[7]*pt.y + data[8];
-			x /= w;
-			y /= w;
-			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
-			const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
-			
-			if (d < threshold)
-			{
-				
-				const size_t idx_flt32 = idx_char*4;
-			
-				float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
-
-				float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
-				//std::cout<<*pfCurrDistThresholdFactor<<std::endl;
-				*pfCurrDistThresholdFactor += 0.1;
-				ptr[idx_char] = 128;
-				mCurr.data[idx_char] = 0x0;
-				
-				if (m_nImgChannels == 3)
-				{
-					const size_t idx_ushrt_rgb = idx_char*2*3;
-					const size_t idx_uchar_rgb = idx_char*3;
-					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
-					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
-					//update model
-					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,anLastIntraDesc,anLastColor);
-					
-				}
-				else
-				{
-					const size_t idx_ushrt = idx_char*2;
-					const size_t idx_uchar = idx_char;
-					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
-					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar;
-					//update model
-					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,anLastIntraDesc,anLastColor);
-
-				}
-			}
-			else
-			{
-				ptr[idx_char] = 255;
-			}
-		}		
-		
-		//for(int i=0; i<m_voKeyPoints.size(); i++)
+		//float threshold = 0.6;
+		//std::vector<cv::Point2f> currPoints, trackedPoints;
+		//std::vector<uchar> status; // status of tracked features
+		//std::vector<float> err;    // error in tracking
+		//for(int i=0; i<mCurr.cols; i++)
 		//{
-		//	int x = m_voKeyPoints[i].pt.x;
-		//	int y = m_voKeyPoints[i].pt.y;
-		//	int wx = int(m_voTKeyPoints[i].pt.x+0.5);
-		//	int wy = int(m_voTKeyPoints[i].pt.y+0.5);
-		//	if (m_warpMask.data[x+y*m_oImgSize.width] == 0xff)
-		//	{
-		//		if (m_mixEdges.data[x+y*m_oImgSize.width] > 20 //||
-		//			/*m_grad.data[wx+wy*m_oImgSize.width] > 20*/ )
-		//		{
-		//			gradMat.data[x+y*m_oImgSize.width] = 100;
-		//		}
+		//	for(int j=0; j<mCurr.rows; j++)
+		//		if(mCurr.data[i + j*mCurr.cols] == 0xff)
+		//			currPoints.push_back(cv::Point2f(i,j));
+		//}
+		//if (currPoints.size() <=0)
+		//	return;
+		//// 2. track features
+		//cv::calcOpticalFlowPyrLK(curr, prev, // 2 consecutive images
+		//	currPoints, // input point position in first image
+		//	trackedPoints, // output point postion in the second image
+		//	status,    // tracking success
+		//	err);      // tracking error
+
+		//// 2. loop over the tracked points to reject the undesirables
+		//int k=0;
+
+		//for( int i= 0; i < currPoints.size(); i++ ) {
+
+		//	// do we keep this point?
+		//	if (status[i] == 1) {
+
+		//		// keep this point in vector
+		//		currPoints[k] = currPoints[i];
+		//		trackedPoints[k++] = trackedPoints[i];
 		//	}
 		//}
-		/*char filename[150];
+		//// eliminate unsuccesful points
+		//currPoints.resize(k);
+		//trackedPoints.resize(k);
+
+		//float distance = 0;
+		//for(int i=0; i<k; i++)
+		//{
+		//	cv::Point2f pt = currPoints[i];
+		//	double* data = (double*)homography.data;
+		//	float x = data[0]*pt.x + data[1]*pt.y + data[2];
+		//	float y = data[3]*pt.x + data[4]*pt.y + data[5];
+		//	float w = data[6]*pt.x + data[7]*pt.y + data[8];
+		//	x /= w;
+		//	y /= w;
+		//	float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
+		//	distance += d;
+		//	if (d < threshold)
+		//	{
+		//		const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
+		//		const size_t idx_flt32 = idx_char*4;
+		//	
+		//		float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
+
+		//		float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
+		//		//std::cout<<*pfCurrDistThresholdFactor<<std::endl;
+		//		*pfCurrDistThresholdFactor += 0.1;
+		//		/*ptr[idx_char] = 128;*/
+		//		mCurr.data[idx_char] = 0x0;
+		//		
+		//		if (m_nImgChannels == 3)
+		//		{
+		//			const size_t idx_ushrt_rgb = idx_char*2*3;
+		//			const size_t idx_uchar_rgb = idx_char*3;
+		//			const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
+		//			uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
+		//			//update model
+		//			UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,anLastIntraDesc,anLastColor);
+		//			
+		//		}
+		//		else
+		//		{
+		//			const size_t idx_ushrt = idx_char*2;
+		//			const size_t idx_uchar = idx_char;
+		//			const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
+		//			uchar* anLastColor = m_oLastColorFrame.data+idx_uchar;
+		//			//update model
+		//			UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,anLastIntraDesc,anLastColor);
+
+		//		}
+		//	}
+		//	/*else
+		//	{
+		//		ptr[idx_char] = 255;
+		//	}*/
+		//}		
+		
+		for(int i=0; i<m_voKeyPoints.size(); i++)
+		{
+			int x = m_voKeyPoints[i].pt.x;
+			int y = m_voKeyPoints[i].pt.y;
+			/*int wx = int(m_voTKeyPoints[i].pt.x+0.5);
+			int wy = int(m_voTKeyPoints[i].pt.y+0.5);*/
+			if (m_warpMask.data[x+y*m_oImgSize.width] == 0xff)
+			{
+				if (m_mixEdges.data[x+y*m_oImgSize.width] > 20 //||
+					/*m_grad.data[wx+wy*m_oImgSize.width] > 20*/ )
+				{
+					gradMat.data[x+y*m_oImgSize.width] = 100;
+				}
+			}
+		}
+		char filename[150];
 		sprintf(filename,"homoTest%d.jpg",m_nFrameIndex-1);
-		cv::imwrite(filename,mask);*/
+		cv::imwrite(filename,gradMat);
 	}
 	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
 	void cloneModels();

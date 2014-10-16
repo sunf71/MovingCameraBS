@@ -837,34 +837,21 @@ failedcheck1ch:
 			}*/
 			const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
-			if (x==305 && y==115 && m_nFrameIndex == 7)
-			{
-				std::cout<<"should be fg"<<std::endl;
-				for(int i=0; i<50; i++)
-				{
-					ushort res1[3],res2[3];
-					LSBSP::LSBSPcomputeRGBDescriptor(_image.getMat(),x,y,255,res1);
-					LSBSP::LSBSPcomputeRGBDescriptor(w_voBGColorSamples[i],wx,wy,255,res2);
-					std::cout<<"res "<<res2[0]<<" "<<res2[1]<<" "<<res2[2]<<std::endl;
-					std::cout<<"diff "<<hdist_ushort_8bitLUT(res1[0],res2[0])<<" "<<hdist_ushort_8bitLUT(res1[1],res2[1])<<" "<<hdist_ushort_8bitLUT(res1[2],res2[2])<<std::endl;
-				}
-
-			}
 			if (x==8 && y==18 && m_nFrameIndex == 2)
 			{
 				
 				std::cout<<wx<<" , "<<wy<<std::endl;
-				//std::cout<<"grad "<<(int)m_mixEdges.data[oidx_uchar]<<std::endl;
+				std::cout<<"grad "<<(int)m_mixEdges.data[oidx_uchar]<<std::endl;
 				//std::cout<<"grad "<<(int)m_edges.data[idx_uchar]<<std::endl;
-				//std::cout<<"threshold: "<<nCurrSCColorDistThreshold<<std::endl;
-				//std::cout<<"currunt color: "<<(int)anCurrColor[0]<<" , "<<(int)anCurrColor[1]<<" , "<<(int)anCurrColor[2]<<std::endl;
-				//std::cout<<"currunt intra desc: "<<anCurrIntraDesc[0]<<" , "<<anCurrIntraDesc[1]<<" , "<<anCurrIntraDesc[2]<<std::endl;
+				std::cout<<"threshold: "<<nCurrSCColorDistThreshold<<std::endl;
+				std::cout<<"currunt color: "<<(int)anCurrColor[0]<<" , "<<(int)anCurrColor[1]<<" , "<<(int)anCurrColor[2]<<std::endl;
+				std::cout<<"currunt intra desc: "<<anCurrIntraDesc[0]<<" , "<<anCurrIntraDesc[1]<<" , "<<anCurrIntraDesc[2]<<std::endl;
 				size_t ng=0, i=0;
 				while(ng<m_nRequiredBGSamples && i<m_nBGSamples) 
 				{
 					int s = 2;
 
-/*					for(int c=0; c<3; c++)
+					for(int c=0; c<3; c++)
 					{	
 						std::cout<<"color background"<<std::endl;
 						for(int n=-s; n<=s; n++)
@@ -877,49 +864,40 @@ failedcheck1ch:
 								std::cout<<(int)w_voBGColorSamples[i].data[ridx*3+c]<<" ";
 							}
 							std::cout<<std::endl;
-						}*/	
-						//std::cout<<"desc background"<<std::endl;
-					//	for(int n=-s; n<=s; n++)
-					//	{
-					//		for(int m=-s; m<=s; m++)
-					//		{
-					//			int rx = m+wx;
-					//			int ry = n+wy;
-					//			size_t ridx = rx + ry*m_oImgSize.width;
-					//			ushort* ptr = (ushort*)(w_voBGDescSamples[i].data + ridx*6+c);
-					//			std::cout<<*ptr<<" ";
-					//		}
-					//		std::cout<<std::endl;
-					//	}
-					//	
-					//}
+						}	
+						std::cout<<"desc background"<<std::endl;
+						for(int n=-s; n<=s; n++)
+						{
+							for(int m=-s; m<=s; m++)
+							{
+								int rx = m+wx;
+								int ry = n+wy;
+								size_t ridx = rx + ry*m_oImgSize.width;
+								ushort* ptr = (ushort*)(w_voBGDescSamples[i].data + ridx*6+c);
+								std::cout<<*ptr<<" ";
+							}
+							std::cout<<std::endl;
+						}
+						
+					}
 					const ushort* const anBGIntraDesc = (ushort*)(w_voBGDescSamples[i].data+idx_ushrt_rgb);
 					uchar* bgColor = 	w_voBGColorSamples[i].data+idx_uchar_rgb;
-					/*std::cout<<"background "<<i<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
-					std::cout<<"background desc "<<i<<": "<<(int)anBGIntraDesc[0]<<" , "<<(int)anBGIntraDesc[1]<<" , "<<(int)anBGIntraDesc[2]<<std::endl;*/
+					std::cout<<"background "<<i<<": "<<(int)bgColor[0]<<" , "<<(int)bgColor[1]<<" , "<<(int)bgColor[2]<<std::endl;
+					std::cout<<"background desc "<<i<<": "<<(int)anBGIntraDesc[0]<<" , "<<(int)anBGIntraDesc[1]<<" , "<<(int)anBGIntraDesc[2]<<std::endl;
 					
-					float fx = m_voTKeyPoints[k].pt.x;
-					float fy = m_voTKeyPoints[k].pt.y;
+					float x = m_voTKeyPoints[k].pt.x;
+					float y = m_voTKeyPoints[k].pt.y;
 					uchar ibgColor[3];
 					ushort ibgDesc[3];
 					LinearInterData(m_oImgSize.width,m_oImgSize.height,w_voBGColorSamples[i].data,x,y,ibgColor);
-					//std::cout<<"background linear interpolation "<<i<<": "<<(int)ibgColor[0]<<" , "<<(int)ibgColor[1]<<" , "<<(int)ibgColor[2]<<std::endl;
+					std::cout<<"background linear interpolation "<<i<<": "<<(int)ibgColor[0]<<" , "<<(int)ibgColor[1]<<" , "<<(int)ibgColor[2]<<std::endl;
 					LinearInterData(m_oImgSize.width,m_oImgSize.height,(ushort*)w_voBGDescSamples[i].data,x,y,ibgDesc,2);
-					//std::cout<<"background desc linear interpolation "<<i<<": "<<(int)ibgDesc[0]<<" , "<<(int)ibgDesc[1]<<" , "<<(int)ibgDesc[2]<<std::endl;
+					std::cout<<"background desc linear interpolation "<<i<<": "<<(int)ibgDesc[0]<<" , "<<(int)ibgDesc[1]<<" , "<<(int)ibgDesc[2]<<std::endl;
 					bool pass = true;
 					size_t nTotDescDist = 0;
 					size_t nTotSumDist = 0;
-					ushort res1[3],res2[3];
-					LSBSP::LSBSPcomputeRGBDescriptor(_image.getMat(),x,y,255,res1);
-					LSBSP::LSBSPcomputeRGBDescriptor(w_voBGColorSamples[i],wx,wy,255,res2);
-					//std::cout<<"res "<<res2[0]<<" "<<res2[1]<<" "<<res2[2]<<std::endl;
-					//std::cout<<"diff "<<hdist_ushort_8bitLUT(res1[0],res2[0])<<" "<<hdist_ushort_8bitLUT(res1[1],res2[1])<<" "<<hdist_ushort_8bitLUT(res1[2],res2[2])<<std::endl;
-					
 					for(size_t c=0;c<3; ++c) {
-						
 						const size_t nColorDist = absdiff_uchar(anCurrColor[c],ibgColor[c]);
-						
-						//std::cout<<"total dist "<<std::min((hdist_ushort_8bitLUT(res1[c],res2[c])/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch)<<std::endl;
 						if(nColorDist>nCurrSCColorDistThreshold)
 							pass = false;
 						size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);

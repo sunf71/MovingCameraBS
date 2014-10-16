@@ -82,7 +82,9 @@
     <ClInclude Include="BGSSubsenseM.h" />
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="LBSP.h" />
+    <ClInclude Include="LSBSP.h" />
     <ClInclude Include="RandUtils.h" />
+    <ClInclude Include="STAT.h" />
     <ClInclude Include="SubSenseBSProcessor.h" />
     <ClInclude Include="timer.h" />
     <ClInclude Include="videoprocessor.h" />
