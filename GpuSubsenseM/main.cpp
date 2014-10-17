@@ -48,7 +48,7 @@ void TestGpuSubsense()
 
 }
 
-int main()
+int cpu_main()
 {
 	TestGpuSubsense();
 	return 0;

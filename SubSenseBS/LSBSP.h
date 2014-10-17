@@ -124,4 +124,67 @@ public:
 	
 
 	}
+	static void LSBSPcomputeGrayscaleHistogram(const cv::Mat& oInputImg, const int _x, const int _y, const size_t _t, std::vector<float>& hist)
+	{
+		CV_DbgAssert(!oInputImg.empty());
+		CV_DbgAssert(oInputImg.type()==CV_8UC1);
+		CV_DbgAssert(LSBSP::DESC_SIZE==2); // @@@ also relies on a constant desc size
+		CV_DbgAssert(_x>=(int)LSBSP::PATCH_SIZE/2 && _y>=(int)LSBSP::PATCH_SIZE/2);
+		CV_DbgAssert(_x<oInputImg.cols-(int)LSBSP::PATCH_SIZE/2 && _y<oInputImg.rows-(int)LSBSP::PATCH_SIZE/2);
+		const size_t _step_row = oInputImg.step.p[0];
+		const uchar* const _data = oInputImg.data;
+		const size_t binCap = DESC_SIZE*8;
+		hist.resize(binCap);
+	
+		
+		float bin_size = 180.0/DESC_SIZE*8;
+		memset(&hist[0],0,sizeof(float)*binCap);
+		//进行梯度直方图计算
+		for(int i=-2; i<2; i++)
+		{
+			for(int j=-2; j<2; j++)
+			{
+				float gx,gy;
+				SobelOperator(oInputImg,_x+i,_y+j,gx,gy);
+				float ang = atan(gy/(gx+0.000001))/PI*180 + 90;
+				hist[(int)ang/16] += (gx+gy);
+			}
+		}
+
+	}
+	static void LSBSPcomputeHistogram(const cv::Mat& oInputImg, const int _x, const int _y, const size_t _t, std::vector<std::vector<float>>& hist)
+	{
+		CV_DbgAssert(!oInputImg.empty());
+		CV_DbgAssert(oInputImg.type()==CV_8UC3);
+		CV_DbgAssert(LSBSP::DESC_SIZE==2); // @@@ also relies on a constant desc size
+		CV_DbgAssert(_x>=(int)LSBSP::PATCH_SIZE/2 && _y>=(int)LSBSP::PATCH_SIZE/2);
+		CV_DbgAssert(_x<oInputImg.cols-(int)LSBSP::PATCH_SIZE/2 && _y<oInputImg.rows-(int)LSBSP::PATCH_SIZE/2);
+		const size_t _step_row = oInputImg.step.p[0];
+		const uchar* const _data = oInputImg.data;
+		const size_t binCap = DESC_SIZE*8;
+		hist.resize(3);
+		for(int c=0; c<3; c++)
+		{
+			hist[c].resize(binCap);
+			memset(&hist[c][0],0,sizeof(float)*binCap);
+		}
+		float bin_size = 180.0/binCap;
+	
+		//进行梯度直方图计算
+		for(int i=-2; i<2; i++)
+		{
+			for(int j=-2; j<2; j++)
+			{
+				float gx[3],gy[3];
+				SobelOperatorRGB(oInputImg,_x+i,_y+j,gx,gy);
+				for(int c=0; c<3; c++)
+				{
+					float ang = atan(gy[c]/(gx[c]+0.000001))/PI*180 + 90;
+					hist[c][(int)ang/16] += (gx[c]+gy[c]);
+				}
+			}
+		}
+		
+
+	}
 };

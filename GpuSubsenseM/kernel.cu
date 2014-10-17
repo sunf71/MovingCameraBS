@@ -127,8 +127,8 @@ void MRFOptimization()
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 1;
-	int end = 1130;
+	int start = 707;
+	int end = 707;
 	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
@@ -144,7 +144,7 @@ void MRFOptimization()
 }
 
 
-int cuda_main (int argc, char* argv[])
+int main (int argc, char* argv[])
 {
 	MRFOptimization();
 	//TestSuperpixel();

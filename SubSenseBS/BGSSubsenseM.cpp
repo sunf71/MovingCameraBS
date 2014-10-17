@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include "LSBSP.h"
+#include "STAT.h"
 /*
 *
 * Intrinsic parameters for our method are defined here; tuning these for better
@@ -306,7 +307,7 @@ void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, siz
 
 	}
 	int x_rand,y_rand;
-	const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar];
+	const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar/3];
 	if(bCurrUsing3x3Spread)
 		getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
 	else
@@ -364,7 +365,7 @@ void LinearInterData(int width, int height, T* data, float x, float y,T* out, in
 			size_t idx_rgb_ll = (sx+sy*width)*step;
 			size_t idx_rgb_rl = (bx+sy*width)*step;
 			size_t idx_rgb_lr =(sx+by*width)*step;
-			size_t idx_rgb_rr = (bx*by*width)*step;
+			size_t idx_rgb_rr = (bx+by*width)*step;
 			for(int c=0; c<3; c++)
 			{
 				out[c] = ty*((1-tx)*data[idx_rgb_ll+c]+tx*data[idx_rgb_rl+c]) + (1-ty)*((1-tx)*data[idx_rgb_lr+c] + tx*data[idx_rgb_rr+c]);
@@ -671,7 +672,7 @@ failedcheck1ch:
 	else { //m_nImgChannels==3
 		cv::Mat smask(m_oImgSize,CV_8U);
 		smask = cv::Scalar(0);
-		for(size_t k=0; k<m_nKeyPoints; ++k) {
+			for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
 			const size_t oidx_uchar = m_oImgSize.width*y + x;	
@@ -682,18 +683,13 @@ failedcheck1ch:
 
 			const int wx = (int)(m_voTKeyPoints[k].pt.x+0.5);
 			const int wy = (int)(m_voTKeyPoints[k].pt.y+0.5);
-			if (x>2 && x< m_oImgSize.width-3 && y>2 && y<m_oImgSize.height-3
-				&& wx>2 && wx< m_oImgSize.width-3 && wy>2 && wy<m_oImgSize.height-3)
+			/*if (x>2 && x< m_oImgSize.width-3 && y>2 && y<m_oImgSize.height-3
+				&& wx>2 && wx< m_oImgSize.width-3 && wy>2 && wy<m_oImgSize.height-3
+				&& m_mixEdges.data[x+y*m_oImgSize.width] == 0xff)
 			{
-				ushort res1,res2;
-				LSBSP::LSBSPcomputeGrayscaleDescriptor(m_preGray,x,y,255,res1);
-				LSBSP::LSBSPcomputeGrayscaleDescriptor(m_gray,wx,wy,255,res2);
-				if (hdist_ushort_8bitLUT(res1,res2) >5)
-				{
-					smask.data[x+y*m_oImgSize.width] = 0xff;
-				}
-				
-			}
+
+
+			}*/
 			const size_t idx_uchar = m_oImgSize.width*wy +wx;
 			const size_t idx_flt32 = idx_uchar*4;
 			const size_t idx_uchar_rgb = idx_uchar*3;
@@ -719,7 +715,7 @@ failedcheck1ch:
 			ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
 			uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
 
-
+			
 			size_t nCurrColorDistThreshold = (size_t)(((*pfCurrDistThresholdFactor)*m_nMinColorDistThreshold)-((!w_oUnstableRegionMask.data[idx_uchar])*STAB_COLOR_DIST_OFFSET));
 			size_t nCurrDescDistThreshold = ((size_t)1<<((size_t)floor(*pfCurrDistThresholdFactor+0.5f)))+m_nDescDistThreshold+(w_oUnstableRegionMask.data[idx_uchar]*UNSTAB_DESC_DIST_OFFSET);
 			const size_t nCurrTotColorDistThreshold = nCurrColorDistThreshold*3;
@@ -733,6 +729,7 @@ failedcheck1ch:
 			while(nGoodSamplesCount<m_nRequiredBGSamples && nSampleIdx<m_nBGSamples) {
 				const ushort* const anBGIntraDesc = (ushort*)(w_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
 				const uchar* const anBGColor = w_voBGColorSamples[nSampleIdx].data+idx_uchar_rgb;
+								
 				size_t nTotDescDist = 0;
 				size_t nTotSumDist = 0;
 				bool pass = true;
@@ -902,7 +899,7 @@ failedcheck1ch:
 					float fy = m_voTKeyPoints[k].pt.y;
 					uchar ibgColor[3];
 					ushort ibgDesc[3];
-					LinearInterData(m_oImgSize.width,m_oImgSize.height,w_voBGColorSamples[i].data,x,y,ibgColor);
+					LinearInterData(m_oImgSize.width,m_oImgSize.height,w_voBGColorSamples[i].data,fx,fy,ibgColor);
 					//std::cout<<"background linear interpolation "<<i<<": "<<(int)ibgColor[0]<<" , "<<(int)ibgColor[1]<<" , "<<(int)ibgColor[2]<<std::endl;
 					LinearInterData(m_oImgSize.width,m_oImgSize.height,(ushort*)w_voBGDescSamples[i].data,x,y,ibgDesc,2);
 					//std::cout<<"background desc linear interpolation "<<i<<": "<<(int)ibgDesc[0]<<" , "<<(int)ibgDesc[1]<<" , "<<(int)ibgDesc[2]<<std::endl;
@@ -923,7 +920,7 @@ failedcheck1ch:
 						if(nColorDist>nCurrSCColorDistThreshold)
 							pass = false;
 						size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
-						LBSP::computeSingleRGBDescriptor(oInputImg,bgColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[bgColor[c]],anCurrInterDesc[c]);
+						LBSP::computeSingleRGBDescriptor(oInputImg,ibgColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[bgColor[c]],anCurrInterDesc[c]);
 						size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 						const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
 						const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
@@ -1126,9 +1123,9 @@ failedcheck1ch:
 			*pfCurrMeanFinalSegmRes_ST = *wpfCurrMeanFinalSegmRes_ST;
 
 		}		
-		char wname[50];
+	/*	char wname[50];
 		sprintf(wname,"smask%d.jpg",m_nFrameIndex);
-		cv::imwrite(wname,smask);
+		cv::imwrite(wname,smask);*/
 	}
 	//char name[50];
 	//char wname[50];
@@ -1200,8 +1197,8 @@ failedcheck1ch:
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	m_oFGMask_last.copyTo(oCurrFGMask);*/
-	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
+	m_oFGMask_last.copyTo(oCurrFGMask);
+	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);*/
 
 	/*char filename[150];
 	sprintf(filename,"blink_%d.jpg",m_nFrameIndex-1);

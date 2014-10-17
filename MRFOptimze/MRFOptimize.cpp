@@ -208,7 +208,7 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 				{
 					float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
 					//file<<energy<<std::endl;
-					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)(energy));
+					//gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)(energy));
 				}
 			}
 		}
