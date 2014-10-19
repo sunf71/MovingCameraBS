@@ -132,14 +132,14 @@ __device__ double distance(int x, int y, float4* imgBuffer,int width, int height
 {
 	int idx = x + y*width;
 	float4 pixel = tex1Dfetch(ImageTexture,idx);
-	double dr = abs(pixel.x - d_ceneters[label].rgb.x);
-	double dg = abs(pixel.y - d_ceneters[label].rgb.y) ;
-	double db = abs(pixel.z - d_ceneters[label].rgb.z);
+	double dr = (pixel.x - d_ceneters[label].rgb.x);
+	double dg = (pixel.y - d_ceneters[label].rgb.y) ;
+	double db = (pixel.z - d_ceneters[label].rgb.z);
 	double d_rgb = sqrt(dr*dr + dg*dg + db*db);
-	double dx = abs(x*1.f - d_ceneters[label].xy.x);
-	double dy =  abs(y*1.f - d_ceneters[label].xy.y);
-	double d_xy = sqrt(dx*dx + dy*dy);
-	return (1-alpha)*d_rgb + alpha*d_xy/(radius/2);
+	double dx = (x*1.f - d_ceneters[label].xy.x);
+	double dy =  (y*1.f - d_ceneters[label].xy.y);
+	double d_xy = (dx*dx + dy*dy);
+	return (1-alpha)*d_rgb + alpha*d_xy/(radius);
 }
 __global__  void UpdateBoundaryKernel(float4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
 {
@@ -181,9 +181,10 @@ __global__  void UpdateBoundaryKernel(float4* imgBuffer, int nHeight, int nWidth
 		}
 		if (idx >=0)
 			labels[mainindex] = nl[idx];
+		}
 	}
 	
-}
+
 __global__ void AvgClusterCenterKernel(SLICClusterCenter* d_cenetersIn, int nClusters)
 {
 	//每个超像素一个线程

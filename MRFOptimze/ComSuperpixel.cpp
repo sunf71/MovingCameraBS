@@ -238,7 +238,18 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 						}
 					}
 					if (idx >=0)
-					labels[mainindex] = nl[idx];
+					{
+						//求label为nl[idx]的superpixel的中心点			
+						/*int cnum = (width+step-1)/step;
+						int cy = ((nl[idx])/cnum)*((int)step) + step/2;
+						int cx = ((nl[idx])%cnum)*((int)step) + step/2;*/
+						if (abs(k-kseedsx[nl[idx]])<step && abs(j-kseedsy[nl[idx]]) <step)
+						{
+							labels[mainindex] = nl[idx];
+							//std::cout<<"new label "<<nl[idx]<<" k,j= "<<k<<","<<j<<" to cx,cy = "<<cx<<" "<<cy<<std::endl;
+						}
+							
+					}
 				}
 				mainindex++;
 				//std::cout<<mainindex<<std::endl;
@@ -348,7 +359,7 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenStep(
 	int yoff = T/2;
 
 	int n(0);int r(0);
-	for( int y = 0; y <= m_height/T; y++ )
+	for( int y = 0; y < (m_height+T-1)/T; y++ )
 	{
 		int Y = y*T + yoff;
 		if( Y > m_height-1 )
@@ -356,7 +367,7 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenStep(
 			Y = (y*T + m_height-1)/2;
 		}
 
-		for( int x = 0; x <= m_width/T; x++ )
+		for( int x = 0; x < (m_width+T-1)/T; x++ )
 		{
 			int X = x*T + xoff;//square grid
 			//int X = x*step + (xoff<<(r&0x1));//hex grid

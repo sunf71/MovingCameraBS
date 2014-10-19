@@ -354,7 +354,7 @@ int main()
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	for(int i=707; i<=707;i++)
+	for(int i=1; i<=1130;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input3\\bin%06d.png",i);

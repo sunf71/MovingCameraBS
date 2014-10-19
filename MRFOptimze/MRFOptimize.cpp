@@ -4,6 +4,7 @@
 #include "ComSuperpixel.h"
 #include "PictureHandler.h"
 #include "timer.h"
+#include <fstream>
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -106,6 +107,8 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 	cv::Mat avgMat(height,width,CV_8U);
 	avgMat = cv::Scalar(0);
 	uchar* avgImg = avgMat.data;
+	cv::Mat neigMat(height,width,CV_8U);
+	neigMat = cv::Scalar(0);
 	unsigned char* cimgData = (unsigned char*)imgData;
 	for(int i=0; i<spSize; i++)
 	{
@@ -125,18 +128,39 @@ void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, co
 		}
 		superpixels[i].avgColor = tmp/superpixels[i].pixels.size()/3;
 		superpixels[i].ps = mtmp/superpixels[i].pixels.size();
-	/*	for(int p=0; p<superpixels[i].pixels.size(); p++)
+		/*for(int p=0; p<superpixels[i].pixels.size(); p++)
 		{
 			int idx = superpixels[i].pixels[p].first + superpixels[i].pixels[p].second*width;
 			psImg[idx] = uchar(superpixels[i].ps*255);
 			avgImg[idx] = uchar(superpixels[i].avgColor);
+		}
+		if (superpixels[i].idx == 1)
+		{
+			for(int p=0; p<superpixels[i].pixels.size(); p++)
+			{
+				neigMat.data[superpixels[i].pixels[p].first +superpixels[i].pixels[p].second*width ] = 0x255;
+			}
+			for(int n=0; n<superpixels[i].neighbors.size(); n++)
+			{
+				std::cout<<superpixels[i].neighbors[n]->idx<<std::endl;
+				for(int p=0; p<superpixels[i].neighbors[n]->pixels.size(); p++)
+				{
+					superpixels[i].neighbors[n]->pixels[p];
+					neigMat.data[superpixels[i].neighbors[n]->pixels[p].first +superpixels[i].neighbors[n]->pixels[p].second*width ] = 0x128;
+				}
+
+			}
 		}*/
+
 	}
 	/*cv::imwrite("prob.jpg",psMat);
-	cv::imwrite("avg.jpg",avgMat);*/
+	cv::imwrite("avg.jpg",avgMat);
+	cv::imwrite("neighbour.jpg",neigMat);*/
 }
 void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
+	/*cv::Mat mask(height,width,CV_8U);
+	mask = cv::Scalar(0);*/
 	size_t num_edges = 0;
 	for(int i=0; i<num_pixels; i++)
 		num_edges += spPtr[i].neighbors.size();
@@ -148,7 +172,7 @@ void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_label
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
-		float d = min(1.0f,theta*spPtr[i].ps*2);
+		float d = min(1.0f,spPtr[i].ps*2.0);
 		d = max(1e-20f,d);
 		float d1 = -log(d);
 		float d2 =  - log(1-d);
@@ -156,6 +180,14 @@ void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_label
 	}
 	for(int i=0; i<num_pixels; i++)
 	{
+		/*if (spPtr[i].neighbors.size() !=8)
+		{
+			for(int p=0; p<spPtr[i].pixels.size(); p++)
+			{
+				mask.data[spPtr[i].pixels[p].first + spPtr[i].pixels[p].second*width] = 0xff;
+			}
+		}*/
+			
 		for(int j=0; j<spPtr[i].neighbors.size(); j++)
 		{
 			if (i < spPtr[i].neighbors[j]->idx)
@@ -169,6 +201,7 @@ void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_label
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
 		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
+	/*cv::imwrite("n8check.jpg",mask);*/
 }
 void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
@@ -179,11 +212,11 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 	{
 		for(int j=0; j<num_labels; j++)
 		{
-			float d = min(1.0f,theta*spPtr[i].ps*2);
+			float d = min(1.0f,0.5*spPtr[i].ps*2);
 			d = max(1e-20f,d);
-			float d1 = -log(d)*j;
-			float d2 =  - log(1-d)*(1-j);
-			data[i*num_labels + j] =(int)5*(d1+d2);
+			float d1 = -log(spPtr[i].ps)*j;
+			float d2 =  - log(1-spPtr[i].ps)*(1-j);
+			data[i*num_labels + j] =(int)10*(d1+d2);
 		}
 	}
 	// next set up the array for smooth costs
@@ -207,19 +240,19 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 				if (i>spPtr[i].neighbors[j]->idx)
 				{
 					float energy = (lmd1+lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
-					//file<<energy<<std::endl;
-					//gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)(energy));
+					//file<<i<<", "<<spPtr[i].neighbors[j]->idx<<" "<<energy<<std::endl;
+					gc->setNeighbors(i,spPtr[i].neighbors[j]->idx,(int)(energy));
 				}
 			}
 		}
-		/*file.close();
+		//file.close();
 		printf("\nBefore optimization energy is %d",gc->compute_energy());
 		printf("\nBefore optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());*/
+		printf("\nBefore optimization smooth energy is %d",gc->giveSmoothEnergy());
 		gc->expansion(10);// run expansion for 2 iterations. For swap use gc->swap(num_iterations);
-		/*printf("\nAfter optimization energy is %d",gc->compute_energy());
+		printf("\nAfter optimization energy is %d",gc->compute_energy());
 		printf("\nAfter optimization  data energy is %d",gc->giveDataEnergy());
-		printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());*/
+		printf("\nAfter optimization smooth energy is %d",gc->giveSmoothEnergy());
 
 		for ( int  i = 0; i < num_pixels; i++ )
 			result[i] = gc->whatLabel(i);
@@ -236,6 +269,21 @@ void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labe
 
 }
 
+cv::Vec3b indexToColor(size_t index)
+{
+	cv::Vec3b ret(0,0,0);
+	if (index ==0 )
+		return cv::Vec3b(0,150,150);
+	else if(index == 1)
+		return cv::Vec3b(150,0,0);
+	for(int i=0; i<3; i++)
+	{
+		ret[i] = index%256;
+		index/=256;
+	}
+	
+	return ret;
+}
 //用MRF对前景结果进行优化
 void MRFOptimize(const string& originalImgName, const string& maskImgName, const string& resultImgName)
 {
@@ -273,20 +321,36 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	
 	int numlabels(0);
 	ComSuperpixel CS;
+	SLIC slic;
 	//CS.Superixel(idata,width,height,7000,0.9,labels);
 #ifdef REPORT
 	nih::Timer timer;
 	timer.start();
-#endif
+#endif	
+	/*int numlabel;
+	slic.PerformSLICO_ForGivenStepSize(idata,width,height,labels,numlabel,5,10);*/
 	CS.Superixel(idata,width,height,5,0.9,numlabels,labels);
+	//out put labels to txt file
+	/*std::ofstream file("labels.txt");
+	for(int i=0; i<height; i++)
+	{
+		for(int j=0; j<width; j++)
+		{
+			file<<labels[i*width+j]<<"\t";
+		}
+		file<<std::endl;
+
+	}
+	file.close();*/
+
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
 #endif
-	SLIC aslic;
+	/*SLIC aslic;
 	aslic.DrawContoursAroundSegments(idata, labels, width, height,0x00ff00);
 	PictureHandler handler;
-	handler.SavePicture(idata,width,height,std::string("mysuper.jpg"),std::string(".\\"));
+	handler.SavePicture(idata,width,height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	//return;
 //#ifdef REPORT
@@ -313,7 +377,17 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	timer.stop();
 	std::cout<<"GetSegment2DArray  "<<timer.seconds()<<std::endl;
 #endif
-
+	/*cv::Mat  sp(height,width,CV_8UC3);
+	for(int i=0; i<spSize; i++)
+	{
+		cv::Vec3b color(rand()%255,rand()%255,rand()%255);
+		for(int j=0; j<spPtr[i].pixels.size(); j++)
+		{
+			
+			sp.at<cv::Vec3b>(spPtr[i].pixels[j].second,spPtr[i].pixels[j].first) = color;
+		}
+	}	
+	cv::imwrite("sp.jpg",sp);*/
 #ifdef REPORT
 	
 	timer.start();
@@ -348,8 +422,8 @@ void MRFOptimize(const string& originalImgName, const string& maskImgName, const
 	timer.start();
 #endif
 	int *result = new int[spSize];   // stores result of optimization
-	GraphCutOptimize(spPtr,spSize,avgE,2,width,height,result);
-	//MaxFlowOptimize(spPtr,spSize,avgE,2,width,height,result);
+	//GraphCutOptimize(spPtr,spSize,avgE,2,width,height,result);
+	MaxFlowOptimize(spPtr,spSize,avgE,2,width,height,result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()<<std::endl;

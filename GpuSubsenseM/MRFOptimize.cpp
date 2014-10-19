@@ -202,7 +202,7 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 {
 	size_t num_edges = 0;
 	for(int i=0; i<num_pixels; i++)
-		num_edges += spPtr[i].neighbors.size();
+		num_edges += m_neighbor[i].size();
 	num_edges /= 2;
 
 	typedef Graph<float,float,float> GraphType;
@@ -211,7 +211,7 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
-		float d = min(1.0f,m_theta*spPtr[i].ps*2);
+		float d = min(1.0f,spPtr[i].ps*2);
 		d = max(1e-20f,d);
 		float d1 = -log(d);
 		float d2 =  - log(1-d);
@@ -219,12 +219,14 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 	}
 	for(int i=0; i<num_pixels; i++)
 	{
-		for(int j=0; j<spPtr[i].neighbors.size(); j++)
-		{
-			if (i < spPtr[i].neighbors[j]->idx)
+
+		for(int j=0; j<m_neighbor[i].size(); j++)
+		{				
+			if (i>spPtr[m_neighbor[i][j]].idx)
 			{
-				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[i].neighbors[j]->avgColor)));
-				g->add_edge(i,spPtr[i].neighbors[j]->idx,energy,energy);
+				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
+				//file<<energy<<std::endl;
+				g->add_edge(i,m_neighbor[i][j],energy,energy);
 			}
 		}
 	}
@@ -308,7 +310,7 @@ void MRFOptimize::GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta,
 		e.Report();
 	}
 }
-void NeighborsImage(SuperPixel* sp, int * labels,int nPixel, int width, int height)
+void NeighborsImage(SuperPixel* sp, int * labels,int nPixel, int width, int height,std::vector<std::vector<int>>& mNeighbors)
 {
 	int id = 4;
 	cv::Mat img(height,width,CV_8U);
@@ -324,14 +326,14 @@ void NeighborsImage(SuperPixel* sp, int * labels,int nPixel, int width, int heig
 
 		}	
 	}
-	for(int k=0; k<sp[id].neighbors.size(); k++)
+	for(int k=0; k<mNeighbors[id].size(); k++)
 	{
 		for(int i= 0; i<width; i++)
 		{
 			for(int j=0; j<height; j++)
 			{
 				int idx = i+j*width;
-				if (labels[idx] == sp[id].neighbors[k]->lable)
+				if (labels[idx] == mNeighbors[id][k])
 					imgPtr[idx] = 0xff;
 				
 			}	
@@ -447,9 +449,19 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 //	timer.start();
 //#endif
 
-	//size_t spSize(0);
-	//GetSegment2DArray(m_spPtr,spSize,m_labels,m_width,m_height);
-	
+	/*size_t spSize(0);
+	GetSegment2DArray(m_spPtr,spSize,m_labels,m_width,m_height);
+	cv::Mat  sp(m_height,m_width,CV_8UC3);
+	for(int i=0; i<spSize; i++)
+	{
+		cv::Vec3b color(rand()%255,rand()%255,rand()%255);
+		for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+		{
+
+			sp.at<cv::Vec3b>(m_spPtr[i].pixels[j].second,m_spPtr[i].pixels[j].first) = color;
+		}
+	}	
+	cv::imwrite("sp.jpg",sp);*/
 	
 //#ifdef REPORT
 //	timer.stop();
@@ -517,8 +529,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 
 	timer.start();
 #endif
-	GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	//MaxFlowOptimize(spPtr,spSize,avgE,2,width,height,result);
+	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -645,6 +657,6 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask)
 			m_spPtr[i].ps = n/m_centers[i].nPoints;
 		}
 	}
-	//ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-	//NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
+	/*ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
+	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);*/
 }

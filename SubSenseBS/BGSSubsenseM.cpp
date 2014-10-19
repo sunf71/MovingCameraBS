@@ -670,8 +670,8 @@ failedcheck1ch:
 		}		
 	}
 	else { //m_nImgChannels==3
-		cv::Mat smask(m_oImgSize,CV_8U);
-		smask = cv::Scalar(0);
+		/*cv::Mat smask(m_oImgSize,CV_8U);
+		smask = cv::Scalar(0);*/
 			for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
@@ -1185,7 +1185,7 @@ failedcheck1ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	/*cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
 	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
 	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
@@ -1198,7 +1198,7 @@ failedcheck1ch:
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	m_oFGMask_last.copyTo(oCurrFGMask);
-	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);*/
+	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 
 	/*char filename[150];
 	sprintf(filename,"blink_%d.jpg",m_nFrameIndex-1);
