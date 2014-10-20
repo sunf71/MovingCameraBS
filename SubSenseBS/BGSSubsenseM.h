@@ -97,7 +97,7 @@ public:
 				*pfCurrDistThresholdFactor += 0.1;
 				/*ptr[idx_char] = 128;*/
 				mCurr.data[idx_char] = 0x0;
-				
+				m_features.data[idx_char]=100;
 				if (m_nImgChannels == 3)
 				{
 					const size_t idx_ushrt_rgb = idx_char*2*3;
@@ -195,4 +195,6 @@ protected:
 	cv::Mat m_preEdges;
 	cv::Mat m_edges;
 	cv::Mat m_mixEdges;
+	//保存特征点跟踪情况
+	cv::Mat m_features;
 };

@@ -120,24 +120,28 @@ void MRFOptimization()
 	using namespace std;
 	char imgFileName[150];
 	char maskFileName[150];
+	char featureMaskFileName[150];
 	char resultFileName[150];
-	int cols = 704;
-	int rows = 480;
+	int cols = 320;
+	int rows = 240;
 	GpuSuperpixel gs(cols,rows,5);
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
 	int start = 1;
-	int end = 1700;
+	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
+		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input3\\bin%06d.png",i);
+		sprintf(featureMaskFileName,"..\\result\\subsensem\\ptz\\input3\\features\\features%06d.jpg",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);
+		
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
-		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
+		//optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
+		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(featureMaskFileName),string(resultFileName));
 	}
 	timer.stop();
 	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";

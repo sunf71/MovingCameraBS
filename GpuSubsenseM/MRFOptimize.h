@@ -58,8 +58,11 @@ public:
 	void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName);
+	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName,  const string& featuremaskImgName,const string& resultImgName);
+	//mask:前景
 	void GetSuperpixels(const unsigned char* mask);
-	
+	//mask:前景， features：特征点跟踪情况的mask
+	void GetSuperpixels(const unsigned char* fgMask, const unsigned char* featuresMask);
 private:
 	SuperPixel* m_spPtr;
 	SLICClusterCenter* m_centers;

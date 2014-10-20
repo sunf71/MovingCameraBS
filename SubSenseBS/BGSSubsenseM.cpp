@@ -151,7 +151,8 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 	w_voBGDescSamples.resize(m_nBGSamples);
 	m_nOutPixels = 0;
 	cloneModels();
-
+	m_features = cv::Mat(m_oImgSize,CV_8U);
+	m_features = cv::Scalar(0);
 }
 
 //! refreshes all samples based on the last analyzed frame
@@ -209,6 +210,7 @@ void BGSSubsenseM::resetPara()
 }
 void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 {
+	m_features = cv::Scalar(0);
 	// convert to gray-level image
 	if (image.channels() ==3)
 	{
@@ -232,9 +234,9 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	}
 	std::vector<cv::Point2f> initial;   // initial position of tracked points
 	std::vector<cv::Point2f> features;  // detected features
-	int max_count(1000);	  // maximum number of features to detect
-	double qlevel(0.05);    // quality level for feature detection
-	double minDist(10.);   // minimum distance between two feature points
+	int max_count(5000);	  // maximum number of features to detect
+	double qlevel(0.05);    // quality level for feature detection,越大质量越高
+	double minDist(2.);   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
 
@@ -268,6 +270,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		// do we keep this point?
 		if (status[i] == 1) {
 
+			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
 			// keep this point in vector
 			m_points[0][k] = m_points[0][i];
 			m_points[1][k++] = m_points[1][i];
@@ -284,13 +287,15 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		cv::Mat(m_points[1]), // points
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
-		0.25); // max distance to reprojection point
-
-
-	/*char filename[20];
-	sprintf(filename,"block%d.jpg",m_nFrameIndex);
-	cv::imwrite(filename,m_blkConfidenceMat);
-	sprintf(filename,"tracking%d.jpg",m_nFrameIndex);
+		0.1); // max distance to reprojection point
+	
+	for(int i=0; i<m_points[0].size(); i++)
+	{
+		if (inliers[i] == 1)
+			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =100;
+	}
+	
+	/*sprintf(filename,"tracking%d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,tmp);*/
 	cv::swap(m_preGray, m_gray);	
 	cv::swap(m_preEdges,m_edges);
@@ -378,6 +383,7 @@ void LinearInterData(int width, int height, T* data, float x, float y,T* out, in
 //! primary model update function; the learning param is used to override the internal learning thresholds (ignored when <= 0)
 void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride)
 {
+	
 	getHomography(_image.getMat(),m_homography);
 	cv::Mat invHomo = m_homography.inv();
 	//std::cout<<m_homography;
@@ -695,6 +701,7 @@ failedcheck1ch:
 			const size_t idx_uchar_rgb = idx_uchar*3;
 			const size_t idx_ushrt_rgb = idx_uchar_rgb*2;
 			uchar warpMask = m_warpMask.data[oidx_uchar];
+			//m_oUnstableRegionMask.data[oidx_uchar] = m_mixEdges.data[oidx_uchar] >20 ? 1 :0;
 			if (warpMask == 0)
 			{
 				//相机移动后在原模型中不存在的部分，不处理
@@ -1199,10 +1206,24 @@ failedcheck1ch:
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	m_oFGMask_last.copyTo(oCurrFGMask);
 	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
+	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),3);
+	char filename[200];
+	sprintf(filename,"..\\result\\subsensem\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,m_features);
+	/*char filename[150];*/
+	//sprintf(filename,"unstable%d.jpg",m_nFrameIndex);
+	//cv::Mat us = w_oUnstableRegionMask.clone();
+	//for(int i=0; i<us.rows; i++)
+	//{
+	//	for(int j=0; j<us.cols; j++)
+	//	{
+	//		if (us.data[j+i*us.cols] == 1)
+	//			us.data[j+i*us.cols] = 0xff;
+	//	}
+	//}
+	//cv::imwrite(filename,us);
 
-	/*char filename[150];
-	sprintf(filename,"blink_%d.jpg",m_nFrameIndex-1);
-	cv::imwrite(filename,m_oBlinksFrame);*/
+	
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
 	const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
