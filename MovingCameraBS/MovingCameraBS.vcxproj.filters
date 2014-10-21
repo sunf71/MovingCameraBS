@@ -33,6 +33,12 @@
     <ClInclude Include="prob_model.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="LBSP.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DistanceUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -42,6 +48,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Affine2D.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LBSP.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

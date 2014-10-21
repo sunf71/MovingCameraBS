@@ -24,7 +24,7 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include "Affine2D.h"
 #include "motiontracker.h"
 #include <algorithm>
-
+#include "LBSP.h"
 
 
 
@@ -171,11 +171,20 @@ uchar LBP(uchar* imgData,int width, int height, int c,int x, int y, int r, int p
 		dx[i] = r*cos(2*PI*i/p);
 		dy[i] = -r*sin(2*PI*i/p);
 	}
+	uchar pixels[16];
+	for(int i=0; i<p; i++)
+		pixels[i] = LinearInterData(width,height,imgData,dx[i]+x,dy[i]+y);
 	for(int i=0; i<p/2; i++)
 	{
-		uchar c1 = LinearInterData(width,height,imgData,dx[i]+x,dy[i]+y);
-		uchar c2 = LinearInterData(width,height,imgData,dx[i+p/2]+x,dy[i+p/2]+y);
-		ret |= (c1-c2>=0) << p/2-i;
+		
+		ret |= (pixels[i]-pixels[i+p/2]>=0) << p-1-i;
+		
+	}
+	for(int i=0; i<p; i+=2)
+	{
+		
+		ret |= (pixels[i]-pixels[i+1]>=0) << p/2-1-i;
+		
 	}
 	return ret;
 }
@@ -223,20 +232,51 @@ void TestLBP()
 		CV_RANSAC, // RANSAC method
 		0.5); // max distance to reprojection point
 	double* ptr = (double*)homography.data;
-	int i = 100, j=180;
-	float x,y,w;
-	x = j*ptr[0] + i*ptr[1] + ptr[2];
-	y = j*ptr[3] + i*ptr[4] + ptr[5];
-	w = j*ptr[6] + i*ptr[7] + ptr[8];
-	x /=w;
-	y/=w;
-	int wx = int(x+0.5);
-	int wy = int(y+0.5);
+	cv::Mat lbp1(gray1.size(),CV_8U);
+	lbp1 = cv::Scalar(0);
+	cv::Mat lbp2;
+	lbp2 = lbp1.clone();
+	cv::Mat diff = lbp1.clone();
+	cv::Mat diff2 = diff.clone();
+	for(int i=2; i<gray1.rows-2; i++)
+	{
+		for(int j=2; j<gray1.cols-2; j++)
+		{
+			
+			float x,y,w;
+			x = j*ptr[0] + i*ptr[1] + ptr[2];
+			y = j*ptr[3] + i*ptr[4] + ptr[5];
+			w = j*ptr[6] + i*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			int wx = int(x+0.5);
+			int wy = int(y+0.5);
+			size_t idx = j+i*gray1.cols;
+			size_t widx = j+i*gray1.cols;
+			ushort res1,res2;
+			if (wx >= 2 && wx < gray1.cols-2 && wy >=2 && wy <gray1.rows-2)
+			{
+				LBSP::computeGrayscaleDescriptor(gray1,gray1.data[idx],j,i,0,res1);
+				LBSP::computeGrayscaleDescriptor(gray2,gray2.data[widx],wx,wy,0,res2);
+				diff2.data[idx] = hdist_ushort_8bitLUT(res1,res2)/16.0*255;
 
-	uchar lbp1 = LBP(gray1.data,gray1.cols,gray1.rows,1,j,i,2,16);
-	std::cout<<"lbp1: "<<(int)lbp1<<std::endl;
-	uchar lbp2 = LBP(gray2.data,gray1.cols,gray1.rows,1,wx,wy,2,16);
-	std::cout<<"lbp2: "<<(int)lbp2<<std::endl;
+				lbp1.data[idx] = LBP(gray1.data,gray1.cols,gray1.rows,1,j,i,2,16);
+				//std::cout<<"lbp1: "<<(int)lbp1<<std::endl;
+				lbp2.data[widx] = LBP(gray2.data,gray1.cols,gray1.rows,1,wx,wy,2,16);
+				//std::cout<<"lbp2: "<<(int)lbp2<<std::endl;
+				diff.data[idx] = popcount_LUT8[lbp1.data[idx]^lbp2.data[widx]]/8.0*255;
+			}
+			 
+		}
+	
+	}
+	cv::imshow("lbp1",lbp1);
+	cv::imshow("lbp2",lbp2);
+	cv::imshow("diff",diff);
+	cv::imshow("diff2",diff2);
+	cv::waitKey(0);
+
+
 }
 
 void TestPerspective()
