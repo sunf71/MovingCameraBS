@@ -1,18 +1,18 @@
 /*------------------------------------------------------------------------------------------*\
-   This file contains material supporting chapter 10 of the cookbook:  
-   Computer Vision Programming using the OpenCV Library. 
-   by Robert Laganiere, Packt Publishing, 2011.
+This file contains material supporting chapter 10 of the cookbook:  
+Computer Vision Programming using the OpenCV Library. 
+by Robert Laganiere, Packt Publishing, 2011.
 
-   This program is free software; permission is hereby granted to use, copy, modify, 
-   and distribute this source code, or portions thereof, for any purpose, without fee, 
-   subject to the restriction that the copyright notice may not be removed 
-   or altered from any source or altered source distribution. 
-   The software is released on an as-is basis and without any warranties of any kind. 
-   In particular, the software is not guaranteed to be fault-tolerant or free from failure. 
-   The author disclaims all warranties with regard to this software, any use, 
-   and any consequent failure, is purely the responsibility of the user.
- 
-   Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
+This program is free software; permission is hereby granted to use, copy, modify, 
+and distribute this source code, or portions thereof, for any purpose, without fee, 
+subject to the restriction that the copyright notice may not be removed 
+or altered from any source or altered source distribution. 
+The software is released on an as-is basis and without any warranties of any kind. 
+In particular, the software is not guaranteed to be fault-tolerant or free from failure. 
+The author disclaims all warranties with regard to this software, any use, 
+and any consequent failure, is purely the responsibility of the user.
+
+Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 \*------------------------------------------------------------------------------------------*/
 
 #include <iostream>
@@ -97,7 +97,7 @@ void TestAffine()
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
 		1.); // max distance to reprojection point
-	
+
 	// Warp image 1 to image 2
 	cv::Mat presult;
 	cv::warpPerspective(gray1, // input image
@@ -155,7 +155,32 @@ T LinearInterData(int width, int height, T*data, float x, float y)
 		return 0;
 }
 
-void TestPerspective()
+//计算LBP
+uchar LBP(uchar* imgData,int width, int height, int c,int x, int y, int r, int p)
+{
+	if ( x-r<0 || x+r>width-1 || y-r<0 || y+r>height-1)
+		return 0;
+	uchar ret = 0;
+	size_t c_idx = x + y*width;
+	std::vector<double> dx,dy;
+	dx.resize(p);
+	dy.resize(p);
+	const double PI = 3.1415926;
+	for(int i=0; i<p; i++)
+	{
+		dx[i] = r*cos(2*PI*i/p);
+		dy[i] = -r*sin(2*PI*i/p);
+	}
+	for(int i=0; i<p/2; i++)
+	{
+		uchar c1 = LinearInterData(width,height,imgData,dx[i]+x,dy[i]+y);
+		uchar c2 = LinearInterData(width,height,imgData,dx[i+p/2]+x,dy[i+p/2]+y);
+		ret |= (c1-c2>=0) << p/2-i;
+	}
+	return ret;
+}
+
+void TestLBP()
 {
 	using namespace cv;
 	Mat img1 = imread("..//PTZ//input3//in000289.jpg");
@@ -172,7 +197,7 @@ void TestPerspective()
 	std::vector<cv::Point2f> features1,features2;  // detected features
 
 	int max_count = 500;	  // maximum number of features to detect
-	double qlevel = 0.01;    // quality level for feature detection
+	double qlevel = 0.05;    // quality level for feature detection
 	double minDist = 10;   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
@@ -196,7 +221,66 @@ void TestPerspective()
 		cv::Mat(features2), // points
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
-		1.); // max distance to reprojection point
+		0.5); // max distance to reprojection point
+	double* ptr = (double*)homography.data;
+	int i = 100, j=180;
+	float x,y,w;
+	x = j*ptr[0] + i*ptr[1] + ptr[2];
+	y = j*ptr[3] + i*ptr[4] + ptr[5];
+	w = j*ptr[6] + i*ptr[7] + ptr[8];
+	x /=w;
+	y/=w;
+	int wx = int(x+0.5);
+	int wy = int(y+0.5);
+
+	uchar lbp1 = LBP(gray1.data,gray1.cols,gray1.rows,1,j,i,2,16);
+	std::cout<<"lbp1: "<<(int)lbp1<<std::endl;
+	uchar lbp2 = LBP(gray2.data,gray1.cols,gray1.rows,1,wx,wy,2,16);
+	std::cout<<"lbp2: "<<(int)lbp2<<std::endl;
+}
+
+void TestPerspective()
+{
+	using namespace cv;
+	Mat img1 = imread("..//PTZ//input3//in000289.jpg");
+	Mat img2 = imread("..//PTZ//input3//in000290.jpg");
+
+
+	Mat gray1,gray2;
+	cvtColor(img1, gray1, CV_BGR2GRAY); 
+	cvtColor(img2, gray2, CV_BGR2GRAY);
+
+	cv::GaussianBlur(gray1,gray1,cv::Size(3,3),0.1);
+	cv::GaussianBlur(gray2,gray2,cv::Size(3,3),0.1);
+
+	std::vector<cv::Point2f> features1,features2;  // detected features
+
+	int max_count = 500;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 10;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	// detect the features
+	cv::goodFeaturesToTrack(gray1, // the image 
+		features1,   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
+
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(gray1, gray2, // 2 consecutive images
+		features1, // input point position in first image
+		features2, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+
+	std::vector<uchar> inliers(features1.size(),0);
+	cv::Mat homography= cv::findHomography(
+		cv::Mat(features1), // corresponding
+		cv::Mat(features2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.5); // max distance to reprojection point
 	double* ptr = (double*)homography.data;
 	cv::Mat diffMask(gray1.rows,gray1.cols,CV_8U);
 	diffMask = cv::Scalar(0);
@@ -219,28 +303,33 @@ void TestPerspective()
 			int wy = int(y+0.5);
 			uchar color = gray1.data[j+i*gray1.cols];
 			uchar grad = gradient1.data[j+i*gray1.cols];
-
-			//在s*s的区域内搜索与原图像最接近的点
-			int s = 3;
-			float alpha = 1;
-			float min = 16384;
+			uchar gradTh = 100;
 			int wwx = wx;
 			int wwy = wy;
-			for(int m=-s; m<s; m++)
+			if (gradient1.data[j+i*gray1.cols] > gradTh || gradient2.data[wx + wy*gray1.cols] > gradTh)
 			{
-				for(int n=-s; n<s; n++)
+
+				//在s*s的区域内搜索与原图像最接近的点
+				int s = 2;
+				float alpha = 1;
+				float min = 16384;
+				
+				for(int m=-s; m<=s; m++)
 				{
-					int mx = m+wx;
-					int ny = n+wy;
-					if (mx >=0 && mx<gray1.cols && ny>=0 && ny<gray1.rows)
+					for(int n=-s; n<=s; n++)
 					{
-						int idx = mx+ny*gray1.cols;
-						float diff = std::abs(gray2.data[idx] - color) + (1-alpha)*std::abs(gradient2.data[idx]-grad);
-						if (diff<min)
+						int mx = m+wx;
+						int ny = n+wy;
+						if (mx >=0 && mx<gray1.cols && ny>=0 && ny<gray1.rows)
 						{
-							min = diff;
-							wwx = mx;
-							wwy = ny;
+							int idx = mx+ny*gray1.cols;
+							float diff = std::abs(gray2.data[idx] - color) + (1-alpha)*std::abs(gradient2.data[idx]-grad);
+							if (diff<min)
+							{
+								min = diff;
+								wwx = mx;
+								wwy = ny;
+							}
 						}
 					}
 				}
@@ -260,7 +349,7 @@ void TestPerspective()
 	Mat affine = estimateRigidTransform(features1,features2,true);
 	Mat Affineresult;
 	warpAffine(gray1,Affineresult,affine,cv::Size(gray1.cols,gray1.rows));
-	
+
 
 	// Warp image 1 to image 2
 	cv::Mat result;
@@ -268,7 +357,7 @@ void TestPerspective()
 		result,			// output image
 		homography,		// homography
 		cv::Size(gray1.cols,gray1.rows)); // size of output image
-	
+
 	double * M = (double*) homography.data;
 	int width = gray1.cols;
 	int height = gray1.rows;
@@ -282,8 +371,8 @@ void TestPerspective()
 		for(int j=0; j<height; j++)
 		{
 			x = M[0]*i + M[1]*j + M[2];
-            y  = M[3]*i + M[4]*j + M[5];
-            w = M[6]*i + M[7]*j + M[8];
+			y  = M[3]*i + M[4]*j + M[5];
+			w = M[6]*i + M[7]*j + M[8];
 			w = w? 1.0/w : 1;
 			x *= w;
 			y *= w;
@@ -323,12 +412,13 @@ void TestPerspective()
 }
 int main()
 {
-	TestPerspective();	
+	TestLBP();
+	//TestPerspective();	
 	//TestAffine();
 	return 0;
 	// Create video procesor instance
 	VideoProcessor processor;
-	
+
 	// Create feature tracker instance
 	MotionTracker tracker;
 	//MCDBSProcessor tracker;

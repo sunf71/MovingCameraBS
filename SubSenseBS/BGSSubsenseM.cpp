@@ -222,7 +222,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 
 	cv::Mat edges,edges1;
 	cv::Canny(m_gray,m_edges,100,300);
-	cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1),3);
+	//cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1));
 	if (m_preEdges.empty())
 	{
 		m_edges.copyTo(m_preEdges);
@@ -294,9 +294,9 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		if (inliers[i] == 1)
 			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =100;
 	}
-	
-	/*sprintf(filename,"tracking%d.jpg",m_nFrameIndex);
-	cv::imwrite(filename,tmp);*/
+	char filename[50];
+	sprintf(filename,"edge%d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,m_mixEdges);
 	cv::swap(m_preGray, m_gray);	
 	cv::swap(m_preEdges,m_edges);
 }
@@ -306,7 +306,7 @@ void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, siz
 	if((rand()%nLearningRate)==0) {
 		const size_t s_rand = rand()%m_nBGSamples;
 		for(size_t c=0; c<m_nImgChannels; ++c) {
-			//*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt+2*c)) = anCurrIntraDesc[c];
+			*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt+2*c)) = anCurrIntraDesc[c];
 			*(m_voBGColorSamples[s_rand].data+idx_uchar+c) = anCurrColor[c];
 		}
 
@@ -456,7 +456,7 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 	// == process
 	CV_DbgAssert(m_bInitialized);
 	cv::Mat oInputImg = _image.getMat();
-	cv::GaussianBlur(oInputImg,oInputImg,cv::Size(3,3),0.1);
+	//cv::GaussianBlur(oInputImg,oInputImg,cv::Size(3,3),0.1);
 	CV_DbgAssert(oInputImg.type()==m_nImgType && oInputImg.size()==m_oImgSize);
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
@@ -724,17 +724,17 @@ failedcheck1ch:
 
 			
 			size_t nCurrColorDistThreshold = (size_t)(((*pfCurrDistThresholdFactor)*m_nMinColorDistThreshold)-((!w_oUnstableRegionMask.data[idx_uchar])*STAB_COLOR_DIST_OFFSET));
-			//size_t nCurrDescDistThreshold = ((size_t)1<<((size_t)floor(*pfCurrDistThresholdFactor+0.5f)))+m_nDescDistThreshold+(w_oUnstableRegionMask.data[idx_uchar]*UNSTAB_DESC_DIST_OFFSET);
+			size_t nCurrDescDistThreshold = ((size_t)1<<((size_t)floor(*pfCurrDistThresholdFactor+0.5f)))+m_nDescDistThreshold+(w_oUnstableRegionMask.data[idx_uchar]*UNSTAB_DESC_DIST_OFFSET);
 			const size_t nCurrTotColorDistThreshold = nCurrColorDistThreshold*3;
-			//const size_t nCurrTotDescDistThreshold = nCurrDescDistThreshold*3;
+			const size_t nCurrTotDescDistThreshold = nCurrDescDistThreshold*3;
 			const size_t nCurrSCColorDistThreshold = nCurrTotColorDistThreshold/2;
-			//ushort anCurrInterDesc[3], anCurrIntraDesc[3];
-			//const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[anCurrColor[0]],m_anLBSPThreshold_8bitLUT[anCurrColor[1]],m_anLBSPThreshold_8bitLUT[anCurrColor[2]]};
-			//LBSP::computeRGBDescriptor(oInputImg,anCurrColor,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
+			ushort anCurrInterDesc[3], anCurrIntraDesc[3];
+			const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[anCurrColor[0]],m_anLBSPThreshold_8bitLUT[anCurrColor[1]],m_anLBSPThreshold_8bitLUT[anCurrColor[2]]};
+			LBSP::computeRGBDescriptor(oInputImg,anCurrColor,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
 			w_oUnstableRegionMask.data[idx_uchar] = ((*pfCurrDistThresholdFactor)>UNSTABLE_REG_RDIST_MIN || (*pfCurrMeanRawSegmRes_LT-*pfCurrMeanFinalSegmRes_LT)>UNSTABLE_REG_RATIO_MIN || (*pfCurrMeanRawSegmRes_ST-*pfCurrMeanFinalSegmRes_ST)>UNSTABLE_REG_RATIO_MIN)?1:0;
 			size_t nGoodSamplesCount=0, nSampleIdx=0;
 			while(nGoodSamplesCount<m_nRequiredBGSamples && nSampleIdx<m_nBGSamples) {
-				//const ushort* const anBGIntraDesc = (ushort*)(w_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
+				const ushort* const anBGIntraDesc = (ushort*)(w_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
 				const uchar* const anBGColor = w_voBGColorSamples[nSampleIdx].data+idx_uchar_rgb;
 				/*float fx = m_voTKeyPoints[k].pt.x;
 				float fy = m_voTKeyPoints[k].pt.y;
@@ -750,27 +750,27 @@ failedcheck1ch:
 						pass = false;
 						break;
 					}
-					/*size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
+					size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 					LBSP::computeSingleRGBDescriptor(oInputImg,anBGColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[anBGColor[c]],anCurrInterDesc[c]);
 					size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
-					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;*/
-					/*const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
-					if(nSumDist>nCurrSCColorDistThreshold)
+					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
+					const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
+					if(nSumDist>nCurrSCColorDistThreshold && m_mixEdges.data[oidx_uchar] >0)
 					{
 						pass = false; 
 						break;
-					}*/
-					/*nTotDescDist += nDescDist;
-					nTotSumDist += nSumDist;*/
-					nTotSumDist += nColorDist;
+					}
+					nTotDescDist += nDescDist;
+					nTotSumDist += nSumDist;
+					/*nTotSumDist += nColorDist;*/
 				}
 
-				/*if(nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold)
-					pass =false;*/
+				if(m_mixEdges.data[oidx_uchar] >0 && nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold)
+					pass =false;
 				if (pass)
 				{
-					/*if(nMinTotDescDist>nTotDescDist)
-						nMinTotDescDist = nTotDescDist;*/
+					if(nMinTotDescDist>nTotDescDist)
+						nMinTotDescDist = nTotDescDist;
 					if(nMinTotSumDist>nTotSumDist)
 						nMinTotSumDist = nTotSumDist;
 					nGoodSamplesCount++;
@@ -857,7 +857,7 @@ failedcheck1ch:
 				if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
 					const size_t s_rand = rand()%m_nBGSamples;
 					for(size_t c=0; c<3; ++c) {
-						/**((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];*/
+						*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
 						*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
 					}
 				}
@@ -869,7 +869,7 @@ failedcheck1ch:
 				*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
-				UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt_rgb,oidx_uchar_rgb,NULL,anCurrColor);
+				UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt_rgb,oidx_uchar_rgb,(const ushort*)(anCurrIntraDesc),anCurrColor);
 				/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);
 				if((rand()%nLearningRate)==0) {
 				const size_t s_rand = rand()%m_nBGSamples;
@@ -924,10 +924,10 @@ failedcheck1ch:
 				if((*pfCurrDistThresholdFactor)<1.0f)
 					(*pfCurrDistThresholdFactor) = 1.0f;
 			}
-			/*if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
-				++nNonZeroDescCount;*/
+			if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
+				++nNonZeroDescCount;
 			for(size_t c=0; c<3; ++c) {
-				//anLastIntraDesc[c] = anCurrIntraDesc[c];
+				anLastIntraDesc[c] = anCurrIntraDesc[c];
 				anLastColor[c] = anCurrColor[c];
 			}
 		}
@@ -1083,6 +1083,10 @@ failedcheck1ch:
 	char filename[200];
 	sprintf(filename,"..\\result\\subsensem\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,m_features);
+	cv::Mat nedge;
+	cv::bitwise_not(m_mixEdges,nedge);
+	cv::bitwise_and(nedge,oCurrFGMask,oCurrFGMask);
+	
 	/*char filename[150];*/
 	//sprintf(filename,"unstable%d.jpg",m_nFrameIndex);
 	//cv::Mat us = w_oUnstableRegionMask.clone();
@@ -1099,18 +1103,18 @@ failedcheck1ch:
 	
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
-	//const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
-	//if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
-	//	for(size_t t=0; t<=UCHAR_MAX; ++t)
-	//		if(m_anLBSPThreshold_8bitLUT[t]>cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+ceil(t*m_fRelLBSPThreshold/4)))
-	//			--m_anLBSPThreshold_8bitLUT[t];
-	//}
-	//else if(fCurrNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX && m_fLastNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX) {
-	//	for(size_t t=0; t<=UCHAR_MAX; ++t)
-	//		if(m_anLBSPThreshold_8bitLUT[t]<cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+UCHAR_MAX*m_fRelLBSPThreshold))
-	//			++m_anLBSPThreshold_8bitLUT[t];
-	//}
-	//m_fLastNonZeroDescRatio = fCurrNonZeroDescRatio;
+	const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
+	if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
+		for(size_t t=0; t<=UCHAR_MAX; ++t)
+			if(m_anLBSPThreshold_8bitLUT[t]>cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+ceil(t*m_fRelLBSPThreshold/4)))
+				--m_anLBSPThreshold_8bitLUT[t];
+	}
+	else if(fCurrNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX && m_fLastNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX) {
+		for(size_t t=0; t<=UCHAR_MAX; ++t)
+			if(m_anLBSPThreshold_8bitLUT[t]<cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+UCHAR_MAX*m_fRelLBSPThreshold))
+				++m_anLBSPThreshold_8bitLUT[t];
+	}
+	m_fLastNonZeroDescRatio = fCurrNonZeroDescRatio;
 	if(m_bLearningRateScalingEnabled) {
 		cv::resize(oInputImg,m_oDownSampledColorFrame,m_oDownSampledFrameSize,0,0,cv::INTER_AREA);
 		cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_LT,fRollAvgFactor_LT);
