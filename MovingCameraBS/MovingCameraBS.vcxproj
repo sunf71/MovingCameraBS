@@ -77,6 +77,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Affine2D.h" />
+    <ClInclude Include="DistanceUtils.h" />
+    <ClInclude Include="LBSP.h" />
     <ClInclude Include="MotionTracker.h" />
     <ClInclude Include="params.h" />
     <ClInclude Include="prob_model.h" />
@@ -85,6 +87,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Affine2D.cpp" />
+    <ClCompile Include="LBSP.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VIBE.cpp" />
   </ItemGroup>
