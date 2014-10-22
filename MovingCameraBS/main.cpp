@@ -14,7 +14,7 @@ and any consequent failure, is purely the responsibility of the user.
 
 Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 \*------------------------------------------------------------------------------------------*/
-
+#define _USE_MATH_DEFINES
 #include <iostream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -24,9 +24,9 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include "Affine2D.h"
 #include "motiontracker.h"
 #include <algorithm>
-
-
-
+#include <fstream>
+#include <math.h>
+#include "LBP.h"
 
 
 void TestAffine()
@@ -148,7 +148,7 @@ T LinearInterData(int width, int height, T*data, float x, float y)
 		int by = sy +1;
 		float tx = x - sx;
 		float ty = y - sy;
-		return ty*((1-tx)*data[sx+sy*width]+tx*data[bx+sy*width]) + (1-ty)*((1-tx)*data[sx+by*width] + tx*data[bx+by*width]);
+		return (1-ty)*((1-tx)*data[sx+sy*width]+tx*data[bx+sy*width]) + ty*((1-tx)*data[sx+by*width] + tx*data[bx+by*width]);
 
 	}
 	else
@@ -158,24 +158,52 @@ T LinearInterData(int width, int height, T*data, float x, float y)
 //º∆À„LBP
 uchar LBP(uchar* imgData,int width, int height, int c,int x, int y, int r, int p)
 {
+	std::ofstream file("out.txt");
 	if ( x-r<0 || x+r>width-1 || y-r<0 || y+r>height-1)
 		return 0;
 	uchar ret = 0;
 	size_t c_idx = x + y*width;
-	std::vector<double> dx,dy;
+	std::vector<double> dx,dy,tx,ty;
 	dx.resize(p);
 	dy.resize(p);
-	const double PI = 3.1415926;
+	tx.resize(p);
+	ty.resize(p);
+	
 	for(int i=0; i<p; i++)
 	{
-		dx[i] = r*cos(2*PI*i/p);
-		dy[i] = -r*sin(2*PI*i/p);
+		dx[i] = r*cos(2*M_PI*i/p);
+		tx[i] = dx[i] - (int)dx[i];
+		dy[i] = -r*sin(2*M_PI*i/p);
+		ty[i] = dy[i] - (int)dy[i];
 	}
+	file<<"txty\n";
+	for(int i=0; i<p; i++)
+	{
+		file<<(1-ty[i])*(1-tx[i])<<","<<tx[i]*(1-ty[i])<<","<<ty[i]*(1-tx[i])<<","<<ty[i]*tx[i]<<","<<std::endl;
+		
+	}
+	file<<"\n";
+	file<<"dxdy=\n";
+	for(int i=0; i<p; i++)
+	{
+		file<<dx[i]<<","<<dy[i]<<","<<std::endl;
+		
+	}
+	file<<"\n";
+	
+	file.close();
+	std::vector<uchar> value(p);
+	for(int i=0; i<p; i++)
+	{
+		value[i] = LinearInterData(width,height,imgData,dx[i]+x,dy[i]+y);
+		std::cout<<(int)value[i]<<" ";
+	}
+	std::cout<<std::endl;
+	
 	for(int i=0; i<p/2; i++)
 	{
-		uchar c1 = LinearInterData(width,height,imgData,dx[i]+x,dy[i]+y);
-		uchar c2 = LinearInterData(width,height,imgData,dx[i+p/2]+x,dy[i+p/2]+y);
-		ret |= (c1-c2>=0) << p/2-i;
+		
+		ret |= (value[i]-value[i+p/2]>=0) << p/2-1-i;
 	}
 	return ret;
 }
@@ -235,8 +263,14 @@ void TestLBP()
 
 	uchar lbp1 = LBP(gray1.data,gray1.cols,gray1.rows,1,j,i,2,16);
 	std::cout<<"lbp1: "<<(int)lbp1<<std::endl;
+	
 	uchar lbp2 = LBP(gray2.data,gray1.cols,gray1.rows,1,wx,wy,2,16);
 	std::cout<<"lbp2: "<<(int)lbp2<<std::endl;
+	ushort res1,res2;
+	LBP::LBPcomputeGrayscaleDescriptor(gray1,j,i,0,res1);
+	LBP::LBPcomputeGrayscaleDescriptor(gray2,wx,wy,0,res2);
+	std::cout<<res1<<std::endl;
+	std::cout<<res2<<std::endl;
 }
 
 void TestPerspective()
