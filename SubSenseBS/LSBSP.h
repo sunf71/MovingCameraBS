@@ -1,7 +1,5 @@
 #pragma once
 
-#pragma once
-
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -189,20 +187,3 @@ public:
 	}
 };
 
-//local binary pattern
-class LBP
-{
-public:
-
-		// utility function, shortcut/lightweight/direct single-point LBP computation function for extra flexibility (1-channel version)
-	inline static void computeGrayscaleDescriptor(const cv::Mat& oInputImg, const uchar _ref, const int _x, const int _y, const size_t _t, ushort& _res) {
-		CV_DbgAssert(!oInputImg.empty());
-		CV_DbgAssert(oInputImg.type()==CV_8UC1);
-		CV_DbgAssert(LBSP::DESC_SIZE==2); // @@@ also relies on a constant desc size
-		CV_DbgAssert(_x>=(int)LBSP::PATCH_SIZE/2 && _y>=(int)LBSP::PATCH_SIZE/2);
-		CV_DbgAssert(_x<oInputImg.cols-(int)LBSP::PATCH_SIZE/2 && _y<oInputImg.rows-(int)LBSP::PATCH_SIZE/2);
-		const size_t _step_row = oInputImg.step.p[0];
-		const uchar* const _data = oInputImg.data;
-		#include "LBSP_16bits_dbcross_1ch.i"
-	}
-};

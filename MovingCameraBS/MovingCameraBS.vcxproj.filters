@@ -33,10 +33,14 @@
     <ClInclude Include="prob_model.h">
       <Filter>头文件</Filter>
     </ClInclude>
+<<<<<<< HEAD
     <ClInclude Include="LBSP.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="DistanceUtils.h">
+=======
+    <ClInclude Include="LBP.h">
+>>>>>>> 11006f9437b5af9aa4fe206206a695246b43d741
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

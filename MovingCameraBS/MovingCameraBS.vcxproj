@@ -77,8 +77,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Affine2D.h" />
+<<<<<<< HEAD
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="LBSP.h" />
+=======
+    <ClInclude Include="LBP.h" />
+>>>>>>> 11006f9437b5af9aa4fe206206a695246b43d741
     <ClInclude Include="MotionTracker.h" />
     <ClInclude Include="params.h" />
     <ClInclude Include="prob_model.h" />
