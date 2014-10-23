@@ -128,8 +128,8 @@ void MRFOptimization()
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 1;
-	int end = 1130;
+	int start = 187;
+	int end = 187;
 	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
@@ -140,8 +140,8 @@ void MRFOptimization()
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
-		//optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
-		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(featureMaskFileName),string(resultFileName));
+		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
+		//optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(featureMaskFileName),string(resultFileName));
 	}
 	timer.stop();
 	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";

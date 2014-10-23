@@ -6,7 +6,7 @@
 #include "PictureHandler.h"
 #include "timer.h"
 #include "GpuTimer.h"
-
+#include "GridCut/GridGraph_2D_4C.h"
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -234,6 +234,62 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
 		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
+}
+void MRFOptimize::GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
+{
+	using namespace GRIDCUT;
+	int w = ((m_width+ m_step-1) / m_step);
+	int h = ((m_height + m_step -1) / m_step);
+	typedef GridGraph_2D_4C<short,short,short> Grid;
+	Grid* grid = new Grid(w,h);
+	for (int y=0;y<h;y++)
+	{
+		for (int x=0;x<w;x++)
+		{
+			int i = y*w + x;
+			int K = 1024;
+			float d = min(1.0f,spPtr[i].ps*2);
+			d = max(1e-20f,d);
+			float d1 = -log(d);
+			float d2 =  - log(1-d);
+			grid->set_terminal_cap(grid->node_id(x,y),short(K*spPtr[i].ps),short(K*(1-spPtr[i].ps)));
+			
+			if (x<w-1)
+			{
+				//float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[y*w + x+1].avgColor)));
+				float A = spPtr[i].avgColor-spPtr[y*w + x+1].avgColor;
+				short cap = (int)(1+K*expf((-(A)*(A)/16)));
+				grid->set_neighbor_cap(grid->node_id(x,y),  +1,0,cap);
+				grid->set_neighbor_cap(grid->node_id(x+1,y),-1,0,cap);
+			}
+
+			if (y<h-1)
+			{
+				
+				//float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[(y+1)*w + x].avgColor)));
+				float A = spPtr[i].avgColor-spPtr[y*w + x+1].avgColor;
+				short cap = (int)(1+K*expf((-(A)*(A)/16)));
+				grid->set_neighbor_cap(grid->node_id(x,y),  0,+1,cap);
+				grid->set_neighbor_cap(grid->node_id(x,y+1),0,-1,cap);
+			}
+		}
+	}
+
+	grid->compute_maxflow();
+
+	for (int y=0;y<h;y++)
+	{
+		for (int x=0;x<w;x++)
+		{
+			if (grid->get_segment(grid->node_id(x,y))) 
+				result[x + y*width] = 0;
+			else
+				result[x + y*width] = 1;
+		}
+	}
+	delete grid;
+
+
 }
 void MRFOptimize::GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
@@ -530,7 +586,9 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -883,8 +941,8 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask)
 			m_spPtr[i].ps = n/m_centers[i].nPoints;
 		}
 	}
-	/*ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);*/
+	ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
+	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);
 }
 
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask)

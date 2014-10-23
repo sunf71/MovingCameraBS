@@ -291,7 +291,7 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 				//LBSP::computeSingleRGBDescriptor(oInitImg,nCurrBGInitColor,x_orig,y_orig,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(m_oLastDescFrame.data+idx_desc))[c]);
 			}
 			LBP::computeRGBDescriptor(oInitImg,x_orig,y_orig,anCurrIntraLBSPThresholds,((ushort*)(m_oLastDescFrame.data+idx_desc)));
-			
+			//MBLBP::computeRGBDescriptor(oInitImg,x_orig,y_orig,anCurrIntraLBSPThresholds,((ushort*)(m_oLastDescFrame.data+idx_desc)));
 		}
 	}
 	m_voTKeyPoints.resize(m_voKeyPoints.size());
@@ -906,7 +906,7 @@ failedcheck1ch:
 					/*LBSP::computeSingleRGBDescriptor(oInputImg,anBGColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[anBGColor[c]],anCurrInterDesc[c]);
 					size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;*/
-					const size_t nDescDist = 2*nIntraDescDist;
+					const size_t nDescDist = nIntraDescDist*2;
 					const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
 					if(nSumDist>nCurrSCColorDistThreshold)
 					{
@@ -1258,18 +1258,18 @@ failedcheck1ch:
 	
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
-	//const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
-	//if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
-	//	for(size_t t=0; t<=UCHAR_MAX; ++t)
-	//		if(m_anLBSPThreshold_8bitLUT[t]>cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+ceil(t*m_fRelLBSPThreshold/4)))
-	//			--m_anLBSPThreshold_8bitLUT[t];
-	//}
-	//else if(fCurrNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX && m_fLastNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX) {
-	//	for(size_t t=0; t<=UCHAR_MAX; ++t)
-	//		if(m_anLBSPThreshold_8bitLUT[t]<cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+UCHAR_MAX*m_fRelLBSPThreshold))
-	//			++m_anLBSPThreshold_8bitLUT[t];
-	//}
-	//m_fLastNonZeroDescRatio = fCurrNonZeroDescRatio;
+	const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
+	if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
+		for(size_t t=0; t<=UCHAR_MAX; ++t)
+			if(m_anLBSPThreshold_8bitLUT[t]>cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+ceil(t*m_fRelLBSPThreshold/4)))
+				--m_anLBSPThreshold_8bitLUT[t];
+	}
+	else if(fCurrNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX && m_fLastNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX) {
+		for(size_t t=0; t<=UCHAR_MAX; ++t)
+			if(m_anLBSPThreshold_8bitLUT[t]<cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+UCHAR_MAX*m_fRelLBSPThreshold))
+				++m_anLBSPThreshold_8bitLUT[t];
+	}
+	m_fLastNonZeroDescRatio = fCurrNonZeroDescRatio;
 	if(m_bLearningRateScalingEnabled) {
 		cv::resize(oInputImg,m_oDownSampledColorFrame,m_oDownSampledFrameSize,0,0,cv::INTER_AREA);
 		cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_LT,fRollAvgFactor_LT);
