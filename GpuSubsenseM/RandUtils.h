@@ -1,5 +1,6 @@
 #pragma once
-
+#include<curand.h>
+#include<curand_kernel.h>
 /*// gaussian 3x3 pattern, based on 'floor(fspecial('gaussian', 3, 1)*256)'
 static const int s_nSamplesInitPatternWidth = 3;
 static const int s_nSamplesInitPatternHeight = 3;
@@ -46,7 +47,31 @@ static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int
 	else if(y_sample>=imgsize.height-border)
 		y_sample = imgsize.height-border-1;
 }
-
+//! returns a random init/sampling position for the specified pixel position; also guards against out-of-bounds values via image/border size check.
+__device__ __host__ static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int x_orig, const int y_orig, const int border, const int width, const int height) {
+	
+	curandState state;
+	curand_init(x_orig,y_orig,0,&state);
+	int r = 1+d_rand()%s_nSamplesInitPatternTot;
+	for(x_sample=0; x_sample<s_nSamplesInitPatternWidth; ++x_sample) {
+		for(y_sample=0; y_sample<s_nSamplesInitPatternHeight; ++y_sample) {
+			r -= s_anSamplesInitPattern[y_sample][x_sample];
+			if(r<=0)
+				goto stop;
+		}
+	}
+	stop:
+	x_sample += x_orig-s_nSamplesInitPatternWidth/2;
+	y_sample += y_orig-s_nSamplesInitPatternHeight/2;
+	if(x_sample<border)
+		x_sample = border;
+	else if(x_sample>=width-border)
+		x_sample = width-border-1;
+	if(y_sample<border)
+		y_sample = border;
+	else if(y_sample>=height-border)
+		y_sample = height-border-1;
+}
 // simple 8-connected (3x3) neighbors pattern
 static const int s_anNeighborPatternSize_3x3 = 8;
 static const int s_anNeighborPattern_3x3[8][2] = {

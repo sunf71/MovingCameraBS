@@ -148,6 +148,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="CudaBSOperator.cu" />
     <CudaCompile Include="CudaSuperpixel.cu" />
     <CudaCompile Include="kernel.cu">
       <FileType>Document</FileType>
@@ -156,6 +157,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClInclude Include="block.h" />
     <ClInclude Include="ComSuperpixel.h" />
+    <ClInclude Include="CudaBSOperator.h" />
     <ClInclude Include="CudaSuperpixel.h" />
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="energy.h" />

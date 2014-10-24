@@ -5,6 +5,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iomanip>
+#include "CudaBSOperator.h"
 #define LBSP_PATCH_SIZE 5
 /*
  *
@@ -136,45 +137,95 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 		m_fCurrLearningRateUpperCap = FEEDBACK_T_UPPER*2;
 	}
 	//std::cout << m_oImgSize << " => m_nMedianBlurKernelSize=" << m_nMedianBlurKernelSize << ", with 3x3Spread=" << m_bUse3x3Spread << ", with Tscaling=" << m_bLearningRateScalingEnabled << std::endl;
+	m_voBGColorSamples.resize(m_nBGSamples);
+	d_voBGColorSamples.resize(m_nBGSamples);
+	
+	//m_voBGDescSamples.resize(m_nBGSamples);
+	for(size_t s=0; s<m_nBGSamples; ++s) {
+		m_voBGColorSamples[s].create(m_oImgSize,CV_8UC((int)m_nImgChannels));
+		m_voBGColorSamples[s] = cv::Scalar_<uchar>::all(0);
+		d_voBGColorSamples[s].upload(m_voBGColorSamples[s]);
+		d_ColorModels.push_back(d_voBGColorSamples[s]);
+		//m_voBGDescSamples[s].create(m_oImgSize,CV_16UC((int)m_nImgChannels));
+		//m_voBGDescSamples[s] = cv::Scalar_<ushort>::all(0);
+	}
+	
 	m_oUpdateRateFrame.create(m_oImgSize,CV_32FC1);
 	m_oUpdateRateFrame = cv::Scalar(m_fCurrLearningRateLowerCap);
+	d_oUpdateRateFrame.upload(m_oUpdateRateFrame);
+	d_FModels.push_back(d_oUpdateRateFrame);
 	m_oDistThresholdFrame.create(m_oImgSize,CV_32FC1);
 	m_oDistThresholdFrame = cv::Scalar(1.0f);
+	d_oDistThresholdFrame.upload(m_oDistThresholdFrame);
+	d_FModels.push_back(d_oDistThresholdFrame);
 	m_oVariationModulatorFrame.create(m_oImgSize,CV_32FC1);
 	m_oVariationModulatorFrame = cv::Scalar(10.0f); // should always be >= FEEDBACK_V_DECR
+	d_oVariationModulatorFrame.upload(m_oVariationModulatorFrame);
+	d_FModels.push_back(d_oVariationModulatorFrame);
 	m_oMeanLastDistFrame.create(m_oImgSize,CV_32FC1);
 	m_oMeanLastDistFrame = cv::Scalar(0.0f);
+	d_oMeanLastDistFrame.upload(m_oMeanLastDistFrame);
+	d_FModels.push_back(d_oMeanLastDistFrame);
 	m_oMeanMinDistFrame_LT.create(m_oImgSize,CV_32FC1);
 	m_oMeanMinDistFrame_LT = cv::Scalar(0.0f);
+	d_oMeanMinDistFrame_LT.upload(m_oMeanMinDistFrame_LT);
+	d_FModels.push_back(d_oMeanMinDistFrame_LT);
 	m_oMeanMinDistFrame_ST.create(m_oImgSize,CV_32FC1);
 	m_oMeanMinDistFrame_ST = cv::Scalar(0.0f);
+	d_oMeanMinDistFrame_ST.upload(m_oMeanMinDistFrame_ST);
+	d_FModels.push_back(d_oMeanMinDistFrame_ST);
 	m_oDownSampledFrameSize = cv::Size(m_oImgSize.width/FRAMELEVEL_ANALYSIS_DOWNSAMPLE_RATIO,m_oImgSize.height/FRAMELEVEL_ANALYSIS_DOWNSAMPLE_RATIO);
 	m_oMeanDownSampledLastDistFrame_LT.create(m_oDownSampledFrameSize,CV_32FC((int)m_nImgChannels));
 	m_oMeanDownSampledLastDistFrame_LT = cv::Scalar(0.0f);
+	d_oMeanDownSampledLastDistFrame_LT.upload(m_oMeanDownSampledLastDistFrame_LT);
+	d_FModels.push_back(d_oMeanDownSampledLastDistFrame_LT);
 	m_oMeanDownSampledLastDistFrame_ST.create(m_oDownSampledFrameSize,CV_32FC((int)m_nImgChannels));
 	m_oMeanDownSampledLastDistFrame_ST = cv::Scalar(0.0f);
+	d_oMeanDownSampledLastDistFrame_ST.upload(m_oMeanDownSampledLastDistFrame_ST);
+	d_FModels.push_back(d_oMeanDownSampledLastDistFrame_ST);
 	m_oMeanRawSegmResFrame_LT.create(m_oImgSize,CV_32FC1);
 	m_oMeanRawSegmResFrame_LT = cv::Scalar(0.0f);
+	d_oMeanRawSegmResFrame_LT.upload(m_oMeanRawSegmResFrame_LT);
+	d_FModels.push_back(d_oMeanRawSegmResFrame_LT);
 	m_oMeanRawSegmResFrame_ST.create(m_oImgSize,CV_32FC1);
 	m_oMeanRawSegmResFrame_ST = cv::Scalar(0.0f);
+	d_oMeanRawSegmResFrame_ST.upload(m_oMeanRawSegmResFrame_ST);
+	d_FModels.push_back(d_oMeanRawSegmResFrame_ST);
 	m_oMeanFinalSegmResFrame_LT.create(m_oImgSize,CV_32FC1);
 	m_oMeanFinalSegmResFrame_LT = cv::Scalar(0.0f);
+	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
+	d_FModels.push_back(d_oMeanFinalSegmResFrame_LT);
 	m_oMeanFinalSegmResFrame_ST.create(m_oImgSize,CV_32FC1);
 	m_oMeanFinalSegmResFrame_ST = cv::Scalar(0.0f);
+	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);
 	m_oUnstableRegionMask.create(m_oImgSize,CV_8UC1);
 	m_oUnstableRegionMask = cv::Scalar_<uchar>(0);
+	d_oUnstableRegionMask.upload(m_oUnstableRegionMask);
+	d_FModels.push_back(d_oUnstableRegionMask);
 	m_oBlinksFrame.create(m_oImgSize,CV_8UC1);
 	m_oBlinksFrame = cv::Scalar_<uchar>(0);
+	d_oBlinksFrame.upload(m_oBlinksFrame);
+	d_BModels.push_back(d_oBlinksFrame);
 	m_oDownSampledColorFrame.create(m_oDownSampledFrameSize,CV_8UC((int)m_nImgChannels));
 	m_oDownSampledColorFrame = cv::Scalar_<uchar>::all(0);
+	d_oDownSampledColorFrame.upload(m_oDownSampledColorFrame );
+	d_ColorModels.push_back(d_oDownSampledColorFrame);
 	m_oLastColorFrame.create(m_oImgSize,CV_8UC((int)m_nImgChannels));
 	m_oLastColorFrame = cv::Scalar_<uchar>::all(0);
+	d_oLastColorFrame.upload(m_oLastColorFrame); 
+	d_ColorModels.push_back(d_oLastColorFrame);
 	m_oLastDescFrame.create(m_oImgSize,CV_16UC((int)m_nImgChannels));
 	m_oLastDescFrame = cv::Scalar_<ushort>::all(0);
+	d_oLastDescFrame.upload(m_oLastDescFrame);
+	d_DescModels.push_back(d_oLastDescFrame);
 	m_oRawFGMask_last.create(m_oImgSize,CV_8UC1);
 	m_oRawFGMask_last = cv::Scalar_<uchar>(0);
+	d_oRawFGMask_last.upload(m_oRawFGMask_last);
+	d_BModels.push_back(d_oRawFGMask_last);
 	m_oFGMask_last.create(m_oImgSize,CV_8UC1);
 	m_oFGMask_last = cv::Scalar_<uchar>(0);
+	d_oFGMask_last.upload(m_oFGMask_last);
+	d_BModels.push_back(d_oFGMask_last);
 	m_oFGMask_last_dilated.create(m_oImgSize,CV_8UC1);
 	m_oFGMask_last_dilated = cv::Scalar_<uchar>(0);
 	m_oFGMask_last_dilated_inverted.create(m_oImgSize,CV_8UC1);
@@ -187,14 +238,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	m_oRawFGBlinkMask_curr = cv::Scalar_<uchar>(0);
 	m_oRawFGBlinkMask_last.create(m_oImgSize,CV_8UC1);
 	m_oRawFGBlinkMask_last = cv::Scalar_<uchar>(0);
-	m_voBGColorSamples.resize(m_nBGSamples);
-	//m_voBGDescSamples.resize(m_nBGSamples);
-	for(size_t s=0; s<m_nBGSamples; ++s) {
-		m_voBGColorSamples[s].create(m_oImgSize,CV_8UC((int)m_nImgChannels));
-		m_voBGColorSamples[s] = cv::Scalar_<uchar>::all(0);
-		//m_voBGDescSamples[s].create(m_oImgSize,CV_16UC((int)m_nImgChannels));
-		//m_voBGDescSamples[s] = cv::Scalar_<ushort>::all(0);
-	}
+	
 	if(m_nImgChannels==1) {
 	/*	for(size_t t=0; t<=UCHAR_MAX; ++t)
 			m_anLBSPThreshold_8bitLUT[t] = cv::saturate_cast<uchar>((m_nLBSPThresholdOffset+t*m_fRelLBSPThreshold)/3);*/
@@ -226,11 +270,31 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 			}
 		}
 	}
+	d_oLastColorFrame.upload(m_oLastColorFrame);
+	d_oLastDescFrame.upload(m_oLastDescFrame);
+	d_CurrentColorFrame.create(oInitImg.size(),oInitImg.type());
+	d_FGMask.create(oInitImg.size(),CV_8U);
+	
+	
+	//d_DescModels = d_voDESCSamples;
 	m_bInitializedInternalStructs = true;
 	refreshModel(1.0f);
 	m_bInitialized = true;
 }
+void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
+{
+	_fgmask.create(m_oImgSize,CV_8UC1);
+	cv::Mat oCurrFGMask = _fgmask.getMat();
 
+
+	CudaBSOperator(d_CurrentColorFrame,d_BModels,
+		d_FModels,
+		d_ColorModels,
+		d_DescModels,
+		d_FGMask);
+	d_FGMask.download(oCurrFGMask);
+
+}
 void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 	// == refresh
 	CV_Assert(m_bInitializedInternalStructs);
@@ -284,6 +348,8 @@ void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 }
 
 void GpuBackgroundSubtractor::operator()(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride) {
+	GpuBSOperator(_image,_fgmask);
+	return;
 	// == process
 	CV_DbgAssert(m_bInitialized);
 	cv::Mat oInputImg = _image.getMat();

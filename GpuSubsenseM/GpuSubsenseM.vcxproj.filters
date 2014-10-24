@@ -55,12 +55,18 @@
     <ClInclude Include="videoprocessor.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="CudaBSOperator.h">
+      <Filter>Cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
       <Filter>Cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="kernel.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CudaBSOperator.cu">
       <Filter>Cuda</Filter>
     </CudaCompile>
   </ItemGroup>

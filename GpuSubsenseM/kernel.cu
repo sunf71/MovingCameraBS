@@ -148,7 +148,7 @@ void MRFOptimization()
 }
 
 
-int main (int argc, char* argv[])
+int gpu_main (int argc, char* argv[])
 {
 	MRFOptimization();
 	//TestSuperpixel();
