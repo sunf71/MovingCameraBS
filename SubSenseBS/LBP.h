@@ -170,25 +170,26 @@ public:
 			BilinearInterpolation(width,height,_data,_x,_y,&dxdy[2*i],value+3*i);
 
 		//中心3*3的平局值
-		uchar avg[3];
+		/*uchar avg[3];
 		for(int c=0; c<3; c++)
 		{
 			avg[c] =( oInputImg.data[(_x-1+_y*width)*3+c] +oInputImg.data[(_x-1+(_y-1)*width)*3+c] +  oInputImg.data[(_x-1+(_y+1)*width)*3+c]+
 				 oInputImg.data[(_x+_y*width)*3+c] +oInputImg.data[(_x+(_y-1)*width)*3+c] +  oInputImg.data[(_x+(_y+1)*width)*3+c]+
 				 oInputImg.data[(_x+1+_y*width)*3+c] +oInputImg.data[(_x+1+(_y-1)*width)*3+c] +  oInputImg.data[(_x+1+(_y+1)*width)*3+c])/9;
-		}
+		}*/
 		for(int c=0; c<3; c++)
 		{
 			_res[c] = 0;
-			for(int i=0; i<NEIGHBOUR_SIZE; i++)
+			/*for(int i=0; i<NEIGHBOUR_SIZE; i++)
 			{
 				_res[c] |= (abs(value[i*3+c]-avg[c]) >=_t[c])<< NEIGHBOUR_SIZE-1-i;
-			}
-			/*for(int i=0; i<NEIGHBOUR_SIZE/2; i++)
+			}*/
+			for(int i=0; i<NEIGHBOUR_SIZE/2; i++)
 			{
-				_res[c] |= (abs(value[i*3+c]-value[(i+NEIGHBOUR_SIZE/2)*3+c]) >=_t[c])<< NEIGHBOUR_SIZE-1-i;
+				_res[c] |= ((value[i*3+c]-value[(i+NEIGHBOUR_SIZE/2)*3+c]) >=_t[c])<< NEIGHBOUR_SIZE-1-i;
+				_res[c] |= ((value[(i+NEIGHBOUR_SIZE/2)*3+c]-value[i*3+c]) >=_t[c])<< NEIGHBOUR_SIZE/2-1-i;
 			}
-			for(int i=0; i<NEIGHBOUR_SIZE; i+=2)
+			/*for(int i=0; i<NEIGHBOUR_SIZE; i+=2)
 			{
 				_res[c] |= (abs(value[3*i+c]-value[3*(i+1)+c])>=_t[c]) << NEIGHBOUR_SIZE/2-1-i;
 			}*/

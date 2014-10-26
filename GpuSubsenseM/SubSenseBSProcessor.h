@@ -16,17 +16,17 @@ public:
 	{}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
 	{
-		cv::Mat gray;
-		cv::cvtColor(frame, gray, CV_BGR2GRAY); 
+		/*cv::Mat gray;
+		cv::cvtColor(frame, gray, CV_BGR2GRAY);*/ 
 		static int frameNo = 1;
 		if (!_initFlag)
 		{
-			_bgs.initialize(gray,_voKeyPoints);
+			_bgs.initialize(frame,_voKeyPoints);
 			_initFlag = true;
 		}
-		_bgs(gray,output);
+		_bgs(frame,output);
 		char fileName[50];
-		sprintf(fileName,"..\\result\\subsensex\\baseline\\input0\\bin%06d.png",frameNo++);
+		sprintf(fileName,"..\\result\\subsensex\\ptz\\input0\\bin%06d.png",frameNo++);
 		imwrite(fileName,output);
 		//imshow("input",frame);
 		//output = frame;

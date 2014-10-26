@@ -48,11 +48,19 @@ static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int
 		y_sample = imgsize.height-border-1;
 }
 //! returns a random init/sampling position for the specified pixel position; also guards against out-of-bounds values via image/border size check.
-__device__ __host__ static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int x_orig, const int y_orig, const int border, const int width, const int height) {
-	
+__device__  static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int x_orig, const int y_orig, const int border, const int width, const int height) {
+	const int s_anSamplesInitPattern[s_nSamplesInitPatternHeight][s_nSamplesInitPatternWidth] = {
+	{0,     0,     4,     7,     4,     0,     0,},
+	{0,    11,    53,    88,    53,    11,     0,},
+	{4,    53,   240,   399,   240,    53,     4,},
+	{7,    88,   399,   660,   399,    88,     7,},
+	{4,    53,   240,   399,   240,    53,     4,},
+	{0,    11,    53,    88,    53,    11,     0,},
+	{0,     0,     4,     7,     4,     0,     0,},
+};
 	curandState state;
 	curand_init(x_orig,y_orig,0,&state);
-	int r = 1+d_rand()%s_nSamplesInitPatternTot;
+	int r = 1+curand(&state)%s_nSamplesInitPatternTot;
 	for(x_sample=0; x_sample<s_nSamplesInitPatternWidth; ++x_sample) {
 		for(y_sample=0; y_sample<s_nSamplesInitPatternHeight; ++y_sample) {
 			r -= s_anSamplesInitPattern[y_sample][x_sample];
@@ -94,7 +102,29 @@ static inline void getRandNeighborPosition_3x3(int& x_neighbor, int& y_neighbor,
 	else if(y_neighbor>=imgsize.height-border)
 		y_neighbor = imgsize.height-border-1;
 }
-
+//! returns a random neighbor position for the specified pixel position; also guards against out-of-bounds values via image/border size check.
+__device__ inline void getRandNeighborPosition_3x3(int& x_neighbor, int& y_neighbor, const int x_orig, const int y_orig, const int border, const int width, const int height) {
+	// simple 8-connected (3x3) neighbors pattern
+	static const int s_anNeighborPatternSize_3x3 = 8;
+	static const int s_anNeighborPattern_3x3[8][2] = {
+		{-1, 1},  { 0, 1},  { 1, 1},
+		{-1, 0},            { 1, 0},
+		{-1,-1},  { 0,-1},  { 1,-1},
+	};
+	curandState state;
+	curand_init(x_orig,y_orig,0,&state);
+	int r = curand(&state)%s_anNeighborPatternSize_3x3;
+	x_neighbor = x_orig+s_anNeighborPattern_3x3[r][0];
+	y_neighbor = y_orig+s_anNeighborPattern_3x3[r][1];
+	if(x_neighbor<border)
+		x_neighbor = border;
+	else if(x_neighbor>=width-border)
+		x_neighbor = width-border-1;
+	if(y_neighbor<border)
+		y_neighbor = border;
+	else if(y_neighbor>=height-border)
+		y_neighbor = height-border-1;
+}
 // 5x5 neighbors pattern
 static const int s_anNeighborPatternSize_5x5 = 24;
 static const int s_anNeighborPattern_5x5[24][2] = {

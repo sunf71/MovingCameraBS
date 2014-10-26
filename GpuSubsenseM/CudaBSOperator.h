@@ -12,4 +12,4 @@ void CudaBSOperator(const PtrStepSz<uchar3>& img, std::vector<PtrStep<uchar>>& b
 	std::vector<PtrStep<ushort3>>& descModels, 
 	PtrStep<uchar> fgMask);
 
-void CudaRefreshModel(float refreshRate,PtrStepSz<uchar3>& lastImg,std::vector<PtrStep<uchar3>>& colorModels, std::vector<PtrStep<ushort3>>& descModels);
+void CudaRefreshModel(float refreshRate,const PtrStepSz<uchar3>& lastImg,std::vector<PtrStep<uchar3>>& colorModels, std::vector<PtrStep<ushort3>>& descModels);

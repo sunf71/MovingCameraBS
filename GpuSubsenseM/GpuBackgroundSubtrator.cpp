@@ -198,10 +198,11 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	m_oMeanFinalSegmResFrame_ST.create(m_oImgSize,CV_32FC1);
 	m_oMeanFinalSegmResFrame_ST = cv::Scalar(0.0f);
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);
+	d_FModels.push_back(d_oMeanFinalSegmResFrame_ST);
 	m_oUnstableRegionMask.create(m_oImgSize,CV_8UC1);
 	m_oUnstableRegionMask = cv::Scalar_<uchar>(0);
 	d_oUnstableRegionMask.upload(m_oUnstableRegionMask);
-	d_FModels.push_back(d_oUnstableRegionMask);
+	d_BModels.push_back(d_oUnstableRegionMask);
 	m_oBlinksFrame.create(m_oImgSize,CV_8UC1);
 	m_oBlinksFrame = cv::Scalar_<uchar>(0);
 	d_oBlinksFrame.upload(m_oBlinksFrame);
@@ -279,6 +280,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	//d_DescModels = d_voDESCSamples;
 	m_bInitializedInternalStructs = true;
 	refreshModel(1.0f);
+	CudaRefreshModel(1.f, d_oLastColorFrame, d_ColorModels, d_DescModels);
 	m_bInitialized = true;
 }
 void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
