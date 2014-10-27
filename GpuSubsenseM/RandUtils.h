@@ -105,8 +105,8 @@ static inline void getRandNeighborPosition_3x3(int& x_neighbor, int& y_neighbor,
 //! returns a random neighbor position for the specified pixel position; also guards against out-of-bounds values via image/border size check.
 __device__ inline void getRandNeighborPosition_3x3(int& x_neighbor, int& y_neighbor, const int x_orig, const int y_orig, const int border, const int width, const int height) {
 	// simple 8-connected (3x3) neighbors pattern
-	static const int s_anNeighborPatternSize_3x3 = 8;
-	static const int s_anNeighborPattern_3x3[8][2] = {
+	const int s_anNeighborPatternSize_3x3 = 8;
+	const int s_anNeighborPattern_3x3[8][2] = {
 		{-1, 1},  { 0, 1},  { 1, 1},
 		{-1, 0},            { 1, 0},
 		{-1,-1},  { 0,-1},  { 1,-1},

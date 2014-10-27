@@ -87,6 +87,7 @@ protected:
 	//! background model pixel color intensity samples (equivalent to 'B(x)' in PBAS, but also paired with BackgroundSubtractorLBSP::m_voBGDescSamples to create our complete model)
 	std::vector<cv::Mat> m_voBGColorSamples;
 	std::vector<cv::gpu::GpuMat> d_voBGColorSamples;
+	std::vector<cv::gpu::GpuMat> d_voDESCSamples;
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
 	cv::Mat m_oUpdateRateFrame;
 	cv::gpu::GpuMat d_oUpdateRateFrame;
@@ -146,10 +147,16 @@ protected:
 	bool m_bInitialized;
 	//! pre-allocated CV_8UC1 matrices used to speed up morph ops
 	cv::Mat m_oFGMask_PreFlood;
+	cv::gpu::GpuMat d_oFGMask_PreFlood;
 	cv::Mat m_oFGMask_FloodedHoles;
+	cv::gpu::GpuMat d_oFGMask_FloodedHoles;
 	cv::Mat m_oFGMask_last_dilated;
+	cv::gpu::GpuMat d_oFGMask_last_dilated;
 	cv::Mat m_oFGMask_last_dilated_inverted;
+	cv::gpu::GpuMat d_oFGMask_last_dilated_inverted;
 	cv::Mat m_oRawFGBlinkMask_curr;
+	cv::gpu::GpuMat d_oRawFGBlinkMask_curr;
 	cv::Mat m_oRawFGBlinkMask_last;
+	cv::gpu::GpuMat d_oRawFGBlinkMask_last;
 };
 

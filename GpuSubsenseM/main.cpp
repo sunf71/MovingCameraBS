@@ -2,54 +2,89 @@
 #include "SubSenseBSProcessor.h"
 #include "videoprocessor.h"
 #include "timer.h"
-void TestGpuSubsense()
+//void TestGpuSubsense()
+//{
+//	VideoProcessor processor;
+//	
+//	// Create feature tracker instance
+//	SubSenseBSProcessor tracker;
+//	std::vector<std::string> fileNames;
+//	int start = 1;
+//	int end = 1130;
+//	for(int i=start; i<=end;i++)
+//	{
+//		char name[50];
+//		sprintf(name,"..\\PTZ\\input3\\in%06d.jpg",i);
+//		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
+//		fileNames.push_back(name);
+//	}
+//	// Open video file
+//	processor.setInput(fileNames);
+//	//processor.setInput("..\\ptz\\woman.avi");
+//	// set frame processor
+//	processor.setFrameProcessor(&tracker);
+//
+//	processor.dontDisplay();
+//	// Declare a window to display the video
+//	//processor.displayOutput("Tracked Features");
+//
+//	// Play the video at the original frame rate
+//	//processor.setDelay(1000./processor.getFrameRate());
+//	processor.setDelay(0);
+//
+//	nih::Timer timer;
+//	timer.start();
+//	// Start the process
+//	processor.run();
+//	timer.stop();
+//
+//	std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
+//	
+//
+//	cv::waitKey();
+//
+//
+//	
+//
+//}
+int CreatDir(char *pszDir)
 {
-	VideoProcessor processor;
-	
-	// Create feature tracker instance
-	SubSenseBSProcessor tracker;
-	std::vector<std::string> fileNames;
-	int start = 1;
-	int end = 1700;
-	for(int i=start; i<=end;i++)
+	int i = 0;
+	int iRet;
+	int iLen = strlen(pszDir);
+	//在末尾加/
+	if (pszDir[iLen - 1] != '\\' && pszDir[iLen - 1] != '/')
 	{
-		char name[50];
-		sprintf(name,"..\\PTZ\\input0\\in%06d.jpg",i);
-		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
-		fileNames.push_back(name);
+		pszDir[iLen] = '/';
+		pszDir[iLen + 1] = '\0';
 	}
-	// Open video file
-	processor.setInput(fileNames);
-	//processor.setInput("..\\ptz\\woman.avi");
-	// set frame processor
-	processor.setFrameProcessor(&tracker);
 
-	processor.dontDisplay();
-	// Declare a window to display the video
-	//processor.displayOutput("Tracked Features");
+	// 创建目录
+	for (i = 0;i < iLen;i ++)
+	{
+		if (pszDir[i] == '\\' || pszDir[i] == '/')
+		{ 
+			pszDir[i] = '\0';
 
-	// Play the video at the original frame rate
-	//processor.setDelay(1000./processor.getFrameRate());
-	processor.setDelay(0);
+			//如果不存在,创建
+			iRet = _access(pszDir,0);
+			if (iRet != 0)
+			{
+				iRet = _mkdir(pszDir);
+				if (iRet != 0)
+				{
+					return -1;
+				} 
+			}
+			//支持linux,将所有\换成/
+			pszDir[i] = '/';
+		} 
+	}
 
-	nih::Timer timer;
-	timer.start();
-	// Start the process
-	processor.run();
-	timer.stop();
-
-	std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
-	
-
-	cv::waitKey();
-
-
-	
-
+	return 0;
 }
-
-int main()
+int cpu_main()
 {
-	TestGpuSubsense();
+	//TestGpuSubsense();
 	return 0;
 }

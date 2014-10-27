@@ -213,7 +213,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	d_ColorModels.push_back(d_oDownSampledColorFrame);
 	m_oLastColorFrame.create(m_oImgSize,CV_8UC((int)m_nImgChannels));
 	m_oLastColorFrame = cv::Scalar_<uchar>::all(0);
-	d_oLastColorFrame.upload(m_oLastColorFrame); 
+	d_oLastColorFrame.upload(m_oLastColorFrame);
 	d_ColorModels.push_back(d_oLastColorFrame);
 	m_oLastDescFrame.create(m_oImgSize,CV_16UC((int)m_nImgChannels));
 	m_oLastDescFrame = cv::Scalar_<ushort>::all(0);
@@ -229,16 +229,22 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	d_BModels.push_back(d_oFGMask_last);
 	m_oFGMask_last_dilated.create(m_oImgSize,CV_8UC1);
 	m_oFGMask_last_dilated = cv::Scalar_<uchar>(0);
+	d_oFGMask_last_dilated.upload(m_oFGMask_last_dilated);
 	m_oFGMask_last_dilated_inverted.create(m_oImgSize,CV_8UC1);
 	m_oFGMask_last_dilated_inverted = cv::Scalar_<uchar>(0);
+	d_oFGMask_last_dilated_inverted.upload(m_oFGMask_last_dilated_inverted);
 	m_oFGMask_FloodedHoles.create(m_oImgSize,CV_8UC1);
 	m_oFGMask_FloodedHoles = cv::Scalar_<uchar>(0);
+	d_oFGMask_FloodedHoles.upload(m_oFGMask_FloodedHoles);
 	m_oFGMask_PreFlood.create(m_oImgSize,CV_8UC1);
 	m_oFGMask_PreFlood = cv::Scalar_<uchar>(0);
+	d_oFGMask_PreFlood.upload(m_oFGMask_PreFlood);
 	m_oRawFGBlinkMask_curr.create(m_oImgSize,CV_8UC1);
 	m_oRawFGBlinkMask_curr = cv::Scalar_<uchar>(0);
+	d_oRawFGBlinkMask_curr.upload(m_oRawFGBlinkMask_curr);
 	m_oRawFGBlinkMask_last.create(m_oImgSize,CV_8UC1);
 	m_oRawFGBlinkMask_last = cv::Scalar_<uchar>(0);
+	d_oRawFGBlinkMask_last.upload(m_oRawFGBlinkMask_last);
 	
 	if(m_nImgChannels==1) {
 	/*	for(size_t t=0; t<=UCHAR_MAX; ++t)
@@ -280,22 +286,120 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	//d_DescModels = d_voDESCSamples;
 	m_bInitializedInternalStructs = true;
 	refreshModel(1.0f);
+	d_oLastColorFrame.upload(m_oLastColorFrame); 
 	CudaRefreshModel(1.f, d_oLastColorFrame, d_ColorModels, d_DescModels);
+	
+	//cv::Mat h_tmp;	
+	//char filename[20];
+	//for(int i=0;i <50; i++)
+	//{
+	//	d_voBGColorSamples[i].download(h_tmp);
+	//	sprintf(filename,"gpu%dmodel.jpg",i);
+	//	imwrite(filename, h_tmp);
+	//	sprintf(filename,"cpu%dmodel.jpg",i);
+	//	imwrite(filename, m_voBGColorSamples[i]);
+	//}
 	m_bInitialized = true;
 }
 void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
+	cv::Mat oInputImg = _image.getMat();
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
 
-
-	CudaBSOperator(d_CurrentColorFrame,d_BModels,
+	d_CurrentColorFrame.upload(_image.getMat());
+	CudaBSOperator(d_CurrentColorFrame, m_nFrameIndex,d_BModels,
 		d_FModels,
 		d_ColorModels,
 		d_DescModels,
-		d_FGMask);
-	d_FGMask.download(oCurrFGMask);
+		d_FGMask, m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
+	/*d_FGMask.download(oCurrFGMask);
+	d_oRawFGMask_last.download(m_oRawFGMask_last);
+	d_oBlinksFrame.download(m_oBlinksFrame);*/
 
+	//cv::gpu::bitwise_xor(d_FGMask,d_oRawFGMask_last,d_oRawFGBlinkMask_curr);
+	//cv::gpu::bitwise_or(d_oRawFGBlinkMask_curr,d_oRawFGBlinkMask_last,d_oBlinksFrame);
+	//d_oRawFGBlinkMask_curr.copyTo(d_oRawFGBlinkMask_last);
+	//d_FGMask.copyTo(d_oRawFGMask_last);
+	//cv::gpu::morphologyEx(d_FGMask,d_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());	
+	//d_oFGMask_PreFlood.copyTo(d_oFGMask_FloodedHoles);
+	//d_oFGMask_FloodedHoles.download(m_oFGMask_FloodedHoles);
+	//cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);	
+	//d_oFGMask_FloodedHoles.upload(m_oFGMask_FloodedHoles);
+	//cv::gpu::bitwise_not(d_oFGMask_FloodedHoles,d_oFGMask_FloodedHoles);
+	//cv::gpu::erode(d_oFGMask_PreFlood,d_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	//cv::gpu::bitwise_or(d_FGMask,d_oFGMask_FloodedHoles,d_FGMask);	
+	//cv::gpu::bitwise_or(d_FGMask,d_oFGMask_PreFlood,d_FGMask);	
+	//cv::gpu::GaussianBlur(d_FGMask,d_oFGMask_last,cv::Size(3,3),1.0);	
+	//cv::gpu::dilate(d_oFGMask_last,d_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
+	//cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
+	//cv::gpu::bitwise_not(d_oFGMask_last_dilated,d_oFGMask_last_dilated_inverted);
+	//cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
+	//d_oFGMask_last.copyTo(d_FGMask);
+	//d_FGMask.download(oCurrFGMask);
+	//const float fRollAvgFactor_LT = 1.0f/std::min(++m_nFrameIndex,m_nSamplesForMovingAvgs*4);
+	//const float fRollAvgFactor_ST = 1.0f/std::min(m_nFrameIndex,m_nSamplesForMovingAvgs);
+
+	//cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
+	//cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
+	////const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
+	////if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
+	////    for(size_t t=0; t<=UCHAR_MAX; ++t)
+	////        if(m_anLBSPThreshold_8bitLUT[t]>cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+ceil(t*m_fRelLBSPThreshold/4)))
+	////            --m_anLBSPThreshold_8bitLUT[t];
+	////}
+	////else if(fCurrNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX && m_fLastNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX) {
+	////    for(size_t t=0; t<=UCHAR_MAX; ++t)
+	////        if(m_anLBSPThreshold_8bitLUT[t]<cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+UCHAR_MAX*m_fRelLBSPThreshold))
+	////            ++m_anLBSPThreshold_8bitLUT[t];
+	////}
+	////m_fLastNonZeroDescRatio = fCurrNonZeroDescRatio;
+	//if(m_bLearningRateScalingEnabled) {
+	//	cv::resize(oInputImg,m_oDownSampledColorFrame,m_oDownSampledFrameSize,0,0,cv::INTER_AREA);
+	//	cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_LT,fRollAvgFactor_LT);
+	//	cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_ST,fRollAvgFactor_ST);
+	//	size_t nTotColorDiff = 0;
+	//	for(int i=0; i<m_oMeanDownSampledLastDistFrame_ST.rows; ++i) {
+	//		const size_t idx1 = m_oMeanDownSampledLastDistFrame_ST.step.p[0]*i;
+	//		for(int j=0; j<m_oMeanDownSampledLastDistFrame_ST.cols; ++j) {
+	//			const size_t idx2 = idx1+m_oMeanDownSampledLastDistFrame_ST.step.p[1]*j;
+	//			nTotColorDiff += (m_nImgChannels==1)?
+	//				(size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2)))/2
+	//						:  //(m_nImgChannels==3)
+	//					std::max((size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2))),
+	//						std::max((size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2+4))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2+4))),
+	//									(size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2+8))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2+8)))));
+	//		}
+	//	}
+	//	const float fCurrColorDiffRatio = (float)nTotColorDiff/(m_oMeanDownSampledLastDistFrame_ST.rows*m_oMeanDownSampledLastDistFrame_ST.cols);
+	//	if(m_bAutoModelResetEnabled) {
+	//		if(m_nFramesSinceLastReset>1000)
+	//			m_bAutoModelResetEnabled = false;
+	//		else if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD && m_nModelResetCooldown==0) {
+	//			m_nFramesSinceLastReset = 0;
+	//			refreshModel(0.1f); // reset 10% of the bg model
+	//			m_nModelResetCooldown = m_nSamplesForMovingAvgs;
+	//			m_oUpdateRateFrame = cv::Scalar(1.0f);
+	//		}
+	//		else
+	//			++m_nFramesSinceLastReset;
+	//	}
+	//	else if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD*2) {
+	//		m_nFramesSinceLastReset = 0;
+	//		m_bAutoModelResetEnabled = true;
+	//	}
+	//	if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD/2) {
+	//		m_fCurrLearningRateLowerCap = (float)std::max((int)FEEDBACK_T_LOWER>>(int)(fCurrColorDiffRatio/2),1);
+	//		m_fCurrLearningRateUpperCap = (float)std::max((int)FEEDBACK_T_UPPER>>(int)(fCurrColorDiffRatio/2),1);
+	//	}
+	//	else {
+	//		m_fCurrLearningRateLowerCap = FEEDBACK_T_LOWER;
+	//		m_fCurrLearningRateUpperCap = FEEDBACK_T_UPPER;
+	//	}
+	//	if(m_nModelResetCooldown>0)
+	//		--m_nModelResetCooldown;
+	//}
+	d_FGMask.download(oCurrFGMask);
 }
 void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 	// == refresh

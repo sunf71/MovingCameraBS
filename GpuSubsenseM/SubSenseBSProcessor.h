@@ -1,9 +1,12 @@
 #pragma once
+#include <direct.h>
+#include <io.h>
 #include <vector>
 #include "GpuBackgroundSubtractor.h"
 #include "videoprocessor.h"
 #include <opencv2\opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
+int CreatDir(char *pszDir);
 class SubSenseBSProcessor : public FrameProcessor
 {
 private:
@@ -11,9 +14,15 @@ private:
 	//BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;
+	char fileName[50];
+	char pathName[50];
 public:
 	SubSenseBSProcessor():_initFlag(false)
-	{}
+	{
+
+		sprintf(pathName,"..\\result\\subsensex\\ptz\\input3\\");
+		CreatDir(pathName);
+	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
 	{
 		/*cv::Mat gray;
@@ -25,8 +34,8 @@ public:
 			_initFlag = true;
 		}
 		_bgs(frame,output);
-		char fileName[50];
-		sprintf(fileName,"..\\result\\subsensex\\ptz\\input0\\bin%06d.png",frameNo++);
+
+		sprintf(fileName,"%sbin%06d.png",pathName,frameNo++);
 		imwrite(fileName,output);
 		//imshow("input",frame);
 		//output = frame;

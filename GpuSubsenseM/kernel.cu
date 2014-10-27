@@ -8,6 +8,9 @@
 #include "GpuTimer.h"
 #include "timer.h"
 #include "MRFOptimize.h"
+#include "GpuBackgroundSubtractor.h"
+#include "SubSenseBSProcessor.h"
+#include "videoprocessor.h"
 
 void testCudaGpu()
 {
@@ -147,10 +150,55 @@ void MRFOptimization()
 	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";
 }
 
-
-int gpu_main (int argc, char* argv[])
+void TestGpuSubsense()
 {
-	MRFOptimization();
+	VideoProcessor processor;
+	
+	// Create feature tracker instance
+	SubSenseBSProcessor tracker;
+	std::vector<std::string> fileNames;
+	int start = 1;
+	int end = 1130;
+	for(int i=start; i<=end;i++)
+	{
+		char name[50];
+		sprintf(name,"..\\PTZ\\input3\\in%06d.jpg",i);
+		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
+		fileNames.push_back(name);
+	}
+	// Open video file
+	processor.setInput(fileNames);
+	//processor.setInput("..\\ptz\\woman.avi");
+	// set frame processor
+	processor.setFrameProcessor(&tracker);
+
+	processor.dontDisplay();
+	// Declare a window to display the video
+	//processor.displayOutput("Tracked Features");
+
+	// Play the video at the original frame rate
+	//processor.setDelay(1000./processor.getFrameRate());
+	processor.setDelay(0);
+
+	nih::Timer timer;
+	timer.start();
+	// Start the process
+	processor.run();
+	timer.stop();
+
+	std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
+	
+
+	cv::waitKey();
+
+
+	
+
+}
+int main (int argc, char* argv[])
+{
+	TestGpuSubsense();
+	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();
 	return 0;
