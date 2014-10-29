@@ -79,6 +79,7 @@
     <ClInclude Include="block.h" />
     <ClInclude Include="ComSuperpixel.h" />
     <ClInclude Include="energy.h" />
+    <ClInclude Include="flowIO.h" />
     <ClInclude Include="GCoptimization.h" />
     <ClInclude Include="graph.h" />
     <ClInclude Include="LinkedBlockList.h" />
@@ -89,6 +90,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ComSuperpixel.cpp" />
+    <ClCompile Include="flowIO.cpp" />
     <ClCompile Include="GCoptimization.cpp" />
     <ClCompile Include="graph.cpp" />
     <ClCompile Include="LinkedBlockList.cpp" />

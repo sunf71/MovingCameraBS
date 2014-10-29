@@ -15,7 +15,7 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
-
+#include "flowIO.h"
 cv::Mat g_prevImg;
 cv::Mat g_currImg;
 
@@ -344,8 +344,66 @@ void testHomo()
 		HomoTest(imgFileName,maskFileName);
 	}
 }
+
+void OpticalFlowTest(const char* preImgName, const char* currImgName, const char* floImgName,const float threshold)
+{
+	cv::Mat flowImg;
+	ReadFlowFile(flowImg,floImgName);
+	
+	cv::Mat img1,img2;
+	img1 = cv::imread(preImgName);
+	cv::cvtColor(img1,img1,CV_BGR2GRAY);
+	img2 = cv::imread(currImgName);
+	cv::cvtColor(img2,img2,CV_BGR2GRAY);
+	cv::Mat homography;
+	findHomography(img2,img1,homography);
+	std::cout<<homography;
+	cv::Mat mask(img1.rows,img1.cols,CV_8U);
+	mask = cv::Scalar::all(0);
+	for(int i=0; i<img1.rows; i++)
+	{
+		for(int j=0; j<img1.cols; j++)
+		{
+			double* data = (double*)homography.data;
+			float x = data[0]*j + data[1]*i + data[2];
+			float y = data[3]*j + data[4]*i + data[5];
+			float w = data[6]*j + data[7]*i + data[8];
+			x /= w;
+			y /= w;
+			x -= j;
+			y -=i;
+			float* ptrFlow = (float*)(flowImg.data);
+			int idxFloat2 = (j+i*img1.cols)*2;
+			float diff = abs(ptrFlow[idxFloat2] - x) + abs(ptrFlow[idxFloat2+1] - y);
+			
+			if (diff > threshold)
+			{
+				mask.data[i*img1.cols + j] = UCHAR_MAX;
+			}
+		}
+	}
+	cv::Mat map(flowImg.size(), CV_32FC2);
+	for (int y = 0; y < map.rows; ++y)
+	{
+		for (int x = 0; x < map.cols; ++x)
+		{
+			cv::Point2f f = flowImg.at<cv::Point2f>(y, x);
+			map.at<cv::Point2f>(y, x) = cv::Point2f(x + f.x, y + f.y);
+		}
+	}
+	
+	cv::Mat newFrame;
+	cv::remap(img1, newFrame, map,cv::Mat(), CV_INTER_LINEAR);
+	cv::Mat diff;
+	cv::absdiff(newFrame,img2,diff);
+	cv::imshow("mask",mask);
+	cv::imshow("remap",diff);
+	cv::waitKey();
+}
 int main()
 {
+	OpticalFlowTest("in000289.jpg","in000290.jpg","in000289_mdpof.flo",0.8);
+	return 0;
 	/*testGCO();*/
 	/*testSuperpixel();*/
 	//testHomo();

@@ -45,6 +45,9 @@
     <ClInclude Include="MRFOptimize.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="flowIO.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -75,6 +78,9 @@
       <Filter>头文件</Filter>
     </ClCompile>
     <ClCompile Include="MRFOptimize.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="flowIO.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
