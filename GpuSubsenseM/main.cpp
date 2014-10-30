@@ -47,7 +47,7 @@
 //	
 //
 //}
-int CreatDir(char *pszDir)
+int CreateDir(char *pszDir)
 {
 	int i = 0;
 	int iRet;

@@ -83,11 +83,22 @@ protected:
 	bool m_bUse3x3Spread;
 	//! specifies the downsampled frame size (used for cam motion analysis)
 	cv::Size m_oDownSampledFrameSize;
+	//! absolute descriptor distance threshold
+	const size_t m_nDescDistThreshold;
+	//! LBSP internal threshold offset value -- used to reduce texture noise in dark regions
+	const size_t m_nLBSPThresholdOffset;
+	//! LBSP relative internal threshold (kept here since we don't keep an LBSP object)
+	const float m_fRelLBSPThreshold;
+	//! pre-allocated internal LBSP threshold values for all possible 8-bit intensity values
+	size_t m_anLBSPThreshold_8bitLUT[UCHAR_MAX+1];
+	size_t* d_anLBSPThreshold_8bitLUT;
 
 	//! background model pixel color intensity samples (equivalent to 'B(x)' in PBAS, but also paired with BackgroundSubtractorLBSP::m_voBGDescSamples to create our complete model)
 	std::vector<cv::Mat> m_voBGColorSamples;
 	std::vector<cv::gpu::GpuMat> d_voBGColorSamples;
-	std::vector<cv::gpu::GpuMat> d_voDESCSamples;
+	//! background model descriptors samples (tied to m_voKeyPoints but shaped like the input frames)
+	std::vector<cv::Mat> m_voBGDescSamples;
+	std::vector<cv::gpu::GpuMat> d_voBGDescSamples;
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
 	cv::Mat m_oUpdateRateFrame;
 	cv::gpu::GpuMat d_oUpdateRateFrame;

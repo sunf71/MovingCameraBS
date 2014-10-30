@@ -6,6 +6,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <iomanip>
 #include "CudaBSOperator.h"
+#include "LBSP.h"
 #define LBSP_PATCH_SIZE 5
 /*
  *
@@ -77,12 +78,19 @@ GpuBackgroundSubtractor::GpuBackgroundSubtractor(	 float fRelLBSPThreshold
 		,m_fCurrLearningRateLowerCap(FEEDBACK_T_LOWER)
 		,m_fCurrLearningRateUpperCap(FEEDBACK_T_UPPER)
 		,m_nMedianBlurKernelSize(DEFAULT_MEDIAN_BLUR_KERNEL_SIZE)
-		,m_bUse3x3Spread(true) {
+		,m_bUse3x3Spread(true)
+		,m_fRelLBSPThreshold(0.333)
+		,m_nDescDistThreshold(3)
+		,m_nLBSPThresholdOffset(0){
 	CV_Assert(m_nBGSamples>0 && m_nRequiredBGSamples<=m_nBGSamples);
 	CV_Assert(m_nMinColorDistThreshold>=STAB_COLOR_DIST_OFFSET);
 }
 
-GpuBackgroundSubtractor::~GpuBackgroundSubtractor() {}
+GpuBackgroundSubtractor::~GpuBackgroundSubtractor() 
+{
+	ReleaseDeviceModels();
+	cudaFree(d_anLBSPThreshold_8bitLUT);
+}
 
 void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints) {
 	// == init
@@ -140,14 +148,17 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	m_voBGColorSamples.resize(m_nBGSamples);
 	d_voBGColorSamples.resize(m_nBGSamples);
 	
-	//m_voBGDescSamples.resize(m_nBGSamples);
+	m_voBGDescSamples.resize(m_nBGSamples);
+	d_voBGDescSamples.resize(m_nBGSamples);
 	for(size_t s=0; s<m_nBGSamples; ++s) {
 		m_voBGColorSamples[s].create(m_oImgSize,CV_8UC((int)m_nImgChannels));
 		m_voBGColorSamples[s] = cv::Scalar_<uchar>::all(0);
 		d_voBGColorSamples[s].upload(m_voBGColorSamples[s]);
 		d_ColorModels.push_back(d_voBGColorSamples[s]);
-		//m_voBGDescSamples[s].create(m_oImgSize,CV_16UC((int)m_nImgChannels));
-		//m_voBGDescSamples[s] = cv::Scalar_<ushort>::all(0);
+		m_voBGDescSamples[s].create(m_oImgSize,CV_16UC((int)m_nImgChannels));
+		m_voBGDescSamples[s] = cv::Scalar_<ushort>::all(0);
+		d_voBGDescSamples[s].upload(m_voBGDescSamples[s]);
+		d_DescModels.push_back(d_voBGDescSamples[s]);
 	}
 	
 	m_oUpdateRateFrame.create(m_oImgSize,CV_32FC1);
@@ -261,22 +272,25 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 		}
 	}
 	else { //m_nImgChannels==3
-		/*for(size_t t=0; t<=UCHAR_MAX; ++t)
-			m_anLBSPThreshold_8bitLUT[t] = cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+t*m_fRelLBSPThreshold);*/
+		for(size_t t=0; t<=UCHAR_MAX; ++t)
+			m_anLBSPThreshold_8bitLUT[t] = cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+t*m_fRelLBSPThreshold);
 		for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int y_orig = (int)m_voKeyPoints[k].pt.y;
 			const int x_orig = (int)m_voKeyPoints[k].pt.x;
 			CV_DbgAssert(m_oLastColorFrame.step.p[0]==(size_t)m_oLastColorFrame.cols*3 && m_oLastColorFrame.step.p[1]==3);
 			const size_t idx_color = 3*(m_oLastColorFrame.cols*y_orig + x_orig);
-			//CV_DbgAssert(m_oLastDescFrame.step.p[0]==m_oLastColorFrame.step.p[0]*2 && m_oLastDescFrame.step.p[1]==m_oLastColorFrame.step.p[1]*2);
-			//const size_t idx_desc = idx_color*2;
+			CV_DbgAssert(m_oLastDescFrame.step.p[0]==m_oLastColorFrame.step.p[0]*2 && m_oLastDescFrame.step.p[1]==m_oLastColorFrame.step.p[1]*2);
+			const size_t idx_desc = idx_color*2;
 			for(size_t c=0; c<3; ++c) {
 				const uchar nCurrBGInitColor = oInitImg.data[idx_color+c];
 				m_oLastColorFrame.data[idx_color+c] = nCurrBGInitColor;
-				//LBSP::computeSingleRGBDescriptor(oInitImg,nCurrBGInitColor,x_orig,y_orig,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(m_oLastDescFrame.data+idx_desc))[c]);
+				LBSP::computeSingleRGBDescriptor(oInitImg,nCurrBGInitColor,x_orig,y_orig,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(m_oLastDescFrame.data+idx_desc))[c]);
 			}
 		}
 	}
+	cudaMalloc(&d_anLBSPThreshold_8bitLUT ,sizeof(size_t)*(UCHAR_MAX+1));
+	cudaMemcpy(d_anLBSPThreshold_8bitLUT,m_anLBSPThreshold_8bitLUT,sizeof(size_t)*(UCHAR_MAX+1),cudaMemcpyHostToDevice);
+
 	d_oLastColorFrame.upload(m_oLastColorFrame);
 	d_oLastDescFrame.upload(m_oLastDescFrame);
 	d_CurrentColorFrame.create(oInitImg.size(),oInitImg.type());
@@ -287,18 +301,23 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	m_bInitializedInternalStructs = true;
 	refreshModel(1.0f);
 	d_oLastColorFrame.upload(m_oLastColorFrame); 
-	CudaRefreshModel(1.f, d_oLastColorFrame, d_ColorModels, d_DescModels);
-	
-	//cv::Mat h_tmp;	
-	//char filename[20];
-	//for(int i=0;i <50; i++)
-	//{
-	//	d_voBGColorSamples[i].download(h_tmp);
-	//	sprintf(filename,"gpu%dmodel.jpg",i);
-	//	imwrite(filename, h_tmp);
-	//	sprintf(filename,"cpu%dmodel.jpg",i);
-	//	imwrite(filename, m_voBGColorSamples[i]);
-	//}
+	InitDeviceModels(d_ColorModels, d_DescModels,d_BModels,d_FModels);
+	CudaRefreshModel(1.f, d_oLastColorFrame,d_oLastDescFrame);
+	/*for(int i=0; i<m_voBGColorSamples.size(); i++)
+	{
+		d_voBGColorSamples[i].upload(m_voBGColorSamples[i]);
+
+	}*/
+	/*cv::Mat h_tmp;	
+	char filename[20];
+	for(int i=0;i <50; i++)
+	{
+		d_voBGColorSamples[i].download(h_tmp);
+		sprintf(filename,"gpu%dmodel.jpg",i);
+		imwrite(filename, h_tmp);
+		sprintf(filename,"cpu%dmodel.jpg",i);
+		imwrite(filename, m_voBGColorSamples[i]);
+	}*/
 	m_bInitialized = true;
 }
 void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
@@ -306,99 +325,95 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cv::Mat oInputImg = _image.getMat();
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
-
+	
 	d_CurrentColorFrame.upload(_image.getMat());
-	CudaBSOperator(d_CurrentColorFrame, m_nFrameIndex,d_BModels,
-		d_FModels,
-		d_ColorModels,
-		d_DescModels,
-		d_FGMask, m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
+	CudaBSOperator(d_CurrentColorFrame, m_nFrameIndex,d_FGMask, m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
 	/*d_FGMask.download(oCurrFGMask);
 	d_oRawFGMask_last.download(m_oRawFGMask_last);
 	d_oBlinksFrame.download(m_oBlinksFrame);*/
 
-	//cv::gpu::bitwise_xor(d_FGMask,d_oRawFGMask_last,d_oRawFGBlinkMask_curr);
-	//cv::gpu::bitwise_or(d_oRawFGBlinkMask_curr,d_oRawFGBlinkMask_last,d_oBlinksFrame);
-	//d_oRawFGBlinkMask_curr.copyTo(d_oRawFGBlinkMask_last);
-	//d_FGMask.copyTo(d_oRawFGMask_last);
-	//cv::gpu::morphologyEx(d_FGMask,d_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());	
-	//d_oFGMask_PreFlood.copyTo(d_oFGMask_FloodedHoles);
-	//d_oFGMask_FloodedHoles.download(m_oFGMask_FloodedHoles);
-	//cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);	
-	//d_oFGMask_FloodedHoles.upload(m_oFGMask_FloodedHoles);
-	//cv::gpu::bitwise_not(d_oFGMask_FloodedHoles,d_oFGMask_FloodedHoles);
-	//cv::gpu::erode(d_oFGMask_PreFlood,d_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::gpu::bitwise_or(d_FGMask,d_oFGMask_FloodedHoles,d_FGMask);	
-	//cv::gpu::bitwise_or(d_FGMask,d_oFGMask_PreFlood,d_FGMask);	
-	//cv::gpu::GaussianBlur(d_FGMask,d_oFGMask_last,cv::Size(3,3),1.0);	
-	//cv::gpu::dilate(d_oFGMask_last,d_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
-	//cv::gpu::bitwise_not(d_oFGMask_last_dilated,d_oFGMask_last_dilated_inverted);
-	//cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
-	//d_oFGMask_last.copyTo(d_FGMask);
-	//d_FGMask.download(oCurrFGMask);
-	//const float fRollAvgFactor_LT = 1.0f/std::min(++m_nFrameIndex,m_nSamplesForMovingAvgs*4);
-	//const float fRollAvgFactor_ST = 1.0f/std::min(m_nFrameIndex,m_nSamplesForMovingAvgs);
+	cv::gpu::bitwise_xor(d_FGMask,d_oRawFGMask_last,d_oRawFGBlinkMask_curr);
+	cv::gpu::bitwise_or(d_oRawFGBlinkMask_curr,d_oRawFGBlinkMask_last,d_oBlinksFrame);
+	d_oRawFGBlinkMask_curr.copyTo(d_oRawFGBlinkMask_last);
+	d_FGMask.copyTo(d_oRawFGMask_last);
+	cv::gpu::morphologyEx(d_FGMask,d_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());	
+	d_oFGMask_PreFlood.copyTo(d_oFGMask_FloodedHoles);
+	d_oFGMask_FloodedHoles.download(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);	
+	d_oFGMask_FloodedHoles.upload(m_oFGMask_FloodedHoles);
+	cv::gpu::bitwise_not(d_oFGMask_FloodedHoles,d_oFGMask_FloodedHoles);
+	cv::gpu::erode(d_oFGMask_PreFlood,d_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::gpu::bitwise_or(d_FGMask,d_oFGMask_FloodedHoles,d_FGMask);	
+	cv::gpu::bitwise_or(d_FGMask,d_oFGMask_PreFlood,d_FGMask);	
+	cv::gpu::GaussianBlur(d_FGMask,d_oFGMask_last,cv::Size(3,3),1.0);	
+	cv::gpu::dilate(d_oFGMask_last,d_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
+	cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
+	cv::gpu::bitwise_not(d_oFGMask_last_dilated,d_oFGMask_last_dilated_inverted);
+	cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
+	d_oFGMask_last.copyTo(d_FGMask);
+	d_FGMask.download(oCurrFGMask);
+	const float fRollAvgFactor_LT = 1.0f/std::min(++m_nFrameIndex,m_nSamplesForMovingAvgs*4);
+	const float fRollAvgFactor_ST = 1.0f/std::min(m_nFrameIndex,m_nSamplesForMovingAvgs);
 
-	//cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
-	//cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
-	////const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
-	////if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
-	////    for(size_t t=0; t<=UCHAR_MAX; ++t)
-	////        if(m_anLBSPThreshold_8bitLUT[t]>cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+ceil(t*m_fRelLBSPThreshold/4)))
-	////            --m_anLBSPThreshold_8bitLUT[t];
-	////}
-	////else if(fCurrNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX && m_fLastNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX) {
-	////    for(size_t t=0; t<=UCHAR_MAX; ++t)
-	////        if(m_anLBSPThreshold_8bitLUT[t]<cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+UCHAR_MAX*m_fRelLBSPThreshold))
-	////            ++m_anLBSPThreshold_8bitLUT[t];
-	////}
-	////m_fLastNonZeroDescRatio = fCurrNonZeroDescRatio;
-	//if(m_bLearningRateScalingEnabled) {
-	//	cv::resize(oInputImg,m_oDownSampledColorFrame,m_oDownSampledFrameSize,0,0,cv::INTER_AREA);
-	//	cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_LT,fRollAvgFactor_LT);
-	//	cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_ST,fRollAvgFactor_ST);
-	//	size_t nTotColorDiff = 0;
-	//	for(int i=0; i<m_oMeanDownSampledLastDistFrame_ST.rows; ++i) {
-	//		const size_t idx1 = m_oMeanDownSampledLastDistFrame_ST.step.p[0]*i;
-	//		for(int j=0; j<m_oMeanDownSampledLastDistFrame_ST.cols; ++j) {
-	//			const size_t idx2 = idx1+m_oMeanDownSampledLastDistFrame_ST.step.p[1]*j;
-	//			nTotColorDiff += (m_nImgChannels==1)?
-	//				(size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2)))/2
-	//						:  //(m_nImgChannels==3)
-	//					std::max((size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2))),
-	//						std::max((size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2+4))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2+4))),
-	//									(size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2+8))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2+8)))));
-	//		}
-	//	}
-	//	const float fCurrColorDiffRatio = (float)nTotColorDiff/(m_oMeanDownSampledLastDistFrame_ST.rows*m_oMeanDownSampledLastDistFrame_ST.cols);
-	//	if(m_bAutoModelResetEnabled) {
-	//		if(m_nFramesSinceLastReset>1000)
-	//			m_bAutoModelResetEnabled = false;
-	//		else if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD && m_nModelResetCooldown==0) {
-	//			m_nFramesSinceLastReset = 0;
-	//			refreshModel(0.1f); // reset 10% of the bg model
-	//			m_nModelResetCooldown = m_nSamplesForMovingAvgs;
-	//			m_oUpdateRateFrame = cv::Scalar(1.0f);
-	//		}
-	//		else
-	//			++m_nFramesSinceLastReset;
-	//	}
-	//	else if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD*2) {
-	//		m_nFramesSinceLastReset = 0;
-	//		m_bAutoModelResetEnabled = true;
-	//	}
-	//	if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD/2) {
-	//		m_fCurrLearningRateLowerCap = (float)std::max((int)FEEDBACK_T_LOWER>>(int)(fCurrColorDiffRatio/2),1);
-	//		m_fCurrLearningRateUpperCap = (float)std::max((int)FEEDBACK_T_UPPER>>(int)(fCurrColorDiffRatio/2),1);
-	//	}
-	//	else {
-	//		m_fCurrLearningRateLowerCap = FEEDBACK_T_LOWER;
-	//		m_fCurrLearningRateUpperCap = FEEDBACK_T_UPPER;
-	//	}
-	//	if(m_nModelResetCooldown>0)
-	//		--m_nModelResetCooldown;
+	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
+	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
+	//const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
+	//if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
+	//    for(size_t t=0; t<=UCHAR_MAX; ++t)
+	//        if(m_anLBSPThreshold_8bitLUT[t]>cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+ceil(t*m_fRelLBSPThreshold/4)))
+	//            --m_anLBSPThreshold_8bitLUT[t];
 	//}
+	//else if(fCurrNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX && m_fLastNonZeroDescRatio>LBSPDESC_NONZERO_RATIO_MAX) {
+	//    for(size_t t=0; t<=UCHAR_MAX; ++t)
+	//        if(m_anLBSPThreshold_8bitLUT[t]<cv::saturate_cast<uchar>(m_nLBSPThresholdOffset+UCHAR_MAX*m_fRelLBSPThreshold))
+	//            ++m_anLBSPThreshold_8bitLUT[t];
+	//}
+	//m_fLastNonZeroDescRatio = fCurrNonZeroDescRatio;
+	if(m_bLearningRateScalingEnabled) {
+		cv::resize(oInputImg,m_oDownSampledColorFrame,m_oDownSampledFrameSize,0,0,cv::INTER_AREA);
+		cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_LT,fRollAvgFactor_LT);
+		cv::accumulateWeighted(m_oDownSampledColorFrame,m_oMeanDownSampledLastDistFrame_ST,fRollAvgFactor_ST);
+		size_t nTotColorDiff = 0;
+		for(int i=0; i<m_oMeanDownSampledLastDistFrame_ST.rows; ++i) {
+			const size_t idx1 = m_oMeanDownSampledLastDistFrame_ST.step.p[0]*i;
+			for(int j=0; j<m_oMeanDownSampledLastDistFrame_ST.cols; ++j) {
+				const size_t idx2 = idx1+m_oMeanDownSampledLastDistFrame_ST.step.p[1]*j;
+				nTotColorDiff += (m_nImgChannels==1)?
+					(size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2)))/2
+							:  //(m_nImgChannels==3)
+						std::max((size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2))),
+							std::max((size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2+4))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2+4))),
+										(size_t)fabs((*(float*)(m_oMeanDownSampledLastDistFrame_ST.data+idx2+8))-(*(float*)(m_oMeanDownSampledLastDistFrame_LT.data+idx2+8)))));
+			}
+		}
+		const float fCurrColorDiffRatio = (float)nTotColorDiff/(m_oMeanDownSampledLastDistFrame_ST.rows*m_oMeanDownSampledLastDistFrame_ST.cols);
+		if(m_bAutoModelResetEnabled) {
+			if(m_nFramesSinceLastReset>1000)
+				m_bAutoModelResetEnabled = false;
+			else if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD && m_nModelResetCooldown==0) {
+				m_nFramesSinceLastReset = 0;
+				refreshModel(0.1f); // reset 10% of the bg model
+				m_nModelResetCooldown = m_nSamplesForMovingAvgs;
+				m_oUpdateRateFrame = cv::Scalar(1.0f);
+			}
+			else
+				++m_nFramesSinceLastReset;
+		}
+		else if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD*2) {
+			m_nFramesSinceLastReset = 0;
+			m_bAutoModelResetEnabled = true;
+		}
+		if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD/2) {
+			m_fCurrLearningRateLowerCap = (float)std::max((int)FEEDBACK_T_LOWER>>(int)(fCurrColorDiffRatio/2),1);
+			m_fCurrLearningRateUpperCap = (float)std::max((int)FEEDBACK_T_UPPER>>(int)(fCurrColorDiffRatio/2),1);
+		}
+		else {
+			m_fCurrLearningRateLowerCap = FEEDBACK_T_LOWER;
+			m_fCurrLearningRateUpperCap = FEEDBACK_T_UPPER;
+		}
+		if(m_nModelResetCooldown>0)
+			--m_nModelResetCooldown;
+	}
 	d_FGMask.download(oCurrFGMask);
 }
 void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
@@ -724,6 +739,7 @@ void GpuBackgroundSubtractor::operator()(cv::InputArray _image, cv::OutputArray 
 					}
 				}
 			}
+		
 			if(m_oFGMask_last.data[idx_uchar] || (std::min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && oCurrFGMask.data[idx_uchar])) {
 				if((*pfCurrLearningRate)<m_fCurrLearningRateUpperCap)
 					*pfCurrLearningRate += FEEDBACK_T_INCR/(std::max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)*(*pfCurrVariationFactor));
@@ -748,14 +764,15 @@ void GpuBackgroundSubtractor::operator()(cv::InputArray _image, cv::OutputArray 
 				if((*pfCurrDistThresholdFactor)<1.0f)
 					(*pfCurrDistThresholdFactor) = 1.0f;
 			}
-			/*if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
-				++nNonZeroDescCount;*/
-			for(size_t c=0; c<3; ++c) {
-				//anLastIntraDesc[c] = anCurrIntraDesc[c];
-				anLastColor[c] = anCurrColor[c];
-			}
+			///*if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
+			//	++nNonZeroDescCount;*/
+			//for(size_t c=0; c<3; ++c) {
+			//	//anLastIntraDesc[c] = anCurrIntraDesc[c];
+			//	anLastColor[c] = anCurrColor[c];
+			//}
 		}
 	}
+	
 #if DISPLAY_SUBSENSE_DEBUG_INFO
 	std::cout << std::endl;
 	cv::Point dbgpt(nDebugCoordX,nDebugCoordY);

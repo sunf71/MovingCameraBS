@@ -6,7 +6,7 @@
 #include "videoprocessor.h"
 #include <opencv2\opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
-int CreatDir(char *pszDir);
+int CreateDir(char *pszDir);
 class SubSenseBSProcessor : public FrameProcessor
 {
 private:
@@ -20,8 +20,8 @@ public:
 	SubSenseBSProcessor():_initFlag(false)
 	{
 
-		sprintf(pathName,"..\\result\\subsensex\\ptz\\input3\\");
-		CreatDir(pathName);
+		sprintf(pathName,"..\\result\\subsensex\\baseline\\input3\\");
+		CreateDir(pathName);
 	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
 	{
