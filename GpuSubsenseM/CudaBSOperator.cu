@@ -72,54 +72,70 @@ __device__ size_t hdist_ushort_8bitLUT(const ushort3& a, const ushort3& b)
 }
 __device__ void LBSP(const PtrStep<uchar3>& img, const uchar3& color, const int x, const int y, const size_t* const t, ushort3& out)
 {
-	out.x = ((absdiff_uchar(img(1+y,x-1).x,color.x) > t[0]) << 15)
-			+ ((absdiff_uchar(img( y-1,x+1).x,color.x) > t[0]) << 14)
-			+ ((absdiff_uchar(img( y+1, x+1).x,color.x) > t[0]) << 13)
-			+ ((absdiff_uchar(img(y-1,x-1).x,color.x) > t[0]) << 12)
-			+ ((absdiff_uchar(img( y, x+1).x,color.x) > t[0]) << 11)
-			+ ((absdiff_uchar(img( y-1,x).x,color.x) > t[0]) << 10)
-			+ ((absdiff_uchar(img(y, x-1).x,color.x) > t[0]) << 9)
-			+ ((absdiff_uchar(img( y+1, x).x,color.x) > t[0]) << 8)
-			+ ((absdiff_uchar(img(y-2,x-2).x,color.x) > t[0]) << 7)
-			+ ((absdiff_uchar(img( y+2, x+2).x,color.x) > t[0]) << 6)
-			+ ((absdiff_uchar(img( y-2,x+2).x,color.x) > t[0]) << 5)
-			+ ((absdiff_uchar(img(y+2,x- 2).x,color.x) > t[0]) << 4)
-			+ ((absdiff_uchar(img( y+2, x).x,color.x) > t[0]) << 3)
-			+ ((absdiff_uchar(img( y-2,x).x,color.x) > t[0]) << 2)
-			+ ((absdiff_uchar(img( y, x+2).x,color.x) > t[0]) << 1)
-			+ ((absdiff_uchar(img(y, x-2).x,color.x) > t[0]));
-	out.y = ((absdiff_uchar(img(1+y,x-1).y,color.y) > t[1]) << 15)
-			+ ((absdiff_uchar(img( y-1,x+1).y,color.y) > t[1]) << 14)
-			+ ((absdiff_uchar(img( y+1, x+1).y,color.y) > t[1]) << 13)
-			+ ((absdiff_uchar(img(y-1,x-1).y,color.y) > t[1]) << 12)
-			+ ((absdiff_uchar(img( y, x+1).y,color.y) > t[1]) << 11)
-			+ ((absdiff_uchar(img( y-1,x).y,color.y) > t[1]) << 10)
-			+ ((absdiff_uchar(img(y, x-1).y,color.y) > t[1]) << 9)
-			+ ((absdiff_uchar(img( y+1, x).y,color.y) > t[1]) << 8)
-			+ ((absdiff_uchar(img(y-2,x-2).y,color.y) > t[1]) << 7)
-			+ ((absdiff_uchar(img( y+2, x+2).y,color.y) > t[1]) << 6)
-			+ ((absdiff_uchar(img( y-2,x+2).y,color.y) > t[1]) << 5)
-			+ ((absdiff_uchar(img(y+2,x- 2).y,color.y) > t[1]) << 4)
-			+ ((absdiff_uchar(img( y+2, x).y,color.y) > t[1]) << 3)
-			+ ((absdiff_uchar(img( y-2,x).y,color.y) > t[1]) << 2)
-			+ ((absdiff_uchar(img( y, x+2).y,color.y) > t[1]) << 1)
-			+ ((absdiff_uchar(img(y, x-2).y,color.y) > t[1]));
-	out.z = ((absdiff_uchar(img(1+y,x-1).z,color.z) > t[2]) << 15)
-			+ ((absdiff_uchar(img( y-1,x+1).z,color.z) > t[2]) << 14)
-			+ ((absdiff_uchar(img( y+1, x+1).z,color.z) > t[2]) << 13)
-			+ ((absdiff_uchar(img(y-1,x-1).z,color.z) > t[2]) << 12)
-			+ ((absdiff_uchar(img( y, x+1).z,color.z) > t[2]) << 11)
-			+ ((absdiff_uchar(img( y-1,x).z,color.z) > t[2]) << 10)
-			+ ((absdiff_uchar(img(y, x-1).z,color.z) > t[2]) << 9)
-			+ ((absdiff_uchar(img( y+1, x).z,color.z) > t[2]) << 8)
-			+ ((absdiff_uchar(img(y-2,x-2).z,color.z) > t[2]) << 7)
-			+ ((absdiff_uchar(img( y+2, x+2).z,color.z) > t[2]) << 6)
-			+ ((absdiff_uchar(img( y-2,x+2).z,color.z) > t[2]) << 5)
-			+ ((absdiff_uchar(img(y+2,x- 2).z,color.z) > t[2]) << 4)
-			+ ((absdiff_uchar(img( y+2, x).z,color.z) > t[2]) << 3)
-			+ ((absdiff_uchar(img( y-2,x).z,color.z) > t[2]) << 2)
-			+ ((absdiff_uchar(img( y, x+2).z,color.z) > t[2]) << 1)
-			+ ((absdiff_uchar(img(y, x-2).z,color.z) > t[2]));
+	uchar3 p0 = img(1+y,x-1);
+	uchar3 p1 = img(y-1,x+1);
+	uchar3 p2 = img(y+1, x+1);
+	uchar3 p3 = img(y-1,x-1);
+	uchar3 p4 = img( y, x+1);
+	uchar3 p5 = img( y-1,x);
+	uchar3 p6 = img(y, x-1);
+	uchar3 p7 = img( y+1, x);
+	uchar3 p8 = img(y-2,x-2);
+	uchar3 p9 = img( y+2, x+2);
+	uchar3 p10 = img( y-2,x+2);
+	uchar3 p11 = img(y+2,x- 2);
+	uchar3 p12 = img( y+2, x);
+	uchar3 p13 = img( y-2,x);
+	uchar3 p14 = img( y, x+2);
+	uchar3 p15 = img(y, x-2);
+	out.x = ((absdiff_uchar(p0.x,color.x) > t[0]) << 15)
+			+ ((absdiff_uchar(p1.x,color.x) > t[0]) << 14)
+			+ ((absdiff_uchar(p2.x,color.x) > t[0]) << 13)
+			+ ((absdiff_uchar(p3.x,color.x) > t[0]) << 12)
+			+ ((absdiff_uchar(p4.x,color.x) > t[0]) << 11)
+			+ ((absdiff_uchar(p5.x,color.x) > t[0]) << 10)
+			+ ((absdiff_uchar(p6.x,color.x) > t[0]) << 9)
+			+ ((absdiff_uchar(p7.x,color.x) > t[0]) << 8)
+			+ ((absdiff_uchar(p8.x,color.x) > t[0]) << 7)
+			+ ((absdiff_uchar(p9.x,color.x) > t[0]) << 6)
+			+ ((absdiff_uchar(p10.x,color.x) > t[0]) << 5)
+			+ ((absdiff_uchar(p11.x,color.x) > t[0]) << 4)
+			+ ((absdiff_uchar(p12.x,color.x) > t[0]) << 3)
+			+ ((absdiff_uchar(p13.x,color.x) > t[0]) << 2)
+			+ ((absdiff_uchar(p14.x,color.x) > t[0]) << 1)
+			+ ((absdiff_uchar(p15.x,color.x) > t[0]));
+	out.y = ((absdiff_uchar(p0.y,color.y) > t[1]) << 15)
+			+ ((absdiff_uchar(p1.y,color.y) > t[1]) << 14)
+			+ ((absdiff_uchar(p2.y,color.y) > t[1]) << 13)
+			+ ((absdiff_uchar(p3.y,color.y) > t[1]) << 12)
+			+ ((absdiff_uchar(p4.y,color.y) > t[1]) << 11)
+			+ ((absdiff_uchar(p5.y,color.y) > t[1]) << 10)
+			+ ((absdiff_uchar(p6.y,color.y) > t[1]) << 9)
+			+ ((absdiff_uchar(p7.y,color.y) > t[1]) << 8)
+			+ ((absdiff_uchar(p8.y,color.y) > t[1]) << 7)
+			+ ((absdiff_uchar(p9.y,color.y) > t[1]) << 6)
+			+ ((absdiff_uchar(p10.y,color.y) > t[1]) << 5)
+			+ ((absdiff_uchar(p11.y,color.y) > t[1]) << 4)
+			+ ((absdiff_uchar(p12.y,color.y) > t[1]) << 3)
+			+ ((absdiff_uchar(p13.y,color.y) > t[1]) << 2)
+			+ ((absdiff_uchar(p14.y,color.y) > t[1]) << 1)
+			+ ((absdiff_uchar(p15.y,color.y) > t[1]));
+	out.z = ((absdiff_uchar(p0.z,color.z) > t[2]) << 15)
+			+ ((absdiff_uchar(p1.z,color.z) > t[2]) << 14)
+			+ ((absdiff_uchar(p2.z,color.z) > t[2]) << 13)
+			+ ((absdiff_uchar(p3.z,color.z) > t[2]) << 12)
+			+ ((absdiff_uchar(p4.z,color.z) > t[2]) << 11)
+			+ ((absdiff_uchar(p5.z,color.z) > t[2]) << 10)
+			+ ((absdiff_uchar(p6.z,color.z) > t[2]) << 9)
+			+ ((absdiff_uchar(p7.z,color.z) > t[2]) << 8)
+			+ ((absdiff_uchar(p8.z,color.z) > t[2]) << 7)
+			+ ((absdiff_uchar(p9.z,color.z) > t[2]) << 6)
+			+ ((absdiff_uchar(p10.z,color.z) > t[2]) << 5)
+			+ ((absdiff_uchar(p11.z,color.z) > t[2]) << 4)
+			+ ((absdiff_uchar(p12.z,color.z) > t[2]) << 3)
+			+ ((absdiff_uchar(p13.z,color.z) > t[2]) << 2)
+			+ ((absdiff_uchar(p14.z,color.z) > t[2]) << 1)
+			+ ((absdiff_uchar(p15.z,color.z) > t[2]));
 }
 __global__ void CudaBSOperatorKernel(const PtrStepSz<uchar3> img, int frameIndex,PtrStep<uchar>* bmodels,PtrStep<float>* fmodels,PtrStep<uchar3>* colorModels, PtrStep<ushort3>* descModels, PtrStep<uchar> fgMask,
 	float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
@@ -184,16 +200,16 @@ __global__ void CudaBSOperatorKernel(const PtrStepSz<uchar3> img, int frameIndex
 					size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 					size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
-					const size_t nSumDist = min((nDescDist/2)*(256/16)+nColorDist,256);
+					const size_t nSumDist = (nDescDist/2)*15+nColorDist;
 					if(nSumDist>nCurrSCColorDistThreshold)
 						goto failedcheck3ch;
 					nTotDescDist += nDescDist;
 					nTotSumDist += nSumDist;
-					nTotSumDist += nColorDist;
+					//nTotSumDist += nColorDist;
 				}
 				if(nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold)
-				if(nTotSumDist>nCurrTotColorDistThreshold)
 					goto failedcheck3ch;
+				
 				if(nMinTotDescDist>nTotDescDist)
 					nMinTotDescDist = nTotDescDist;
 				if(nMinTotSumDist>nTotSumDist)
@@ -236,6 +252,7 @@ __global__ void CudaBSOperatorKernel(const PtrStepSz<uchar3> img, int frameIndex
 				if(curand(&state)%nLearningRate==0) {
 					const size_t s_rand =curand(&state)%50;
 					colorModels[s_rand](y,x) = CurrColor;
+					descModels[s_rand](y,x) = CurrIntraDesc;
 				}
 				int x_rand,y_rand;
 				const bool bCurrUsing3x3Spread = !pbUnstableRegionMask;
@@ -249,7 +266,7 @@ __global__ void CudaBSOperatorKernel(const PtrStepSz<uchar3> img, int frameIndex
 				if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
 					|| (fRandMeanRawSegmRes>0.995 && fRandMeanLastDist<0.01 && (n_rand%((size_t)fCurrLearningRateLowerCap))==0)) {
 					colorModels[curand(&state)%50](y_rand,x_rand) = CurrColor;
-					descModels[curand(&state)%50](y,x) = CurrIntraDesc;
+					descModels[curand(&state)%50](y_rand,x_rand) = CurrIntraDesc;
 				}
 			}
 			float UNSTABLE_REG_RATIO_MIN = 0.1;
@@ -295,7 +312,7 @@ __global__ void CudaRefreshModelKernel(float refreshRate,const PtrStepSz<uchar3>
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
     int y = threadIdx.y + blockIdx.y * blockDim.y;
 	
-    if(x < lastImg.cols && y < lastImg.rows)
+    if(x < lastImg.cols-2 && x>=2 && y>=2 && y < lastImg.rows-2)
 	{
 		curandState state;
 		curand_init(threadIdx.x,0,0,&state);
@@ -330,7 +347,7 @@ void CudaBSOperator(const cv::gpu::GpuMat& img, int frameIdx,
 		fgMask, fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
 }
 
-void CudaRefreshModel(float refreshRate,const cv::gpu::GpuMat& lastImg, const cv::gpu::GpuMat& lastDescImg)
+void CudaRefreshModel(float refreshRate,const cv::gpu::GpuMat& lastImg, const cv::gpu::GpuMat& lastDescImg,size_t* m_anLBSPThreshold_8bitLUT)
 {
 	dim3 block(16,16);
     dim3 grid((lastImg.cols + block.x - 1)/block.x,(lastImg.rows + block.y - 1)/block.y);

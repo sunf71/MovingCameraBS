@@ -11,7 +11,7 @@ void CudaBSOperator(const cv::gpu::GpuMat& img,int frameIndex, cv::gpu::GpuMat& 
 
 void InitDeviceModels(std::vector<PtrStep<uchar3>>& colorModels, std::vector<PtrStep<ushort3>>& descModels,
 	std::vector<PtrStep<uchar>>& bModels, std::vector<PtrStep<float>>& fModels);
-void CudaRefreshModel(float refreshRate,const cv::gpu::GpuMat& lastImg, const cv::gpu::GpuMat& lastDescImg);
+void CudaRefreshModel(float refreshRate,const cv::gpu::GpuMat& lastImg, const cv::gpu::GpuMat& lastDescImg,size_t* m_anLBSPThreshold_8bitLUT);
 void ReleaseDeviceModels();
 
 void testRandom();

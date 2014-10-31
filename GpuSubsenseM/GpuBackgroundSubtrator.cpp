@@ -302,16 +302,21 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	refreshModel(1.0f);
 	d_oLastColorFrame.upload(m_oLastColorFrame); 
 	InitDeviceModels(d_ColorModels, d_DescModels,d_BModels,d_FModels);
-	CudaRefreshModel(1.f, d_oLastColorFrame,d_oLastDescFrame);
-	/*for(int i=0; i<m_voBGColorSamples.size(); i++)
-	{
-		d_voBGColorSamples[i].upload(m_voBGColorSamples[i]);
-
-	}*/
+	CudaRefreshModel(1.f, d_oLastColorFrame,d_oLastDescFrame,d_anLBSPThreshold_8bitLUT);
+	//for(int i=0; i<m_voBGColorSamples.size(); i++)
+	//{
+	//	//d_voBGColorSamples[i].upload(m_voBGColorSamples[i]);
+	//	d_voBGDescSamples[i].upload(m_voBGDescSamples[i]);
+	//}
 	/*cv::Mat h_tmp;	
+	cv::Mat diff;
 	char filename[20];
 	for(int i=0;i <50; i++)
 	{
+		d_voBGDescSamples[i].download(h_tmp);
+		cv::absdiff(m_voBGDescSamples[i],h_tmp,diff);
+		sprintf(filename,"%dmodel_diff.jpg",i);
+		imwrite(filename, diff);
 		d_voBGColorSamples[i].download(h_tmp);
 		sprintf(filename,"gpu%dmodel.jpg",i);
 		imwrite(filename, h_tmp);
@@ -327,7 +332,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cv::Mat oCurrFGMask = _fgmask.getMat();
 	
 	d_CurrentColorFrame.upload(_image.getMat());
-	CudaBSOperator(d_CurrentColorFrame, m_nFrameIndex,d_FGMask, m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
+	CudaBSOperator(d_CurrentColorFrame, ++m_nFrameIndex,d_FGMask, m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
 	/*d_FGMask.download(oCurrFGMask);
 	d_oRawFGMask_last.download(m_oRawFGMask_last);
 	d_oBlinksFrame.download(m_oBlinksFrame);*/
@@ -352,11 +357,15 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
 	d_oFGMask_last.copyTo(d_FGMask);
 	d_FGMask.download(oCurrFGMask);
+
 	const float fRollAvgFactor_LT = 1.0f/std::min(++m_nFrameIndex,m_nSamplesForMovingAvgs*4);
 	const float fRollAvgFactor_ST = 1.0f/std::min(m_nFrameIndex,m_nSamplesForMovingAvgs);
-
+	d_oMeanFinalSegmResFrame_LT.download(m_oMeanFinalSegmResFrame_LT);
+	d_oMeanFinalSegmResFrame_ST.download(m_oMeanFinalSegmResFrame_ST);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
+	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
+	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);
 	//const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
 	//if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
 	//    for(size_t t=0; t<=UCHAR_MAX; ++t)
@@ -414,7 +423,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
 	}
-	d_FGMask.download(oCurrFGMask);
+	
 }
 void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 	// == refresh
@@ -456,12 +465,12 @@ void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 				const size_t idx_sample_desc = idx_sample_color*2;
 				const size_t idx_sample = s%m_nBGSamples;
 				uchar* bg_color_ptr = m_voBGColorSamples[idx_sample].data+idx_orig_color;
-				//ushort* bg_desc_ptr = (ushort*)(m_voBGDescSamples[idx_sample].data+idx_orig_desc);
+				ushort* bg_desc_ptr = (ushort*)(m_voBGDescSamples[idx_sample].data+idx_orig_desc);
 				const uchar* const init_color_ptr = m_oLastColorFrame.data+idx_sample_color;
-				const ushort* const init_desc_ptr = (ushort*)(m_oLastDescFrame.data+idx_sample_desc);
+				const ushort* const init_desc_ptr = (ushort*)(m_oLastDescFrame.data+idx_sample_color);
 				for(size_t c=0; c<3; ++c) {
 					bg_color_ptr[c] = init_color_ptr[c];
-					//bg_desc_ptr[c] = init_desc_ptr[c];
+					bg_desc_ptr[c] = init_desc_ptr[c];
 				}
 			}
 		}

@@ -149,20 +149,27 @@ void MRFOptimization()
 	timer.stop();
 	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";
 }
-
+void warmUpDevice()
+{
+	cv::Mat cpuMat = cv::Mat::ones(100,100,CV_8UC3);
+	cv::gpu::GpuMat gmat;
+	gmat.upload(cpuMat);
+	gmat.download(cpuMat);
+}
 void TestGpuSubsense()
 {
+	warmUpDevice();
 	VideoProcessor processor;
 	
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 1099;
+	int end = 1700;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\baseline\\input3\\in%06d.jpg",i);
+		sprintf(name,"..\\baseline\\input0\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}

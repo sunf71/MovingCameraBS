@@ -20,7 +20,7 @@ public:
 	SubSenseBSProcessor():_initFlag(false)
 	{
 
-		sprintf(pathName,"..\\result\\subsensex\\baseline\\input3\\");
+		sprintf(pathName,"..\\result\\subsensex\\baseline\\input0\\");
 		CreateDir(pathName);
 	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
