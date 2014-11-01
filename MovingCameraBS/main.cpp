@@ -24,15 +24,10 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include "Affine2D.h"
 #include "motiontracker.h"
 #include <algorithm>
-<<<<<<< HEAD
 #include "LBSP.h"
-
-
-=======
 #include <fstream>
 #include <math.h>
 #include "LBP.h"
->>>>>>> 11006f9437b5af9aa4fe206206a695246b43d741
 
 
 void TestAffine()
@@ -174,7 +169,7 @@ uchar LBP(uchar* imgData,int width, int height, int c,int x, int y, int r, int p
 	dy.resize(p);
 	tx.resize(p);
 	ty.resize(p);
-	
+
 	for(int i=0; i<p; i++)
 	{
 		dx[i] = r*cos(2*M_PI*i/p);
@@ -186,17 +181,17 @@ uchar LBP(uchar* imgData,int width, int height, int c,int x, int y, int r, int p
 	for(int i=0; i<p; i++)
 	{
 		file<<(1-ty[i])*(1-tx[i])<<","<<tx[i]*(1-ty[i])<<","<<ty[i]*(1-tx[i])<<","<<ty[i]*tx[i]<<","<<std::endl;
-		
+
 	}
 	file<<"\n";
 	file<<"dxdy=\n";
 	for(int i=0; i<p; i++)
 	{
 		file<<dx[i]<<","<<dy[i]<<","<<std::endl;
-		
+
 	}
 	file<<"\n";
-	
+
 	file.close();
 	std::vector<uchar> value(p);
 	for(int i=0; i<p; i++)
@@ -204,31 +199,31 @@ uchar LBP(uchar* imgData,int width, int height, int c,int x, int y, int r, int p
 		value[i] = LinearInterData(width,height,imgData,dx[i]+x,dy[i]+y);
 		std::cout<<(int)value[i]<<" ";
 	}
-<<<<<<< HEAD
 	uchar pixels[16];
 	for(int i=0; i<p; i++)
 		pixels[i] = LinearInterData(width,height,imgData,dx[i]+x,dy[i]+y);
 	for(int i=0; i<p/2; i++)
 	{
-		
+
 		ret |= (pixels[i]-pixels[i+p/2]>=0) << p-1-i;
-		
+
 	}
 	for(int i=0; i<p; i+=2)
 	{
-		
+
 		ret |= (pixels[i]-pixels[i+1]>=0) << p/2-1-i;
-		
-=======
-	std::cout<<std::endl;
-	
-	for(int i=0; i<p/2; i++)
-	{
-		
-		ret |= (value[i]-value[i+p/2]>=0) << p/2-1-i;
->>>>>>> 11006f9437b5af9aa4fe206206a695246b43d741
+
+
+		std::cout<<std::endl;
+
+		for(int i=0; i<p/2; i++)
+		{
+
+			ret |= (value[i]-value[i+p/2]>=0) << p/2-1-i;
+
+		}
+		return ret;
 	}
-	return ret;
 }
 
 void TestLBP()
@@ -274,7 +269,6 @@ void TestLBP()
 		CV_RANSAC, // RANSAC method
 		0.5); // max distance to reprojection point
 	double* ptr = (double*)homography.data;
-<<<<<<< HEAD
 	cv::Mat lbp1(gray1.size(),CV_8U);
 	lbp1 = cv::Scalar(0);
 	cv::Mat lbp2;
@@ -285,7 +279,7 @@ void TestLBP()
 	{
 		for(int j=2; j<gray1.cols-2; j++)
 		{
-			
+
 			float x,y,w;
 			x = j*ptr[0] + i*ptr[1] + ptr[2];
 			y = j*ptr[3] + i*ptr[4] + ptr[5];
@@ -309,39 +303,15 @@ void TestLBP()
 				//std::cout<<"lbp2: "<<(int)lbp2<<std::endl;
 				diff.data[idx] = popcount_LUT8[lbp1.data[idx]^lbp2.data[widx]]/8.0*255;
 			}
-			 
+
 		}
-	
+
 	}
 	cv::imshow("lbp1",lbp1);
 	cv::imshow("lbp2",lbp2);
 	cv::imshow("diff",diff);
 	cv::imshow("diff2",diff2);
-	cv::waitKey(0);
-
-
-=======
-	int i = 100, j=180;
-	float x,y,w;
-	x = j*ptr[0] + i*ptr[1] + ptr[2];
-	y = j*ptr[3] + i*ptr[4] + ptr[5];
-	w = j*ptr[6] + i*ptr[7] + ptr[8];
-	x /=w;
-	y/=w;
-	int wx = int(x+0.5);
-	int wy = int(y+0.5);
-
-	uchar lbp1 = LBP(gray1.data,gray1.cols,gray1.rows,1,j,i,2,16);
-	std::cout<<"lbp1: "<<(int)lbp1<<std::endl;
-	
-	uchar lbp2 = LBP(gray2.data,gray1.cols,gray1.rows,1,wx,wy,2,16);
-	std::cout<<"lbp2: "<<(int)lbp2<<std::endl;
-	ushort res1,res2;
-	LBP::LBPcomputeGrayscaleDescriptor(gray1,j,i,0,res1);
-	LBP::LBPcomputeGrayscaleDescriptor(gray2,wx,wy,0,res2);
-	std::cout<<res1<<std::endl;
-	std::cout<<res2<<std::endl;
->>>>>>> 11006f9437b5af9aa4fe206206a695246b43d741
+	cv::waitKey(0);	
 }
 
 void TestPerspective()
@@ -418,7 +388,7 @@ void TestPerspective()
 				int s = 2;
 				float alpha = 1;
 				float min = 16384;
-				
+
 				for(int m=-s; m<=s; m++)
 				{
 					for(int n=-s; n<=s; n++)
@@ -515,9 +485,180 @@ void TestPerspective()
 	std::cout<<"affine abs diff ="<<cv::sum(absDiff)<<std::endl;
 	cv::waitKey();
 }
+struct EdgePoint
+{
+	EdgePoint(int _x, int _y, float _theta):x(_x),y(_y),theta(_theta)
+	{}
+	int x;
+	int y;
+	float theta;//½Ç¶È£¬0~180
+};
+//ÌáÈ¡±ßÔµµã
+void ExtractEdgePoint(const Mat& img, double tr1,double tr2, Mat& edge, Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints)
+{
+
+	Mat dx,dy;
+	edgeThetaMat = Mat(img.size(),CV_32FC1);
+	cv::Sobel(img,dx,0,1,0);
+	cv::Sobel(img,dy,0,0,1);
+	cv::Canny(img,edge,tr1,tr2);
+	int type = dx.type();
+	for(int i=0; i< img.rows; i++)
+	{
+		for(int j=0; j<img.cols; j++)
+		{
+			int idx = i*img.cols + j;
+			if (edge.data[idx] == 0xff)
+			{
+				
+				float theta = atan(dy.data[idx]*1.0/(dx.data[idx]+1e-6))/M_PI*180;
+				/*std::cout<<theta<<std::endl;*/
+				*(float*)(edgeThetaMat.data+idx*4) = theta;
+				edgePoints.push_back(EdgePoint(j,i,theta));
+			}
+		}
+	}
+
+}
+
+//±ßÔµµãÆ¥Åä
+void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const Mat& edge2,const Mat edgeThetamat, const const Mat& transform, float deltaTheta, Mat& matchMask)
+{
+	double * ptr = (double*)transform.data;
+	int r = 1;//ËÑËØ·¶Î§
+	int width = edge2.cols;
+	int height = edge2.rows;
+	matchMask = Mat(edge2.size(),CV_8U);
+	matchMask = Scalar(0);
+	float thetaDist = 0.5;
+	 for(int i=0; i<ePoints1.size(); i++)
+	 {
+		 int ox = ePoints1[i].x;
+		 int oy = ePoints1[i].y;
+		 float theta = ePoints1[i].theta;
+
+		 float x,y,w;
+		 x = ox*ptr[0] + oy*ptr[1] + ptr[2];
+		 y = ox*ptr[3] + oy*ptr[4] + ptr[5];
+		 w = ox*ptr[6] + oy*ptr[7] + ptr[8];
+		 x /=w;
+		 y/=w;
+		 int wx = int(x+0.5);
+		 int wy = int(y+0.5);
+		 for(int m=-r; m<=r; m++)
+		 {
+			 for(int n=-r; n<=r; n++)
+			 {
+				 int nx  = wx + m;
+				 int ny = wy + n;
+				 if (nx>=0 && nx<width && ny >=0 && ny<height)
+				 {
+					 int id = nx + ny*width;
+					 if (edge2.data[id]==255 && abs( *(float*)(edgeThetamat.data+id*4) - theta-deltaTheta) < thetaDist)
+					 {
+						 //match
+						 matchMask.data[ox+oy*width] = UCHAR_MAX;
+					 }
+				 }
+			 }
+		 }
+	 }
+}
+void TestEdgeTracking()
+{
+	Mat img1 = imread("..//PTZ//input3//in000221.jpg");
+	Mat img2 = imread("..//PTZ//input3//in000211.jpg");
+	Mat gray1,gray2;
+	cvtColor(img1, gray1, CV_BGR2GRAY); 
+	cvtColor(img2, gray2, CV_BGR2GRAY);
+	
+	Mat edge1,edge2,thetaMat1,thetaMat2;
+	double tr1(120.f),tr2(300.f);
+	cv::Canny(gray1,edge1,tr1,tr2);
+	cv::Canny(gray2,edge2,tr1,tr2);
+	std::vector<EdgePoint> edgePoints1,edgePoints2;
+	
+	imshow("edge1",edge1);
+	imshow("edge2",edge2);
+	ExtractEdgePoint(gray1,tr1,tr2,edge1,thetaMat1,edgePoints1);
+	ExtractEdgePoint(gray2,tr1,tr2,edge2,thetaMat2,edgePoints2);
+	
+
+	std::vector<cv::Point2f> features1,features2;  // detected features
+
+	int max_count = 50;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 10;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	// detect the features
+	cv::goodFeaturesToTrack(gray1, // the image 
+		features1,   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
+
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(gray1, gray2, // 2 consecutive images
+		features1, // input point position in first image
+		features2, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+
+	Mat affine = estimateRigidTransform(features1,features2,true);
+	std::cout<<affine<<std::endl;
+
+	double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
+	std::cout<<theta<<std::endl;
+	std::vector<uchar> inliers(features1.size(),0);
+	cv::Mat homography= cv::findHomography(
+		cv::Mat(features1), // corresponding
+		cv::Mat(features2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.5); // max distance to reprojection point
+	//double* ptr = (double*)homography.data;
+	//Mat mask(gray1.size(),CV_8U);
+	//edge2.copyTo(mask);
+	//for(int i=0; i<gray1.rows; i++)
+	//{
+	//	for(int j=0; j<gray1.cols; j++)
+	//	{
+	//		if (edge1.data[i*gray1.cols+j] >100)
+	//		{
+	//			float x,y,w;
+	//			x = j*ptr[0] + i*ptr[1] + ptr[2];
+	//			y = j*ptr[3] + i*ptr[4] + ptr[5];
+	//			w = j*ptr[6] + i*ptr[7] + ptr[8];
+	//			x /=w;
+	//			y/=w;
+	//			int wx = int(x+0.5);
+	//			int wy = int(y+0.5);
+	//			if (wx>=0 && wx < gray1.cols && wy >=0 && wy<gray1.rows)
+	//			{
+	//				if (mask.data[wx + wy * gray1.cols] ==0)
+	//				{
+	//					mask.data[wx + wy * gray1.cols] = 128;
+	//				}
+	//				else
+	//					mask.data[wx + wy * gray1.cols] = 0;
+	//			
+	//			}
+	//		}
+	//	}
+	//}
+	//imshow("warp edges",mask);
+	Mat mask(gray1.size(),CV_8U);
+	mask = Scalar(0);
+	MapEdgePoint(edgePoints1,edge2,thetaMat2,homography,theta, mask);
+	imshow("match edges",mask);
+	
+	cv::waitKey(0);
+}
 int main()
 {
-	TestLBP();
+	TestEdgeTracking();
+	//TestLBP();
 	//TestPerspective();	
 	//TestAffine();
 	return 0;

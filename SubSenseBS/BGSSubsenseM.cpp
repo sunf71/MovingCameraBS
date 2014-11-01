@@ -377,7 +377,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 
 
 	cv::Mat edges,edges1;
-	cv::Canny(m_gray,m_edges,100,300);
+	C
 	//cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1));
 	if (m_preEdges.empty())
 	{
