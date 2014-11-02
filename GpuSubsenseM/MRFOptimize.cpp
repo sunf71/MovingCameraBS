@@ -982,16 +982,16 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 					if (m_labels[idx] == i )
 					{		
 						
-						if ( mask[idx] == 0xff)
+						if ( mask[idx] == 0xff && featureMask[idx] != 0xff)
 							n++;
-						if (featureMask[idx] == 0xff)
+						/*if (featureMask[idx] == 0xff)
 						{
 							nfeatrues++;
 						}
 						else if(featureMask[idx] == 100)
 						{
 							nBgInliers++;
-						}
+						}*/
 					}
 					//else if(isNeighbour(i,x,y,m_width,m_height,m_labels))
 					//{

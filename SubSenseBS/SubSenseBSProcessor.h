@@ -45,8 +45,8 @@ int CreateDir(char *pszDir)
 class SubSenseBSProcessor : public FrameProcessor
 {
 private:
-	BackgroundSubtractorSuBSENSE _bgs;
-	//BGSSubsenseM _bgs;
+	//BackgroundSubtractorSuBSENSE _bgs;
+	BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;
 	char fileName[50];
@@ -55,7 +55,7 @@ public:
 	SubSenseBSProcessor():_initFlag(false)
 	{
 
-		sprintf(pathName,"..\\result\\subsensem\\baseline\\input0\\");
+		sprintf(pathName,"..\\result\\subsensem\\ptz\\input0\\");
 		CreateDir(pathName);
 	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)

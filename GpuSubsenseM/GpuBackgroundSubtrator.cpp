@@ -7,6 +7,7 @@
 #include <iomanip>
 #include "CudaBSOperator.h"
 #include "LBSP.h"
+#include "GpuTimer.h"
 #define LBSP_PATCH_SIZE 5
 /*
  *
@@ -330,13 +331,18 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cv::Mat oInputImg = _image.getMat();
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
-	
+	GpuTimer gtimer;
+	gtimer.Start();
 	d_CurrentColorFrame.upload(_image.getMat());
 	CudaBSOperator(d_CurrentColorFrame, ++m_nFrameIndex,d_FGMask, m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
 	/*d_FGMask.download(oCurrFGMask);
 	d_oRawFGMask_last.download(m_oRawFGMask_last);
 	d_oBlinksFrame.download(m_oBlinksFrame);*/
+	gtimer.Stop();
+	std::cout<<"CudaBSOperator kernel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 
+	
+	gtimer.Start();
 	cv::gpu::bitwise_xor(d_FGMask,d_oRawFGMask_last,d_oRawFGBlinkMask_curr);
 	cv::gpu::bitwise_or(d_oRawFGBlinkMask_curr,d_oRawFGBlinkMask_last,d_oBlinksFrame);
 	d_oRawFGBlinkMask_curr.copyTo(d_oRawFGBlinkMask_last);
@@ -357,7 +363,6 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cv::gpu::bitwise_and(d_oBlinksFrame,d_oFGMask_last_dilated_inverted,d_oBlinksFrame);
 	d_oFGMask_last.copyTo(d_FGMask);
 	d_FGMask.download(oCurrFGMask);
-
 	const float fRollAvgFactor_LT = 1.0f/std::min(++m_nFrameIndex,m_nSamplesForMovingAvgs*4);
 	const float fRollAvgFactor_ST = 1.0f/std::min(m_nFrameIndex,m_nSamplesForMovingAvgs);
 	d_oMeanFinalSegmResFrame_LT.download(m_oMeanFinalSegmResFrame_LT);
@@ -366,6 +371,9 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
 	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);
+
+	gtimer.Stop();
+	std::cout<<"gpu mat post process  "<<gtimer.Elapsed()<<"ms"<<std::endl;
 	//const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
 	//if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
 	//    for(size_t t=0; t<=UCHAR_MAX; ++t)

@@ -15,6 +15,8 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
+#include <direct.h>
+#include <io.h>
 #include "flowIO.h"
 cv::Mat g_prevImg;
 cv::Mat g_currImg;
@@ -402,8 +404,8 @@ void OpticalFlowTest(const char* preImgName, const char* currImgName, const char
 }
 int main()
 {
-	OpticalFlowTest("in000289.jpg","in000290.jpg","in000289_mdpof.flo",0.8);
-	return 0;
+	/*OpticalFlowTest("in000289.jpg","in000290.jpg","in000289_mdpof.flo",0.8);
+	return 0;*/
 	/*testGCO();*/
 	/*testSuperpixel();*/
 	//testHomo();

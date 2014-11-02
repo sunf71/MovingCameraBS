@@ -28,7 +28,44 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include <fstream>
 #include <math.h>
 #include "LBP.h"
+#include <direct.h>
+#include <io.h>
+int CreateDir(char *pszDir)
+{
+	int i = 0;
+	int iRet;
+	int iLen = strlen(pszDir);
+	//在末尾加/
+	if (pszDir[iLen - 1] != '\\' && pszDir[iLen - 1] != '/')
+	{
+		pszDir[iLen] = '/';
+		pszDir[iLen + 1] = '\0';
+	}
 
+	// 创建目录
+	for (i = 0;i < iLen;i ++)
+	{
+		if (pszDir[i] == '\\' || pszDir[i] == '/')
+		{ 
+			pszDir[i] = '\0';
+
+			//如果不存在,创建
+			iRet = _access(pszDir,0);
+			if (iRet != 0)
+			{
+				iRet = _mkdir(pszDir);
+				if (iRet != 0)
+				{
+					return -1;
+				} 
+			}
+			//支持linux,将所有\换成/
+			pszDir[i] = '/';
+		} 
+	}
+
+	return 0;
+}
 
 void TestAffine()
 {
@@ -566,94 +603,79 @@ void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const Mat& edge2,const
 }
 void TestEdgeTracking()
 {
-	Mat img1 = imread("..//PTZ//input3//in000221.jpg");
-	Mat img2 = imread("..//PTZ//input3//in000211.jpg");
-	Mat gray1,gray2;
-	cvtColor(img1, gray1, CV_BGR2GRAY); 
-	cvtColor(img2, gray2, CV_BGR2GRAY);
-	
-	Mat edge1,edge2,thetaMat1,thetaMat2;
+	char fileName[150];
+	Mat pre_gray,gray,pre_thetaMat,thetaMat,pre_edge,edge;
+	std::vector<EdgePoint> pre_edgePoints,edgePoints;
 	double tr1(120.f),tr2(300.f);
-	cv::Canny(gray1,edge1,tr1,tr2);
-	cv::Canny(gray2,edge2,tr1,tr2);
-	std::vector<EdgePoint> edgePoints1,edgePoints2;
-	
-	imshow("edge1",edge1);
-	imshow("edge2",edge2);
-	ExtractEdgePoint(gray1,tr1,tr2,edge1,thetaMat1,edgePoints1);
-	ExtractEdgePoint(gray2,tr1,tr2,edge2,thetaMat2,edgePoints2);
-	
-
 	std::vector<cv::Point2f> features1,features2;  // detected features
-
 	int max_count = 50;	  // maximum number of features to detect
 	double qlevel = 0.05;    // quality level for feature detection
 	double minDist = 10;   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
-	// detect the features
-	cv::goodFeaturesToTrack(gray1, // the image 
-		features1,   // the output detected features
-		max_count,  // the maximum number of features 
-		qlevel,     // quality level
-		minDist);   // min distance between two features
-
-	// 2. track features
-	cv::calcOpticalFlowPyrLK(gray1, gray2, // 2 consecutive images
-		features1, // input point position in first image
-		features2, // output point postion in the second image
-		status,    // tracking success
-		err);      // tracking error
-
-	Mat affine = estimateRigidTransform(features1,features2,true);
-	std::cout<<affine<<std::endl;
-
-	double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
-	std::cout<<theta<<std::endl;
-	std::vector<uchar> inliers(features1.size(),0);
-	cv::Mat homography= cv::findHomography(
-		cv::Mat(features1), // corresponding
-		cv::Mat(features2), // points
-		inliers, // outputted inliers matches
-		CV_RANSAC, // RANSAC method
-		0.5); // max distance to reprojection point
-	//double* ptr = (double*)homography.data;
-	//Mat mask(gray1.size(),CV_8U);
-	//edge2.copyTo(mask);
-	//for(int i=0; i<gray1.rows; i++)
-	//{
-	//	for(int j=0; j<gray1.cols; j++)
-	//	{
-	//		if (edge1.data[i*gray1.cols+j] >100)
-	//		{
-	//			float x,y,w;
-	//			x = j*ptr[0] + i*ptr[1] + ptr[2];
-	//			y = j*ptr[3] + i*ptr[4] + ptr[5];
-	//			w = j*ptr[6] + i*ptr[7] + ptr[8];
-	//			x /=w;
-	//			y/=w;
-	//			int wx = int(x+0.5);
-	//			int wy = int(y+0.5);
-	//			if (wx>=0 && wx < gray1.cols && wy >=0 && wy<gray1.rows)
-	//			{
-	//				if (mask.data[wx + wy * gray1.cols] ==0)
-	//				{
-	//					mask.data[wx + wy * gray1.cols] = 128;
-	//				}
-	//				else
-	//					mask.data[wx + wy * gray1.cols] = 0;
-	//			
-	//			}
-	//		}
-	//	}
-	//}
-	//imshow("warp edges",mask);
-	Mat mask(gray1.size(),CV_8U);
-	mask = Scalar(0);
-	MapEdgePoint(edgePoints1,edge2,thetaMat2,homography,theta, mask);
-	imshow("match edges",mask);
+	int start = 86; 
+	int end = 100;
+	char outPathName[100];
+	sprintf(outPathName,"..\\result\\subsensem\\ptz\\input0\\features\\");
+	CreateDir(outPathName);
+	for(int i=start; i<=end;i++)
+	{
+		sprintf(fileName,"..//PTZ//input0//in%06d.jpg",i);
+		Mat img = imread(fileName);
+		cvtColor(img, gray, CV_BGR2GRAY); 
+		cv::Canny(gray,edge,tr1,tr2);
 	
-	cv::waitKey(0);
+		ExtractEdgePoint(gray,tr1,tr2,edge,thetaMat,edgePoints);
+
+		if (pre_thetaMat.empty())
+		{
+			edge.copyTo(pre_edge);
+			thetaMat.copyTo(pre_thetaMat);
+			pre_edgePoints = edgePoints;
+			gray.copyTo(pre_gray);
+		}
+
+
+		// detect the features
+		cv::goodFeaturesToTrack(gray, // the image 
+			features1,   // the output detected features
+			max_count,  // the maximum number of features 
+			qlevel,     // quality level
+			minDist);   // min distance between two features
+	
+		// 2. track features
+		cv::calcOpticalFlowPyrLK(gray, pre_gray, // 2 consecutive images
+			features1, // input point position in first image
+			features2, // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
+
+		Mat affine = estimateRigidTransform(features1,features2,true);
+		//std::cout<<affine<<std::endl;
+
+		double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
+		//std::cout<<theta<<std::endl;
+		std::vector<uchar> inliers(features1.size(),0);
+		cv::Mat homography= cv::findHomography(
+			cv::Mat(features1), // corresponding
+			cv::Mat(features2), // points
+			inliers, // outputted inliers matches
+			CV_RANSAC, // RANSAC method
+			0.5); // max distance to reprojection point
+
+		Mat mask(gray.size(),CV_8U);
+		mask = Scalar(0);
+		MapEdgePoint(edgePoints,pre_edge,pre_thetaMat,homography,theta, mask);
+		cv::dilate(mask,mask,cv::Mat(),cv::Point(-1,-1),2);
+		sprintf(fileName,"%sfeatures%06d.jpg",outPathName,i);
+		imwrite(fileName,mask);
+		swap(pre_gray,gray);
+		swap(pre_edge,edge);
+		swap(pre_thetaMat,thetaMat);
+		swap(pre_edgePoints,edgePoints);
+	}
+	
+	
 }
 int main()
 {
