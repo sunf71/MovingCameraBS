@@ -6,6 +6,15 @@
 #include "DistanceUtils.h"
 #include "RandUtils.h"
 #include <iostream>
+
+struct EdgePoint
+{
+	EdgePoint(int _x, int _y, float _theta):x(_x),y(_y),theta(_theta)
+	{}
+	int x;
+	int y;
+	float theta;//Ω«∂»£¨0~180
+};
 class BGSSubsenseM : public BackgroundSubtractorSuBSENSE
 {
 public:
@@ -146,6 +155,9 @@ public:
 	}
 	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
 	void cloneModels();
+	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
+	//±ﬂ‘µµ„∆•≈‰
+	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);
 protected:
 	//! points used to compute the homography matrix between two continuous frames
 	std::vector<cv::Point2f> m_points[2];
@@ -191,6 +203,8 @@ protected:
 	std::vector<cv::Mat> w_voBGColorSamples;
 	std::vector<cv::Mat> w_voBGDescSamples;
 
+	cv::Mat m_preThetaMat,m_thetaMat;
+	std::vector<EdgePoint> m_preEdgePoints, m_edgePoints;
 	size_t m_nOutPixels;
 	cv::Mat m_preEdges;
 	cv::Mat m_edges;

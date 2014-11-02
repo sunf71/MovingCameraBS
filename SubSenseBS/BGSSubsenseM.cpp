@@ -376,18 +376,18 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		m_gray = image;
 
 
-	cv::Mat edges,edges1;
-
+	cv::Canny(m_gray,m_edges,120,300);
+	ExtractEdgePoint(m_gray,m_edges,m_thetaMat,m_edgePoints);
 	//cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1));
 	if (m_preEdges.empty())
 	{
-		m_edges.copyTo(m_preEdges);
-	}
-	cv::bitwise_or(m_edges,m_preEdges,m_mixEdges);
-	if (m_preGray.empty())
-	{
 		m_gray.copyTo(m_preGray);
+		m_edges.copyTo(m_preEdges);
+		m_thetaMat.copyTo(m_preThetaMat);
+		m_preEdgePoints = m_edgePoints;
 	}
+	
+	
 	std::vector<cv::Point2f> initial;   // initial position of tracked points
 	std::vector<cv::Point2f> features;  // detected features
 	int max_count(5000);	  // maximum number of features to detect
@@ -444,17 +444,18 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
 		0.1); // max distance to reprojection point
-	
-	for(int i=0; i<m_points[0].size(); i++)
-	{
-		if (inliers[i] == 1)
-			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =100;
-	}
-	char filename[50];
-	sprintf(filename,"edge%d.jpg",m_nFrameIndex);
-	cv::imwrite(filename,m_mixEdges);
+
+	cv::Mat affine = cv::estimateRigidTransform(m_points[0],m_points[1],true);//std::cout<<affine<<std::endl;
+	double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
+	MapEdgePoint(m_edgePoints,m_preEdges,m_preThetaMat,homography,theta, m_features);
+	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
+	char filename[200];
+	sprintf(filename,"..\\result\\subsensem\\ptz\\input0\\features\\features%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);
 	cv::swap(m_preGray, m_gray);	
 	cv::swap(m_preEdges,m_edges);
+	cv::swap(m_preThetaMat,m_thetaMat);
+	std::swap(m_preEdgePoints,m_edgePoints);
 }
 void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, size_t idx_ushrt, size_t idx_uchar, const ushort* anCurrIntraDesc, const uchar* anCurrColor)
 {
@@ -858,6 +859,7 @@ failedcheck1ch:
 			const size_t idx_uchar_rgb = idx_uchar*3;
 			const size_t idx_ushrt_rgb = idx_uchar_rgb*2;
 			uchar warpMask = m_warpMask.data[oidx_uchar];
+			
 			//m_oUnstableRegionMask.data[oidx_uchar] = m_mixEdges.data[oidx_uchar] >20 ? 1 :0;
 			if (warpMask == 0)
 			{
@@ -1003,7 +1005,7 @@ failedcheck1ch:
 			//const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
 			const float fNormalizedLastDist = (float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch;
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
-			if(nGoodSamplesCount<m_nRequiredBGSamples) {
+			if(nGoodSamplesCount<m_nRequiredBGSamples && m_features.data[oidx_uchar] != 0xff) {
 				// == foreground
 				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
 				*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
@@ -1021,19 +1023,44 @@ failedcheck1ch:
 			}
 			else {
 				// == background
+				
 				const float fNormalizedMinDist = ((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2;
 				*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
 				*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
 				UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt_rgb,oidx_uchar_rgb,(const ushort*)(anCurrIntraDesc),anCurrColor);
+				/*if (m_features.data[oidx_uchar] == 0xff)
+				{
+					oCurrFGMask.data[oidx_uchar] = 100;
+					int rate = 0;
+					for(int  i=0; i< rate; i++)
+					{
+						const size_t s_rand = rand()%m_nBGSamples;
+						for(size_t c=0; c<m_nImgChannels; ++c) {
+							*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+							*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
+						}
+						int y_sample, x_sample;
+						getRandSamplePosition(x_sample,y_sample,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+						const size_t idx_sample_color = 3*(m_oImgSize.width*y_sample + x_sample);
+						const size_t idx_sample_desc = idx_sample_color*2;
+						const size_t idx_sample = rand()%m_nBGSamples;
+						uchar* bg_color_ptr = m_voBGColorSamples[idx_sample].data+oidx_uchar_rgb;
+						ushort* bg_desc_ptr = (ushort*)(m_voBGDescSamples[idx_sample].data+oidx_ushrt_rgb);						
+						for(size_t c=0; c<3; ++c) {
+							bg_color_ptr[c] = anCurrColor[c];
+							bg_desc_ptr[c] = anCurrIntraDesc[c];
+						}
+					}
+				}*/
 				/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);
 				if((rand()%nLearningRate)==0) {
 				const size_t s_rand = rand()%m_nBGSamples;
 				for(size_t c=0; c<3; ++c) {
 				*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
 				*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
-				}
+				} 
 				}
 				int x_rand,y_rand;
 				const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar];
@@ -1319,12 +1346,84 @@ failedcheck1ch:
 
 
 	}
+	
 	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	{
 		refreshModel(0.1);
 		resetPara();
 		m_nOutPixels = 0;
 	}
+}
+
+
+//Ã·»°±ﬂ‘µµ„
+void BGSSubsenseM::ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints)
+{
+	using namespace cv;
+	Mat dx,dy;
+	edgeThetaMat = Mat(img.size(),CV_32FC1);
+	cv::Sobel(img,dx,0,1,0);
+	cv::Sobel(img,dy,0,0,1);
+	for(int i=0; i< img.rows; i++)
+	{
+		for(int j=0; j<img.cols; j++)
+		{
+			int idx = i*img.cols + j;
+			if (edge.data[idx] == 0xff)
+			{				
+				float theta = atan(dy.data[idx]*1.0/(dx.data[idx]+1e-6))/M_PI*180;
+				/*std::cout<<theta<<std::endl;*/
+				*(float*)(edgeThetaMat.data+idx*4) = theta;
+				edgePoints.push_back(EdgePoint(j,i,theta));
+			}
+		}
+	}
+
+}
+
+//±ﬂ‘µµ„∆•≈‰
+void BGSSubsenseM::MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask)
+{
+	using namespace cv;
+	double * ptr = (double*)transform.data;
+	int r = 1;//À—Àÿ∑∂Œß
+	int width = edge2.cols;
+	int height = edge2.rows;
+	matchMask = Mat(edge2.size(),CV_8U);
+	matchMask = Scalar(0);
+	float thetaDist = 0.5;
+	 for(int i=0; i<ePoints1.size(); i++)
+	 {
+		 int ox = ePoints1[i].x;
+		 int oy = ePoints1[i].y;
+		 float theta = ePoints1[i].theta;
+
+		 float x,y,w;
+		 x = ox*ptr[0] + oy*ptr[1] + ptr[2];
+		 y = ox*ptr[3] + oy*ptr[4] + ptr[5];
+		 w = ox*ptr[6] + oy*ptr[7] + ptr[8];
+		 x /=w;
+		 y/=w;
+		 int wx = int(x+0.5);
+		 int wy = int(y+0.5);
+		 for(int m=-r; m<=r; m++)
+		 {
+			 for(int n=-r; n<=r; n++)
+			 {
+				 int nx  = wx + m;
+				 int ny = wy + n;
+				 if (nx>=0 && nx<width && ny >=0 && ny<height)
+				 {
+					 int id = nx + ny*width;
+					 if (edge2.data[id]==255 && abs( *(float*)(edgeThetamat.data+id*4) - theta-deltaTheta) < thetaDist)
+					 {
+						 //match
+						 matchMask.data[ox+oy*width] = UCHAR_MAX;
+					 }
+				 }
+			 }
+		 }
+	 }
 }
 
 
