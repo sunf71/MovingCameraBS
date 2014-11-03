@@ -303,13 +303,17 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	refreshModel(1.0f);
 	d_oLastColorFrame.upload(m_oLastColorFrame); 
 	InitDeviceModels(d_ColorModels, d_DescModels,d_BModels,d_FModels);
+	GpuTimer timer;
+	timer.Start();
 	CudaRefreshModel(1.f, d_oLastColorFrame,d_oLastDescFrame,d_anLBSPThreshold_8bitLUT);
+	timer.Stop();
+	std::cout<<"refresh model"<<timer.Elapsed()<<std::endl;
 	//for(int i=0; i<m_voBGColorSamples.size(); i++)
 	//{
 	//	//d_voBGColorSamples[i].upload(m_voBGColorSamples[i]);
 	//	d_voBGDescSamples[i].upload(m_voBGDescSamples[i]);
 	//}
-	/*cv::Mat h_tmp;	
+	cv::Mat h_tmp;	
 	cv::Mat diff;
 	char filename[20];
 	for(int i=0;i <50; i++)
@@ -323,7 +327,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 		imwrite(filename, h_tmp);
 		sprintf(filename,"cpu%dmodel.jpg",i);
 		imwrite(filename, m_voBGColorSamples[i]);
-	}*/
+	}
 	m_bInitialized = true;
 }
 void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)

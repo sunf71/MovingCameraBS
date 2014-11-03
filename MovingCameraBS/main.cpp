@@ -531,15 +531,13 @@ struct EdgePoint
 	float theta;//角度，0~180
 };
 //提取边缘点
-void ExtractEdgePoint(const Mat& img, double tr1,double tr2, Mat& edge, Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints)
+void ExtractEdgePoint(const Mat& img, double tr1,double tr2, const Mat& edge, Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints)
 {
-
+	edgePoints.clear();
 	Mat dx,dy;
 	edgeThetaMat = Mat(img.size(),CV_32FC1);
 	cv::Sobel(img,dx,0,1,0);
 	cv::Sobel(img,dy,0,0,1);
-	cv::Canny(img,edge,tr1,tr2);
-	int type = dx.type();
 	for(int i=0; i< img.rows; i++)
 	{
 		for(int j=0; j<img.cols; j++)
@@ -613,7 +611,7 @@ void TestEdgeTracking()
 	double minDist = 10;   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
-	int start = 86; 
+	int start = 1; 
 	int end = 100;
 	char outPathName[100];
 	sprintf(outPathName,"..\\result\\subsensem\\ptz\\input0\\features\\");
@@ -666,6 +664,11 @@ void TestEdgeTracking()
 		Mat mask(gray.size(),CV_8U);
 		mask = Scalar(0);
 		MapEdgePoint(edgePoints,pre_edge,pre_thetaMat,homography,theta, mask);
+		if (i == 87)
+		{
+			imwrite("edge.jpg",edge);
+			imwrite("preEdge.jpg",pre_edge);
+		}
 		cv::dilate(mask,mask,cv::Mat(),cv::Point(-1,-1),2);
 		sprintf(fileName,"%sfeatures%06d.jpg",outPathName,i);
 		imwrite(fileName,mask);

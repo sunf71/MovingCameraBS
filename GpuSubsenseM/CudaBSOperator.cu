@@ -9,7 +9,11 @@ PtrStep<uchar3>* ptr_colorModel;
 PtrStep<ushort3>* ptr_descModel;
 PtrStep<uchar>* ptr_bModel;
 PtrStep<float>* ptr_fModel;
-
+#define TILE_W 16
+#define TILE_H 16
+#define R 1
+#define BLOCK_W (TILE_W+(2*R))
+#define BLOCK_H (TILE_H + (2*R))
 void ReleaseDeviceModels()
 {
 	d_colorModels.clear();
@@ -332,6 +336,66 @@ __global__ void CudaRefreshModelKernel(float refreshRate,const PtrStepSz<uchar3>
 
 }
 
+__global__ void SCudaRefreshModelKernel(float refreshRate,const PtrStepSz<uchar3> lastImg,const PtrStepSz<ushort3> lastDescImg,PtrStep<uchar3>* colorModels,PtrStep<ushort3>* descModels, int modelSize)
+{
+	__shared__ uchar3 scolor[BLOCK_W*BLOCK_H];
+	__shared__ ushort3 sdesc[BLOCK_W*BLOCK_H];
+	int width = lastImg.cols;
+	int height = lastImg.rows;
+	// First batch loading
+      int dest = threadIdx.y * TILE_W + threadIdx.x,
+         destY = dest / BLOCK_W, destX = dest % BLOCK_W,
+         srcY = blockIdx.y * TILE_W + destY - R,
+         srcX = blockIdx.x * TILE_W + destX - R,
+		 src = (srcY * width + srcX);
+	 srcX = max(0,srcX);
+	 srcX = min(srcX,width-1);
+	 srcY = max(srcY,0);
+	 srcY = min(srcY,height-1);
+	scolor[dest] = lastImg(srcY,srcX);
+
+	//second batch loading
+	dest = threadIdx.y * TILE_W + threadIdx.x + TILE_W * TILE_W;
+      destY = dest / BLOCK_W, destX = dest % BLOCK_W;
+      srcY = blockIdx.y * TILE_W + destY - R;
+      srcX = blockIdx.x * TILE_W + destX - R;
+      
+     
+	 if (destY < BLOCK_W)
+	 {
+		 srcX = max(0,srcX);	 
+		 srcX = min(srcX,width-1);
+		 srcY = max(srcY,0);
+		 srcY = min(srcY,height-1);
+		 scolor[destX + destY * BLOCK_W] = lastImg(srcY,srcX);
+	 }
+
+	__syncthreads();
+	
+	int y = blockIdx.y * TILE_W + threadIdx.y;
+    int  x = blockIdx.x * TILE_W + threadIdx.x;
+	if(x < lastImg.cols && y < lastImg.rows)
+	{
+		
+		curandState state;
+		curand_init(threadIdx.x,0,0,&state);
+		
+		const size_t nBGSamplesToRefresh = refreshRate<1.0f?(size_t)(refreshRate*modelSize):modelSize;
+		const size_t nRefreshStartPos = refreshRate<1.0f?curand(&state)%modelSize:0;
+		for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
+			
+			int y_sample, x_sample;
+			getRandSamplePosition(s,x_sample,y_sample,x,y,2,width,height);
+			y_sample -= y;
+			x_sample -= x;
+			//unsigned idx = bindex + x_sample + (y_sample*blockDim.x);
+			unsigned idx = (threadIdx.y+R)*BLOCK_W + threadIdx.x+R;
+			colorModels[s%modelSize](y,x) = make_uchar3(0,0,255);
+			descModels[s%modelSize](y,x) = lastDescImg[dest];
+		}
+	}
+	__syncthreads();
+}
 
 
 void CudaBSOperator(const cv::gpu::GpuMat& img, int frameIdx, 
@@ -350,10 +414,16 @@ void CudaBSOperator(const cv::gpu::GpuMat& img, int frameIdx,
 
 void CudaRefreshModel(float refreshRate,const cv::gpu::GpuMat& lastImg, const cv::gpu::GpuMat& lastDescImg,size_t* m_anLBSPThreshold_8bitLUT)
 {
+	//dim3 block(16,16);
+ //   dim3 grid((lastImg.cols + block.x - 1)/block.x,(lastImg.rows + block.y - 1)/block.y);
+	////colorModels还包含 downsample 和lastcolor
+	//CudaRefreshModelKernel<<<block,grid>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
+
+	//dim3 block(BLOCK_W,BLOCK_H);
 	dim3 block(16,16);
     dim3 grid((lastImg.cols + block.x - 1)/block.x,(lastImg.rows + block.y - 1)/block.y);
 	//colorModels还包含 downsample 和lastcolor
-	CudaRefreshModelKernel<<<block,grid>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
+	SCudaRefreshModelKernel<<<block,grid>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
 }
 
 //__global__ void testRandomKernel(int n, int* d_in, int* d_out)

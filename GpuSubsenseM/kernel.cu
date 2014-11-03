@@ -131,12 +131,12 @@ void MRFOptimization()
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 86;
-	int end = 100;
+	int start = 1;
+	int end = 1150;
 	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",i-start+1);
+		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",i);
 		sprintf(featureMaskFileName,"..\\result\\subsensem\\ptz\\input0\\features\\features%06d.jpg",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
 		
@@ -165,7 +165,7 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 1700;
+	int end = 1;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];

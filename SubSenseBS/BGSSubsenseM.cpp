@@ -308,7 +308,8 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 	m_features = cv::Mat(m_oImgSize,CV_8U);
 	m_features = cv::Scalar(0);
 	m_bInitialized = true;
-	
+	m_thetaMat = cv::Mat(m_oImgSize,CV_32FC1);
+	m_preThetaMat =cv::Mat(m_oImgSize,CV_32FC1);
 }
 
 //! refreshes all samples based on the last analyzed frame
@@ -317,6 +318,43 @@ void BGSSubsenseM::refreshModel(float fSamplesRefreshFrac)
 	std::cout<<m_nFrameIndex<<": refresh model"<<std::endl;
 	BackgroundSubtractorSuBSENSE::refreshModel(fSamplesRefreshFrac);
 }
+void BGSSubsenseM::refreshEdgeModel(float fSamplesRefreshFrac)
+{
+	// == refresh
+	CV_Assert(m_bInitializedInternalStructs);
+	CV_Assert(fSamplesRefreshFrac>0.0f && fSamplesRefreshFrac<=1.0f);
+	const size_t nBGSamplesToRefresh = fSamplesRefreshFrac<1.0f?(size_t)(fSamplesRefreshFrac*m_nBGSamples):m_nBGSamples;
+	const size_t nRefreshStartPos = fSamplesRefreshFrac<1.0f?rand()%m_nBGSamples:0;
+	for(size_t k=0; k<m_nKeyPoints; ++k) {
+			const int y_orig = (int)m_voKeyPoints[k].pt.y;
+			const int x_orig = (int)m_voKeyPoints[k].pt.x;
+			if (m_features.data[x_orig+ y_orig*m_oImgSize.width] == 0xff ||
+				m_preFeatures.data[x_orig+ y_orig*m_oImgSize.width] == 0xff )
+			{
+				CV_DbgAssert(m_oLastColorFrame.step.p[0]==(size_t)m_oLastColorFrame.cols*3 && m_oLastColorFrame.step.p[1]==3);
+				const size_t idx_orig_color = 3*(m_oLastColorFrame.cols*y_orig + x_orig);
+				CV_DbgAssert(m_oLastDescFrame.step.p[0]==m_oLastColorFrame.step.p[0]*2 && m_oLastDescFrame.step.p[1]==m_oLastColorFrame.step.p[1]*2);
+				const size_t idx_orig_desc = idx_orig_color*2;
+				for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
+					int y_sample, x_sample;
+					getRandSamplePosition(x_sample,y_sample,x_orig,y_orig,LBSP::PATCH_SIZE/2,m_oImgSize);
+					const size_t idx_sample_color = 3*(m_oLastColorFrame.cols*y_sample + x_sample);
+					const size_t idx_sample_desc = idx_sample_color*2;
+					const size_t idx_sample = s%m_nBGSamples;
+					uchar* bg_color_ptr = m_voBGColorSamples[idx_sample].data+idx_orig_color;
+					ushort* bg_desc_ptr = (ushort*)(m_voBGDescSamples[idx_sample].data+idx_orig_desc);
+					const uchar* const init_color_ptr = m_oLastColorFrame.data+idx_sample_color;
+					const ushort* const init_desc_ptr = (ushort*)(m_oLastDescFrame.data+idx_sample_desc);
+					for(size_t c=0; c<3; ++c) {
+						bg_color_ptr[c] = init_color_ptr[c];
+						bg_desc_ptr[c] = init_desc_ptr[c];
+					}
+				}
+			}
+		}
+	}
+
+
 void BGSSubsenseM::resetPara()
 {
 
@@ -366,7 +404,7 @@ void BGSSubsenseM::resetPara()
 }
 void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 {
-	m_features = cv::Scalar(0);
+	//m_features = cv::Scalar(0);
 	// convert to gray-level image
 	if (image.channels() ==3)
 	{
@@ -376,7 +414,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		m_gray = image;
 
 
-	cv::Canny(m_gray,m_edges,120,300);
+	cv::Canny(m_gray,m_edges,100,300);
 	ExtractEdgePoint(m_gray,m_edges,m_thetaMat,m_edgePoints);
 	//cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1));
 	if (m_preEdges.empty())
@@ -426,7 +464,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		// do we keep this point?
 		if (status[i] == 1) {
 
-			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
+			//m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
 			// keep this point in vector
 			m_points[0][k] = m_points[0][i];
 			m_points[1][k++] = m_points[1][i];
@@ -447,14 +485,18 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 
 	cv::Mat affine = cv::estimateRigidTransform(m_points[0],m_points[1],true);//std::cout<<affine<<std::endl;
 	double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
-	MapEdgePoint(m_edgePoints,m_preEdges,m_preThetaMat,homography,theta, m_features);
+	MapEdgePoint(m_edgePoints,m_preEdges,m_preThetaMat,homography,theta, m_features);	
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
+	if (m_preFeatures.empty())
+		m_features.copyTo(m_preFeatures);
 	char filename[200];
 	sprintf(filename,"..\\result\\subsensem\\ptz\\input0\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
+	
 	cv::swap(m_preGray, m_gray);	
 	cv::swap(m_preEdges,m_edges);
 	cv::swap(m_preThetaMat,m_thetaMat);
+	cv::swap(m_preFeatures,m_features);
 	std::swap(m_preEdgePoints,m_edgePoints);
 }
 void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, size_t idx_ushrt, size_t idx_uchar, const ushort* anCurrIntraDesc, const uchar* anCurrColor)
@@ -1005,7 +1047,7 @@ failedcheck1ch:
 			//const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
 			const float fNormalizedLastDist = (float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch;
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
-			if(nGoodSamplesCount<m_nRequiredBGSamples && m_features.data[oidx_uchar] != 0xff) {
+			if(nGoodSamplesCount<m_nRequiredBGSamples && m_features.data[oidx_uchar] != 0xff && m_preFeatures.data[oidx_uchar] != 0xff) {
 				// == foreground
 				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
 				*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
@@ -1033,26 +1075,6 @@ failedcheck1ch:
 				/*if (m_features.data[oidx_uchar] == 0xff)
 				{
 					oCurrFGMask.data[oidx_uchar] = 100;
-					int rate = 0;
-					for(int  i=0; i< rate; i++)
-					{
-						const size_t s_rand = rand()%m_nBGSamples;
-						for(size_t c=0; c<m_nImgChannels; ++c) {
-							*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
-							*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
-						}
-						int y_sample, x_sample;
-						getRandSamplePosition(x_sample,y_sample,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
-						const size_t idx_sample_color = 3*(m_oImgSize.width*y_sample + x_sample);
-						const size_t idx_sample_desc = idx_sample_color*2;
-						const size_t idx_sample = rand()%m_nBGSamples;
-						uchar* bg_color_ptr = m_voBGColorSamples[idx_sample].data+oidx_uchar_rgb;
-						ushort* bg_desc_ptr = (ushort*)(m_voBGDescSamples[idx_sample].data+oidx_ushrt_rgb);						
-						for(size_t c=0; c<3; ++c) {
-							bg_color_ptr[c] = anCurrColor[c];
-							bg_desc_ptr[c] = anCurrIntraDesc[c];
-						}
-					}
 				}*/
 				/*	const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);
 				if((rand()%nLearningRate)==0) {
@@ -1249,20 +1271,20 @@ failedcheck1ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	//cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
-	//m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	//cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
-	//cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
-	//cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
-	//cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
-	//cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
-	//cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
-	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	//cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
-	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	//m_oFGMask_last.copyTo(oCurrFGMask);
-	//MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
+	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
+	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
+	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
+	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),2);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	m_oFGMask_last.copyTo(oCurrFGMask);
+	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	/*cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),3);
 	char filename[200];
 	sprintf(filename,"..\\result\\subsensem\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex);
@@ -1346,7 +1368,7 @@ failedcheck1ch:
 
 
 	}
-	
+	refreshEdgeModel(0.1);
 	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	{
 		refreshModel(0.1);
@@ -1360,8 +1382,9 @@ failedcheck1ch:
 void BGSSubsenseM::ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints)
 {
 	using namespace cv;
+	edgePoints.clear();
 	Mat dx,dy;
-	edgeThetaMat = Mat(img.size(),CV_32FC1);
+	edgeThetaMat = cv::Scalar(0);
 	cv::Sobel(img,dx,0,1,0);
 	cv::Sobel(img,dy,0,0,1);
 	for(int i=0; i< img.rows; i++)
@@ -1389,7 +1412,6 @@ void BGSSubsenseM::MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv
 	int r = 1;//ËÑËØ·¶Î§
 	int width = edge2.cols;
 	int height = edge2.rows;
-	matchMask = Mat(edge2.size(),CV_8U);
 	matchMask = Scalar(0);
 	float thetaDist = 0.5;
 	 for(int i=0; i<ePoints1.size(); i++)

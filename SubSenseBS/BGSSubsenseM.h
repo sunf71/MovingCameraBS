@@ -27,6 +27,8 @@ public:
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
 	//! refreshes all samples based on the last analyzed frame
 	virtual void refreshModel(float fSamplesRefreshFrac);
+	//! refreshes all samples in edge eara
+	virtual void refreshEdgeModel(float fSamplesRefreshFrac);
 	//reset parameters
 	void resetPara();
 	//! primary model update function; the learning param is used to override the internal learning thresholds (ignored when <= 0)
@@ -210,5 +212,5 @@ protected:
 	cv::Mat m_edges;
 	cv::Mat m_mixEdges;
 	//保存特征点跟踪情况
-	cv::Mat m_features;
+	cv::Mat m_features,m_preFeatures;
 };
