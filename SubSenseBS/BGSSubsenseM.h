@@ -9,8 +9,9 @@
 
 struct EdgePoint
 {
-	EdgePoint(int _x, int _y, float _theta):x(_x),y(_y),theta(_theta)
+	EdgePoint(int _x, int _y, uchar _color,float _theta):x(_x),y(_y),theta(_theta),color(_color)
 	{}
+	char color;
 	int x;
 	int y;
 	float theta;//½Ç¶È£¬0~180

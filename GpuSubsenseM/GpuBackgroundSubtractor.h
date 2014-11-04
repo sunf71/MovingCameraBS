@@ -151,8 +151,8 @@ protected:
 
 	std::vector<cv::gpu::PtrStepf> d_FModels;
 	std::vector<cv::gpu::PtrStepb> d_BModels;
-	std::vector<cv::gpu::PtrStep<uchar3>> d_ColorModels;
-	std::vector<cv::gpu::PtrStep<ushort3>> d_DescModels;
+	std::vector<cv::gpu::PtrStep<uchar4>> d_ColorModels;
+	std::vector<cv::gpu::PtrStep<ushort4>> d_DescModels;
 
 	//! defines whether or not the subtractor is fully initialized
 	bool m_bInitialized;

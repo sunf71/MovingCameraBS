@@ -11,6 +11,11 @@
 #include <thrust/copy.h>
 #include <thrust/sort.h>
 #include "GpuTimer.h"
+#define TILE_W 16
+#define TILE_H 16
+#define R 1
+#define BLOCK_W (TILE_W+(2*R))
+#define BLOCK_H (TILE_H + (2*R))
 texture<float4> ImageTexture;
 __global__ void InitClusterCentersKernel( float4* floatBuffer, int* labels, int nWidth, int nHeight,int step, int nSegs, SLICClusterCenter* vSLICCenterList )
 {
@@ -128,6 +133,18 @@ __global__ void InitClustersKernel(float4* imgBuffer, int nHeight, int nWidth, S
 		d_ceneters[idx].nPoints = 1;
 	}
 }
+__device__ double distance(int x, int y, float4& pixel,int width, int height, float alpha, float radius, int label, SLICClusterCenter* d_ceneters)
+{
+	int idx = x + y*width;
+	double dr = (pixel.x - d_ceneters[label].rgb.x);
+	double dg = (pixel.y - d_ceneters[label].rgb.y) ;
+	double db = (pixel.z - d_ceneters[label].rgb.z);
+	double d_rgb = sqrt(dr*dr + dg*dg + db*db);
+	double dx = (x*1.f - d_ceneters[label].xy.x);
+	double dy =  (y*1.f - d_ceneters[label].xy.y);
+	double d_xy = (dx*dx + dy*dy);
+	return (1-alpha)*d_rgb + alpha*d_xy/(radius);
+}
 __device__ double distance(int x, int y, float4* imgBuffer,int width, int height, float alpha, float radius, int label, SLICClusterCenter* d_ceneters )
 {
 	int idx = x + y*width;
@@ -231,6 +248,95 @@ __global__  void UpdateBoundaryKernel(float4* imgBuffer, int nHeight, int nWidth
 		for(int i=0; i<np; i++)
 		{
 			double dis = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,nl[i],d_ceneters);
+			if (dis < min)
+			{
+				min = dis;
+				idx = i;
+			}
+		}
+		if (idx >=0)
+			labels[mainindex] = nl[idx];
+	}
+
+	/*d_centersOut[labels[mainindex]].nPoints++;
+	d_centersOut[labels[mainindex]].rgb.x +=imgBuffer[mainindex].x;
+	d_centersOut[labels[mainindex]].rgb.y +=imgBuffer[mainindex].y;
+	d_centersOut[labels[mainindex]].rgb.z +=imgBuffer[mainindex].z;
+	d_centersOut[labels[mainindex]].xy.x +=k;
+	d_centersOut[labels[mainindex]].xy.y +=j;*/
+	
+	
+}
+//shared memory version, this version is SLOWER, because there is no data reuse between different threads in a block
+__global__  void SUpdateBoundaryKernel(float4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
+{
+	__shared__ float4 s_color[BLOCK_W*BLOCK_H];
+	__shared__ int s_label[BLOCK_W*BLOCK_H];
+	// First batch loading
+	int dest = threadIdx.y * TILE_W + threadIdx.x,
+	destY = dest / BLOCK_W, destX = dest % BLOCK_W,
+	srcY = blockIdx.y * TILE_W + destY - R,
+	srcX = blockIdx.x * TILE_W + destX - R,
+	src = (srcY * nWidth + srcX);
+	srcX = max(0,srcX);
+	srcX = min(srcX,nWidth-1);
+	srcY = max(srcY,0);
+	srcY = min(srcY,nHeight-1);
+	s_color[dest] = tex1Dfetch(ImageTexture,src);
+	s_label[dest] = labels[src];
+	//second batch loading
+	dest = threadIdx.y * TILE_W + threadIdx.x + TILE_W * TILE_W;
+	destY = dest / BLOCK_W, destX = dest % BLOCK_W;
+	srcY = blockIdx.y * TILE_W + destY - R;
+	srcX = blockIdx.x * TILE_W + destX - R;
+	src = (srcY * nWidth + srcX);
+	if (destY < BLOCK_W)
+	{
+		srcX = max(0,srcX);	 
+		srcX = min(srcX,nWidth-1);
+		srcY = max(srcY,0);
+		srcY = min(srcY,nHeight-1);
+		s_color[dest] = tex1Dfetch(ImageTexture,src);
+		s_label[dest] = labels[src];
+	}
+	__syncthreads();
+
+	int dx4[4] = {-1,  0,  1, 0,};
+	int dy4[4] = { 0, -1, 0, 1};
+	int k = threadIdx.x + blockIdx.x * blockDim.x;
+	int j = threadIdx.y + blockIdx.y * blockDim.y;
+	int mainindex = k+j*nWidth;
+	if (mainindex > nHeight*nWidth-1)
+		return;
+	//unsigned idx = (threadIdx.y+R+y_sample)*BLOCK_W + threadIdx.x+R+x_sample;
+	int label = s_label[(threadIdx.y+R)*BLOCK_W + threadIdx.x+R];
+	
+	int np(0);
+	int nl[4];
+	for( int i = 0; i < 4; i++ )
+	{
+		int x = k + dx4[i];
+		int y = j + dy4[i];
+
+		if( (x >= 0 && x < nWidth) && (y >= 0 && y < nHeight) )
+		{
+			int index = y*nWidth + x;
+			int nlabel = s_label[(threadIdx.y+R+dy4[i])*BLOCK_W + threadIdx.x+R+dx4[i]];
+			if( label != nlabel ) 
+			{
+				
+				nl[np++] = nlabel;
+			}			
+		}
+	}
+	if( np > 0 )//change to 2 or 3 for thinner lines
+	{
+		float4 color = s_color[(threadIdx.y+R)*BLOCK_W + threadIdx.x+R];
+		double min = distance(k,j,color,nWidth,nHeight,alpha,radius,label,d_ceneters);
+		int idx = -1;
+		for(int i=0; i<np; i++)
+		{
+			double dis = distance(k,j,color,nWidth,nHeight,alpha,radius,nl[i],d_ceneters);
 			if (dis < min)
 			{
 				min = dis;

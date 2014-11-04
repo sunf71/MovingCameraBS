@@ -404,7 +404,7 @@ void BGSSubsenseM::resetPara()
 }
 void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 {
-	//m_features = cv::Scalar(0);
+	m_features = cv::Scalar(0);
 	// convert to gray-level image
 	if (image.channels() ==3)
 	{
@@ -428,8 +428,8 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 	
 	std::vector<cv::Point2f> initial;   // initial position of tracked points
 	std::vector<cv::Point2f> features;  // detected features
-	int max_count(5000);	  // maximum number of features to detect
-	double qlevel(0.05);    // quality level for feature detection,越大质量越高
+	int max_count(50000);	  // maximum number of features to detect
+	double qlevel(0.01);    // quality level for feature detection,越大质量越高
 	double minDist(2.);   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
@@ -482,14 +482,21 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
 		0.1); // max distance to reprojection point
-
+	for(int i=0; i<inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0xff;
+	}
 	cv::Mat affine = cv::estimateRigidTransform(m_points[0],m_points[1],true);//std::cout<<affine<<std::endl;
 	double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
+	//m_gray.copyTo(m_features);
 	MapEdgePoint(m_edgePoints,m_preEdges,m_preThetaMat,homography,theta, m_features);	
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
+	cv::morphologyEx(m_features,m_features,cv::MORPH_CLOSE,cv::Mat());
 	if (m_preFeatures.empty())
 		m_features.copyTo(m_preFeatures);
 	char filename[200];
+	
 	sprintf(filename,"..\\result\\subsensem\\ptz\\input0\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 	
@@ -1271,7 +1278,7 @@ failedcheck1ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	/*cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
 	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
 	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
@@ -1284,7 +1291,7 @@ failedcheck1ch:
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	m_oFGMask_last.copyTo(oCurrFGMask);
-	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
+	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);*/
 	/*cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),3);
 	char filename[200];
 	sprintf(filename,"..\\result\\subsensem\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex);
@@ -1397,7 +1404,7 @@ void BGSSubsenseM::ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv:
 				float theta = atan(dy.data[idx]*1.0/(dx.data[idx]+1e-6))/M_PI*180;
 				/*std::cout<<theta<<std::endl;*/
 				*(float*)(edgeThetaMat.data+idx*4) = theta;
-				edgePoints.push_back(EdgePoint(j,i,theta));
+				edgePoints.push_back(EdgePoint(j,i,img.data[idx],theta));
 			}
 		}
 	}
@@ -1412,14 +1419,15 @@ void BGSSubsenseM::MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv
 	int r = 1;//搜素范围
 	int width = edge2.cols;
 	int height = edge2.rows;
-	matchMask = Scalar(0);
+	//matchMask = Scalar(0);
 	float thetaDist = 0.5;
+	float colorDist = 255;
 	 for(int i=0; i<ePoints1.size(); i++)
 	 {
 		 int ox = ePoints1[i].x;
 		 int oy = ePoints1[i].y;
 		 float theta = ePoints1[i].theta;
-
+		 uchar color = ePoints1[i].color;
 		 float x,y,w;
 		 x = ox*ptr[0] + oy*ptr[1] + ptr[2];
 		 y = ox*ptr[3] + oy*ptr[4] + ptr[5];
@@ -1437,7 +1445,9 @@ void BGSSubsenseM::MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv
 				 if (nx>=0 && nx<width && ny >=0 && ny<height)
 				 {
 					 int id = nx + ny*width;
-					 if (edge2.data[id]==255 && abs( *(float*)(edgeThetamat.data+id*4) - theta-deltaTheta) < thetaDist)
+					 if (edge2.data[id]==255 && 
+						 abs( *(float*)(edgeThetamat.data+id*4) - theta-deltaTheta) < thetaDist &&
+						 abs(color - m_preGray.data[id]) < colorDist)
 					 {
 						 //match
 						 matchMask.data[ox+oy*width] = UCHAR_MAX;

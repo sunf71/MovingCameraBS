@@ -105,6 +105,8 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 		if(eq)
 			std::cout << std::endl << "\tBackgroundSubtractorSuBSENSE : Warning, grayscale images should always be passed in CV_8UC1 format for optimal performance." << std::endl;
 	}
+	cv::Mat initImg(oInitImg.size(),CV_8UC4);
+	cv::cvtColor(oInitImg,initImg,CV_BGR2BGRA);
 	std::vector<cv::KeyPoint> voNewKeyPoints;
 	if(voKeyPoints.empty()) {
 		cv::DenseFeatureDetector oKPDDetector(1.f, 1, 1.f, 1, 0, true, false);
@@ -152,11 +154,11 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	m_voBGDescSamples.resize(m_nBGSamples);
 	d_voBGDescSamples.resize(m_nBGSamples);
 	for(size_t s=0; s<m_nBGSamples; ++s) {
-		m_voBGColorSamples[s].create(m_oImgSize,CV_8UC((int)m_nImgChannels));
+		m_voBGColorSamples[s].create(m_oImgSize,CV_8UC(4));
 		m_voBGColorSamples[s] = cv::Scalar_<uchar>::all(0);
 		d_voBGColorSamples[s].upload(m_voBGColorSamples[s]);
 		d_ColorModels.push_back(d_voBGColorSamples[s]);
-		m_voBGDescSamples[s].create(m_oImgSize,CV_16UC((int)m_nImgChannels));
+		m_voBGDescSamples[s].create(m_oImgSize,CV_16UC(4));
 		m_voBGDescSamples[s] = cv::Scalar_<ushort>::all(0);
 		d_voBGDescSamples[s].upload(m_voBGDescSamples[s]);
 		d_DescModels.push_back(d_voBGDescSamples[s]);
@@ -223,11 +225,11 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	m_oDownSampledColorFrame = cv::Scalar_<uchar>::all(0);
 	d_oDownSampledColorFrame.upload(m_oDownSampledColorFrame );
 	d_ColorModels.push_back(d_oDownSampledColorFrame);
-	m_oLastColorFrame.create(m_oImgSize,CV_8UC((int)m_nImgChannels));
+	m_oLastColorFrame.create(m_oImgSize,CV_8UC(4));
 	m_oLastColorFrame = cv::Scalar_<uchar>::all(0);
 	d_oLastColorFrame.upload(m_oLastColorFrame);
 	d_ColorModels.push_back(d_oLastColorFrame);
-	m_oLastDescFrame.create(m_oImgSize,CV_16UC((int)m_nImgChannels));
+	m_oLastDescFrame.create(m_oImgSize,CV_16UC(4));
 	m_oLastDescFrame = cv::Scalar_<ushort>::all(0);
 	d_oLastDescFrame.upload(m_oLastDescFrame);
 	d_DescModels.push_back(d_oLastDescFrame);
@@ -279,13 +281,13 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 			const int y_orig = (int)m_voKeyPoints[k].pt.y;
 			const int x_orig = (int)m_voKeyPoints[k].pt.x;
 			CV_DbgAssert(m_oLastColorFrame.step.p[0]==(size_t)m_oLastColorFrame.cols*3 && m_oLastColorFrame.step.p[1]==3);
-			const size_t idx_color = 3*(m_oLastColorFrame.cols*y_orig + x_orig);
+			const size_t idx_color = 4*(m_oLastColorFrame.cols*y_orig + x_orig);
 			CV_DbgAssert(m_oLastDescFrame.step.p[0]==m_oLastColorFrame.step.p[0]*2 && m_oLastDescFrame.step.p[1]==m_oLastColorFrame.step.p[1]*2);
 			const size_t idx_desc = idx_color*2;
 			for(size_t c=0; c<3; ++c) {
-				const uchar nCurrBGInitColor = oInitImg.data[idx_color+c];
+				const uchar nCurrBGInitColor = initImg.data[idx_color+c];
 				m_oLastColorFrame.data[idx_color+c] = nCurrBGInitColor;
-				LBSP::computeSingleRGBDescriptor(oInitImg,nCurrBGInitColor,x_orig,y_orig,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(m_oLastDescFrame.data+idx_desc))[c]);
+				LBSP::computeSingleRGBDescriptor(initImg,nCurrBGInitColor,x_orig,y_orig,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(m_oLastDescFrame.data+idx_desc))[c]);
 			}
 		}
 	}
@@ -303,11 +305,11 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	refreshModel(1.0f);
 	d_oLastColorFrame.upload(m_oLastColorFrame); 
 	InitDeviceModels(d_ColorModels, d_DescModels,d_BModels,d_FModels);
-	GpuTimer timer;
-	timer.Start();
+	//GpuTimer timer;
+	//timer.Start();
 	CudaRefreshModel(1.f, d_oLastColorFrame,d_oLastDescFrame,d_anLBSPThreshold_8bitLUT);
-	timer.Stop();
-	std::cout<<"refresh model"<<timer.Elapsed()<<std::endl;
+	/*timer.Stop();
+	std::cout<<"refresh model "<<timer.Elapsed()<<"ms"<<std::endl;*/
 	//for(int i=0; i<m_voBGColorSamples.size(); i++)
 	//{
 	//	//d_voBGColorSamples[i].upload(m_voBGColorSamples[i]);
@@ -335,18 +337,18 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cv::Mat oInputImg = _image.getMat();
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
+	cv::Mat img;
+	cv::cvtColor(_image.getMat(),img,CV_BGR2BGRA);
 	GpuTimer gtimer;
 	gtimer.Start();
-	d_CurrentColorFrame.upload(_image.getMat());
+	d_CurrentColorFrame.upload(img);
 	CudaBSOperator(d_CurrentColorFrame, ++m_nFrameIndex,d_FGMask, m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
-	/*d_FGMask.download(oCurrFGMask);
-	d_oRawFGMask_last.download(m_oRawFGMask_last);
-	d_oBlinksFrame.download(m_oBlinksFrame);*/
+	
 	gtimer.Stop();
 	std::cout<<"CudaBSOperator kernel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 
 	
-	gtimer.Start();
+	//gtimer.Start();
 	cv::gpu::bitwise_xor(d_FGMask,d_oRawFGMask_last,d_oRawFGBlinkMask_curr);
 	cv::gpu::bitwise_or(d_oRawFGBlinkMask_curr,d_oRawFGBlinkMask_last,d_oBlinksFrame);
 	d_oRawFGBlinkMask_curr.copyTo(d_oRawFGBlinkMask_last);
@@ -376,8 +378,8 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);
 
-	gtimer.Stop();
-	std::cout<<"gpu mat post process  "<<gtimer.Elapsed()<<"ms"<<std::endl;
+	/*gtimer.Stop();
+	std::cout<<"gpu mat post process  "<<gtimer.Elapsed()<<"ms"<<std::endl;*/
 	//const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
 	//if(fCurrNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN && m_fLastNonZeroDescRatio<LBSPDESC_NONZERO_RATIO_MIN) {
 	//    for(size_t t=0; t<=UCHAR_MAX; ++t)
@@ -467,13 +469,13 @@ void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 			const int y_orig = (int)m_voKeyPoints[k].pt.y;
 			const int x_orig = (int)m_voKeyPoints[k].pt.x;
 			CV_DbgAssert(m_oLastColorFrame.step.p[0]==(size_t)m_oLastColorFrame.cols*3 && m_oLastColorFrame.step.p[1]==3);
-			const size_t idx_orig_color = 3*(m_oLastColorFrame.cols*y_orig + x_orig);
+			const size_t idx_orig_color = 4*(m_oLastColorFrame.cols*y_orig + x_orig);
 			CV_DbgAssert(m_oLastDescFrame.step.p[0]==m_oLastColorFrame.step.p[0]*2 && m_oLastDescFrame.step.p[1]==m_oLastColorFrame.step.p[1]*2);
 			const size_t idx_orig_desc = idx_orig_color*2;
 			for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
 				int y_sample, x_sample;
 				getRandSamplePosition(x_sample,y_sample,x_orig,y_orig,LBSP_PATCH_SIZE/2,m_oImgSize);
-				const size_t idx_sample_color = 3*(m_oLastColorFrame.cols*y_sample + x_sample);
+				const size_t idx_sample_color = 4*(m_oLastColorFrame.cols*y_sample + x_sample);
 				const size_t idx_sample_desc = idx_sample_color*2;
 				const size_t idx_sample = s%m_nBGSamples;
 				uchar* bg_color_ptr = m_voBGColorSamples[idx_sample].data+idx_orig_color;
