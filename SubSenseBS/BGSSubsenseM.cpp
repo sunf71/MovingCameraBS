@@ -80,11 +80,11 @@ void BGSSubsenseM::cloneModels()
 	//! per-pixel blink detection results ('Z(x)')
 	w_oBlinksFrame = m_oBlinksFrame.clone();
 
-	for( int i=0; i<m_nBGSamples; i++)
+	/*for( int i=0; i<m_nBGSamples; i++)
 	{
 		w_voBGColorSamples[i] = m_voBGColorSamples[i].clone();
 		w_voBGDescSamples[i] = m_voBGDescSamples[i].clone();
-	}
+	}*/
 }
 
 //! (re)initiaization method; needs to be called before starting background subtraction (note: also reinitializes the keypoints vector)
@@ -301,8 +301,8 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 	refreshModel(1.0f);
 
 
-	w_voBGColorSamples.resize(m_nBGSamples);
-	w_voBGDescSamples.resize(m_nBGSamples);
+	/*w_voBGColorSamples.resize(m_nBGSamples);
+	w_voBGDescSamples.resize(m_nBGSamples);*/
 	m_nOutPixels = 0;
 	cloneModels();
 	m_features = cv::Mat(m_oImgSize,CV_8U);
@@ -712,12 +712,12 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 			w_oUnstableRegionMask.data[idx_uchar] = ((*pfCurrDistThresholdFactor)>UNSTABLE_REG_RDIST_MIN || (*pfCurrMeanRawSegmRes_LT-*pfCurrMeanFinalSegmRes_LT)>UNSTABLE_REG_RATIO_MIN || (*pfCurrMeanRawSegmRes_ST-*pfCurrMeanFinalSegmRes_ST)>UNSTABLE_REG_RATIO_MIN)?1:0;
 			size_t nGoodSamplesCount=0, nSampleIdx=0;
 			while(nGoodSamplesCount<m_nRequiredBGSamples && nSampleIdx<m_nBGSamples) {
-				const uchar& nBGColor = w_voBGColorSamples[nSampleIdx].data[idx_uchar];
+				const uchar& nBGColor = m_voBGColorSamples[nSampleIdx].data[idx_uchar];
 				{
 					const size_t nColorDist = absdiff_uchar(nCurrColor,nBGColor);
 					if(nColorDist>nCurrColorDistThreshold)
 						goto failedcheck1ch;
-					const ushort& nBGIntraDesc = *((ushort*)(w_voBGDescSamples[nSampleIdx].data+idx_ushrt));
+					const ushort& nBGIntraDesc = *((ushort*)(m_voBGDescSamples[nSampleIdx].data+idx_ushrt));
 					const size_t nIntraDescDist = hdist_ushort_8bitLUT(nCurrIntraDesc,nBGIntraDesc);
 					LBSP::computeGrayscaleDescriptor(oInputImg,nBGColor,x,y,m_anLBSPThreshold_8bitLUT[nBGColor],nCurrInterDesc);
 					const size_t nInterDescDist = hdist_ushort_8bitLUT(nCurrInterDesc,nBGIntraDesc);
@@ -746,11 +746,11 @@ failedcheck1ch:
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
 				oCurrFGMask.data[oidx_uchar] = UCHAR_MAX;
-				if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+				/*if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
 					const size_t s_rand = rand()%m_nBGSamples;
-					*((ushort*)(w_voBGDescSamples[s_rand].data+idx_ushrt)) = nCurrIntraDesc;
-					w_voBGColorSamples[s_rand].data[idx_uchar] = nCurrColor;
-				}
+					*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt)) = nCurrIntraDesc;
+					m_voBGColorSamples[s_rand].data[idx_uchar] = nCurrColor;
+				}*/
 			}
 			else {
 				// == background
@@ -759,7 +759,7 @@ failedcheck1ch:
 				*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
-				UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt,oidx_uchar,(const ushort*)(&nCurrIntraDesc),&nCurrColor);
+				//UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt,oidx_uchar,(const ushort*)(&nCurrIntraDesc),&nCurrColor);
 
 				/*const size_t nLearningRate = learningRateOverride>0?(size_t)ceil(learningRateOverride):(size_t)ceil(*pfCurrLearningRate);
 				if((rand()%nLearningRate)==0) {
@@ -823,6 +823,8 @@ failedcheck1ch:
 
 			const size_t idx_ushrt = idx_uchar*2;
 			const size_t idx_flt32 = idx_uchar*4;
+			ushort& nLastIntraDesc = *((ushort*)(m_oLastDescFrame.data+idx_ushrt));
+			uchar& nLastColor = m_oLastColorFrame.data[idx_uchar];
 
 			//变换后在前一帧图像中的位置
 			const int wx = (int)(m_voTKeyPoints[k].pt.x+0.5);
@@ -853,6 +855,18 @@ failedcheck1ch:
 			float* pfCurrMeanRawSegmRes_ST = ((float*)(m_oMeanRawSegmResFrame_ST.data+idx_flt32));
 			float* pfCurrMeanFinalSegmRes_LT = ((float*)(m_oMeanFinalSegmResFrame_LT.data+idx_flt32));
 			float* pfCurrMeanFinalSegmRes_ST = ((float*)(m_oMeanFinalSegmResFrame_ST.data+idx_flt32));
+			if (oCurrFGMask.data[idx_uchar] == UCHAR_MAX)
+			{
+				if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+					const size_t s_rand = rand()%m_nBGSamples;
+					*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt)) = nLastIntraDesc;
+					m_voBGColorSamples[s_rand].data[idx_uchar] = nLastColor;
+				}
+			}
+			else
+			{
+				UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,(const ushort*)(&nLastIntraDesc),&nLastColor);
+			}
 			if (warpMask == 0)
 			{
 				const uchar* const anCurrColor = oInputImg.data+idx_uchar;
@@ -943,8 +957,8 @@ failedcheck1ch:
 			w_oUnstableRegionMask.data[idx_uchar] = ((*pfCurrDistThresholdFactor)>UNSTABLE_REG_RDIST_MIN || (*pfCurrMeanRawSegmRes_LT-*pfCurrMeanFinalSegmRes_LT)>UNSTABLE_REG_RATIO_MIN || (*pfCurrMeanRawSegmRes_ST-*pfCurrMeanFinalSegmRes_ST)>UNSTABLE_REG_RATIO_MIN)?1:0;
 			size_t nGoodSamplesCount=0, nSampleIdx=0;
 			while(nGoodSamplesCount<m_nRequiredBGSamples && nSampleIdx<m_nBGSamples) {
-				const ushort* const anBGIntraDesc = (ushort*)(w_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
-				const uchar* const anBGColor = w_voBGColorSamples[nSampleIdx].data+idx_uchar_rgb;
+				const ushort* const anBGIntraDesc = (ushort*)(m_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
+				const uchar* const anBGColor = m_voBGColorSamples[nSampleIdx].data+idx_uchar_rgb;
 				size_t nTotDescDist = 0;
 				size_t nTotSumDist = 0;
 				bool pass = true;
@@ -1062,13 +1076,13 @@ failedcheck1ch:
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
 				oCurrFGMask.data[oidx_uchar] = UCHAR_MAX;
-				if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+				/*if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
 					const size_t s_rand = rand()%m_nBGSamples;
 					for(size_t c=0; c<3; ++c) {
 						*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
 						*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
 					}
-				}
+				}*/
 			}
 			else {
 				// == background
@@ -1078,7 +1092,7 @@ failedcheck1ch:
 				*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
 				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
 				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
-				UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt_rgb,oidx_uchar_rgb,(const ushort*)(anCurrIntraDesc),anCurrColor);
+				//UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt_rgb,oidx_uchar_rgb,(const ushort*)(anCurrIntraDesc),anCurrColor);
 				/*if (m_features.data[oidx_uchar] == 0xff)
 				{
 					oCurrFGMask.data[oidx_uchar] = 100;
@@ -1188,6 +1202,22 @@ failedcheck1ch:
 			float* pfCurrMeanRawSegmRes_ST = ((float*)(m_oMeanRawSegmResFrame_ST.data+idx_flt32));
 			float* pfCurrMeanFinalSegmRes_LT = ((float*)(m_oMeanFinalSegmResFrame_LT.data+idx_flt32));
 			float* pfCurrMeanFinalSegmRes_ST = ((float*)(m_oMeanFinalSegmResFrame_ST.data+idx_flt32));
+			ushort* anCurrIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
+			uchar* anCurrColor = m_oLastColorFrame.data+idx_uchar_rgb;
+			if (oCurrFGMask.data[idx_uchar] == UCHAR_MAX)
+			{
+				if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+					const size_t s_rand = rand()%m_nBGSamples;
+					for(size_t c=0; c<3; ++c) {
+						*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+						*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
+					}
+				}
+			}
+			else
+			{
+				UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,(const ushort*)(anCurrIntraDesc),anCurrColor);
+			}
 			if (warpMask == 0)
 			{
 				const uchar* const anCurrColor = oInputImg.data+idx_uchar*3;

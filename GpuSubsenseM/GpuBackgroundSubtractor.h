@@ -101,28 +101,25 @@ protected:
 	std::vector<cv::gpu::GpuMat> d_voBGDescSamples;
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
 	cv::Mat m_oUpdateRateFrame;
-	cv::gpu::GpuMat d_oUpdateRateFrame;
+	cv::gpu::GpuMat d_oUpdateRateFrame,d_woUpdateRateFrame;
 	//! per-pixel distance thresholds (equivalent to 'R(x)' in PBAS, but used as a relative value to determine both intensity and descriptor variation thresholds)
 	cv::Mat m_oDistThresholdFrame;
-	cv::gpu::GpuMat d_oDistThresholdFrame;
+	cv::gpu::GpuMat d_oDistThresholdFrame,d_woDistThresholdFrame;
 	//! per-pixel distance variation modulators ('v(x)', relative value used to modulate 'R(x)' and 'T(x)' variations)
 	cv::Mat m_oVariationModulatorFrame;
-	cv::gpu::GpuMat d_oVariationModulatorFrame;
+	cv::gpu::GpuMat d_oVariationModulatorFrame,d_woVariationModulatorFrame;
 	//! per-pixel mean distances between consecutive frames ('D_last(x)', used to detect ghosts and high variation regions in the sequence)
 	cv::Mat m_oMeanLastDistFrame;
-	cv::gpu::GpuMat d_oMeanLastDistFrame;
+	cv::gpu::GpuMat d_oMeanLastDistFrame,d_woMeanLastDistFrame;
 	//! per-pixel mean minimal distances from the model ('D_min(x)' in PBAS, used to control variation magnitude and direction of 'T(x)' and 'R(x)')
 	cv::Mat m_oMeanMinDistFrame_LT, m_oMeanMinDistFrame_ST;
-	cv::gpu::GpuMat d_oMeanMinDistFrame_LT, d_oMeanMinDistFrame_ST;
-	//! per-pixel mean downsampled distances between consecutive frames (used to analyze camera movement and control max learning rates globally)
-	cv::Mat m_oMeanDownSampledLastDistFrame_LT, m_oMeanDownSampledLastDistFrame_ST;
-	cv::gpu::GpuMat d_oMeanDownSampledLastDistFrame_LT, d_oMeanDownSampledLastDistFrame_ST;
+	cv::gpu::GpuMat d_oMeanMinDistFrame_LT, d_woMeanMinDistFrame_LT,d_oMeanMinDistFrame_ST,d_woMeanMinDistFrame_ST;
 	//! per-pixel mean raw segmentation results
 	cv::Mat m_oMeanRawSegmResFrame_LT, m_oMeanRawSegmResFrame_ST;
-	cv::gpu::GpuMat d_oMeanRawSegmResFrame_LT, d_oMeanRawSegmResFrame_ST;
+	cv::gpu::GpuMat d_oMeanRawSegmResFrame_LT, d_woMeanRawSegmResFrame_LT,d_oMeanRawSegmResFrame_ST,d_woMeanRawSegmResFrame_ST;
 	//! per-pixel mean final segmentation results
 	cv::Mat m_oMeanFinalSegmResFrame_LT, m_oMeanFinalSegmResFrame_ST;
-	cv::gpu::GpuMat d_oMeanFinalSegmResFrame_LT, d_oMeanFinalSegmResFrame_ST;
+	cv::gpu::GpuMat d_oMeanFinalSegmResFrame_LT, d_woMeanFinalSegmResFrame_LT,d_oMeanFinalSegmResFrame_ST,d_woMeanFinalSegmResFrame_ST;
 	//! a lookup map used to keep track of unstable regions (based on segm. noise & local dist. thresholds)
 	cv::Mat m_oUnstableRegionMask;
 	cv::gpu::GpuMat d_oUnstableRegionMask;
@@ -150,6 +147,7 @@ protected:
 	cv::gpu::GpuMat d_FGMask;
 
 	std::vector<cv::gpu::PtrStepf> d_FModels;
+	std::vector<cv::gpu::PtrStepf> d_wFModels;
 	std::vector<cv::gpu::PtrStepb> d_BModels;
 	std::vector<cv::gpu::PtrStep<uchar4>> d_ColorModels;
 	std::vector<cv::gpu::PtrStep<ushort4>> d_DescModels;

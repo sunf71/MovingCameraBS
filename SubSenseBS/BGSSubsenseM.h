@@ -203,8 +203,8 @@ protected:
 	//! per-pixel blink detection results ('Z(x)')
 	cv::Mat w_oBlinksFrame;
 
-	std::vector<cv::Mat> w_voBGColorSamples;
-	std::vector<cv::Mat> w_voBGDescSamples;
+	//std::vector<cv::Mat> w_voBGColorSamples;
+	//std::vector<cv::Mat> w_voBGDescSamples;
 
 	cv::Mat m_preThetaMat,m_thetaMat;
 	std::vector<EdgePoint> m_preEdgePoints, m_edgePoints;

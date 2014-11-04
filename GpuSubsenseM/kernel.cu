@@ -165,7 +165,7 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 10;
+	int end = 1700;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
