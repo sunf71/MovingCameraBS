@@ -5,10 +5,12 @@ thrust::device_vector<PtrStep<uchar4>> d_colorModels;
 thrust::device_vector<PtrStep<ushort4>> d_descModels;
 thrust::device_vector<PtrStep<uchar>> d_bModels;
 thrust::device_vector<PtrStep<float>> d_fModels;
+thrust::device_vector<PtrStep<float>> d_wfModels;
 PtrStep<uchar4>* ptr_colorModel;
 PtrStep<ushort4>* ptr_descModel;
 PtrStep<uchar>* ptr_bModel;
 PtrStep<float>* ptr_fModel;
+PtrStep<float>* ptr_wfModel;
 #define TILE_W 16
 #define TILE_H 16
 #define R 2
@@ -22,16 +24,18 @@ void ReleaseDeviceModels()
 	d_fModels.clear();
 }
 void InitDeviceModels(std::vector<PtrStep<uchar4>>& colorModels, std::vector<PtrStep<ushort4>>& descModels,
-	std::vector<PtrStep<uchar>>& bModels, std::vector<PtrStep<float>>& fModels)
+	std::vector<PtrStep<uchar>>& bModels, std::vector<PtrStep<float>>& fModels,std::vector<PtrStep<float>>& wfModels)
 {
 	d_colorModels = colorModels;
 	d_descModels = descModels;
 	d_bModels = bModels;
 	d_fModels = fModels;
+	d_wfModels = wfModels;
 	ptr_colorModel = thrust::raw_pointer_cast(&d_colorModels[0]);
 	ptr_descModel = thrust::raw_pointer_cast(&d_descModels[0]);	
 	ptr_bModel = thrust::raw_pointer_cast(&d_bModels[0]);	
 	ptr_fModel = thrust::raw_pointer_cast(&d_fModels[0]);
+	ptr_wfModel = thrust::raw_pointer_cast(&d_wfModels[0]);
 }
 __device__ size_t L1dist_uchar(const uchar4& a, const uchar4& b)
 {
@@ -209,7 +213,7 @@ __device__ void LBSP(const uchar4* blockColor, const uchar4& color, const int x,
 		+ ((absdiff_uchar(p14.z,color.z) > t[2]) << 1)
 		+ ((absdiff_uchar(p15.z,color.z) > t[2]));
 }
-__global__ void CudaBSOperatorKernel(const PtrStepSz<uchar4> img, int frameIndex,PtrStep<uchar>* bmodels,PtrStep<float>* fmodels,PtrStep<uchar4>* colorModels, PtrStep<ushort4>* descModels, PtrStep<uchar> fgMask,
+__global__ void CudaBSOperatorKernel(const PtrStepSz<uchar4> img, double* homography,int frameIndex,PtrStep<uchar>* bmodels,PtrStep<float>* fmodels,PtrStep<float>* wfmodels,PtrStep<uchar4>* colorModels, PtrStep<ushort4>* descModels, PtrStep<uchar> fgMask,
 	float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
 {
 	__shared__ uchar4 scolor[BLOCK_W*BLOCK_H];
@@ -253,6 +257,17 @@ __global__ void CudaBSOperatorKernel(const PtrStepSz<uchar4> img, int frameIndex
 		curandState state;
 		curand_init(threadIdx.x,0,0,&state);
 
+		double* ptr = homography;
+		float wx,wy,w;
+		wx = x*ptr[0] + y*ptr[1] + ptr[2];
+		wy = x*ptr[3] + y*ptr[4] + ptr[5];
+		w = x*ptr[6] + y*ptr[7] + ptr[8];
+		wx /=w;
+		wy/=w;
+		if (wx<2 || wx>= width-2 || wy<2 || wy>=height-2)
+		{
+			return;
+		}
 		const float fRollAvgFactor_LT = 1.0f/min(frameIndex,25*4);
 		const float fRollAvgFactor_ST = 1.0f/min(frameIndex,25);
 		unsigned idx = (threadIdx.y+R)*BLOCK_W + threadIdx.x+R;
@@ -266,10 +281,10 @@ __global__ void CudaBSOperatorKernel(const PtrStepSz<uchar4> img, int frameIndex
 		float& pfCurrMeanLastDist = fmodels[3](y,x);
 		float& pfCurrMeanMinDist_LT = fmodels[4](y,x);
 		float& pfCurrMeanMinDist_ST = fmodels[5](y,x);
-		float& pfCurrMeanRawSegmRes_LT = fmodels[8](y,x);
-		float& pfCurrMeanRawSegmRes_ST =fmodels[9](y,x);
-		float& pfCurrMeanFinalSegmRes_LT = fmodels[10](y,x);
-		float& pfCurrMeanFinalSegmRes_ST = fmodels[11](y,x);
+		float& pfCurrMeanRawSegmRes_LT = fmodels[6](y,x);
+		float& pfCurrMeanRawSegmRes_ST =fmodels[7](y,x);
+		float& pfCurrMeanFinalSegmRes_LT = fmodels[8](y,x);
+		float& pfCurrMeanFinalSegmRes_ST = fmodels[9](y,x);
 		uchar& pbUnstableRegionMask = bmodels[0](y,x);
 		ushort4& anLastIntraDesc = descModels[50](y,x);//desc model = 50 desc model + lastdesc
 		uchar4& anLastColor = colorModels[51](y,x);//color model=50 bgmodel + downsample + lastcolor
@@ -284,11 +299,12 @@ __global__ void CudaBSOperatorKernel(const PtrStepSz<uchar4> img, int frameIndex
 		ushort4 CurrInterDesc, CurrIntraDesc;
 		const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[CurrColor.x],m_anLBSPThreshold_8bitLUT[CurrColor.y],m_anLBSPThreshold_8bitLUT[CurrColor.z]};
 		//LBSP(img,CurrColor,x,y,anCurrIntraLBSPThresholds,CurrIntraDesc);
+		
 		LBSP(scolor,CurrColor,threadIdx.x,threadIdx.y,BLOCK_W,anCurrIntraLBSPThresholds,CurrIntraDesc);
+		
 		ushort anCurrIntraDesc[3] = {CurrIntraDesc.x ,CurrIntraDesc.y, CurrIntraDesc.z};
 		pbUnstableRegionMask = ((pfCurrDistThresholdFactor)>3.0 || (pfCurrMeanRawSegmRes_LT-pfCurrMeanFinalSegmRes_LT)>0.1 || (pfCurrMeanRawSegmRes_ST-pfCurrMeanFinalSegmRes_ST)>0.1)?1:0;
 		size_t nGoodSamplesCount=0, nSampleIdx=0;
-
 		while(nGoodSamplesCount<2 && nSampleIdx<50) {
 			const ushort4 const BGIntraDesc = descModels[nSampleIdx](y,x);
 			const uchar4 const BGColor = colorModels[nSampleIdx](y,x);
@@ -501,13 +517,13 @@ __global__ void SCudaRefreshModelKernel(float refreshRate,const PtrStepSz<uchar4
 }
 
 
-void CudaBSOperator(const cv::gpu::GpuMat& img, int frameIdx, 
+void CudaBSOperator(const cv::gpu::GpuMat& img,double* homography, int frameIdx, 
 	cv::gpu::GpuMat& fgMask,
 	float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
 {
 	dim3 block(16,16);
 	dim3 grid((img.cols + block.x - 1)/block.x,(img.rows + block.y - 1)/block.y);
-	CudaBSOperatorKernel<<<grid,block>>>(img,frameIdx,
+	CudaBSOperatorKernel<<<grid,block>>>(img,homography,frameIdx,
 		ptr_bModel,
 		ptr_fModel,
 		ptr_colorModel,

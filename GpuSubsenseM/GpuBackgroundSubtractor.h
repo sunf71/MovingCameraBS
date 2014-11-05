@@ -1,5 +1,5 @@
 #pragma once
-
+#include <vector>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/background_segm.hpp>
 #include <opencv2\gpu\gpu.hpp>
@@ -45,7 +45,19 @@ public:
 	virtual void refreshModel(float fSamplesRefreshFrac);
 	//! turns automatic model reset on or off
 	void setAutomaticModelReset(bool);
-
+	void download(const cv::gpu::GpuMat& d_mat, std::vector<cv::Point2f>& vec)
+ 	{
+ 	    vec.resize(d_mat.cols);
+ 	    cv::Mat mat(1, d_mat.cols, CV_32FC2, (void*)&vec[0]);
+ 	    d_mat.download(mat);
+ 	}
+	void download(const cv::gpu::GpuMat& d_mat, std::vector<uchar>& vec)
+ 	{
+ 	    vec.resize(d_mat.cols);
+ 	    cv::Mat mat(1, d_mat.cols, CV_8UC1, (void*)&vec[0]);
+ 	    d_mat.download(mat);
+ 	}
+	void getHomography(const cv::Mat& dImage, cv::Mat&  homography);
 protected:
 	//! background model keypoints used for LBSP descriptor extraction (specific to the input image size)
 	std::vector<cv::KeyPoint> m_voKeyPoints;
@@ -114,6 +126,8 @@ protected:
 	//! per-pixel mean minimal distances from the model ('D_min(x)' in PBAS, used to control variation magnitude and direction of 'T(x)' and 'R(x)')
 	cv::Mat m_oMeanMinDistFrame_LT, m_oMeanMinDistFrame_ST;
 	cv::gpu::GpuMat d_oMeanMinDistFrame_LT, d_woMeanMinDistFrame_LT,d_oMeanMinDistFrame_ST,d_woMeanMinDistFrame_ST;
+	//! per-pixel mean downsampled distances between consecutive frames (used to analyze camera movement and control max learning rates globally)
+	cv::Mat m_oMeanDownSampledLastDistFrame_LT, m_oMeanDownSampledLastDistFrame_ST;
 	//! per-pixel mean raw segmentation results
 	cv::Mat m_oMeanRawSegmResFrame_LT, m_oMeanRawSegmResFrame_ST;
 	cv::gpu::GpuMat d_oMeanRawSegmResFrame_LT, d_woMeanRawSegmResFrame_LT,d_oMeanRawSegmResFrame_ST,d_woMeanRawSegmResFrame_ST;
@@ -167,5 +181,19 @@ protected:
 	cv::gpu::GpuMat d_oRawFGBlinkMask_curr;
 	cv::Mat m_oRawFGBlinkMask_last;
 	cv::gpu::GpuMat d_oRawFGBlinkMask_last;
+
+	cv::gpu::GoodFeaturesToTrackDetector_GPU* m_gpuDetector;
+	cv::gpu::PyrLKOpticalFlow  d_pyrLk;
+	cv::gpu::GpuMat d_gray;
+	cv::gpu::GpuMat d_preGray;
+	cv::gpu::GpuMat d_prevPts;
+	cv::gpu::GpuMat d_currPts;
+	cv::gpu::GpuMat d_status;
+	cv::gpu::GpuMat d_homography;
+	cv::Mat m_homography;
+	std::vector<uchar> m_status; // status of tracked features
+	std::vector<cv::Point2f> m_points[2];
+	double* d_homoPtr;
+	cv::Mat m_features;
 };
 
