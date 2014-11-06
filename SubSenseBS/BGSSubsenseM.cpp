@@ -595,65 +595,7 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 	//std::cout<<m_homography;
 	cloneModels();
 	//std::ofstream file("homo.txt");
-	for(int i=0; i<m_voKeyPoints.size(); i++)
-	{
 
-		double* ptr = (double*)m_homography.data;
-		float x,y,w;
-		x = m_voKeyPoints[i].pt.x*ptr[0] + m_voKeyPoints[i].pt.y*ptr[1] + ptr[2];
-		y = m_voKeyPoints[i].pt.x*ptr[3] + m_voKeyPoints[i].pt.y*ptr[4] + ptr[5];
-		w = m_voKeyPoints[i].pt.x*ptr[6] + m_voKeyPoints[i].pt.y*ptr[7] + ptr[8];
-		x /=w;
-		y/=w;
-		//std::cout<<x<<","<<y<<std::endl;
-		if (x<2 || x>= m_oImgSize.width-2 || y<2 || y>=m_oImgSize.height-2)
-		{
-			m_warpMask.at<uchar>((int)m_voKeyPoints[i].pt.y,(int)m_voKeyPoints[i].pt.x) = 0;
-			m_nOutPixels ++;
-		}
-		else
-			m_warpMask.at<uchar>((int)m_voKeyPoints[i].pt.y,(int)m_voKeyPoints[i].pt.x) = 255;
-		//在s*s的区域内搜索与原图像最接近的点
-		/*int s = 1;
-		float alpha = 0.7;
-		float min = 16384;
-		int wwx = x;
-		int wwy = y;
-		uchar grad = m_preGrad.data[(int)m_voKeyPoints[i].pt.y*m_oImgSize.width+(int)m_voKeyPoints[i].pt.x];
-		for(int m=-s; m<=s; m++)
-		{
-		for(int n=-s; n<=s; n++)
-		{
-		int mx = m+x;
-		int ny = n+y;
-		if (mx >=0 && mx<m_oImgSize.width && ny>=0 && ny<m_oImgSize.height)
-		{
-		int idx = mx+ny*m_oImgSize.width;
-		float diff = std::abs(m_grad.data[idx] - grad);
-		if (diff<min)
-		{
-		min = diff;
-		wwx = mx;
-		wwy = ny;
-		}
-		}
-		}
-		}*/
-		m_voTKeyPoints[i] = cv::KeyPoint(x,y,1.f);
-		ptr = (double*)invHomo.data;
-		x = m_voKeyPoints[i].pt.x*ptr[0] + m_voKeyPoints[i].pt.y*ptr[1] + ptr[2];
-		y = m_voKeyPoints[i].pt.x*ptr[3] + m_voKeyPoints[i].pt.y*ptr[4] + ptr[5];
-		w = m_voKeyPoints[i].pt.x*ptr[6] + m_voKeyPoints[i].pt.y*ptr[7] + ptr[8];
-		x /=w;
-		y/=w;
-		//std::cout<<x<<","<<y<<std::endl;
-		if (x<2 || x>= m_oImgSize.width-2 || y<2 || y>=m_oImgSize.height-2)
-		{
-			m_nOutPixels ++;
-		}
-		//wImage.at<cv::Vec3b>((int)m_voKeyPoints[i].pt.y,(int)m_voKeyPoints[i].pt.x) = _image.getMat().at<cv::Vec3b>((int)y,(int)x);
-		//file<<m_voKeyPoints[i].pt.x<<","<<m_voKeyPoints[i].pt.y<<"--->"<<m_voTKeyPoints[i].pt.x<<","<<m_voTKeyPoints[i].pt.y<<std::endl;
-	}
 	//file.close();
 	/*char iname[20];
 	sprintf(iname,"warped%d.jpg",m_nFrameIndex);
@@ -956,7 +898,7 @@ failedcheck1ch:
 			float* wpfCurrMeanRawSegmRes_ST = ((float*)(w_oMeanRawSegmResFrame_ST.data+idx_flt32));
 			float* wpfCurrMeanFinalSegmRes_LT = ((float*)(w_oMeanFinalSegmResFrame_LT.data+idx_flt32));
 			float* wpfCurrMeanFinalSegmRes_ST = ((float*)(w_oMeanFinalSegmResFrame_ST.data+idx_flt32));
-			uchar* wpbUnstableRegion = (uchar*)w_oUnstableRegionMask.data[idx_uchar];
+			uchar* wpbUnstableRegion = (uchar*)(w_oUnstableRegionMask.data + idx_uchar);
 
 			float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+oidx_flt32);
 			float* pfCurrVariationFactor = (float*)(m_oVariationModulatorFrame.data+oidx_flt32);
@@ -968,7 +910,7 @@ failedcheck1ch:
 			float* pfCurrMeanRawSegmRes_ST = ((float*)(m_oMeanRawSegmResFrame_ST.data+oidx_flt32));
 			float* pfCurrMeanFinalSegmRes_LT = ((float*)(m_oMeanFinalSegmResFrame_LT.data+oidx_flt32));
 			float* pfCurrMeanFinalSegmRes_ST = ((float*)(m_oMeanFinalSegmResFrame_ST.data+oidx_flt32));
-			uchar* pbUnstableRegion = (uchar*)m_oUnstableRegionMask.data[oidx_uchar];
+			uchar* pbUnstableRegion = (uchar*)(m_oUnstableRegionMask.data+oidx_uchar);
 
 			*pfCurrDistThresholdFactor =  *wpfCurrDistThresholdFactor;
 			*pfCurrVariationFactor = *wpfCurrVariationFactor;

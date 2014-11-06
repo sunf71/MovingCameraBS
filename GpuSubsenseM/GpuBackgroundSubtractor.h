@@ -107,10 +107,10 @@ protected:
 
 	//! background model pixel color intensity samples (equivalent to 'B(x)' in PBAS, but also paired with BackgroundSubtractorLBSP::m_voBGDescSamples to create our complete model)
 	std::vector<cv::Mat> m_voBGColorSamples;
-	std::vector<cv::gpu::GpuMat> d_voBGColorSamples;
+	std::vector<cv::gpu::GpuMat> d_voBGColorSamples,d_wvoBGColorSamples;
 	//! background model descriptors samples (tied to m_voKeyPoints but shaped like the input frames)
 	std::vector<cv::Mat> m_voBGDescSamples;
-	std::vector<cv::gpu::GpuMat> d_voBGDescSamples;
+	std::vector<cv::gpu::GpuMat> d_voBGDescSamples,d_wvoBGDescSamples;
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
 	cv::Mat m_oUpdateRateFrame;
 	cv::gpu::GpuMat d_oUpdateRateFrame,d_woUpdateRateFrame;
@@ -136,7 +136,7 @@ protected:
 	cv::gpu::GpuMat d_oMeanFinalSegmResFrame_LT, d_woMeanFinalSegmResFrame_LT,d_oMeanFinalSegmResFrame_ST,d_woMeanFinalSegmResFrame_ST;
 	//! a lookup map used to keep track of unstable regions (based on segm. noise & local dist. thresholds)
 	cv::Mat m_oUnstableRegionMask;
-	cv::gpu::GpuMat d_oUnstableRegionMask;
+	cv::gpu::GpuMat d_oUnstableRegionMask,d_woUnstableRegionMask;
 	//! per-pixel blink detection results ('Z(x)')
 	cv::Mat m_oBlinksFrame;
 	cv::gpu::GpuMat d_oBlinksFrame;
@@ -163,8 +163,11 @@ protected:
 	std::vector<cv::gpu::PtrStepf> d_FModels;
 	std::vector<cv::gpu::PtrStepf> d_wFModels;
 	std::vector<cv::gpu::PtrStepb> d_BModels;
+	std::vector<cv::gpu::PtrStepb> d_wBModels;
 	std::vector<cv::gpu::PtrStep<uchar4>> d_ColorModels;
+	std::vector<cv::gpu::PtrStep<uchar4>> d_wColorModels;
 	std::vector<cv::gpu::PtrStep<ushort4>> d_DescModels;
+	std::vector<cv::gpu::PtrStep<ushort4>> d_wDescModels;
 
 	//! defines whether or not the subtractor is fully initialized
 	bool m_bInitialized;
