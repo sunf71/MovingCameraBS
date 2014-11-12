@@ -77,7 +77,7 @@ protected:
 	cv::Size m_oDownSampledFrameSize;
 
 	//! background model pixel color intensity samples (equivalent to 'B(x)' in PBAS, but also paired with BackgroundSubtractorLBSP::m_voBGDescSamples to create our complete model)
-	std::vector<cv::Mat> m_voBGColorSamples;
+	std::vector<cv::Mat> m_voBGColorSamples,w_voBGColorSamples,w_voBGDescSamples;
 
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
 	cv::Mat m_oUpdateRateFrame;

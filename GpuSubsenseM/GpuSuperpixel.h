@@ -16,8 +16,9 @@ public:
 	{
 		Release();
 	}
-	void Superixel(float4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers);
-	void Superixel(float4* rgbaBuffer, int& num,int* labels);
+	void Superpixel(uchar4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers);
+	void Superpixel(uchar4* rgbaBuffer, int& num,int* labels);
+	void DSuperpixel(uchar4* d_rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers);
 protected:
 	void Init(unsigned width, unsigned height,unsigned step, float alpha);
 	void Release();
@@ -26,7 +27,7 @@ private:
 	unsigned m_width;
 	unsigned m_size;
 	
-	float4* d_rgbaBuffer;
+	uchar4* d_rgbaBuffer;
 	SLICClusterCenter* d_centers;
 	
 	int* d_labels;

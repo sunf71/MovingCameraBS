@@ -1,61 +1,44 @@
 #include "CudaBSOperator.h"
 #include <thrust\device_vector.h>
+#include <thrust\count.h>
 #include "RandUtils.h"
-thrust::device_vector<PtrStep<uchar4>> d_colorModels;
-thrust::device_vector<PtrStep<uchar4>> d_wcolorModels;
-thrust::device_vector<PtrStep<ushort4>> d_descModels;
-thrust::device_vector<PtrStep<ushort4>> d_wdescModels;
-thrust::device_vector<PtrStep<uchar>> d_bModels;
-thrust::device_vector<PtrStep<uchar>> d_wbModels;
-thrust::device_vector<PtrStep<float>> d_fModels;
-thrust::device_vector<PtrStep<float>> d_wfModels;
-PtrStep<uchar4>* ptr_colorModel;
-PtrStep<uchar4>* ptr_wcolorModel;
-PtrStep<ushort4>* ptr_descModel;
-PtrStep<ushort4>* ptr_wdescModel;
-PtrStep<uchar>* ptr_bModel;
-PtrStep<uchar>* ptr_wbModel;
-PtrStep<float>* ptr_fModel;
-PtrStep<float>* ptr_wfModel;
+#define BMSIZE 50
+int width = 0;
+int height = 0;
+__constant__ uchar cpopcount_LUT8[256];
+ texture<uchar4> ImageTexture;
 #define TILE_W 16
 #define TILE_H 16
 #define R 2
 #define BLOCK_W (TILE_W+(2*R))
 #define BLOCK_H (TILE_H + (2*R))
-void ReleaseDeviceModels()
+//取(x,y)像素第id个值，每个像素有BMSIZE个数据，按照图像像素行顺序排列, 
+template<typename T>
+ __device__ T& GetRefFromBigMatrix(PtrStep<T> mat, int width, int height, int id, int x, int y,int bmSize = 50)
 {
-	d_colorModels.clear();
-	d_descModels.clear();
-	d_bModels.clear();
-	d_fModels.clear();
-	d_wcolorModels.clear();
-	d_wdescModels.clear();
-	d_wbModels.clear();
-	d_wfModels.clear();
+	int col = ((y*width)+x)*bmSize+id;
+	return mat(0,col);
 }
-void InitDeviceModels(std::vector<PtrStep<uchar4>>& colorModels, std::vector<PtrStep<ushort4>>& descModels,
-	std::vector<PtrStep<uchar>>& bModels, std::vector<PtrStep<float>>& fModels,std::vector<PtrStep<uchar4>>& wcolorModels, 
-	std::vector<PtrStep<ushort4>>& wdescModels,
-	std::vector<PtrStep<uchar>>& wbModels,
-	std::vector<PtrStep<float>>& wfModels)
+ template<typename T>
+ __device__ T* GetPointerFromBigMatrix(PtrStep<T> mat, int width, int height, int id, int x, int y,int bmSize = 50)
 {
-	d_colorModels = colorModels;
-	d_wcolorModels = wcolorModels;
-	d_descModels = descModels;
-	d_wdescModels = wdescModels;
-	d_bModels = bModels;
-	d_wbModels = wbModels;
-	d_fModels = fModels;
-	d_wfModels = wfModels;
-	ptr_colorModel = thrust::raw_pointer_cast(&d_colorModels[0]);
-	ptr_wcolorModel = thrust::raw_pointer_cast(&d_wcolorModels[0]);
-	ptr_descModel = thrust::raw_pointer_cast(&d_descModels[0]);	
-	ptr_wdescModel = thrust::raw_pointer_cast(&d_wdescModels[0]);	
-	ptr_bModel = thrust::raw_pointer_cast(&d_bModels[0]);	
-	ptr_wbModel = thrust::raw_pointer_cast(&d_wbModels[0]);
-	ptr_fModel = thrust::raw_pointer_cast(&d_fModels[0]);
-	ptr_wfModel = thrust::raw_pointer_cast(&d_wfModels[0]);
+	int col = ((y*width)+x)*bmSize+id;
+	return  (mat.data+col);
 }
+
+template<typename T>
+__device__ T   GetValueFromBigMatrix(const PtrStep<T> mat, int width, int height, int id, int x, int y,int bmSize = 50)
+{
+	int col = ((y*width)+x)*bmSize+id;
+	return mat(0,col);
+}
+template<typename T>
+ __device__  void SetValueToBigMatrix(PtrStep<T> mat, int width, int height, int id, int x, int y,const T& v, int bmSize = 50)
+{
+	int col = ((y*width)+x)*bmSize+id;
+	mat(0,col) = v;
+}
+
 __device__ size_t L1dist_uchar(const uchar4& a, const uchar4& b)
 {
 	return abs(a.x-b.x) + abs(a.y-b.y) + abs(a.z-b.z);
@@ -67,7 +50,24 @@ __device__ size_t absdiff_uchar(const uchar&a , const uchar& b)
 //! computes the population count of a 16bit vector using an 8bit popcount LUT (min=0, max=48)
 __device__ uchar popcount_ushort_8bitsLUT(ushort x) {
 	//! popcount LUT for 8bit vectors
-	const uchar popcount_LUT8[256] = {
+	
+	return cpopcount_LUT8[(uchar)x] + cpopcount_LUT8[(uchar)(x>>8)];
+}
+__device__ size_t hdist_ushort_8bitLUT(const ushort& a, const ushort& b)
+{
+
+	return popcount_ushort_8bitsLUT(a^b);
+}
+__device__ size_t hdist_ushort_8bitLUT(const ushort4& a, const ushort4& b)
+{
+
+	return popcount_ushort_8bitsLUT(a.x^b.x)+popcount_ushort_8bitsLUT(a.y^b.y)+popcount_ushort_8bitsLUT(a.z^b.z);
+}
+
+
+void InitConstantMem()
+{
+		const uchar hpopcount_LUT8[256] = {
 		0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
 		1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
 		1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
@@ -85,18 +85,9 @@ __device__ uchar popcount_ushort_8bitsLUT(ushort x) {
 		3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
 		4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8,
 	};
-	return popcount_LUT8[(uchar)x] + popcount_LUT8[(uchar)(x>>8)];
+	cudaMemcpyToSymbol(cpopcount_LUT8,hpopcount_LUT8,sizeof(uchar)*256);
 }
-__device__ size_t hdist_ushort_8bitLUT(const ushort& a, const ushort& b)
-{
 
-	return popcount_ushort_8bitsLUT(a^b);
-}
-__device__ size_t hdist_ushort_8bitLUT(const ushort4& a, const ushort4& b)
-{
-
-	return popcount_ushort_8bitsLUT(a.x^b.x)+popcount_ushort_8bitsLUT(a.y^b.y)+popcount_ushort_8bitsLUT(a.z^b.z);
-}
 __device__ void LBSP(const PtrStep<uchar4>& img, const uchar4& color, const int x, const int y, const size_t* const t, ushort4& out)
 {
 	uchar4 p0 = img(1+y,x-1);
@@ -232,17 +223,14 @@ __device__ void LBSP(const uchar4* blockColor, const uchar4& color, const int x,
 		+ ((absdiff_uchar(p14.z,color.z) > t[2]) << 1)
 		+ ((absdiff_uchar(p15.z,color.z) > t[2]));
 }
-__global__ void CudaBSOperatorKernel(const PtrStepSz<uchar4> img, double* homography,int frameIndex,
-	PtrStep<uchar4>* ptr_colorModel,
-PtrStep<uchar4>* ptr_wcolorModel,
-PtrStep<ushort4>* ptr_descModel,
-PtrStep<ushort4>* ptr_wdescModel,
-PtrStep<uchar>* ptr_bModel,
-PtrStep<uchar>* ptr_wbModel,
-PtrStep<float>* ptr_fModel,
-PtrStep<float>* ptr_wfModel,
-	PtrStep<uchar> fgMask,	float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
+__global__ void CudaBSOperatorKernel(const PtrStepSz<uchar4> img, double* homography, int frameIndex,
+PtrStep<uchar4> colorModel,PtrStep<uchar4> wcolorModel,
+PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
+PtrStep<uchar> bModel,PtrStep<uchar> wbModel,
+PtrStep<float> fModel,PtrStep<float> wfModel,
+PtrStep<uchar> fgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
 {
+	
 	__shared__ uchar4 scolor[BLOCK_W*BLOCK_H];
 	int width = img.cols;
 	int height = img.rows;
@@ -256,7 +244,8 @@ PtrStep<float>* ptr_wfModel,
 	srcX = min(srcX,width-1);
 	srcY = max(srcY,0);
 	srcY = min(srcY,height-1);
-	scolor[dest] = img(srcY,srcX);
+	//scolor[dest] = img(srcY,srcX);
+	scolor[dest] = tex1Dfetch(ImageTexture,srcY*width+srcX);
 
 	//second batch loading
 	dest = threadIdx.y * TILE_W + threadIdx.x + TILE_W * TILE_W;
@@ -271,9 +260,9 @@ PtrStep<float>* ptr_wfModel,
 		srcX = min(srcX,width-1);
 		srcY = max(srcY,0);
 		srcY = min(srcY,height-1);
-		scolor[destX + destY * BLOCK_W] = img(srcY,srcX);
+		//scolor[destX + destY * BLOCK_W] = img(srcY,srcX);
+		scolor[dest] = tex1Dfetch(ImageTexture,srcY*width+srcX);
 	}
-
 	__syncthreads();
 
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -281,125 +270,164 @@ PtrStep<float>* ptr_wfModel,
 
 	if(x < img.cols-2 && x>=2 && y>=2 && y < img.rows-2)
 	{
+		
 		curandState state;
 		curand_init(threadIdx.x,0,0,&state);
-
 		double* ptr = homography;
-
-
 		float fx,fy,fw;
 		fx = x*ptr[0] + y*ptr[1] + ptr[2];
 		fy = x*ptr[3] + y*ptr[4] + ptr[5];
 		fw = x*ptr[6] + y*ptr[7] + ptr[8];
 		fx /=fw;
 		fy/=fw;
-		const int wx = (int)(fx+0.5);
-		const int wy = (int)(fy+0.5);
+		int wx = (int)(fx+0.5);
+		int wy = (int)(fy+0.5);
 		
+		float* fptr = GetPointerFromBigMatrix(fModel,width,height,0,x,y,10);
+		float* pfCurrLearningRate = fptr;
+		float* pfCurrDistThresholdFactor = fptr +1;
+		float* pfCurrVariationFactor = fptr +2;
+		float* pfCurrMeanLastDist =fptr + 3;
+		float* pfCurrMeanMinDist_LT =fptr +4;
+		float* pfCurrMeanMinDist_ST =fptr +5;
+		float* pfCurrMeanRawSegmRes_LT = fptr + 6;
+		float* pfCurrMeanRawSegmRes_ST = fptr + 7;
+		float* pfCurrMeanFinalSegmRes_LT =fptr + 8;
+		float* pfCurrMeanFinalSegmRes_ST =fptr + 9;
+		uchar& pbUnstableRegionMask = GetRefFromBigMatrix(bModel,width,height,0,x,y,2);
+		ushort4* anLastIntraDesc = descModel.data + 50*width*height + y*width + x;//desc model = 50 desc model + lastdesc
+		uchar4* anLastColor =colorModel.data + 50*width*height + y*width + x;//desc model = 50 desc model + lastdesc//color model=50 bgmodel +  lastcolor
+		
+		fptr = GetPointerFromBigMatrix(wfModel,width,height,0,wx,wy,10);
+		float* wpfCurrLearningRate = fptr;
+		float* wpfCurrDistThresholdFactor = fptr +1;
+		float* wpfCurrVariationFactor = fptr +2;
+		float* wpfCurrMeanLastDist =fptr + 3;
+		float* wpfCurrMeanMinDist_LT =fptr +4;
+		float* wpfCurrMeanMinDist_ST =fptr +5;
+		float* wpfCurrMeanRawSegmRes_LT = fptr + 6;
+		float* wpfCurrMeanRawSegmRes_ST = fptr + 7;
+		float* wpfCurrMeanFinalSegmRes_LT =fptr + 8;
+		float* wpfCurrMeanFinalSegmRes_ST =fptr + 9;
+		uchar& wpbUnstableRegionMask = GetRefFromBigMatrix(wbModel,width,height,0,x,y,2);
+		ushort4* wanLastIntraDesc = wdescModel.data + 50*width*height + wy*width + wx;//desc model = 50 desc model + lastdesc
+		uchar4* wanLastColor =wcolorModel.data + 50*width*height+ wy*width +wx;//desc model = 50 desc model + lastdesc//color model=50 bgmodel +  lastcolor
+		
+
+		
+
+		ushort4* wBGIntraDescPtr = GetPointerFromBigMatrix(wdescModel,width,height,0,wx,wy);
+		uchar4* wBGColorPtr = GetPointerFromBigMatrix(wcolorModel,width,height,0,wx,wy);
+		ushort4*  BGIntraDescPtr = GetPointerFromBigMatrix(descModel,width,height,0,x,y);
+		uchar4*  BGColorPtr= GetPointerFromBigMatrix(colorModel,width,height,0,x,y);
+		
+
+		
+		unsigned idx = (threadIdx.y+R)*BLOCK_W + threadIdx.x+R;
+		const uchar4 CurrColor = scolor[idx];
+		//const uchar4 CurrColor = img(y,x);
+		uchar anCurrColor[3] = {CurrColor.x,CurrColor.y,CurrColor.z};
+		ushort4 CurrInterDesc, CurrIntraDesc;
+		const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[CurrColor.x],m_anLBSPThreshold_8bitLUT[CurrColor.y],m_anLBSPThreshold_8bitLUT[CurrColor.z]};
+		//LBSP(img,CurrColor,x,y,anCurrIntraLBSPThresholds,CurrIntraDesc);
+		LBSP(scolor,CurrColor,threadIdx.x,threadIdx.y,BLOCK_W,anCurrIntraLBSPThresholds,CurrIntraDesc);
+
+		outMask[y*width+x] = 0;
 		//std::cout<<x<<","<<y<<std::endl;
 		if (wx<2 || wx>= width-2 || wy<2 || wy>=height-2)
 		{					
 			//m_features.data[oidx_uchar] = 0xff;
 			//m_nOutPixels ++;
+			fgMask(y,x) = 0;
+			outMask[y*width+x] = 0xff;
+			size_t s_rand =curand(&state)%50;
+			while(s_rand<50){
+				BGIntraDescPtr[s_rand] = CurrIntraDesc;
+				BGColorPtr[s_rand] = CurrColor;
+				s_rand++;
+			}
 			return;
 		}
 		else
 		{
 			//反变换
-			//double* ptr = (double*)invHomo.data;
-			//fx = x*ptr[0] + y*ptr[1] + ptr[2];
-			//fy = x*ptr[3] + y*ptr[4] + ptr[5];
-			//fw = x*ptr[6] + y*ptr[7] + ptr[8];
-			//fx /=fw;
-			//fy/=fw;
-			////std::cout<<x<<","<<y<<std::endl;
-			//if (fx<2 || fx>= width-2 || fy<2 || fy>=height-2)
-			//{
-			//	m_nOutPixels ++;
-			//}
+			ptr += 9;
+			fx = x*ptr[0] + y*ptr[1] + ptr[2];
+			fy = x*ptr[3] + y*ptr[4] + ptr[5];
+			fw = x*ptr[6] + y*ptr[7] + ptr[8];
+			fx /=fw;
+			fy/=fw;
+			//std::cout<<x<<","<<y<<std::endl;
+			if (fx<2 || fx>= width-2 || fy<2 || fy>=height-2)
+			{
+				outMask[y*width+x] = 0xff;
+			}
 		}
-		float& pfCurrDistThresholdFactor = ptr_fModel[1](y,x);
-		float& pfCurrVariationFactor = ptr_fModel[2](y,x);
-		float& pfCurrLearningRate = ptr_fModel[0](y,x);
-		float& pfCurrMeanLastDist = ptr_fModel[3](y,x);
-		float& pfCurrMeanMinDist_LT = ptr_fModel[4](y,x);
-		float& pfCurrMeanMinDist_ST = ptr_fModel[5](y,x);
-		float& pfCurrMeanRawSegmRes_LT = ptr_fModel[6](y,x);
-		float& pfCurrMeanRawSegmRes_ST =ptr_fModel[7](y,x);
-		float& pfCurrMeanFinalSegmRes_LT = ptr_fModel[8](y,x);
-		float& pfCurrMeanFinalSegmRes_ST = ptr_fModel[9](y,x);
-		uchar& pbUnstableRegionMask = ptr_bModel[0](y,x);
-		ushort4& anLastIntraDesc = ptr_descModel[50](y,x);//desc model = 50 desc model + lastdesc
-		uchar4& anLastColor = ptr_colorModel[51](y,x);//color model=50 bgmodel + downsample + lastcolor
-		
-		float wpfCurrDistThresholdFactor = ptr_wfModel[1](wy,wx);
-		float wpfCurrVariationFactor = ptr_wfModel[2](wy,wx);
-		float wpfCurrLearningRate = ptr_wfModel[0](wy,wx);
-		float wpfCurrMeanLastDist = ptr_wfModel[3](wy,wx);
-		float wpfCurrMeanMinDist_LT = ptr_wfModel[4](wy,wx);
-		float wpfCurrMeanMinDist_ST = ptr_wfModel[5](wy,wx);
-		float wpfCurrMeanRawSegmRes_LT = ptr_wfModel[6](wy,wx);
-		float wpfCurrMeanRawSegmRes_ST =ptr_wfModel[7](wy,wx);
-		float wpfCurrMeanFinalSegmRes_LT = ptr_wfModel[8](wy,wx);
-		float wpfCurrMeanFinalSegmRes_ST = ptr_wfModel[9](wy,wx);
-		uchar wpbUnstableRegionMask = ptr_wbModel[0](wy,wx);
-		
-		
-
-		pfCurrDistThresholdFactor =  wpfCurrDistThresholdFactor;
-		pfCurrVariationFactor = wpfCurrVariationFactor;
-		pfCurrLearningRate = wpfCurrLearningRate;
-		pfCurrMeanLastDist = wpfCurrMeanLastDist;
-		pfCurrMeanMinDist_LT = wpfCurrMeanMinDist_LT;
-		pfCurrMeanMinDist_ST = wpfCurrMeanMinDist_ST;
-		pfCurrMeanRawSegmRes_LT = wpfCurrMeanRawSegmRes_LT; 
-		pfCurrMeanRawSegmRes_ST = wpfCurrMeanRawSegmRes_ST;
-		pfCurrMeanFinalSegmRes_LT = wpfCurrMeanFinalSegmRes_LT;
-		pfCurrMeanFinalSegmRes_ST = wpfCurrMeanFinalSegmRes_ST;
+		*pfCurrDistThresholdFactor =  *wpfCurrDistThresholdFactor;
+		*pfCurrVariationFactor = *wpfCurrVariationFactor;
+		*pfCurrLearningRate = *wpfCurrLearningRate;
+		*pfCurrMeanLastDist = *wpfCurrMeanLastDist;
+		*pfCurrMeanMinDist_LT = *wpfCurrMeanMinDist_LT;
+		*pfCurrMeanMinDist_ST = *wpfCurrMeanMinDist_ST;
+		*pfCurrMeanRawSegmRes_LT = *wpfCurrMeanRawSegmRes_LT; 
+		*pfCurrMeanRawSegmRes_ST = *wpfCurrMeanRawSegmRes_ST;
+		*pfCurrMeanFinalSegmRes_LT = *wpfCurrMeanFinalSegmRes_LT;
+		*pfCurrMeanFinalSegmRes_ST = *wpfCurrMeanFinalSegmRes_ST;
 		pbUnstableRegionMask = wpbUnstableRegionMask;
+
+
+		for(int i=0; i<50; i++)
+		{
+			BGIntraDescPtr[i] = wBGIntraDescPtr[i];
+			BGColorPtr[i] = wBGColorPtr[i];
+		}
+		/**anLastColor = *wanLastColor;
+		*anLastIntraDesc = *wanLastIntraDesc;*/
+		
 		const float fRollAvgFactor_LT = 1.0f/min(frameIndex,25*4);
 		const float fRollAvgFactor_ST = 1.0f/min(frameIndex,25);
-		unsigned idx = (threadIdx.y+R)*BLOCK_W + threadIdx.x+R;
-		const uchar4 CurrColor = scolor[idx];
-		uchar anCurrColor[3] = {CurrColor.x,CurrColor.y,CurrColor.z};
+		
+		
 		size_t nMinTotDescDist=48;
 		size_t nMinTotSumDist=765;
 		
 		
-		const size_t nCurrColorDistThreshold = (size_t)(((pfCurrDistThresholdFactor)*30)-((!pbUnstableRegionMask)*6));
+		const size_t nCurrColorDistThreshold = (size_t)(((*wpfCurrDistThresholdFactor)*30)-((!wpbUnstableRegionMask)*6));
 		size_t m_nDescDistThreshold = 3;
-		const size_t nCurrDescDistThreshold = ((size_t)1<<((size_t)floor(pfCurrDistThresholdFactor+0.5f)))+m_nDescDistThreshold+(pbUnstableRegionMask*m_nDescDistThreshold);
+		const size_t nCurrDescDistThreshold = ((size_t)1<<((size_t)floor(*wpfCurrDistThresholdFactor+0.5f)))+m_nDescDistThreshold+(wpbUnstableRegionMask*m_nDescDistThreshold);
 		const size_t nCurrTotColorDistThreshold = nCurrColorDistThreshold*3;
 		const size_t nCurrTotDescDistThreshold = nCurrDescDistThreshold*3;
 		const size_t nCurrSCColorDistThreshold = nCurrTotColorDistThreshold/2;
 
 
-		ushort4 CurrInterDesc, CurrIntraDesc;
-		const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[CurrColor.x],m_anLBSPThreshold_8bitLUT[CurrColor.y],m_anLBSPThreshold_8bitLUT[CurrColor.z]};
-		//LBSP(img,CurrColor,x,y,anCurrIntraLBSPThresholds,CurrIntraDesc);
-
-		LBSP(scolor,CurrColor,threadIdx.x,threadIdx.y,BLOCK_W,anCurrIntraLBSPThresholds,CurrIntraDesc);
-
+		
+		
 		ushort anCurrIntraDesc[3] = {CurrIntraDesc.x ,CurrIntraDesc.y, CurrIntraDesc.z};
-		pbUnstableRegionMask = ((pfCurrDistThresholdFactor)>3.0 || (pfCurrMeanRawSegmRes_LT-pfCurrMeanFinalSegmRes_LT)>0.1 || (pfCurrMeanRawSegmRes_ST-pfCurrMeanFinalSegmRes_ST)>0.1)?1:0;
+		pbUnstableRegionMask = ((*wpfCurrDistThresholdFactor)>3.0 || (*wpfCurrMeanRawSegmRes_LT-*wpfCurrMeanFinalSegmRes_LT)>0.1 || (*wpfCurrMeanRawSegmRes_ST-*wpfCurrMeanFinalSegmRes_ST)>0.1)?1:0;
 		size_t nGoodSamplesCount=0, nSampleIdx=0;
+
+		
 		while(nGoodSamplesCount<2 && nSampleIdx<50) {
-			const ushort4 const BGIntraDesc = ptr_descModel[nSampleIdx](wy,wx);
-			const uchar4 const BGColor = ptr_wcolorModel[nSampleIdx](wy,wx);
+			const ushort4 const BGIntraDesc = BGIntraDescPtr[nSampleIdx];
+			const uchar4 const BGColor = BGColorPtr[nSampleIdx];
+			
 			uchar anBGColor[3] = {BGColor.x,BGColor.y,BGColor.z};
 			ushort anBGIntraDesc[3] = {BGIntraDesc.x,BGIntraDesc.y,BGIntraDesc.z};
 			const size_t anCurrInterLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[BGColor.x],m_anLBSPThreshold_8bitLUT[BGColor.y],m_anLBSPThreshold_8bitLUT[BGColor.z]};
+			//const size_t anCurrInterLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[0],m_anLBSPThreshold_8bitLUT[0],m_anLBSPThreshold_8bitLUT[0]};
+			
 			LBSP(scolor,BGColor,threadIdx.x,threadIdx.y,BLOCK_W,anCurrInterLBSPThresholds,CurrInterDesc);
 			ushort anCurrInterDesc[3] ={CurrInterDesc.x,CurrInterDesc.y, CurrInterDesc.z};
-
+			
 			size_t nTotDescDist = 0;
 			size_t nTotSumDist = 0;
 			for(size_t c=0;c<3; ++c) {
 				const size_t nColorDist = abs(anCurrColor[c]-anBGColor[c]);
+				
 				if(nColorDist>nCurrSCColorDistThreshold)
 					goto failedcheck3ch;
-				size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 				size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
+				size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 				const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
 				const size_t nSumDist = (nDescDist/2)*15+nColorDist;
 				if(nSumDist>nCurrSCColorDistThreshold)
@@ -419,25 +447,22 @@ PtrStep<float>* ptr_wfModel,
 failedcheck3ch:
 			nSampleIdx++;
 		}
-
-
 		//const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
-		//const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,CurrColor)/765 +(float)hdist_ushort_8bitLUT(anLastIntraDesc,CurrIntraDesc)/48)/2;
-		const float fNormalizedLastDist = (float)L1dist_uchar(anLastColor,CurrColor)/765;
-		pfCurrMeanLastDist = (pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
+		const float fNormalizedLastDist = ((float)L1dist_uchar(*anLastColor,CurrColor)/765 +(float)hdist_ushort_8bitLUT(*anLastIntraDesc,CurrIntraDesc)/48)/2;		
+		*pfCurrMeanLastDist = (*wpfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
 		if(nGoodSamplesCount<2) {
 			// == foreground
 			//const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
 			const float fNormalizedMinDist = min(1.0f,((float)nMinTotSumDist/765) + (float)(2-nGoodSamplesCount)/2);
-			pfCurrMeanMinDist_LT = (pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
-			pfCurrMeanMinDist_ST = (pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
-			pfCurrMeanRawSegmRes_LT = (pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
-			pfCurrMeanRawSegmRes_ST = (pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
+			*pfCurrMeanMinDist_LT = (*wpfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
+			*pfCurrMeanMinDist_ST = (*wpfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
+			*pfCurrMeanRawSegmRes_LT = (*wpfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
+			*pfCurrMeanRawSegmRes_ST = (*wpfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
 			fgMask(y,x) = UCHAR_MAX;
 			if((curand(&state)%(size_t)2)==0) {
 				const size_t s_rand = curand(&state)%50;
-				ptr_colorModel[curand(&state)%50](y,x) = CurrColor;
-				ptr_descModel[curand(&state)%50](y,x) = CurrIntraDesc;
+				BGIntraDescPtr[s_rand] = CurrIntraDesc;
+				BGColorPtr[s_rand] = CurrColor;
 			}
 		}
 		else {
@@ -445,29 +470,31 @@ failedcheck3ch:
 			fgMask(y,x) = 0;
 			const float fNormalizedMinDist = ((float)nMinTotSumDist/765+(float)nMinTotDescDist/48)/2;
 			//const float fNormalizedMinDist = ((float)nMinTotSumDist/765);
-			pfCurrMeanMinDist_LT = (pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
-			pfCurrMeanMinDist_ST = (pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
-			pfCurrMeanRawSegmRes_LT = (pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
-			pfCurrMeanRawSegmRes_ST = (pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
-			const size_t nLearningRate =(size_t)ceil(pfCurrLearningRate);
+			*pfCurrMeanMinDist_LT = (*wpfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
+			*pfCurrMeanMinDist_ST = (*wpfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
+			*pfCurrMeanRawSegmRes_LT = (*wpfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
+			*pfCurrMeanRawSegmRes_ST = (*wpfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
+			const size_t nLearningRate =(size_t)ceil(*wpfCurrLearningRate);
 			if(curand(&state)%nLearningRate==0) {
 				const size_t s_rand =curand(&state)%50;
-				ptr_colorModel[s_rand](y,x) = CurrColor;
-				ptr_descModel[s_rand](y,x) = CurrIntraDesc;
+				BGIntraDescPtr[s_rand] = CurrIntraDesc;
+				BGColorPtr[s_rand] = CurrColor;
 			}
 			int x_rand,y_rand;
 			const bool bCurrUsing3x3Spread = !pbUnstableRegionMask;
 			if(bCurrUsing3x3Spread)
+			{
 				getRandNeighborPosition_3x3(x_rand,y_rand,wx,wy,5/2,img.cols,img.rows);
-			/*else
-			getRandNeighborPosition_5x5(x_rand,y_rand,x,y,5/2,width,height);*/
-			const size_t n_rand = curand(&state);
-			const float fRandMeanLastDist = ptr_wfModel[3](y_rand,x_rand);
-			const float fRandMeanRawSegmRes = ptr_wfModel[8](y_rand,x_rand);
-			if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
-				|| (fRandMeanRawSegmRes>0.995 && fRandMeanLastDist<0.01 && (n_rand%((size_t)fCurrLearningRateLowerCap))==0)) {
-					ptr_colorModel[curand(&state)%50](y_rand,x_rand) = CurrColor;
-					ptr_descModel[curand(&state)%50](y_rand,x_rand) = CurrIntraDesc;
+
+				const size_t n_rand = curand(&state);
+				const float fRandMeanLastDist = GetValueFromBigMatrix(wfModel,width,height,3,0,0);
+				const float fRandMeanRawSegmRes = GetValueFromBigMatrix(wfModel,width,height,8,0,0);
+				const size_t s_rand =curand(&state)%50;
+				if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
+					|| (fRandMeanRawSegmRes>0.995 && fRandMeanLastDist<0.01 && (n_rand%((size_t)fCurrLearningRateLowerCap))==0)) {
+						SetValueToBigMatrix(colorModel,width,height,s_rand,x_rand,y_rand,CurrColor);
+						SetValueToBigMatrix(descModel,width,height,s_rand,x_rand,y_rand,CurrIntraDesc);
+				}
 			}
 		}
 		float UNSTABLE_REG_RATIO_MIN = 0.1;
@@ -476,57 +503,83 @@ failedcheck3ch:
 		float FEEDBACK_V_INCR(1.f);
 		float FEEDBACK_V_DECR(0.1f);
 		float FEEDBACK_R_VAR(0.01f);
-		if(pbUnstableRegionMask || (min(pfCurrMeanMinDist_LT,pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && fgMask(y,x))) {
-			if((pfCurrLearningRate)<fCurrLearningRateUpperCap)
-				pfCurrLearningRate += FEEDBACK_T_INCR/(max(pfCurrMeanMinDist_LT,pfCurrMeanMinDist_ST)*(pfCurrVariationFactor));
+		if(pbUnstableRegionMask || (min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && fgMask(y,x))) {
+			if((*pfCurrLearningRate)<fCurrLearningRateUpperCap)
+				*pfCurrLearningRate += FEEDBACK_T_INCR/(max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)*(*pfCurrVariationFactor));
 		}
-		else if((pfCurrLearningRate)>fCurrLearningRateLowerCap)
-			pfCurrLearningRate -= FEEDBACK_T_DECR*(pfCurrVariationFactor)/max(pfCurrMeanMinDist_LT,pfCurrMeanMinDist_ST);
-		if((pfCurrLearningRate)< fCurrLearningRateLowerCap)
-			pfCurrLearningRate = fCurrLearningRateLowerCap;
-		else if((pfCurrLearningRate)>fCurrLearningRateUpperCap)
-			pfCurrLearningRate = fCurrLearningRateUpperCap;
-		if(max(pfCurrMeanMinDist_LT,pfCurrMeanMinDist_ST)>UNSTABLE_REG_RATIO_MIN && ptr_wbModel[1](wy,wx))
-			(pfCurrVariationFactor) += FEEDBACK_V_INCR;
-		else if((pfCurrVariationFactor)>FEEDBACK_V_DECR) {
-			(pfCurrVariationFactor) -= pbUnstableRegionMask?FEEDBACK_V_DECR/4:pbUnstableRegionMask?FEEDBACK_V_DECR/2:FEEDBACK_V_DECR;
-			if((pfCurrVariationFactor)<FEEDBACK_V_DECR)
-				(pfCurrVariationFactor) = FEEDBACK_V_DECR;
+		else if((*pfCurrLearningRate)>fCurrLearningRateLowerCap)
+			*pfCurrLearningRate -= FEEDBACK_T_DECR*(*pfCurrVariationFactor)/max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST);
+		if((*pfCurrLearningRate)< fCurrLearningRateLowerCap)
+			*pfCurrLearningRate = fCurrLearningRateLowerCap;
+		else if((*pfCurrLearningRate)>fCurrLearningRateUpperCap)
+			*pfCurrLearningRate = fCurrLearningRateUpperCap;
+		if(max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)>UNSTABLE_REG_RATIO_MIN && GetValueFromBigMatrix(wbModel,width,height,1,wx,wy))
+			(*pfCurrVariationFactor) += FEEDBACK_V_INCR;
+		else if((*pfCurrVariationFactor)>FEEDBACK_V_DECR) {
+			(*pfCurrVariationFactor) -= pbUnstableRegionMask?FEEDBACK_V_DECR/4:pbUnstableRegionMask?FEEDBACK_V_DECR/2:FEEDBACK_V_DECR;
+			if((*pfCurrVariationFactor)<FEEDBACK_V_DECR)
+				(*pfCurrVariationFactor) = FEEDBACK_V_DECR;
 		}
-		if((pfCurrDistThresholdFactor)<pow(1.0f+min(pfCurrMeanMinDist_LT,pfCurrMeanMinDist_ST)*2,2))
-			(pfCurrDistThresholdFactor) += FEEDBACK_R_VAR*(pfCurrVariationFactor-FEEDBACK_V_DECR);
+		if((*pfCurrDistThresholdFactor)<pow(1.0f+min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)*2,2))
+			(*pfCurrDistThresholdFactor) += FEEDBACK_R_VAR*(*pfCurrVariationFactor-FEEDBACK_V_DECR);
 		else {
-			(pfCurrDistThresholdFactor) -= FEEDBACK_R_VAR/(pfCurrVariationFactor);
-			if((pfCurrDistThresholdFactor)<1.0f)
-				(pfCurrDistThresholdFactor) = 1.0f;
+			(*pfCurrDistThresholdFactor) -= FEEDBACK_R_VAR/(*pfCurrVariationFactor);
+			if((*pfCurrDistThresholdFactor)<1.0f)
+				(*pfCurrDistThresholdFactor) = 1.0f;
 		}
 		/*if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
 		++nNonZeroDescCount;*/
-		anLastColor = CurrColor;
-		anLastIntraDesc = CurrIntraDesc;
+		*anLastColor = CurrColor;
+		*anLastIntraDesc = CurrIntraDesc;
 
+	}
+	else if(x<width && y<height)
+	{
+		fgMask(y,x) = 0;
+		outMask[y*width+x] =0;
 	}
 }
 
-__global__ void CudaRefreshModelKernel(float refreshRate,const PtrStepSz<uchar4> lastImg,const PtrStepSz<ushort4> lastDescImg,PtrStep<uchar4>* colorModels,PtrStep<ushort4>* descModels, int modelSize)
+
+__global__ void CudaRefreshModelKernel(float refreshRate, int width ,int height,PtrStep<uchar4> colorModels,PtrStep<ushort4> descModels, int modelSize,
+	cv::gpu::PtrStep<float> fModel, cv::gpu::PtrStep<uchar> bModel)
 {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
-
-	if(x < lastImg.cols-2 && x>=2 && y>=2 && y < lastImg.rows-2)
+	if(x < width-2 && x>=2 && y>=2 && y <height-2)
 	{
 		curandState state;
 		curand_init(threadIdx.x,0,0,&state);
-		int width = lastImg.cols;
-		int height = lastImg.rows;
 		const size_t nBGSamplesToRefresh = refreshRate<1.0f?(size_t)(refreshRate*modelSize):modelSize;
 		const size_t nRefreshStartPos = refreshRate<1.0f?curand(&state)%modelSize:0;
+		size_t offset = width*height*modelSize;
+		uchar4* colorPtr = colorModels.data + offset;
+		ushort4* descPtr= descModels.data + offset;
 		for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
 
 			int y_sample, x_sample;
 			getRandSamplePosition(s,x_sample,y_sample,x,y,2,width,height);
-			colorModels[s%modelSize](y,x) = lastImg(y_sample,x_sample);
-			descModels[s%modelSize](y,x) = lastDescImg(y_sample,x_sample);
+			int idx =  y_sample*width+ x_sample;
+			uchar4 value =  colorPtr[idx];
+			ushort4 svalue = descPtr[idx];
+			int pos = s%modelSize;
+			SetValueToBigMatrix(colorModels,width,height,pos,x,y,value);
+			SetValueToBigMatrix(descModels,width,height,pos,x,y,svalue);
+		}
+		const int fSize =10;
+		const int bSize = 2;
+		float* fptr = GetPointerFromBigMatrix(fModel,width,height,0,x,y,fSize);
+		uchar* bptr = GetPointerFromBigMatrix(bModel,width,height,0,x,y,bSize);
+		fptr[0] = 2.f;
+		fptr[1] = 1.f;
+		fptr[2] = 10.f;
+		for( int i=3; i<fSize; i++)
+		{
+			fptr[i] = 0;
+		}
+		for(int i=0; i<bSize; i++)
+		{
+			bptr[i] = 0;
 		}
 	}
 
@@ -595,30 +648,77 @@ __global__ void SCudaRefreshModelKernel(float refreshRate,const PtrStepSz<uchar4
 }
 
 
+__global__ void DownloadKernel(int width, int height, int id, const PtrStep<ushort4> models, int modelSize, PtrStep<ushort4> model)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	if(x < width-2 && x>=2 && y>=2 && y <height-2)
+	{
+		
+		model(y,x) = GetValueFromBigMatrix(models,width,height,id,x,y,modelSize);
+		
+	}
+}
+__global__ void DownloadColorKernel(int width, int height, int id, const PtrStep<uchar4> models, int modelSize, PtrStep<uchar4> model)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	if(x < width-2 && x>=2 && y>=2 && y <height-2)
+	{
+		model(y,x) = GetValueFromBigMatrix(models,width,height,id,x,y,modelSize);
+	}
+}
+void DownloadColorModel(int width,int height, cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model)
+{
+	dim3 block(16,16);
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	DownloadColorKernel<<<grid,block>>>(width,height,id,models,size,model);
+}
+void DownloadModel(int width,int height,cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model)
+{
+	dim3 block(16,16);
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	DownloadKernel<<<grid,block>>>(width,height,id,models,size,model);
+}
 void CudaBSOperator(const cv::gpu::GpuMat& img,double* homography, int frameIdx, 
-	cv::gpu::GpuMat& fgMask,
-	float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
+PtrStep<uchar4> colorModel,PtrStep<uchar4> wcolorModel,
+PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
+PtrStep<uchar> bModel,PtrStep<uchar> wbModel,
+PtrStep<float> fModel,PtrStep<float> wfModel,
+PtrStep<uchar> fgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
 {
 	dim3 block(16,16);
 	dim3 grid((img.cols + block.x - 1)/block.x,(img.rows + block.y - 1)/block.y);
-	CudaBSOperatorKernel<<<grid,block>>>(img,homography,frameIdx,ptr_colorModel,
-		ptr_wcolorModel,ptr_descModel, ptr_wdescModel,
-		ptr_bModel,ptr_wbModel,ptr_fModel,ptr_wfModel,
-		fgMask, fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
+	cudaBindTexture( NULL, ImageTexture,
+		img.ptr<uchar4>(),	sizeof(uchar4)*img.cols*img.rows );
+	CudaBSOperatorKernel<<<grid,block>>>(img,homography,frameIdx,colorModel,
+		wcolorModel,descModel, wdescModel,
+		bModel,wbModel,fModel,wfModel,
+		fgMask, outMask,fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
 }
 
-void CudaRefreshModel(float refreshRate,const cv::gpu::GpuMat& lastImg, const cv::gpu::GpuMat& lastDescImg,size_t* m_anLBSPThreshold_8bitLUT)
+void CudaRefreshModel(float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat descModels, 
+	GpuMat fModel, GpuMat bModel)
 {
 	dim3 block(16,16);
-	dim3 grid((lastImg.cols + block.x - 1)/block.x,(lastImg.rows + block.y - 1)/block.y);
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
 	//colorModels还包含 downsample 和lastcolor
 	//CudaRefreshModelKernel<<<grid,block>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
 	//colorModels还包含 downsample 和lastcolor
-	CudaRefreshModelKernel<<<grid,block>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
+	CudaRefreshModelKernel<<<grid,block>>>(refreshRate,width,height,colorModels,descModels,50,fModel,bModel);
 
 
 }
+bool equalToFF(uchar a)
+{
+	return a==0xff;
+}
+int CountOutPixel(const uchar* outMask,size_t size)
+{
 
+	
+	return thrust::count(outMask,outMask+size,0);
+}
 //__global__ void testRandomKernel(int n, int* d_in, int* d_out)
 //{
 //	int idx = threadIdx.x + blockIdx.x * blockDim.x;

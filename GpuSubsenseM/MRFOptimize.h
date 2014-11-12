@@ -57,9 +57,12 @@ public:
 	void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, const int height,  const unsigned int* imgData, const unsigned char* maskData);
 	void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
+	
 	void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName,  const string& featuremaskImgName,const string& resultImgName);
+	void Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg, cv::Mat& featureImg, cv::Mat& resultImg);
+	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, cv::Mat& resultImg);
 	//mask:前景
 	void GetSuperpixels(const unsigned char* mask);
 	//mask:前景， features：特征点跟踪情况的mask
@@ -82,7 +85,7 @@ private:
 	float m_lmd1;
 	float m_lmd2;
 	size_t m_QSIZE;	
-	float4* m_imgData;
+	uchar4* m_imgData;
 	unsigned int* m_idata;
 	std::vector<std::vector<int>> m_neighbor;
 };

@@ -4,6 +4,8 @@
 #include <opencv2/video/background_segm.hpp>
 #include <opencv2\gpu\gpu.hpp>
 #include <thrust\device_vector.h>
+#include "GpuSuperpixel.h"
+#include "MRFOptimize.h"
 //! defines the default value for BackgroundSubtractorLBSP::m_fRelLBSPThreshold
 #define BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD (0.333f)
 //! defines the default value for BackgroundSubtractorLBSP::m_nDescDistThreshold
@@ -16,7 +18,15 @@
 #define BGSSUBSENSE_DEFAULT_REQUIRED_NB_BG_SAMPLES (2)
 //! defines the default value for BackgroundSubtractorSuBSENSE::m_nSamplesForMovingAvgs
 #define BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS (25)
-
+struct EdgePoint
+{
+	EdgePoint(int _x, int _y, uchar _color,float _theta):x(_x),y(_y),theta(_theta),color(_color)
+	{}
+	char color;
+	int x;
+	int y;
+	float theta;//角度，0~180
+};
 class GpuBackgroundSubtractor : public cv::BackgroundSubtractor {
 public:
 	//! full constructor
@@ -57,7 +67,11 @@ public:
  	    cv::Mat mat(1, d_mat.cols, CV_8UC1, (void*)&vec[0]);
  	    d_mat.download(mat);
  	}
+	void cloneModels();
 	void getHomography(const cv::Mat& dImage, cv::Mat&  homography);
+	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
+	//边缘点匹配
+	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);
 protected:
 	//! background model keypoints used for LBSP descriptor extraction (specific to the input image size)
 	std::vector<cv::KeyPoint> m_voKeyPoints;
@@ -107,70 +121,65 @@ protected:
 
 	//! background model pixel color intensity samples (equivalent to 'B(x)' in PBAS, but also paired with BackgroundSubtractorLBSP::m_voBGDescSamples to create our complete model)
 	std::vector<cv::Mat> m_voBGColorSamples;
-	std::vector<cv::gpu::GpuMat> d_voBGColorSamples,d_wvoBGColorSamples;
+	cv::gpu::GpuMat d_voBGColorSamples,d_wvoBGColorSamples;
 	//! background model descriptors samples (tied to m_voKeyPoints but shaped like the input frames)
 	std::vector<cv::Mat> m_voBGDescSamples;
-	std::vector<cv::gpu::GpuMat> d_voBGDescSamples,d_wvoBGDescSamples;
+	cv::gpu::GpuMat d_voBGDescSamples,d_wvoBGDescSamples;
+	cv::gpu::GpuMat d_fModels, d_wfModels, d_bModels, d_wbModels;
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
 	cv::Mat m_oUpdateRateFrame;
-	cv::gpu::GpuMat d_oUpdateRateFrame,d_woUpdateRateFrame;
+	
 	//! per-pixel distance thresholds (equivalent to 'R(x)' in PBAS, but used as a relative value to determine both intensity and descriptor variation thresholds)
 	cv::Mat m_oDistThresholdFrame;
-	cv::gpu::GpuMat d_oDistThresholdFrame,d_woDistThresholdFrame;
+	
 	//! per-pixel distance variation modulators ('v(x)', relative value used to modulate 'R(x)' and 'T(x)' variations)
 	cv::Mat m_oVariationModulatorFrame;
-	cv::gpu::GpuMat d_oVariationModulatorFrame,d_woVariationModulatorFrame;
 	//! per-pixel mean distances between consecutive frames ('D_last(x)', used to detect ghosts and high variation regions in the sequence)
 	cv::Mat m_oMeanLastDistFrame;
-	cv::gpu::GpuMat d_oMeanLastDistFrame,d_woMeanLastDistFrame;
+	
 	//! per-pixel mean minimal distances from the model ('D_min(x)' in PBAS, used to control variation magnitude and direction of 'T(x)' and 'R(x)')
 	cv::Mat m_oMeanMinDistFrame_LT, m_oMeanMinDistFrame_ST;
-	cv::gpu::GpuMat d_oMeanMinDistFrame_LT, d_woMeanMinDistFrame_LT,d_oMeanMinDistFrame_ST,d_woMeanMinDistFrame_ST;
+	
 	//! per-pixel mean downsampled distances between consecutive frames (used to analyze camera movement and control max learning rates globally)
 	cv::Mat m_oMeanDownSampledLastDistFrame_LT, m_oMeanDownSampledLastDistFrame_ST;
 	//! per-pixel mean raw segmentation results
 	cv::Mat m_oMeanRawSegmResFrame_LT, m_oMeanRawSegmResFrame_ST;
-	cv::gpu::GpuMat d_oMeanRawSegmResFrame_LT, d_woMeanRawSegmResFrame_LT,d_oMeanRawSegmResFrame_ST,d_woMeanRawSegmResFrame_ST;
+	
 	//! per-pixel mean final segmentation results
 	cv::Mat m_oMeanFinalSegmResFrame_LT, m_oMeanFinalSegmResFrame_ST;
-	cv::gpu::GpuMat d_oMeanFinalSegmResFrame_LT, d_woMeanFinalSegmResFrame_LT,d_oMeanFinalSegmResFrame_ST,d_woMeanFinalSegmResFrame_ST;
+	
 	//! a lookup map used to keep track of unstable regions (based on segm. noise & local dist. thresholds)
 	cv::Mat m_oUnstableRegionMask;
-	cv::gpu::GpuMat d_oUnstableRegionMask,d_woUnstableRegionMask;
+	
 	//! per-pixel blink detection results ('Z(x)')
 	cv::Mat m_oBlinksFrame;
-	cv::gpu::GpuMat d_oBlinksFrame;
+	
 	//! pre-allocated matrix used to downsample (1/8) the input frame when needed
 	cv::Mat m_oDownSampledColorFrame;
-	cv::gpu::GpuMat d_oDownSampledColorFrame;
+	
 	//! copy of previously used pixel intensities used to calculate 'D_last(x)'
 	cv::Mat m_oLastColorFrame;
-	cv::gpu::GpuMat d_oLastColorFrame;
+	
 	//! copy of previously used descriptors used to calculate 'D_last(x)'
 	cv::Mat m_oLastDescFrame;
-	cv::gpu::GpuMat d_oLastDescFrame;
+	
 	//! the foreground mask generated by the method at [t-1] (without post-proc, used for blinking px detection)
 	cv::Mat m_oRawFGMask_last;
-	cv::gpu::GpuMat d_oRawFGMask_last;
+	
 	//! the foreground mask generated by the method at [t-1] (with post-proc)
 	cv::Mat m_oFGMask_last;
-	cv::gpu::GpuMat d_oFGMask_last;
+	
 	//! the input color frame
 	cv::gpu::GpuMat d_CurrentColorFrame;
 	//! output foreground mask
 	cv::gpu::GpuMat d_FGMask;
-
-	std::vector<cv::gpu::PtrStepf> d_FModels;
-	std::vector<cv::gpu::PtrStepf> d_wFModels;
-	std::vector<cv::gpu::PtrStepb> d_BModels;
-	std::vector<cv::gpu::PtrStepb> d_wBModels;
-	std::vector<cv::gpu::PtrStep<uchar4>> d_ColorModels;
-	std::vector<cv::gpu::PtrStep<uchar4>> d_wColorModels;
-	std::vector<cv::gpu::PtrStep<ushort4>> d_DescModels;
-	std::vector<cv::gpu::PtrStep<ushort4>> d_wDescModels;
+	//因相机运动，新出现的像素或者消失的像素。
+	cv::gpu::GpuMat d_outMask;
+	
 
 	//! defines whether or not the subtractor is fully initialized
 	bool m_bInitialized;
+	size_t m_nPixels;
 	//! pre-allocated CV_8UC1 matrices used to speed up morph ops
 	cv::Mat m_oFGMask_PreFlood;
 	cv::gpu::GpuMat d_oFGMask_PreFlood;
@@ -192,11 +201,24 @@ protected:
 	cv::gpu::GpuMat d_prevPts;
 	cv::gpu::GpuMat d_currPts;
 	cv::gpu::GpuMat d_status;
-	cv::gpu::GpuMat d_homography;
 	cv::Mat m_homography;
 	std::vector<uchar> m_status; // status of tracked features
 	std::vector<cv::Point2f> m_points[2];
 	double* d_homoPtr;
-	cv::Mat m_features;
+	//因相机运动，新出现的像素或者消失的像素
+	uchar* d_outMaskPtr;
+	uchar* m_outMaskPtr;
+	size_t m_nOutPixels;
+	cv::Mat m_preThetaMat,m_thetaMat;
+	std::vector<EdgePoint> m_preEdgePoints, m_edgePoints;	
+	cv::Mat m_preEdges,m_preGray;
+	cv::Mat m_edges,m_gray;	
+	//保存特征点跟踪情况
+	cv::Mat m_features,m_preFeatures,m_rawFGMask;
+	
+
+	
+	GpuSuperpixel* m_gs;
+	MRFOptimize* m_optimizer;
 };
 

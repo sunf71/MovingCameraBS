@@ -80,11 +80,11 @@ void BGSSubsenseM::cloneModels()
 	//! per-pixel blink detection results ('Z(x)')
 	w_oBlinksFrame = m_oBlinksFrame.clone();
 
-	/*for( int i=0; i<m_nBGSamples; i++)
+	for( int i=0; i<m_nBGSamples; i++)
 	{
-	w_voBGColorSamples[i] = m_voBGColorSamples[i].clone();
-	w_voBGDescSamples[i] = m_voBGDescSamples[i].clone();
-	}*/
+		w_voBGColorSamples[i] = m_voBGColorSamples[i].clone();
+		w_voBGDescSamples[i] = m_voBGDescSamples[i].clone();
+	}
 }
 
 //! (re)initiaization method; needs to be called before starting background subtraction (note: also reinitializes the keypoints vector)
@@ -252,12 +252,16 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 	m_oRawFGBlinkMask_last.create(m_oImgSize,CV_8UC1);
 	m_oRawFGBlinkMask_last = cv::Scalar_<uchar>(0);
 	m_voBGColorSamples.resize(m_nBGSamples);
+	w_voBGColorSamples.resize(m_nBGSamples);
 	m_voBGDescSamples.resize(m_nBGSamples);
+	w_voBGDescSamples.resize(m_nBGSamples);
 	for(size_t s=0; s<m_nBGSamples; ++s) {
 		m_voBGColorSamples[s].create(m_oImgSize,CV_8UC((int)m_nImgChannels));
 		m_voBGColorSamples[s] = cv::Scalar_<uchar>::all(0);
+		w_voBGColorSamples[s] = m_voBGColorSamples[s].clone();
 		m_voBGDescSamples[s].create(m_oImgSize,CV_16UC((int)m_nImgChannels));
 		m_voBGDescSamples[s] = cv::Scalar_<ushort>::all(0);
+		w_voBGDescSamples[s] = m_voBGDescSamples[s].clone();
 	}
 	if(m_nImgChannels==1) {
 		for(size_t t=0; t<=UCHAR_MAX; ++t)
@@ -300,9 +304,9 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 	m_bInitializedInternalStructs = true;
 	refreshModel(1.0f);
 
-
-	/*w_voBGColorSamples.resize(m_nBGSamples);
-	w_voBGDescSamples.resize(m_nBGSamples);*/
+	cv::imwrite("lastdesc.jpg",m_oLastDescFrame);
+	w_voBGColorSamples.resize(m_nBGSamples);
+	w_voBGDescSamples.resize(m_nBGSamples);
 	m_nOutPixels = 0;
 	cloneModels();
 	m_features = cv::Mat(m_oImgSize,CV_8U);
@@ -941,8 +945,8 @@ failedcheck1ch:
 			*pbUnstableRegion = ((*pfCurrDistThresholdFactor)>UNSTABLE_REG_RDIST_MIN || (*pfCurrMeanRawSegmRes_LT-*pfCurrMeanFinalSegmRes_LT)>UNSTABLE_REG_RATIO_MIN || (*pfCurrMeanRawSegmRes_ST-*pfCurrMeanFinalSegmRes_ST)>UNSTABLE_REG_RATIO_MIN)?1:0;
 			size_t nGoodSamplesCount=0, nSampleIdx=0;
 			while(nGoodSamplesCount<m_nRequiredBGSamples && nSampleIdx<m_nBGSamples) {
-				const ushort* const anBGIntraDesc = (ushort*)(m_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
-				const uchar* const anBGColor = m_voBGColorSamples[nSampleIdx].data+idx_uchar_rgb;
+				const ushort* const anBGIntraDesc = (ushort*)(w_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
+				const uchar* const anBGColor = w_voBGColorSamples[nSampleIdx].data+idx_uchar_rgb;
 				size_t nTotDescDist = 0;
 				size_t nTotSumDist = 0;
 				bool pass = true;
@@ -1052,7 +1056,7 @@ failedcheck1ch:
 			//const float fNormalizedLastDist = ((float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch+(float)hdist_ushort_8bitLUT(anLastIntraDesc,anCurrIntraDesc)/s_nDescMaxDataRange_3ch)/2;
 			const float fNormalizedLastDist = (float)L1dist_uchar(anLastColor,anCurrColor)/s_nColorMaxDataRange_3ch;
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
-			if(nGoodSamplesCount<m_nRequiredBGSamples && m_features.data[oidx_uchar] != 0xff && m_preFeatures.data[oidx_uchar] != 0xff) {
+			if(nGoodSamplesCount<m_nRequiredBGSamples /*&& m_features.data[oidx_uchar] != 0xff && m_preFeatures.data[oidx_uchar] != 0xff*/) {
 				// == foreground
 				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
 				*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;

@@ -1,7 +1,7 @@
 #include "ComSuperpixel.h"
 #include <math.h>
 #include <iostream>
-void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* labels)
+void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* labels)
 {
 	//initialize
 	vector<double> kseedsr(0);
@@ -143,7 +143,7 @@ void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned 
 	}
 }
 
-void ComSuperpixel::Superixel(unsigned int * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num, int* labels)
+void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num, int* labels)
 {
 	//initialize
 	vector<double> kseedsr(0);

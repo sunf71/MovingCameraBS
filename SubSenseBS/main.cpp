@@ -12,7 +12,7 @@ int main()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start =1;
-	int end = 100;
+	int end = 20;
 	char name[50];
 	for(int i=start; i<=end;i++)
 	{		

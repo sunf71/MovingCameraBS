@@ -12,6 +12,7 @@
 #include "SubSenseBSProcessor.h"
 #include "videoprocessor.h"
 #include "CudaBSOperator.h"
+
 void testCudaGpu()
 {
 	try
@@ -57,12 +58,12 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 	memcpy(idata,data,sizeof(unsigned int)*size);
 	int numlabels(0);
 	ComSuperpixel CS;
-	//CS.Superixel(idata,width,height,7000,0.9,labels);
+	//CS.Superpixel(idata,width,height,7000,0.9,labels);
 #ifdef REPORT
 	nih::Timer timer;
 	timer.start();
 #endif
-	CS.Superixel(idata,width,height,step,alpha,numlabels,labels);
+	CS.Superpixel(idata,width,height,step,alpha,numlabels,labels);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
@@ -80,7 +81,7 @@ void TestSuperpixel()
 	using namespace cv;
 	Mat img = imread("in000001.jpg");
 	//cv::resize(img,img,cv::Size(16,16));
-	float4* imgData = new float4[img.rows*img.cols];
+	uchar4* imgData = new uchar4[img.rows*img.cols];
 	unsigned int* idata = new unsigned int[img.rows*img.cols];
 	for(int i=0; i< img.cols; i++)
 	{
@@ -105,7 +106,7 @@ void TestSuperpixel()
 
 	GpuTimer timer;
 	timer.Start();
-	gs.Superixel(imgData,num,labels);
+	gs.Superpixel(imgData,num,labels);
 	timer.Stop();
 	std::cout<<timer.Elapsed()<<"ms"<<std::endl;
 	SLIC aslic;
@@ -132,7 +133,7 @@ void MRFOptimization()
 	nih::Timer timer;
 	timer.start();
 	int start = 1;
-	int end = 1150;
+	int end = 20;
 	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
@@ -156,6 +157,7 @@ void warmUpDevice()
 	gmat.upload(cpuMat);
 	gmat.download(cpuMat);
 }
+
 void TestGpuSubsense()
 {
 	warmUpDevice();
@@ -165,7 +167,7 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 10;
+	int end = 100;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
