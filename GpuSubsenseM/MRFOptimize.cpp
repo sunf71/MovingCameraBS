@@ -6,7 +6,7 @@
 #include "PictureHandler.h"
 #include "timer.h"
 #include "GpuTimer.h"
-#include "GridCut/GridGraph_2D_4C.h"
+
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -18,10 +18,12 @@ void MRFOptimize::Init()
 {
 	m_QSIZE = 1024*1024;
 	int size = m_width*m_height;
-
+	m_spPtr = new SuperPixel[m_width*m_height];
 	m_visited = new bool[size];
 	m_stack = new Point2i[m_QSIZE];
-	m_nPixel =  ((m_width+ m_step-1) / m_step) * ((m_height + m_step -1) / m_step);
+	m_gWidth = ((m_width+ m_step-1) / m_step);
+	m_gHeight = ((m_height + m_step -1) / m_step);
+	m_nPixel =  m_gWidth*m_gHeight;
 	m_centers = new SLICClusterCenter[m_nPixel];
 	m_data = new int[m_nPixel*2];
 	m_smooth = new int[4];
@@ -63,7 +65,9 @@ void MRFOptimize::Init()
 			m_neighbor[i].push_back(i+xStep);
 		
 	}
-}
+	
+	m_grid = new Grid(m_gWidth,m_gHeight);
+	
 
 void MRFOptimize::Release()
 {
@@ -77,8 +81,10 @@ void MRFOptimize::Release()
 	delete[] m_result;
 	delete[] m_labels;
 	delete[] m_centers;
-	
+	delete[] m_spPtr;
+	delete m_grid;
 }
+
 
 //save superpixels to an array with neighbor and pixels info
 void MRFOptimize::GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* lables, const int width,const int height)
@@ -592,7 +598,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	timer0.start();
 	timer.start();
 #endif
-	m_spPtr = new SuperPixel[m_width*m_height];
+
 	//superpixel		
 	cv::Mat FImg(origImg.size(), CV_8UC4, m_imgData);
 	cv::Mat continuousRGBA(origImg.size(), CV_8UC4, m_idata);
@@ -749,7 +755,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -793,7 +800,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-	delete[] m_spPtr;
+	
 
 #ifdef REPORT
 	timer0.stop();
@@ -809,9 +816,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	timer0.start();
 	timer.start();
 #endif
-	m_spPtr = new SuperPixel[m_width*m_height];
-	//superpixel		
 	
+	//superpixel			
 
 	const unsigned char* maskImgData = maskImg.data;
 	const unsigned char* featureMaskData = featureMaskImg.data;
@@ -860,10 +866,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	}
 	fileout.close();*/
 
-	SLIC aslic;
+	/*SLIC aslic;
+	cudaMemcpy(m_idata,d_rgba,sizeof(uchar4)*m_width*m_height,cudaMemcpyDeviceToHost);
 	aslic.DrawContoursAroundSegments(m_idata, m_labels, m_width, m_height,0x00ff00);
 	PictureHandler handler;
-	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));
+	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	//return;
 	//#ifdef REPORT
@@ -962,8 +969,9 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 
 	timer.start();
 #endif
-	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -1007,7 +1015,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-	delete[] m_spPtr;
+	//delete[] m_spPtr;
 
 #ifdef REPORT
 	timer0.stop();
@@ -1023,7 +1031,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	timer0.start();
 	timer.start();
 #endif
-	m_spPtr = new SuperPixel[m_width*m_height];
+	/*m_spPtr = new SuperPixel[m_width*m_height];*/
 	//superpixel
 	cv::Mat img = cv::imread(originalImgName);		
 	cv::Mat continuousRGBA(img.size(), CV_8UC4, m_idata);	
@@ -1190,7 +1198,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -1234,7 +1243,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-	delete[] m_spPtr;
+	//delete[] m_spPtr;
 
 #ifdef REPORT
 	timer0.stop();
@@ -1317,8 +1326,8 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask)
 			m_spPtr[i].ps = n/m_centers[i].nPoints;
 		}
 	}
-	ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);
+	/*ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
+	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);*/
 }
 
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask)
@@ -1377,66 +1386,65 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 				}
 			}
 			m_spPtr[i].ps = n/m_centers[i].nPoints;
-			float c = 1e-10;
-			m_spPtr[i].ps *= (1-(nBgInliers)/(nfeatrues+nBgInliers+c));
+			//float c = 1e-10;
+			//m_spPtr[i].ps *= (1-(nBgInliers)/(nfeatrues+nBgInliers+c));
 		}
 	}
-	ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);
+	/*ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
+	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);*/
 }
 void MRFOptimize::GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
-	using namespace GRIDCUT;
-	int w = ((m_width+ m_step-1) / m_step);
+	
+	/*int w = ((m_width+ m_step-1) / m_step);
 	int h = ((m_height + m_step -1) / m_step);
 	typedef GridGraph_2D_4C<float,float,float> Grid;
-	Grid* grid = new Grid(w,h);
-	for (int y=0;y<h;y++)
+	Grid* grid = new Grid(w,h);*/
+	for (int y=0;y<m_gHeight;y++)
 	{
-		for (int x=0;x<w;x++)
+		for (int x=0;x<m_gWidth;x++)
 		{
-			int i = y*w + x;
-			int K = 1024;
+			int i = y*m_gWidth + x;
 			float d = min(1.0f,spPtr[i].ps*2);
 			d = max(1e-20f,d);
 			float d1 = -log(d);
 			float d2 =  - log(1-d);
-			grid->set_terminal_cap(grid->node_id(x,y),d1,d2);
+			m_grid->set_terminal_cap(m_grid->node_id(x,y),d1,d2);
 			
-			if (x<w-1)
+			if (x<m_gWidth-1)
 			{
 				//float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[y*w + x+1].avgColor)));
-				float A = spPtr[i].avgColor-spPtr[y*w + x+1].avgColor;
+				float A = spPtr[i].avgColor-spPtr[y*m_gWidth + x+1].avgColor;
 				float cap = (m_lmd1+m_lmd2*exp(-beta*abs(A)));			
-				grid->set_neighbor_cap(grid->node_id(x,y),  +1,0,cap);
-				grid->set_neighbor_cap(grid->node_id(x+1,y),-1,0,cap);
+				m_grid->set_neighbor_cap(m_grid->node_id(x,y),  +1,0,cap);
+				m_grid->set_neighbor_cap(m_grid->node_id(x+1,y),-1,0,cap);
 			}
 
-			if (y<h-1)
+			if (y<m_gHeight-1)
 			{
 				
 				//float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[(y+1)*w + x].avgColor)));
-				float A = spPtr[i].avgColor-spPtr[y*w + x+w].avgColor;
+				float A = spPtr[i].avgColor-spPtr[y*m_gWidth + x+m_gWidth].avgColor;
 				float cap = (m_lmd1+m_lmd2*exp(-beta*abs(A)));
-				grid->set_neighbor_cap(grid->node_id(x,y),  0,+1,cap);
-				grid->set_neighbor_cap(grid->node_id(x,y+1),0,-1,cap);
+				m_grid->set_neighbor_cap(m_grid->node_id(x,y),  0,+1,cap);
+				m_grid->set_neighbor_cap(m_grid->node_id(x,y+1),0,-1,cap);
 			}
 		}
 	}
 
-	grid->compute_maxflow();
+	m_grid->compute_maxflow();
 
-	for (int y=0;y<h;y++)
+	for (int y=0;y<m_gWidth;y++)
 	{
-		for (int x=0;x<w;x++)
+		for (int x=0;x<m_gWidth;x++)
 		{
-			if (grid->get_segment(grid->node_id(x,y))) 
-				result[x + y*w] = 1;
+			if (m_grid->get_segment(m_grid->node_id(x,y))) 
+				result[x + y*m_gWidth] = 1;
 			else
-				result[x + y*w] = 0;
+				result[x + y*m_gWidth] = 0;
 		}
 	}
-	delete grid;
+	//delete grid;
 
 
 }

@@ -409,7 +409,10 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 		m_preEdgePoints = m_edgePoints;
 	}
 	cv::Mat affine = cv::estimateRigidTransform(m_points[0],m_points[1],true);//std::cout<<affine<<std::endl;
-	double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
+	double theta(0);
+	if (!affine.empty())
+		theta = atan(affine.at<double>(1,0)/(affine.at<double>(1,1)+1e-6))/M_PI*180;
+
 	MapEdgePoint(m_edgePoints,m_preEdges,m_preThetaMat,homography,theta, m_features);	
 	cudaMemcpy(d_homoPtr,(double*)homography.data,sizeof(double)*9,cudaMemcpyHostToDevice);
 	homography = homography.inv();
@@ -420,9 +423,10 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0xff;
 	}
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
+	cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
 	sprintf(filename,"..\\result\\subsensex\\ptz\\input0\\features\\features%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_features);
+	cv::imwrite(filename,m_mixFeatures);
 
 	cv::swap(m_preGray, m_gray);	
 	cv::swap(m_preEdges,m_edges);
@@ -510,8 +514,20 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);*/
 
 	d_FGMask.download(m_rawFGMask);
-	
-	m_optimizer->Optimize(m_gs,oInputImg,m_rawFGMask,m_features,oCurrFGMask);
+	/*uchar4* d_ptr = d_CurrentColorFrame.ptr<uchar4>();
+	uchar4* h_ptr = new uchar4[m_oImgSize.width*m_oImgSize.height];
+	cudaMemcpy(h_ptr,d_ptr,sizeof(uchar4)*m_oImgSize.width*m_oImgSize.height,cudaMemcpyDeviceToHost);
+	cv::Mat himg(m_oImgSize,CV_8UC4,h_ptr);
+	cv::imwrite("test.jpg",himg);*/
+	m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_mixFeatures,oCurrFGMask);
+	//m_optimizer->Optimize(m_gs,oInputImg,m_rawFGMask,m_preFeatures,oCurrFGMask);
+	/*if (m_nFrameIndex == 99)
+	{
+		cv::imwrite("input.jpg",oInputImg);
+		cv::imwrite("features.jpg",m_features);
+		cv::imwrite("result.jpg",oCurrFGMask);
+	}*/
+
 	/*gtimer.Stop();
 	std::cout<<"gpu mat post process  "<<gtimer.Elapsed()<<"ms"<<std::endl;*/
 	//const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;

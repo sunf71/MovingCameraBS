@@ -7,11 +7,11 @@
 struct SLICClusterCenter
 {
 	__host__ __device__ SLICClusterCenter(){}
-	__host__ __device__ SLICClusterCenter(uchar4 _rgb,float2 _xy,int _points = 1):rgb(_rgb),xy(_xy),nPoints(_points){}
+	__host__ __device__ SLICClusterCenter(float4 _rgb,float2 _xy,int _points = 1):rgb(_rgb),xy(_xy),nPoints(_points){}
 	__host__ __device__ SLICClusterCenter(const SLICClusterCenter& cc):rgb(cc.rgb),xy(cc.xy),nPoints(cc.nPoints){}
 	__host__ __device__ SLICClusterCenter operator + (const SLICClusterCenter& a) const
 	{
-		uchar4 retF4 = make_uchar4(rgb.x+a.rgb.x,rgb.y+a.rgb.y,rgb.z+a.rgb.z,rgb.w+a.rgb.w);
+		float4 retF4 = make_float4(rgb.x+a.rgb.x,rgb.y+a.rgb.y,rgb.z+a.rgb.z,rgb.w+a.rgb.w);
 		
 		float2 retF2 = make_float2(xy.x + a.xy.x,xy.y + a.xy.y);		
 		
@@ -24,12 +24,12 @@ struct SLICClusterCenter
 	}; 
 	__host__ __device__ SLICClusterCenter operator * (const float a) const
 	{
-		uchar4 retF4 = make_uchar4(rgb.x*a,rgb.y*a,rgb.z*a,rgb.w*a);		
+		float4 retF4 = make_float4(rgb.x*a,rgb.y*a,rgb.z*a,rgb.w*a);		
 		float2 retF2 = make_float2(xy.x*a,xy.y*a);		
 		return SLICClusterCenter(retF4,retF2,nPoints);
 	}
 
-	uchar4 rgb;
+	float4 rgb;
 	float2 xy;
 	int nPoints;
 

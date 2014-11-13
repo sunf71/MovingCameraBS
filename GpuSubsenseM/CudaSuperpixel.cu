@@ -16,7 +16,7 @@
 #define R 1
 #define BLOCK_W (TILE_W+(2*R))
 #define BLOCK_H (TILE_H + (2*R))
-extern texture<uchar4> ImageTexture;
+texture<uchar4> ImageTexture;
 __global__ void InitClusterCentersKernel(int* labels, int nWidth, int nHeight,int step, int nSegs, SLICClusterCenter* vSLICCenterList )
 {
 	int clusterIdx=blockIdx.x*blockDim.x+threadIdx.x;
@@ -31,7 +31,7 @@ __global__ void InitClusterCentersKernel(int* labels, int nWidth, int nHeight,in
 
 	
 
-	uchar4 tmp;
+	float4 tmp;
 	tmp.x = 0;
 	tmp.y =0; 
 	tmp.z = 0;
@@ -92,7 +92,7 @@ __global__ void UpdateClusterCenterKernel(uchar4* imgBuffer, int height, int wid
 		return;
 	int k = d_inCenters[clusterIdx].xy.x;
 	int j = d_inCenters[clusterIdx].xy.y;
-	uchar4 crgb = make_uchar4(0,0,0,0);
+	float4 crgb = make_float4(0,0,0,0);
 	float2 cxy = make_float2(0,0);
 	int n = 0;
 	//以原来的中心点为中心，step +１　为半径进行更新
@@ -116,7 +116,7 @@ __global__ void UpdateClusterCenterKernel(uchar4* imgBuffer, int height, int wid
 			}
 		}
 	}
-	d_inCenters[clusterIdx].rgb = make_uchar4(crgb.x/n,crgb.y/n,crgb.z/n,0);
+	d_inCenters[clusterIdx].rgb = make_float4(crgb.x/n,crgb.y/n,crgb.z/n,0);
 	d_inCenters[clusterIdx].xy = make_float2(cxy.x/n,cxy.y/n);
 	d_inCenters[clusterIdx].nPoints = n;
 }
@@ -129,7 +129,7 @@ __global__ void InitClustersKernel(uchar4* imgBuffer, int nHeight, int nWidth, S
 	{
 		d_ceneters[idx].xy.x = k;
 		d_ceneters[idx].xy.y = j;
-		d_ceneters[idx].rgb = imgBuffer[idx];
+		d_ceneters[idx].rgb = make_float4(imgBuffer[idx].x,imgBuffer[idx].y,imgBuffer[idx].z,imgBuffer[idx].w);
 		d_ceneters[idx].nPoints = 1;
 	}
 }
@@ -373,9 +373,9 @@ void InitClusterCenters(uchar4* d_rgbaBuffer, int* d_labels,int width, int heigh
 	dim3 blockDim = (width+ step-1) / step ;
 	dim3 gridDim = (height + step -1) / step;
 	nSeg = blockDim.x * gridDim.x;
-	/*cudaBindTexture( NULL, ImageTexture,
+	cudaBindTexture( NULL, ImageTexture,
 		d_rgbaBuffer,
-		sizeof(uchar4)*width*height );*/
+		sizeof(uchar4)*width*height );
 	InitClusterCentersKernel<<<gridDim,blockDim>>>(d_labels,width,height,step,nSeg,d_centers);
 	/*timer.Stop();
 	std::cout<<" InitClusterCentersKernel"<<timer.Elapsed()<<std::endl;*/

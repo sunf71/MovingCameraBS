@@ -16,9 +16,10 @@ PtrStep<uchar> fgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCu
 
 void DownloadModel(int width,int height, cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model);
 void DownloadColorModel(int width,int height, cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model);
-void CudaRefreshModel(float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat descModels, 
-	GpuMat fModel, GpuMat bModel);
-
+void CudaRefreshModel(float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
+	GpuMat& fModel, GpuMat& bModel);
+void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& mask, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
+	GpuMat& fModel, GpuMat& bModel);
 void testRandom();
 
 int CountOutPixel(const uchar* d_ptr, size_t size);

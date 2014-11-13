@@ -11,7 +11,7 @@
 #include <opencv2/video/tracking.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 #include "GpuSuperpixel.h"
-
+#include "GridCut/GridGraph_2D_4C.h"
 using namespace std;
 typedef std::pair<int,int> Point2i;
 
@@ -71,8 +71,8 @@ private:
 	SuperPixel* m_spPtr;
 	SLICClusterCenter* m_centers;
 	int m_nPixel;
-	int m_width;
-	int m_height;
+	int m_width,m_gWidth;
+	int m_height,m_gHeight;
 	bool * m_visited;
 	Point2i *m_stack;
 	int* m_labels;
@@ -87,5 +87,8 @@ private:
 	size_t m_QSIZE;	
 	uchar4* m_imgData;
 	unsigned int* m_idata;
+	
 	std::vector<std::vector<int>> m_neighbor;
+	typedef GRIDCUT::GridGraph_2D_4C<float,float,float> Grid;
+	Grid* m_grid;
 };

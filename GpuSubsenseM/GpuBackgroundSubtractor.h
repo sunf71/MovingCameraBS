@@ -214,7 +214,7 @@ protected:
 	cv::Mat m_preEdges,m_preGray;
 	cv::Mat m_edges,m_gray;	
 	//保存特征点跟踪情况
-	cv::Mat m_features,m_preFeatures,m_rawFGMask;
+	cv::Mat m_features,m_preFeatures,m_mixFeatures,m_rawFGMask;
 	
 
 	

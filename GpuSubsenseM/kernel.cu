@@ -132,13 +132,13 @@ void MRFOptimization()
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 1;
-	int end = 20;
+	int start = 520;
+	int end = 1700;
 	for(int i=start; i<=end;i++)
 	{
 		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input0\\bin%06d.png",i);
-		sprintf(featureMaskFileName,"..\\result\\subsensem\\ptz\\input0\\features\\features%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input0\\bin%06d.png",i);
+		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input0\\features\\features%06d.jpg",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
 		
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
@@ -167,7 +167,7 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 100;
+	int end = 1700;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
@@ -207,8 +207,8 @@ void TestGpuSubsense()
 int main (int argc, char* argv[])
 {
 	/*testRandom();*/
-	TestGpuSubsense();
-	//MRFOptimization();
+	//TestGpuSubsense();
+	MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();
 	return 0;

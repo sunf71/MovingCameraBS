@@ -540,6 +540,49 @@ failedcheck3ch:
 	}
 }
 
+__global__ void CudaRefreshModelKernel(float refreshRate, int width ,int height,PtrStep<uchar> mask, PtrStep<uchar4> colorModels,PtrStep<ushort4> descModels, int modelSize,
+	cv::gpu::PtrStep<float> fModel, cv::gpu::PtrStep<uchar> bModel)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	if(x < width-2 && x>=2 && y>=2 && y <height-2 && mask(y,x) == 0xff)
+	{
+		curandState state;
+		curand_init(threadIdx.x,0,0,&state);
+		const size_t nBGSamplesToRefresh = refreshRate<1.0f?(size_t)(refreshRate*modelSize):modelSize;
+		const size_t nRefreshStartPos = refreshRate<1.0f?curand(&state)%modelSize:0;
+		size_t offset = width*height*modelSize;
+		uchar4* colorPtr = colorModels.data + offset;
+		ushort4* descPtr= descModels.data + offset;
+		for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
+
+			int y_sample, x_sample;
+			getRandSamplePosition(s,x_sample,y_sample,x,y,2,width,height);
+			int idx =  y_sample*width+ x_sample;
+			uchar4 value =  colorPtr[idx];
+			ushort4 svalue = descPtr[idx];
+			int pos = s%modelSize;
+			SetValueToBigMatrix(colorModels,width,height,pos,x,y,value);
+			SetValueToBigMatrix(descModels,width,height,pos,x,y,svalue);
+		}
+		const int fSize =10;
+		const int bSize = 2;
+		float* fptr = GetPointerFromBigMatrix(fModel,width,height,0,x,y,fSize);
+		uchar* bptr = GetPointerFromBigMatrix(bModel,width,height,0,x,y,bSize);
+		fptr[0] = 2.f;
+		fptr[1] = 1.f;
+		fptr[2] = 10.f;
+		for( int i=3; i<fSize; i++)
+		{
+			fptr[i] = 0;
+		}
+		for(int i=0; i<bSize; i++)
+		{
+			bptr[i] = 0;
+		}
+	}
+
+}
 
 __global__ void CudaRefreshModelKernel(float refreshRate, int width ,int height,PtrStep<uchar4> colorModels,PtrStep<ushort4> descModels, int modelSize,
 	cv::gpu::PtrStep<float> fModel, cv::gpu::PtrStep<uchar> bModel)
@@ -696,9 +739,18 @@ PtrStep<uchar> fgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCu
 		bModel,wbModel,fModel,wfModel,
 		fgMask, outMask,fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
 }
-
-void CudaRefreshModel(float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat descModels, 
-	GpuMat fModel, GpuMat bModel)
+void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& mask, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
+	GpuMat& fModel, GpuMat& bModel)
+{
+	dim3 block(16,16);
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	//colorModels还包含 downsample 和lastcolor
+	//CudaRefreshModelKernel<<<grid,block>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
+	//colorModels还包含 downsample 和lastcolor
+	CudaRefreshModelKernel<<<grid,block>>>(refreshRate,width,height,mask,colorModels,descModels,50,fModel,bModel);
+}
+void CudaRefreshModel(float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
+	GpuMat& fModel, GpuMat& bModel)
 {
 	dim3 block(16,16);
 	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
