@@ -67,6 +67,7 @@ void MRFOptimize::Init()
 	}
 	
 	m_grid = new Grid(m_gWidth,m_gHeight);
+}
 	
 
 void MRFOptimize::Release()
