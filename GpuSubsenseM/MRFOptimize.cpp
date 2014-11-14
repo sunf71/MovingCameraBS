@@ -66,7 +66,7 @@ void MRFOptimize::Init()
 		
 	}
 	
-	m_grid = new Grid(m_gWidth,m_gHeight);
+	
 }
 	
 
@@ -83,7 +83,7 @@ void MRFOptimize::Release()
 	delete[] m_labels;
 	delete[] m_centers;
 	delete[] m_spPtr;
-	delete m_grid;
+	
 }
 
 
@@ -970,9 +970,9 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 
 	timer.start();
 #endif
-	GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
@@ -1397,10 +1397,8 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 void MRFOptimize::GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
 	
-	/*int w = ((m_width+ m_step-1) / m_step);
-	int h = ((m_height + m_step -1) / m_step);
-	typedef GridGraph_2D_4C<float,float,float> Grid;
-	Grid* grid = new Grid(w,h);*/
+	typedef GRIDCUT::GridGraph_2D_4C<float,float,float> Grid;
+	Grid* grid = new Grid(m_gWidth,m_gHeight);
 	for (int y=0;y<m_gHeight;y++)
 	{
 		for (int x=0;x<m_gWidth;x++)
@@ -1410,15 +1408,15 @@ void MRFOptimize::GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 			d = max(1e-20f,d);
 			float d1 = -log(d);
 			float d2 =  - log(1-d);
-			m_grid->set_terminal_cap(m_grid->node_id(x,y),d1,d2);
+			grid->set_terminal_cap(grid->node_id(x,y),d1,d2);
 			
 			if (x<m_gWidth-1)
 			{
 				//float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[y*w + x+1].avgColor)));
 				float A = spPtr[i].avgColor-spPtr[y*m_gWidth + x+1].avgColor;
 				float cap = (m_lmd1+m_lmd2*exp(-beta*abs(A)));			
-				m_grid->set_neighbor_cap(m_grid->node_id(x,y),  +1,0,cap);
-				m_grid->set_neighbor_cap(m_grid->node_id(x+1,y),-1,0,cap);
+				grid->set_neighbor_cap(grid->node_id(x,y),  +1,0,cap);
+				grid->set_neighbor_cap(grid->node_id(x+1,y),-1,0,cap);
 			}
 
 			if (y<m_gHeight-1)
@@ -1427,25 +1425,23 @@ void MRFOptimize::GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 				//float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[(y+1)*w + x].avgColor)));
 				float A = spPtr[i].avgColor-spPtr[y*m_gWidth + x+m_gWidth].avgColor;
 				float cap = (m_lmd1+m_lmd2*exp(-beta*abs(A)));
-				m_grid->set_neighbor_cap(m_grid->node_id(x,y),  0,+1,cap);
-				m_grid->set_neighbor_cap(m_grid->node_id(x,y+1),0,-1,cap);
+				grid->set_neighbor_cap(grid->node_id(x,y),  0,+1,cap);
+				grid->set_neighbor_cap(grid->node_id(x,y+1),0,-1,cap);
 			}
 		}
 	}
 
-	m_grid->compute_maxflow();
+	grid->compute_maxflow();
 
-	for (int y=0;y<m_gWidth;y++)
+	for (int y=0;y<m_gHeight;y++)
 	{
 		for (int x=0;x<m_gWidth;x++)
 		{
-			if (m_grid->get_segment(m_grid->node_id(x,y))) 
+			if (grid->get_segment(grid->node_id(x,y))) 
 				result[x + y*m_gWidth] = 1;
 			else
 				result[x + y*m_gWidth] = 0;
 		}
 	}
-	//delete grid;
-
-
+	delete grid;
 }

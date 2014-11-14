@@ -59,7 +59,7 @@ __device__  static inline void getRandSamplePosition(int randomSeed, int& x_samp
 	{0,     0,     4,     7,     4,     0,     0,},
 };
 	curandState state;
-	curand_init(randomSeed,0,0,&state);
+	curand_init(randomSeed,x_orig,y_orig,&state);
 	int r = 1+curand(&state)%s_nSamplesInitPatternTot;
 	for(x_sample=0; x_sample<s_nSamplesInitPatternWidth; ++x_sample) {
 		for(y_sample=0; y_sample<s_nSamplesInitPatternHeight; ++y_sample) {

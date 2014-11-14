@@ -89,6 +89,6 @@ private:
 	unsigned int* m_idata;
 	
 	std::vector<std::vector<int>> m_neighbor;
-	typedef GRIDCUT::GridGraph_2D_4C<float,float,float> Grid;
-	Grid* m_grid;
+	
+	
 };

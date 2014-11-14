@@ -126,20 +126,20 @@ void MRFOptimization()
 	char maskFileName[150];
 	char featureMaskFileName[150];
 	char resultFileName[150];
-	int cols = 704;
-	int rows = 480;
+	int cols = 320;
+	int rows = 240;
 	GpuSuperpixel gs(cols,rows,5);
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 520;
-	int end = 1700;
+	int start = 1;
+	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input0\\bin%06d.png",i);
-		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input0\\features\\features%06d.jpg",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
+		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input3\\bin%06d.png",i);
+		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);
 		
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
@@ -167,11 +167,11 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 1700;
+	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\ptz\\input0\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -207,8 +207,8 @@ void TestGpuSubsense()
 int main (int argc, char* argv[])
 {
 	/*testRandom();*/
-	//TestGpuSubsense();
-	MRFOptimization();
+	TestGpuSubsense();
+	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();
 	return 0;

@@ -217,7 +217,7 @@ protected:
 	cv::Mat m_features,m_preFeatures,m_mixFeatures,m_rawFGMask;
 	
 
-	
+	cv::gpu::GpuMat d_features;
 	GpuSuperpixel* m_gs;
 	MRFOptimize* m_optimizer;
 };
