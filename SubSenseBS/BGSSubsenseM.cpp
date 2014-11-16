@@ -90,6 +90,7 @@ void BGSSubsenseM::cloneModels()
 //! (re)initiaization method; needs to be called before starting background subtraction (note: also reinitializes the keypoints vector)
 void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints)
 {
+	m_ofstream = std::ofstream("out.txt");
 	//init points for tracking
 	const unsigned blockX = 24;
 	const unsigned blockY = 32;
@@ -1286,7 +1287,7 @@ failedcheck1ch:
 				m_nFramesSinceLastReset = 0;
 				//refreshModel(0.1f); // reset 10% of the bg model
 				m_nModelResetCooldown = m_nSamplesForMovingAvgs;
-				m_oUpdateRateFrame = cv::Scalar(1.0f);
+				//m_oUpdateRateFrame = cv::Scalar(1.0f);
 			}
 			else
 				++m_nFramesSinceLastReset;
@@ -1298,10 +1299,12 @@ failedcheck1ch:
 		if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD/2) {
 			m_fCurrLearningRateLowerCap = (float)std::max((int)FEEDBACK_T_LOWER>>(int)(fCurrColorDiffRatio/2),1);
 			m_fCurrLearningRateUpperCap = (float)std::max((int)FEEDBACK_T_UPPER>>(int)(fCurrColorDiffRatio/2),1);
+			m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
 		}
 		else {
 			m_fCurrLearningRateLowerCap = FEEDBACK_T_LOWER;
 			m_fCurrLearningRateUpperCap = FEEDBACK_T_UPPER;
+			m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
 		}
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;

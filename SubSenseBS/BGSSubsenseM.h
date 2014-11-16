@@ -6,7 +6,7 @@
 #include "DistanceUtils.h"
 #include "RandUtils.h"
 #include <iostream>
-
+#include <fstream>
 struct EdgePoint
 {
 	EdgePoint(int _x, int _y, uchar _color,float _theta):x(_x),y(_y),theta(_theta),color(_color)
@@ -22,7 +22,7 @@ public:
 	BGSSubsenseM():BackgroundSubtractorSuBSENSE(),m_qlevel(0.01),m_minDist(10.){}
 	virtual ~BGSSubsenseM()
 	{
-
+		m_ofstream.close();
 	}
 	//! (re)initiaization method; needs to be called before starting background subtraction (note: also reinitializes the keypoints vector)
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
@@ -214,4 +214,6 @@ protected:
 	cv::Mat m_mixEdges;
 	//保存特征点跟踪情况
 	cv::Mat m_features,m_preFeatures;
+
+	std::ofstream m_ofstream;
 };

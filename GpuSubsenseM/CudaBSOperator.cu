@@ -228,7 +228,7 @@ PtrStep<uchar4> colorModel,PtrStep<uchar4> wcolorModel,
 PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
 PtrStep<uchar> bModel,PtrStep<uchar> wbModel,
 PtrStep<float> fModel,PtrStep<float> wfModel,
-PtrStep<uchar> fgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
+PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
 {
 	
 	__shared__ uchar4 scolor[BLOCK_W*BLOCK_H];
@@ -503,7 +503,7 @@ failedcheck3ch:
 		float FEEDBACK_V_INCR(1.f);
 		float FEEDBACK_V_DECR(0.1f);
 		float FEEDBACK_R_VAR(0.01f);
-		if(pbUnstableRegionMask || (min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && fgMask(y,x))) {
+		if(lastFgMask(wy,wx) || (min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && fgMask(y,x))) {
 			if((*pfCurrLearningRate)<fCurrLearningRateUpperCap)
 				*pfCurrLearningRate += FEEDBACK_T_INCR/(max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)*(*pfCurrVariationFactor));
 		}
@@ -728,7 +728,7 @@ PtrStep<uchar4> colorModel,PtrStep<uchar4> wcolorModel,
 PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
 PtrStep<uchar> bModel,PtrStep<uchar> wbModel,
 PtrStep<float> fModel,PtrStep<float> wfModel,
-PtrStep<uchar> fgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
+PtrStep<uchar> fgMask, PtrStep<uchar> lastFgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
 {
 	dim3 block(16,16);
 	dim3 grid((img.cols + block.x - 1)/block.x,(img.rows + block.y - 1)/block.y);
@@ -737,7 +737,7 @@ PtrStep<uchar> fgMask,	uchar* outMask, float fCurrLearningRateLowerCap,float fCu
 	CudaBSOperatorKernel<<<grid,block>>>(img,homography,frameIdx,colorModel,
 		wcolorModel,descModel, wdescModel,
 		bModel,wbModel,fModel,wfModel,
-		fgMask, outMask,fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
+		fgMask, lastFgMask, outMask,fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
 }
 void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& mask, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
 	GpuMat& fModel, GpuMat& bModel)

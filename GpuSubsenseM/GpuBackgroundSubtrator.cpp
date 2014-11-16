@@ -91,7 +91,7 @@ GpuBackgroundSubtractor::GpuBackgroundSubtractor(	 float fRelLBSPThreshold
 
 GpuBackgroundSubtractor::~GpuBackgroundSubtractor() 
 {
-	
+	m_ofstream.close();
 	cudaFree(d_anLBSPThreshold_8bitLUT);
 	delete m_gpuDetector;
 	cudaFree(d_homoPtr);
@@ -105,6 +105,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	// == init
 	CV_Assert(!oInitImg.empty() && oInitImg.cols>0 && oInitImg.rows>0);
 	CV_Assert(oInitImg.type()==CV_8UC3 || oInitImg.type()==CV_8UC1);
+	m_ofstream = std::ofstream("file.txt");
 	if(oInitImg.type()==CV_8UC3) {
 		std::vector<cv::Mat> voInitImgChannels;
 		cv::split(oInitImg,voInitImgChannels);
@@ -282,6 +283,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	d_CurrentColorFrame = gpu::createContinuous(oInitImg.size(),CV_8UC4);
 	//d_CurrentColorFrame.create(oInitImg.size(),CV_8U);
 	d_FGMask.create(oInitImg.size(),CV_8U);
+	d_FGMask_last.create(oInitImg.size(),CV_8U);
 	d_outMask.create(oInitImg.size(),CV_8U);
 	d_features.create(oInitImg.size(),CV_8U);
 	cv::Mat iniImg,outImg;
@@ -468,7 +470,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	gtimer.Start();*/
 	//d_CurrentColorFrame.upload(img);
 	CudaBSOperator(d_CurrentColorFrame, d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
-		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
+		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
 	
 	
 	cudaMemcpy(m_outMaskPtr,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
@@ -520,6 +522,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);*/
 
 	d_FGMask.download(oCurrFGMask);
+	d_FGMask.copyTo(d_FGMask_last);
 	/*d_features.upload(m_preFeatures);
 	CudaRefreshModel(0.1f,m_oImgSize.width,m_oImgSize.height,d_features, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);*/
 	/*uchar4* d_ptr = d_CurrentColorFrame.ptr<uchar4>();
@@ -575,7 +578,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 				m_bAutoModelResetEnabled = false;
 			else if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD && m_nModelResetCooldown==0) {
 				m_nFramesSinceLastReset = 0;
-				refreshModel(0.1f); // reset 10% of the bg model
+				//refreshModel(0.1f); // reset 10% of the bg model
 				m_nModelResetCooldown = m_nSamplesForMovingAvgs;
 				m_oUpdateRateFrame = cv::Scalar(1.0f);
 			}
@@ -589,10 +592,12 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 		if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD/2) {
 			m_fCurrLearningRateLowerCap = (float)std::max((int)FEEDBACK_T_LOWER>>(int)(fCurrColorDiffRatio/2),1);
 			m_fCurrLearningRateUpperCap = (float)std::max((int)FEEDBACK_T_UPPER>>(int)(fCurrColorDiffRatio/2),1);
+			m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
 		}
 		else {
 			m_fCurrLearningRateLowerCap = FEEDBACK_T_LOWER;
 			m_fCurrLearningRateUpperCap = FEEDBACK_T_UPPER;
+			m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
 		}
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
