@@ -1310,12 +1310,12 @@ failedcheck1ch:
 			--m_nModelResetCooldown;
 	}
 	//refreshEdgeModel(0.1);
-	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
+	/*if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	{
 		refreshModel(0.1);
 		resetPara();
 		m_nOutPixels = 0;
-	}
+	}*/
 }
 
 

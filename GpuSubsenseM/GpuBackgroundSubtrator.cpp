@@ -450,7 +450,10 @@ void GpuBackgroundSubtractor::cloneModels()
 	cv::gpu::swap(d_voBGDescSamples,d_wvoBGDescSamples);
 	cv::gpu::swap(d_fModels,d_wfModels);
 	cv::gpu::swap(d_bModels,d_wbModels);
-
+	/*d_voBGColorSamples.copyTo(d_wvoBGColorSamples);
+	d_voBGDescSamples.copyTo(d_wvoBGDescSamples);
+	d_fModels.copyTo(d_wfModels);
+	d_bModels.copyTo(d_wbModels);*/
 
 }
 
@@ -477,12 +480,12 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	//d_outMask.download(htmp);
 	m_nOutPixels += std::count(m_outMaskPtr,m_outMaskPtr+m_nPixels,0xff);
 	std::cout<<m_nFrameIndex<<std::endl;
-	if ( m_nOutPixels > m_nPixels*0.4)
+	/*if ( m_nOutPixels > m_nPixels*0.4)
 	{
 		std::cout<<"refresh model"<<std::endl;
 		CudaRefreshModel(0.1f, m_oImgSize.width,m_oImgSize.height, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
 		m_nOutPixels = 0;
-	}
+	}*/
 
 	/*char filename[20];
 	sprintf(filename,"%d_outmask.jpg",m_nFrameIndex);

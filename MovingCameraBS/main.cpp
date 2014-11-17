@@ -664,7 +664,7 @@ void TestEdgeTracking()
 		Mat mask(gray.size(),CV_8U);
 		mask = Scalar(0);
 		MapEdgePoint(edgePoints,pre_edge,pre_thetaMat,homography,theta, mask);
-		if (i == 87)
+		if (i == 89)
 		{
 			imwrite("edge.jpg",edge);
 			imwrite("preEdge.jpg",pre_edge);

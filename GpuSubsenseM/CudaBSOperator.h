@@ -23,3 +23,5 @@ void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& m
 void testRandom();
 
 int CountOutPixel(const uchar* d_ptr, size_t size);
+
+void TestRandNeighbour(int width, int height, int* rand);

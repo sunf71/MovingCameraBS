@@ -88,6 +88,25 @@ void InitConstantMem()
 	cudaMemcpyToSymbol(cpopcount_LUT8,hpopcount_LUT8,sizeof(uchar)*256);
 }
 
+__global__ void TestRandNeighbourKernel(int width, int height, int* rand)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	if (x<width && y<height)
+	{
+		int x_n,y_n;
+		getRandNeighborPosition_3x3(x_n, y_n, x, y, 2, width, height);
+		rand[(x+y*width)*2] = x_n;
+		rand[(x+y*width)*2+1] = y_n;
+	}
+}
+void TestRandNeighbour(int width, int height, int* rand)
+{
+	dim3 block(16,16);
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	TestRandNeighbourKernel<<<grid,block>>>(width,height,rand);
+}
+
 __device__ void LBSP(const PtrStep<uchar4>& img, const uchar4& color, const int x, const int y, const size_t* const t, ushort4& out)
 {
 	uchar4 p0 = img(1+y,x-1);
@@ -390,7 +409,8 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 		
 		size_t nMinTotDescDist=48;
 		size_t nMinTotSumDist=765;
-		
+		const size_t s_nColorMaxDataRange_3ch = 255*3;
+		const size_t s_nDescMaxDataRange_3ch = 16*3;
 		
 		const size_t nCurrColorDistThreshold = (size_t)(((*wpfCurrDistThresholdFactor)*30)-((!wpbUnstableRegionMask)*6));
 		size_t m_nDescDistThreshold = 3;
@@ -399,9 +419,6 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 		const size_t nCurrTotDescDistThreshold = nCurrDescDistThreshold*3;
 		const size_t nCurrSCColorDistThreshold = nCurrTotColorDistThreshold/2;
 
-
-		
-		
 		ushort anCurrIntraDesc[3] = {CurrIntraDesc.x ,CurrIntraDesc.y, CurrIntraDesc.z};
 		pbUnstableRegionMask = ((*wpfCurrDistThresholdFactor)>3.0 || (*wpfCurrMeanRawSegmRes_LT-*wpfCurrMeanFinalSegmRes_LT)>0.1 || (*wpfCurrMeanRawSegmRes_ST-*wpfCurrMeanFinalSegmRes_ST)>0.1)?1:0;
 		size_t nGoodSamplesCount=0, nSampleIdx=0;
@@ -452,8 +469,8 @@ failedcheck3ch:
 		*pfCurrMeanLastDist = (*wpfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
 		if(nGoodSamplesCount<2) {
 			// == foreground
-			//const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
-			const float fNormalizedMinDist = min(1.0f,((float)nMinTotSumDist/765) + (float)(2-nGoodSamplesCount)/2);
+			const float fNormalizedMinDist = min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(2-nGoodSamplesCount)/2);
+			//const float fNormalizedMinDist = min(1.0f,((float)nMinTotSumDist/765) + (float)(2-nGoodSamplesCount)/2);
 			*pfCurrMeanMinDist_LT = (*wpfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
 			*pfCurrMeanMinDist_ST = (*wpfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
 			*pfCurrMeanRawSegmRes_LT = (*wpfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
@@ -484,11 +501,11 @@ failedcheck3ch:
 			const bool bCurrUsing3x3Spread = !pbUnstableRegionMask;
 			if(bCurrUsing3x3Spread)
 			{
-				getRandNeighborPosition_3x3(x_rand,y_rand,wx,wy,5/2,img.cols,img.rows);
+				getRandNeighborPosition_3x3(x_rand,y_rand,wx,wy,2,img.cols,img.rows);
 
 				const size_t n_rand = curand(&state);
-				const float fRandMeanLastDist = GetValueFromBigMatrix(wfModel,width,height,3,0,0);
-				const float fRandMeanRawSegmRes = GetValueFromBigMatrix(wfModel,width,height,8,0,0);
+				const float fRandMeanLastDist = GetValueFromBigMatrix(wfModel,width,height,3,x_rand,y_rand,10);
+				const float fRandMeanRawSegmRes = GetValueFromBigMatrix(wfModel,width,height,8,x_rand,y_rand,10);
 				const size_t s_rand =curand(&state)%50;
 				if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
 					|| (fRandMeanRawSegmRes>0.995 && fRandMeanLastDist<0.01 && (n_rand%((size_t)fCurrLearningRateLowerCap))==0)) {

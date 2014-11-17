@@ -160,6 +160,17 @@ void warmUpDevice()
 
 void TestGpuSubsense()
 {
+	/*int width(8);
+	int height(6);
+	int* d_rand,*h_rand;
+	cudaMalloc(&d_rand,width*height*2*sizeof(int));
+	TestRandNeighbour(width,height,d_rand);
+	h_rand = new int[width*height*2];
+	cudaMemcpy(h_rand,d_rand,sizeof(int)*width*height*2,cudaMemcpyDeviceToHost);
+	for(int i=0; i<width*height; i++)
+		std::cout<<h_rand[2*i]<<","<<h_rand[2*i+1]<<std::endl;
+	cudaFree(d_rand);
+	delete[] h_rand;*/
 	warmUpDevice();
 	VideoProcessor processor;
 	
