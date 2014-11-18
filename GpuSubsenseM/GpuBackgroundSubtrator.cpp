@@ -99,6 +99,7 @@ GpuBackgroundSubtractor::~GpuBackgroundSubtractor()
 	delete[] m_outMaskPtr;
 	delete m_optimizer;
 	delete m_gs;
+	cudaFree(d_randStates);
 }
 
 void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints) {
@@ -298,11 +299,11 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	//d_DescModels = d_voDESCSamples;
 	m_bInitializedInternalStructs = true;
 	refreshModel(1.0f);
-	
-	
+	cudaMalloc ( &d_randStates, m_oImgSize.width*m_oImgSize.height*sizeof( curandState ) );    
+	InitRandState(m_oImgSize.width,m_oImgSize.height,d_randStates);
 	//GpuTimer timer;
 	//timer.Start();
-	CudaRefreshModel(1.f, m_oImgSize.width,m_oImgSize.height, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
+	CudaRefreshModel(d_randStates,1.f, m_oImgSize.width,m_oImgSize.height, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
 	//timer.Stop();
 	//std::cout<<"refresh model "<<timer.Elapsed()<<"ms"<<std::endl;
 	//for(int i=0; i<m_voBGColorSamples.size(); i++)
@@ -472,7 +473,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	/*GpuTimer gtimer;
 	gtimer.Start();*/
 	//d_CurrentColorFrame.upload(img);
-	CudaBSOperator(d_CurrentColorFrame, d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
+	CudaBSOperator(d_CurrentColorFrame, d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
 	
 	
@@ -480,12 +481,12 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	//d_outMask.download(htmp);
 	m_nOutPixels += std::count(m_outMaskPtr,m_outMaskPtr+m_nPixels,0xff);
 	std::cout<<m_nFrameIndex<<std::endl;
-	/*if ( m_nOutPixels > m_nPixels*0.4)
+	if ( m_nOutPixels > m_nPixels*0.4)
 	{
 		std::cout<<"refresh model"<<std::endl;
-		CudaRefreshModel(0.1f, m_oImgSize.width,m_oImgSize.height, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
+		CudaRefreshModel(d_randStates,0.1f, m_oImgSize.width,m_oImgSize.height, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
 		m_nOutPixels = 0;
-	}*/
+	}
 
 	/*char filename[20];
 	sprintf(filename,"%d_outmask.jpg",m_nFrameIndex);

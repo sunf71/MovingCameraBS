@@ -111,7 +111,7 @@ __device__ inline void getRandNeighborPosition_3x3(int& x_neighbor, int& y_neigh
 		{-1,-1},  { 0,-1},  { 1,-1},
 	};
 	curandState state;
-	curand_init(x_orig,y_orig,0,&state);
+	curand_init(y_orig,0,0,&state);
 	int r = curand(&state)%s_anNeighborPatternSize_3x3;
 	x_neighbor = x_orig+s_anNeighborPattern_3x3[r][0];
 	y_neighbor = y_orig+s_anNeighborPattern_3x3[r][1];

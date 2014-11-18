@@ -7,6 +7,7 @@
 #include "GpuSuperpixel.h"
 #include "MRFOptimize.h"
 #include <fstream>
+#include <curand_kernel.h>
 //! defines the default value for BackgroundSubtractorLBSP::m_fRelLBSPThreshold
 #define BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD (0.333f)
 //! defines the default value for BackgroundSubtractorLBSP::m_nDescDistThreshold
@@ -223,7 +224,7 @@ protected:
 	cv::gpu::GpuMat d_features;
 	GpuSuperpixel* m_gs;
 	MRFOptimize* m_optimizer;
-
+	curandState* d_randStates;
 	std::ofstream m_ofstream;
 };
 
