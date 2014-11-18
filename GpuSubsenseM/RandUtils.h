@@ -87,7 +87,6 @@ static const int s_anNeighborPattern_3x3[8][2] = {
 	{-1, 0},            { 1, 0},
 	{-1,-1},  { 0,-1},  { 1,-1},
 };
-
 //! returns a random neighbor position for the specified pixel position; also guards against out-of-bounds values via image/border size check.
 static inline void getRandNeighborPosition_3x3(int& x_neighbor, int& y_neighbor, const int x_orig, const int y_orig, const int border, const cv::Size& imgsize) {
 	int r = rand()%s_anNeighborPatternSize_3x3;
@@ -112,7 +111,7 @@ __device__ inline void getRandNeighborPosition_3x3(int& x_neighbor, int& y_neigh
 		{-1,-1},  { 0,-1},  { 1,-1},
 	};
 	curandState state;
-	curand_init(x_orig,0,0,&state);
+	curand_init(x_orig,y_orig,0,&state);
 	int r = curand(&state)%s_anNeighborPatternSize_3x3;
 	x_neighbor = x_orig+s_anNeighborPattern_3x3[r][0];
 	y_neighbor = y_orig+s_anNeighborPattern_3x3[r][1];

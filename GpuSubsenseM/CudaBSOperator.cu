@@ -1,4 +1,4 @@
-#include "CudaBSOperator.h"
+ï»¿#include "CudaBSOperator.h"
 #include <thrust\device_vector.h>
 #include <thrust\count.h>
 #include "RandUtils.h"
@@ -6,13 +6,48 @@
 int width = 0;
 int height = 0;
 __constant__ uchar cpopcount_LUT8[256];
- texture<uchar4> ImageTexture;
+//curandState* devStates;
+texture<uchar4> ImageTexture;
 #define TILE_W 16
 #define TILE_H 16
 #define R 2
 #define BLOCK_W (TILE_W+(2*R))
 #define BLOCK_H (TILE_H + (2*R))
-//È¡(x,y)ÏñËØµÚid¸öÖµ£¬Ã¿¸öÏñËØÓĞBMSIZE¸öÊı¾İ£¬°´ÕÕÍ¼ÏñÏñËØĞĞË³ĞòÅÅÁĞ, 
+
+__global__ void setup_kernel ( int size, curandState * state, unsigned long seed )
+{
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	if (id<size)
+	{
+		curand_init ( seed, id, 0, &state[id] );
+	}
+} 
+
+__device__ inline void getRandNeighborPosition(curandState* devStates,int& x_neighbor, int& y_neighbor, const int x_orig, const int y_orig, const int border, const int width, const int height) {
+	// simple 8-connected (3x3) neighbors pattern
+	const int s_anNeighborPatternSize_3x3 = 8;
+	const int s_anNeighborPattern_3x3[8][2] = {
+		{-1, 1},  { 0, 1},  { 1, 1},
+		{-1, 0},            { 1, 0},
+		{-1,-1},  { 0,-1},  { 1,-1},
+	};
+	int ind = x_orig*width+y_orig;
+    curandState localState = devStates[ind];
+    size_t RANDOM = curand( &localState );
+    devStates[ind] = localState; 
+	int r = RANDOM%s_anNeighborPatternSize_3x3;
+	x_neighbor = x_orig+s_anNeighborPattern_3x3[r][0];
+	y_neighbor = y_orig+s_anNeighborPattern_3x3[r][1];
+	if(x_neighbor<border)
+		x_neighbor = border;
+	else if(x_neighbor>=width-border)
+		x_neighbor = width-border-1;
+	if(y_neighbor<border)
+		y_neighbor = border;
+	else if(y_neighbor>=height-border)
+		y_neighbor = height-border-1;
+}
+//å–(x,y)åƒç´ ç¬¬idä¸ªå€¼ï¼Œæ¯ä¸ªåƒç´ æœ‰BMSIZEä¸ªæ•°æ®ï¼ŒæŒ‰ç…§å›¾åƒåƒç´ è¡Œé¡ºåºæ’åˆ—, 
 template<typename T>
  __device__ T& GetRefFromBigMatrix(PtrStep<T> mat, int width, int height, int id, int x, int y,int bmSize = 50)
 {
@@ -88,23 +123,33 @@ void InitConstantMem()
 	cudaMemcpyToSymbol(cpopcount_LUT8,hpopcount_LUT8,sizeof(uchar)*256);
 }
 
-__global__ void TestRandNeighbourKernel(int width, int height, int* rand)
+__global__ void TestRandNeighbourKernel(curandState* devStates,int width, int height, int* rand)
 {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	if (x<width && y<height)
 	{
 		int x_n,y_n;
-		getRandNeighborPosition_3x3(x_n, y_n, x, y, 2, width, height);
-		rand[(x+y*width)*2] = x_n;
-		rand[(x+y*width)*2+1] = y_n;
+		getRandNeighborPosition(devStates,x_n, y_n, x, y, 2, width, height);
+		//getRandNeighborPosition_3x3(x_n, y_n, x, y, 2, width, height);
+		rand[(x+y*width)*2] = abs(x_n-x);
+		rand[(x+y*width)*2+1] = abs(y-y_n);
 	}
 }
 void TestRandNeighbour(int width, int height, int* rand)
 {
 	dim3 block(16,16);
 	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
-	TestRandNeighbourKernel<<<grid,block>>>(width,height,rand);
+	size_t N = width*height;
+	curandState* devStates;
+    cudaMalloc ( &devStates, N*sizeof( curandState ) );
+    
+    // setup seeds
+    setup_kernel <<< N+127/128,128>>> (N, devStates, time(NULL) );
+
+
+	TestRandNeighbourKernel<<<grid,block>>>(devStates,width,height,rand);
+	cudaFree(devStates);
 }
 
 __device__ void LBSP(const PtrStep<uchar4>& img, const uchar4& color, const int x, const int y, const size_t* const t, ushort4& out)
@@ -291,7 +336,7 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 	{
 		
 		curandState state;
-		curand_init(threadIdx.x,0,0,&state);
+		curand_init(threadIdx.y,0,0,&state);
 		double* ptr = homography;
 		float fx,fy,fw;
 		fx = x*ptr[0] + y*ptr[1] + ptr[2];
@@ -369,7 +414,7 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 		}
 		else
 		{
-			//·´±ä»»
+			//åå˜æ¢
 			ptr += 9;
 			fx = x*ptr[0] + y*ptr[1] + ptr[2];
 			fy = x*ptr[3] + y*ptr[4] + ptr[5];
@@ -446,15 +491,15 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 				size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 				size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 				const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
-				const size_t nSumDist = (nDescDist/2)*15+nColorDist;
-				if(nSumDist>nCurrSCColorDistThreshold)
-					goto failedcheck3ch;
+				const size_t nSumDist = min((nDescDist/2)*15+nColorDist,255);
+				/*if(nSumDist>nCurrSCColorDistThreshold)
+					goto failedcheck3ch;*/
 				nTotDescDist += nDescDist;
 				nTotSumDist += nSumDist;
 				//nTotSumDist += nColorDist;
 			}
-			if(nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold)
-				goto failedcheck3ch;
+			/*if(nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold)
+				goto failedcheck3ch;*/
 
 			if(nMinTotDescDist>nTotDescDist)
 				nMinTotDescDist = nTotDescDist;
@@ -565,7 +610,7 @@ __global__ void CudaRefreshModelKernel(float refreshRate, int width ,int height,
 	if(x < width-2 && x>=2 && y>=2 && y <height-2 && mask(y,x) == 0xff)
 	{
 		curandState state;
-		curand_init(threadIdx.x,0,0,&state);
+		curand_init(threadIdx.y,0,0,&state);
 		const size_t nBGSamplesToRefresh = refreshRate<1.0f?(size_t)(refreshRate*modelSize):modelSize;
 		const size_t nRefreshStartPos = refreshRate<1.0f?curand(&state)%modelSize:0;
 		size_t offset = width*height*modelSize;
@@ -609,7 +654,7 @@ __global__ void CudaRefreshModelKernel(float refreshRate, int width ,int height,
 	if(x < width-2 && x>=2 && y>=2 && y <height-2)
 	{
 		curandState state;
-		curand_init(threadIdx.x,0,0,&state);
+		curand_init(threadIdx.y,0,0,&state);
 		const size_t nBGSamplesToRefresh = refreshRate<1.0f?(size_t)(refreshRate*modelSize):modelSize;
 		const size_t nRefreshStartPos = refreshRate<1.0f?curand(&state)%modelSize:0;
 		size_t offset = width*height*modelSize;
@@ -688,7 +733,7 @@ __global__ void SCudaRefreshModelKernel(float refreshRate,const PtrStepSz<uchar4
 	{
 
 		curandState state;
-		curand_init(threadIdx.x,0,0,&state);
+		curand_init(threadIdx.y,0,0,&state);
 
 		const size_t nBGSamplesToRefresh = refreshRate<1.0f?(size_t)(refreshRate*modelSize):modelSize;
 		const size_t nRefreshStartPos = refreshRate<1.0f?curand(&state)%modelSize:0;
@@ -761,9 +806,9 @@ void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& m
 {
 	dim3 block(16,16);
 	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
-	//colorModels»¹°üº¬ downsample ºÍlastcolor
+	//colorModelsè¿˜åŒ…å« downsample å’Œlastcolor
 	//CudaRefreshModelKernel<<<grid,block>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
-	//colorModels»¹°üº¬ downsample ºÍlastcolor
+	//colorModelsè¿˜åŒ…å« downsample å’Œlastcolor
 	CudaRefreshModelKernel<<<grid,block>>>(refreshRate,width,height,mask,colorModels,descModels,50,fModel,bModel);
 }
 void CudaRefreshModel(float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
@@ -771,9 +816,9 @@ void CudaRefreshModel(float refreshRate,int width, int height, cv::gpu::GpuMat& 
 {
 	dim3 block(16,16);
 	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
-	//colorModels»¹°üº¬ downsample ºÍlastcolor
+	//colorModelsè¿˜åŒ…å« downsample å’Œlastcolor
 	//CudaRefreshModelKernel<<<grid,block>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
-	//colorModels»¹°üº¬ downsample ºÍlastcolor
+	//colorModelsè¿˜åŒ…å« downsample å’Œlastcolor
 	CudaRefreshModelKernel<<<grid,block>>>(refreshRate,width,height,colorModels,descModels,50,fModel,bModel);
 
 
