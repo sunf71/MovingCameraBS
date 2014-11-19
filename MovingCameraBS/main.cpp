@@ -726,8 +726,8 @@ void TestEdgeTracking2Img()
 void TestListEdgeTracking()	
 {
 	char fileName[150];
-	const size_t LIST_SIZE = 7;
-	size_t trackDist = 5;
+	const size_t LIST_SIZE = 10;
+	size_t trackDist = 10;
 	Mat pre_gray,gray,pre_thetaMat,thetaMat,pre_edge,edge;
 	std::vector<EdgePoint> pre_edgePoints,edgePoints;
 	std::list<Mat> grayList;
@@ -737,13 +737,13 @@ void TestListEdgeTracking()
 	double tr1(120.f),tr2(300.f);
 	
 	int start = 1; 
-	int end = 19;
+	int end = 1130;
 	char outPathName[100];
-	sprintf(outPathName,".\\ListEdgeTracking\\features\\");
+	sprintf(outPathName,"..\\result\\subsensex\\ptz\\input3\\features\\");
 	CreateDir(outPathName);
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(fileName,"..//moseg//cars1//in%06d.jpg",i);
+		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
 		Mat img = imread(fileName);
 		cvtColor(img, gray, CV_BGR2GRAY); 
 		cv::Canny(gray,edge,tr1,tr2);
@@ -777,7 +777,7 @@ void TestListEdgeTracking()
 		}
 		else
 		{
-			size_t id = LIST_SIZE-trackDist-1;
+			size_t id = LIST_SIZE-trackDist;
 			std::list<cv::Mat>::iterator itr = std::next(edgeList.begin(), id);			
 			pre_edge = *itr;
 			itr = std::next(grayList.begin(),id);
@@ -802,14 +802,14 @@ void TestListEdgeTracking()
 		Mat mask(gray.size(),CV_8U);
 		mask = Scalar(0);
 		MapEdgePoint(gray,edgePoints,pre_edge,pre_thetaMat,homoM,theta, mask);
-		if (i == 256)
+		/*if (i == 256)
 		{
 			imwrite("edge.jpg",edge);
 			imwrite("preEdge.jpg",pre_edge);
 			imwrite("gray.jpg",gray);
 			imwrite("preGray.jpg",pre_gray);
-		}
-		/*cv::dilate(mask,mask,cv::Mat(),cv::Point(-1,-1),2);*/
+		}*/
+		cv::dilate(mask,mask,cv::Mat(),cv::Point(-1,-1),2);
 		sprintf(fileName,"%sfeatures%06d.jpg",outPathName,i);
 		imwrite(fileName,mask);
 		/*swap(pre_gray,gray);

@@ -1287,7 +1287,7 @@ failedcheck1ch:
 				m_nFramesSinceLastReset = 0;
 				//refreshModel(0.1f); // reset 10% of the bg model
 				m_nModelResetCooldown = m_nSamplesForMovingAvgs;
-				//m_oUpdateRateFrame = cv::Scalar(1.0f);
+				m_oUpdateRateFrame = cv::Scalar(1.0f);
 			}
 			else
 				++m_nFramesSinceLastReset;
@@ -1310,12 +1310,12 @@ failedcheck1ch:
 			--m_nModelResetCooldown;
 	}
 	//refreshEdgeModel(0.1);
-	/*if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
+	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	{
 		refreshModel(0.1);
 		resetPara();
 		m_nOutPixels = 0;
-	}*/
+	}
 }
 
 

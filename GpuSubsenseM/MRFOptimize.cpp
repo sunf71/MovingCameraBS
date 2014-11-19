@@ -1199,8 +1199,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;

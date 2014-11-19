@@ -258,8 +258,8 @@ void TestGpuSubsense()
 int main (int argc, char* argv[])
 {
 	//TestRandom();
-	TestGpuSubsense();
-	//MRFOptimization();
+	//TestGpuSubsense();
+	MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();
 	return 0;
