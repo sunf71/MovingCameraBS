@@ -434,7 +434,7 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
 	cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
-	sprintf(filename,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex+1);
+	sprintf(filename,"..\\result\\subsensex\\moseg\\cars1\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_mixFeatures);
 
 	cv::swap(m_preGray, m_gray);	
