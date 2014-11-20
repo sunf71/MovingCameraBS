@@ -615,17 +615,19 @@ failedcheck3ch:
 	}
 }
 
-__global__ void CudaRefreshModelKernel(float refreshRate, int width ,int height,PtrStep<uchar> mask, PtrStep<uchar4> colorModels,PtrStep<ushort4> descModels, int modelSize,
+__global__ void CudaRefreshModelKernel(curandState* devStates,float refreshRate, int width ,int height,PtrStep<uchar> mask, PtrStep<uchar4> colorModels,PtrStep<ushort4> descModels, int modelSize,
 	cv::gpu::PtrStep<float> fModel, cv::gpu::PtrStep<uchar> bModel)
 {
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	if(x < width-2 && x>=2 && y>=2 && y <height-2 && mask(y,x) == 0xff)
 	{
-		curandState state;
-		curand_init(threadIdx.y,0,0,&state);
+		int ind = x +y*width;
+		curandState localState = devStates[ind];
+		size_t RANDOM = curand( &localState );
+		devStates[ind] = localState; 
 		const size_t nBGSamplesToRefresh = refreshRate<1.0f?(size_t)(refreshRate*modelSize):modelSize;
-		const size_t nRefreshStartPos = refreshRate<1.0f?curand(&state)%modelSize:0;
+		const size_t nRefreshStartPos = refreshRate<1.0f?RANDOM%modelSize:0;
 		size_t offset = width*height*modelSize;
 		uchar4* colorPtr = colorModels.data + offset;
 		ushort4* descPtr= descModels.data + offset;
@@ -813,7 +815,7 @@ PtrStep<uchar> fgMask, PtrStep<uchar> lastFgMask,	uchar* outMask, float fCurrLea
 		bModel,wbModel,fModel,wfModel,
 		fgMask, lastFgMask, outMask,fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
 }
-void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& mask, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
+void CudaRefreshModel(curandState* randStates,float refreshRate,int width, int height,cv::gpu::GpuMat& mask, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
 	GpuMat& fModel, GpuMat& bModel)
 {
 	dim3 block(16,16);
@@ -821,7 +823,7 @@ void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& m
 	//colorModels还包含 downsample 和lastcolor
 	//CudaRefreshModelKernel<<<grid,block>>>(refreshRate,lastImg,lastDescImg,ptr_colorModel,ptr_descModel,d_colorModels.size()-2);
 	//colorModels还包含 downsample 和lastcolor
-	CudaRefreshModelKernel<<<grid,block>>>(refreshRate,width,height,mask,colorModels,descModels,50,fModel,bModel);
+	CudaRefreshModelKernel<<<grid,block>>>(randStates,refreshRate,width,height,mask,colorModels,descModels,50,fModel,bModel);
 }
 void CudaRefreshModel(curandState* randStates,float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
 	GpuMat& fModel, GpuMat& bModel)

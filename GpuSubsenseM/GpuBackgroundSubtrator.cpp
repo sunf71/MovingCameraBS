@@ -585,16 +585,16 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);*/
 
-	d_FGMask.download(m_rawFGMask);
+	d_FGMask.download(oCurrFGMask);
 	d_FGMask.copyTo(d_FGMask_last);
-	/*d_features.upload(m_preFeatures);
-	CudaRefreshModel(0.1f,m_oImgSize.width,m_oImgSize.height,d_features, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);*/
+	//d_features.upload(m_features);
+	//CudaRefreshModel(d_randStates,0.1f,m_oImgSize.width,m_oImgSize.height,d_features, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
 	/*uchar4* d_ptr = d_CurrentColorFrame.ptr<uchar4>();
 	uchar4* h_ptr = new uchar4[m_oImgSize.width*m_oImgSize.height];
 	cudaMemcpy(h_ptr,d_ptr,sizeof(uchar4)*m_oImgSize.width*m_oImgSize.height,cudaMemcpyDeviceToHost);
 	cv::Mat himg(m_oImgSize,CV_8UC4,h_ptr);
 	cv::imwrite("test.jpg",himg);*/
-	m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_features,oCurrFGMask);
+	//m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_gs,oInputImg,m_rawFGMask,m_preFeatures,oCurrFGMask);
 	/*if (m_nFrameIndex == 99)
 	{

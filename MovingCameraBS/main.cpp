@@ -879,10 +879,35 @@ void TestEdgeTracking()
 	
 	
 }
+void TestPostProcess()
+{
+	int start = 267; 
+	int end = 270;
+	char outPathName[100];
+	sprintf(outPathName,"..\\result\\subsensex\\ptz\\input3\\postprocess\\");
+	CreateDir(outPathName);
+	char fileName[100];
+	for(int i=start; i<=end;i++)
+	{
+		sprintf(fileName,"..//result//subsensex//PTZ//input3//bin%06d.png",i);
+		Mat mask = imread(fileName);
+		if(mask.channels() ==3)
+			cv::cvtColor(mask,mask,CV_BGR2GRAY);
+		sprintf(fileName,"..//PTZ//input3//in%06d.jpg",i);
+		cv::Mat img = cv::imread(fileName);
+		if(img.channels()==3)
+			cvtColor(img,img,CV_BGR2GRAY);
+		cv::Mat dst(mask.size(),mask.type());
+		refineSegments(img,mask,dst);
+		sprintf(fileName,"%spbin%06d.jpg",outPathName,i);
+		imwrite(fileName,dst);
+	}
+}
 int main()
 {
+	TestPostProcess();
 	//TestEdgeTracking2Img();
-	TestListEdgeTracking();
+	//TestListEdgeTracking();
 	//TestLBP();
 	//TestPerspective();	
 	//TestAffine();

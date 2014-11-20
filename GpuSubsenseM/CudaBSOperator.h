@@ -20,7 +20,7 @@ void DownloadModel(int width,int height, cv::gpu::GpuMat& models, int size, int 
 void DownloadColorModel(int width,int height, cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model);
 void CudaRefreshModel(curandState* randStates,float refreshRate,int width, int height, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
 	GpuMat& fModel, GpuMat& bModel);
-void CudaRefreshModel(float refreshRate,int width, int height,cv::gpu::GpuMat& mask, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
+void CudaRefreshModel(curandState* randStates,float refreshRate,int width, int height,cv::gpu::GpuMat& mask, cv::gpu::GpuMat& colorModels, cv::gpu::GpuMat& descModels, 
 	GpuMat& fModel, GpuMat& bModel);
 void testRandom();
 void InitRandState(int width, int height,curandState* devStates);
