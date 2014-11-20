@@ -79,7 +79,7 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 void TestSuperpixel()
 {
 	using namespace cv;
-	Mat img = imread("in000001.jpg");
+	Mat img = imread("in000090.jpg");
 	//cv::resize(img,img,cv::Size(16,16));
 	uchar4* imgData = new uchar4[img.rows*img.cols];
 	unsigned int* idata = new unsigned int[img.rows*img.cols];
@@ -99,8 +99,8 @@ void TestSuperpixel()
 			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
-	CpuSuperpixel(idata,img.cols,img.rows,5);
-	GpuSuperpixel gs(img.cols,img.rows,5);
+	CpuSuperpixel(idata,img.cols,img.rows,25);
+	GpuSuperpixel gs(img.cols,img.rows,25);
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
 
@@ -222,7 +222,7 @@ void TestGpuSubsense()
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\moseg\\cars1\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -258,8 +258,8 @@ void TestGpuSubsense()
 int main (int argc, char* argv[])
 {
 	//TestRandom();
-	//TestGpuSubsense();
-	MRFOptimization();
+	TestGpuSubsense();
+	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();
 	return 0;

@@ -1352,8 +1352,8 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 			m_spPtr[i].idx = i;
 			m_spPtr[i].lable = i;
 
-			float n = 0;
-			float nfeatrues(0);
+			float n = 0;			
+			float nBGEdges(0);
 			float nBgInliers(0);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = m_step;
@@ -1368,16 +1368,16 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 					if (m_labels[idx] == i )
 					{		
 						
-						if ( mask[idx] == 0xff && featureMask[idx] != 0xff)
+						if ( mask[idx] == 0xff)
 							n++;
-						/*if (featureMask[idx] == 0xff)
+						if (featureMask[idx] == 0xff)
 						{
-							nfeatrues++;
+							nBGEdges++;
 						}
 						else if(featureMask[idx] == 100)
 						{
 							nBgInliers++;
-						}*/
+						}
 					}
 					//else if(isNeighbour(i,x,y,m_width,m_height,m_labels))
 					//{
@@ -1386,7 +1386,11 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 					//}
 				}
 			}
-			m_spPtr[i].ps = n/m_centers[i].nPoints;
+			//m_spPtr[i].ps  = min(max( (2*n - nBgInliers - nBGEdges ),0)/m_centers[i].nPoints,1.f);
+			if (nBGEdges > 5 )
+				m_spPtr[i].ps = 0;
+			else
+				m_spPtr[i].ps  = min(n/m_centers[i].nPoints,1.f);
 			//float c = 1e-10;
 			//m_spPtr[i].ps *= (1-(nBgInliers)/(nfeatrues+nBgInliers+c));
 		}

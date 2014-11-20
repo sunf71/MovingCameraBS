@@ -22,13 +22,15 @@
 #define BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS (25)
 struct EdgePoint
 {
-	EdgePoint(int _x, int _y, uchar _color,float _theta):x(_x),y(_y),theta(_theta),color(_color)
+	EdgePoint(int _x, int _y, float _theta,float _color):x(_x),y(_y),theta(_theta),color(_color)
 	{}
-	char color;
 	int x;
 	int y;
+	float color;//3×3邻域的平均颜色
 	float theta;//角度，0~180
 };
+//row,col为中心的size*size区域平均颜色
+float AvgColor(const cv::Mat& img, int row, int col, int size=3);
 class GpuBackgroundSubtractor : public cv::BackgroundSubtractor {
 public:
 	//! full constructor
@@ -70,10 +72,114 @@ public:
  	    d_mat.download(mat);
  	}
 	void cloneModels();
+	void GetTransformMatrix(const cv::Mat& gray, const cv::Mat pre_gray, cv::Mat& homoM, cv::Mat& affineM)
+	{
+		int max_count = 50000;	  // maximum number of features to detect
+		double qlevel = 0.05;    // quality level for feature detection
+		double minDist = 2;   // minimum distance between two feature points
+		std::vector<uchar> status; // status of tracked features
+		std::vector<float> err;    // error in tracking
+		std::vector<cv::Point2f> features1,features2;  // detected features
+		// detect the features
+		cv::goodFeaturesToTrack(gray, // the image 
+			features1,   // the output detected features
+			max_count,  // the maximum number of features 
+			qlevel,     // quality level
+			minDist);   // min distance between two features
+
+		// 2. track features
+		cv::calcOpticalFlowPyrLK(gray, pre_gray, // 2 consecutive images
+			features1, // input point position in first image
+			features2, // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
+
+		int k=0;
+
+		for( int i= 0; i < features1.size(); i++ ) 
+		{
+
+			// do we keep this point?
+			if (status[i] == 1) 
+			{
+
+				//m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
+				// keep this point in vector
+				features1[k] = features1[i];
+				features2[k++] = features2[i];
+			}
+		}
+		features1.resize(k);
+		features2.resize(k);
+
+		std::vector<uchar> inliers(features1.size(),0);
+		homoM= cv::findHomography(
+			cv::Mat(features1), // corresponding
+			cv::Mat(features2), // points
+			inliers, // outputted inliers matches
+			CV_RANSAC, // RANSAC method
+			0.1); // max distance to reprojection point
+
+		affineM = estimateRigidTransform(features1,features2,true);
+	}
 	void getHomography(const cv::Mat& dImage, cv::Mat&  homography);
 	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
 	//边缘点匹配
 	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);
+	//检测所求出前景的运动是否与背景一致，去掉错误前景
+	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
+	{
+		float threshold = 0.6;
+		std::vector<cv::Point2f> currPoints, trackedPoints;
+		std::vector<uchar> status; // status of tracked features
+		std::vector<float> err;    // error in tracking
+		for(int i=0; i<mCurr.cols; i++)
+		{
+			for(int j=0; j<mCurr.rows; j++)
+				if(mCurr.data[i + j*mCurr.cols] == 0xff)
+					currPoints.push_back(cv::Point2f(i,j));
+		}
+		if (currPoints.size() <=0)
+			return;
+		// 2. track features
+		cv::calcOpticalFlowPyrLK(curr, prev, // 2 consecutive images
+			currPoints, // input point position in first image
+			trackedPoints, // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
+
+		// 2. loop over the tracked points to reject the undesirables
+		int k=0;
+		for( int i= 0; i < currPoints.size(); i++ ) {
+			// do we keep this point?
+			if (status[i] == 1) {
+				// keep this point in vector
+				currPoints[k] = currPoints[i];
+				trackedPoints[k++] = trackedPoints[i];
+			}
+		}
+		// eliminate unsuccesful points
+		currPoints.resize(k);
+		trackedPoints.resize(k);
+		float distance = 0;
+		for(int i=0; i<k; i++)
+		{
+			cv::Point2f pt = currPoints[i];
+			double* data = (double*)homography.data;
+			float x = data[0]*pt.x + data[1]*pt.y + data[2];
+			float y = data[3]*pt.x + data[4]*pt.y + data[5];
+			float w = data[6]*pt.x + data[7]*pt.y + data[8];
+			x /= w;
+			y /= w;
+			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
+			distance += d;
+			if (d < threshold)
+			{
+				const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;				
+				mCurr.data[idx_char] = 0x0;			
+			}			
+		}
+	}
 protected:
 	//! background model keypoints used for LBSP descriptor extraction (specific to the input image size)
 	std::vector<cv::KeyPoint> m_voKeyPoints;
@@ -215,8 +321,16 @@ protected:
 	size_t m_nOutPixels;
 	cv::Mat m_preThetaMat,m_thetaMat;
 	std::vector<EdgePoint> m_preEdgePoints, m_edgePoints;	
-	cv::Mat m_preEdges,m_preGray;
+	cv::Mat m_preEdges,m_preGray,m_lastGray;
 	cv::Mat m_edges,m_gray;	
+	//用于边缘跟踪的数据列表
+	std::list<cv::Mat> m_grayList;
+	std::list<cv::Mat> m_edgeList;
+	std::list<cv::Mat> m_thetaMatList;
+	std::list<std::vector<EdgePoint>> m_edgePointList;
+	const size_t LIST_SIZE;
+	//边缘跟踪距离
+	size_t  m_trackDist;
 	//保存特征点跟踪情况
 	cv::Mat m_features,m_preFeatures,m_mixFeatures,m_rawFGMask;
 	

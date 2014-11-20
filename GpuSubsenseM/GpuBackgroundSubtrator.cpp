@@ -59,7 +59,33 @@ static const size_t s_nColorMaxDataRange_1ch = UCHAR_MAX;
 //static const size_t s_nDescMaxDataRange_1ch = LBSP::DESC_SIZE*8;
 static const size_t s_nColorMaxDataRange_3ch = s_nColorMaxDataRange_1ch*3;
 //static const size_t s_nDescMaxDataRange_3ch = s_nDescMaxDataRange_1ch*3;
-
+float AvgColor(const cv::Mat& img, int row, int col, int size)
+{
+	cv::Mat gray = img;
+	if (img.channels() == 3)
+		cv::cvtColor(img,gray,CV_BGR2GRAY);
+	int width = img.cols;
+	int height = img.rows;
+	int step = size/2;
+	size_t avgColor = 0;
+	int c = 0;
+	for(int i= -step; i<=step; i++)
+	{
+		for(int j=-step; j<=step; j++)
+		{
+			int x = col+ i;
+			int y = row +j;
+			if ( x>=0 && x<width && y>=0 && y<height)
+			{
+				int idx = y*width + x;
+				avgColor += gray.data[idx];
+				c++;
+			}
+		}
+	}
+	avgColor/=c;
+	return avgColor;
+}
 GpuBackgroundSubtractor::GpuBackgroundSubtractor(	 float fRelLBSPThreshold
 															,size_t nMinDescDistThreshold
 															,size_t nMinColorDistThreshold
@@ -84,9 +110,11 @@ GpuBackgroundSubtractor::GpuBackgroundSubtractor(	 float fRelLBSPThreshold
 		,m_bUse3x3Spread(true)
 		,m_fRelLBSPThreshold(0.333)
 		,m_nDescDistThreshold(3)
-		,m_nLBSPThresholdOffset(0){
+		,m_nLBSPThresholdOffset(0),
+		LIST_SIZE(20){
 	CV_Assert(m_nBGSamples>0 && m_nRequiredBGSamples<=m_nBGSamples);
 	CV_Assert(m_nMinColorDistThreshold>=STAB_COLOR_DIST_OFFSET);
+	m_trackDist = 10;
 }
 
 GpuBackgroundSubtractor::~GpuBackgroundSubtractor() 
@@ -355,8 +383,8 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	 m_outMaskPtr= new uchar[m_nPixels];
 	 m_nOutPixels = 0;
 	InitConstantMem();
-	m_thetaMat = cv::Mat(m_oImgSize,CV_32FC1);
-	m_preThetaMat =cv::Mat(m_oImgSize,CV_32FC1);
+	m_thetaMat = cv::Mat(m_oImgSize,CV_32FC2);
+	m_preThetaMat =cv::Mat(m_oImgSize,CV_32FC2);
 
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
 	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5);
@@ -409,40 +437,72 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 	ExtractEdgePoint(m_gray,m_edges,m_thetaMat,m_edgePoints);
 
 	//cv::dilate(m_edges,m_edges,cv::Mat(),cv::Point(-1,-1));
-	if (m_preEdges.empty())
+	if (m_edgeList.size()< LIST_SIZE)
 	{
-		m_gray.copyTo(m_preGray);
+		m_grayList.push_back(m_gray.clone());
+		m_thetaMatList.push_back(m_thetaMat.clone());
+		m_edgeList.push_back(m_edges.clone());
+		m_edgePointList.push_back(m_edgePoints);
+	}
+	else if(m_edgeList.size() == LIST_SIZE)
+	{
+		m_grayList.pop_front();
+		m_grayList.push_back(m_gray.clone());
+		m_thetaMatList.pop_front();
+		m_thetaMatList.push_back(m_thetaMat.clone());
+		m_edgeList.pop_front();
+		m_edgeList.push_back(m_edges.clone());
+		m_edgePointList.pop_front();
+		m_edgePointList.push_back(m_edgePoints);
+
+	}
+	if(m_edgeList.size() < m_trackDist+1)
+	{
 		m_edges.copyTo(m_preEdges);
 		m_thetaMat.copyTo(m_preThetaMat);
-		m_features.copyTo(m_preFeatures);
 		m_preEdgePoints = m_edgePoints;
+		m_gray.copyTo(m_lastGray);
 	}
-	cv::Mat affine = cv::estimateRigidTransform(m_points[0],m_points[1],true);//std::cout<<affine<<std::endl;
+	else
+	{
+		size_t id = m_edgeList.size()-1-m_trackDist;
+		std::list<cv::Mat>::iterator itr = std::next(m_edgeList.begin(), id);			
+		m_preEdges = *itr;
+		itr = std::next(m_grayList.begin(),id);
+		m_lastGray = *itr;
+		itr = std::next(m_thetaMatList.begin(),id);
+		m_preThetaMat = *(itr);
+		std::list<vector<EdgePoint>>::iterator eitr = std::next(m_edgePointList.begin(),id);
+		m_preEdgePoints = *(eitr);
+	}
+	cv::Mat affineM,homoM;
+	GetTransformMatrix(m_gray,m_lastGray,homoM,affineM);
 	double theta(0);
-	if (!affine.empty())
-		theta = atan(affine.at<double>(1,0)/(affine.at<double>(1,1)+1e-6))/M_PI*180;
+	if (!affineM.empty())
+		theta = atan(affineM.at<double>(1,0)/(affineM.at<double>(1,1)+1e-6))/M_PI*180;
 
-	MapEdgePoint(m_edgePoints,m_preEdges,m_preThetaMat,homography,theta, m_features);	
+	MapEdgePoint(m_edgePoints,m_preEdges,m_preThetaMat,homoM,theta, m_features);	
 	cudaMemcpy(d_homoPtr,(double*)homography.data,sizeof(double)*9,cudaMemcpyHostToDevice);
 	homography = homography.inv();
 	cudaMemcpy(d_homoPtr+9,(double*)homography.data,sizeof(double)*9,cudaMemcpyHostToDevice);
 	for(int i=0; i<inliers.size(); i++)
 	{
 		if (inliers[i] == 1)
-			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0xff;
+			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0x100;
 	}
-	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
-	cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
+	//cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
+	//cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
-	sprintf(filename,"..\\result\\subsensex\\moseg\\cars1\\features\\features%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_mixFeatures);
+	sprintf(filename,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);
 
-	cv::swap(m_preGray, m_gray);	
-	cv::swap(m_preEdges,m_edges);
+	
+	/*cv::swap(m_preEdges,m_edges);
 	cv::swap(m_preThetaMat,m_thetaMat);
 	cv::swap(m_preFeatures,m_features);
-	std::swap(m_preEdgePoints,m_edgePoints);
+	std::swap(m_preEdgePoints,m_edgePoints);*/
 	cv::gpu::swap(d_gray,d_preGray);
+	cv::swap(m_preGray, m_gray);	
 }
 void GpuBackgroundSubtractor::cloneModels()
 {
@@ -525,7 +585,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);*/
 
-	d_FGMask.download(oCurrFGMask);
+	d_FGMask.download(m_rawFGMask);
 	d_FGMask.copyTo(d_FGMask_last);
 	/*d_features.upload(m_preFeatures);
 	CudaRefreshModel(0.1f,m_oImgSize.width,m_oImgSize.height,d_features, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);*/
@@ -534,7 +594,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cudaMemcpy(h_ptr,d_ptr,sizeof(uchar4)*m_oImgSize.width*m_oImgSize.height,cudaMemcpyDeviceToHost);
 	cv::Mat himg(m_oImgSize,CV_8UC4,h_ptr);
 	cv::imwrite("test.jpg",himg);*/
-	//m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_preFeatures,oCurrFGMask);
+	m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_gs,oInputImg,m_rawFGMask,m_preFeatures,oCurrFGMask);
 	/*if (m_nFrameIndex == 99)
 	{
@@ -596,17 +656,17 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 		if(fCurrColorDiffRatio>=FRAMELEVEL_COLOR_DIFF_RESET_THRESHOLD/2) {
 			m_fCurrLearningRateLowerCap = (float)std::max((int)FEEDBACK_T_LOWER>>(int)(fCurrColorDiffRatio/2),1);
 			m_fCurrLearningRateUpperCap = (float)std::max((int)FEEDBACK_T_UPPER>>(int)(fCurrColorDiffRatio/2),1);
-			m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
+			//m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
 		}
 		else {
 			m_fCurrLearningRateLowerCap = FEEDBACK_T_LOWER;
 			m_fCurrLearningRateUpperCap = FEEDBACK_T_UPPER;
-			m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
+			//m_ofstream<<m_nFrameIndex<<" "<<fCurrColorDiffRatio<<" updateing m_fCurrLearningRateLowerCap " <<m_fCurrLearningRateLowerCap<<" m_fCurrLearningRateUpperCap "<<m_fCurrLearningRateUpperCap<<std::endl;
 		}
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
 	}
-	
+	//MaskHomographyTest(oCurrFGMask,m_gray,m_preGray,m_homography);
 
 }
 void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
@@ -1119,8 +1179,11 @@ void GpuBackgroundSubtractor::ExtractEdgePoint(const cv::Mat& img, const cv::Mat
 			{				
 				float theta = atan(dy.data[idx]*1.0/(dx.data[idx]+1e-6))/M_PI*180;
 				/*std::cout<<theta<<std::endl;*/
-				*(float*)(edgeThetaMat.data+idx*4) = theta;
-				edgePoints.push_back(EdgePoint(j,i,img.data[idx],theta));
+				float avgColor = AvgColor(img,i,j);
+				float* ptr = edgeThetaMat.ptr<float>(i)+2*j;
+				*ptr= theta;
+				*(ptr+1) = avgColor;
+				edgePoints.push_back(EdgePoint(j,i,theta,avgColor));
 			}
 		}
 	}
@@ -1137,13 +1200,13 @@ void GpuBackgroundSubtractor::MapEdgePoint(const std::vector<EdgePoint>& ePoints
 	int height = edge2.rows;
 	//matchMask = Scalar(0);
 	float thetaDist = 0.5;
-	float colorDist = 255;
+	float colorDist = 10;
 	for(int i=0; i<ePoints1.size(); i++)
 	{
 		int ox = ePoints1[i].x;
 		int oy = ePoints1[i].y;
 		float theta = ePoints1[i].theta;
-		uchar color = ePoints1[i].color;
+		float color = ePoints1[i].color;
 		float x,y,w;
 		x = ox*ptr[0] + oy*ptr[1] + ptr[2];
 		y = ox*ptr[3] + oy*ptr[4] + ptr[5];
@@ -1161,9 +1224,11 @@ void GpuBackgroundSubtractor::MapEdgePoint(const std::vector<EdgePoint>& ePoints
 				if (nx>=0 && nx<width && ny >=0 && ny<height)
 				{
 					int id = nx + ny*width;
-					if (edge2.data[id]==255 && 
-						abs( *(float*)(edgeThetamat.data+id*4) - theta-deltaTheta) < thetaDist /*&&
-						abs(color - m_preGray.data[id]) < colorDist*/)
+					int tid = ny*edgeThetamat.step.p[0]+nx*edgeThetamat.step.p[1];
+					 float* angColorPtr = (float*)(edgeThetamat.data+tid);
+					if (edge2.data[id]==255  && 
+						abs( angColorPtr[0] - theta-deltaTheta) < thetaDist &&
+						 abs(color - angColorPtr[1]) < colorDist)
 					{
 						//match
 						matchMask.data[ox+oy*width] = UCHAR_MAX;

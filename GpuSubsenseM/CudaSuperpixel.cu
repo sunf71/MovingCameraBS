@@ -183,7 +183,7 @@ __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth
 			}			
 		}
 	}
-	if( np > 1 )//change to 2 or 3 for thinner lines
+	if( np > 0 )//change to 2 or 3 for thinner lines
 	{
 		double min = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,labels[mainindex],d_ceneters);
 		int idx = -1;

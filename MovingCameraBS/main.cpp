@@ -582,11 +582,9 @@ void ExtractEdgePoint(const Mat& img, double tr1,double tr2, const Mat& edge, Ma
 				*ptr= theta;
 				*(ptr+1) = avgColor;
 				edgePoints.push_back(EdgePoint(j,i,theta,avgColor));
-			}
-			
+			}			
 		}
 	}
-
 }
 
 //±ﬂ‘µµ„∆•≈‰
@@ -640,7 +638,7 @@ void MapEdgePoint(const Mat& gray,const std::vector<EdgePoint>& ePoints1, const 
 }
 void GetTransformMatrix(const cv::Mat& gray, const cv::Mat pre_gray, cv::Mat& homoM, cv::Mat& affineM)
 {
-	int max_count = 5000;	  // maximum number of features to detect
+	int max_count = 50000;	  // maximum number of features to detect
 	double qlevel = 0.05;    // quality level for feature detection
 	double minDist = 2;   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
@@ -726,8 +724,8 @@ void TestEdgeTracking2Img()
 void TestListEdgeTracking()	
 {
 	char fileName[150];
-	const size_t LIST_SIZE = 10;
-	size_t trackDist = 10;
+	const size_t LIST_SIZE = 3;
+	size_t trackDist = 3;
 	Mat pre_gray,gray,pre_thetaMat,thetaMat,pre_edge,edge;
 	std::vector<EdgePoint> pre_edgePoints,edgePoints;
 	std::list<Mat> grayList;
@@ -737,13 +735,13 @@ void TestListEdgeTracking()
 	double tr1(120.f),tr2(300.f);
 	
 	int start = 1; 
-	int end = 1130;
+	int end = 19;
 	char outPathName[100];
-	sprintf(outPathName,"..\\result\\subsensex\\ptz\\input3\\features\\");
+	sprintf(outPathName,"..\\result\\subsensex\\moseg\\cars1\\features\\");
 	CreateDir(outPathName);
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//cars1//in%06d.jpg",i);
 		Mat img = imread(fileName);
 		cvtColor(img, gray, CV_BGR2GRAY); 
 		cv::Canny(gray,edge,tr1,tr2);
