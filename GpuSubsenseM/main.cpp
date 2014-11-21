@@ -14,7 +14,7 @@
 //	for(int i=start; i<=end;i++)
 //	{
 //		char name[50];
-//		sprintf(name,"..\\PTZ\\input3\\in%06d.jpg",i);
+//		sprintf(name,"..\\PTZ\\input2\\in%06d.jpg",i);
 //		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 //		fileNames.push_back(name);
 //	}

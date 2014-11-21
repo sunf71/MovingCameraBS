@@ -168,6 +168,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="graph.h" />
     <ClInclude Include="LBSP.h" />
     <ClInclude Include="LinkedBlockList.h" />
+    <ClInclude Include="MotionEstimate.h" />
     <ClInclude Include="MRFOptimize.h" />
     <ClInclude Include="PictureHandler.h" />
     <ClInclude Include="RandUtils.h" />
@@ -185,6 +186,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="LinkedBlockList.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="maxflow.cpp" />
+    <ClCompile Include="MotionEstimate.cpp" />
     <ClCompile Include="MRFOptimize.cpp" />
     <ClCompile Include="PictureHandler.cpp" />
     <ClCompile Include="SLIC.cpp" />

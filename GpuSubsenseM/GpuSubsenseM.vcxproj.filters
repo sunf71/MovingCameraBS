@@ -61,6 +61,9 @@
     <ClInclude Include="LBSP.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="MotionEstimate.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
@@ -119,6 +122,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="GCoptimization.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MotionEstimate.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

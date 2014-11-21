@@ -879,10 +879,76 @@ void TestEdgeTracking()
 	
 	
 }
+void postProcess(const Mat& img, Mat& mask, Mat& imgDst, Mat& dst)
+{
+	cv::Mat m_oFGMask_PreFlood(img.size(),CV_8U);
+	cv::Mat m_oFGMask_FloodedHoles(img.size(),CV_8U);
+	cv::morphologyEx(mask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(mask,m_oFGMask_FloodedHoles,mask);
+	cv::bitwise_or(mask,m_oFGMask_PreFlood,mask);
+	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
+	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),2);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	m_oFGMask_last.copyTo(oCurrFGMask);
+}
+void postProcessSegments(const Mat& img, Mat& mask, Mat& imgDst, Mat& dst)
+{
+	int niters = 3;
+
+	vector<vector<Point> > contours,imgContours;
+	vector<Vec4i> hierarchy,imgHierarchy;
+	
+	Mat temp;
+	
+	Mat edge(img.size(),CV_8U);	
+	cv::Canny(img,edge,100,300);
+	dilate(edge, edge, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
+	erode(edge, edge, Mat(), Point(-1,-1), niters*2);//腐蚀
+	dilate(edge, edge, Mat(), Point(-1,-1), niters);
+	findContours( edge, imgContours, imgHierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
+
+	dilate(mask, temp, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
+	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//腐蚀
+	dilate(temp, temp, Mat(), Point(-1,-1), niters);
+	
+	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
+	
+	dst = Mat::zeros(img.size(), CV_8UC3);
+	imgDst = Mat::zeros(img.size(), CV_8UC3);
+	if( contours.size() == 0 )
+		return;
+
+	
+	double minArea = 10*10;
+	Scalar color( 255, 255, 255 );
+	for( int i = 0; i< contours.size(); i++ )
+	{
+		const vector<Point>& c = contours[i];
+		double area = fabs(contourArea(Mat(c)));
+		if( area > minArea )
+		{
+			drawContours( dst, contours, i, color, CV_FILLED, 8, hierarchy, 0, Point() );
+			
+		}
+		
+	}
+	for( int i = 0; i< imgContours.size(); i++ )
+	{
+		drawContours( imgDst, imgContours, i, color, 1, 8, imgHierarchy, 0, Point() );
+	}
+	cv::cvtColor(dst, dst, CV_BGR2GRAY); 
+	cv::cvtColor(imgDst, imgDst, CV_BGR2GRAY); 
+}
 void TestPostProcess()
 {
-	int start = 267; 
-	int end = 270;
+	int start = 1; 
+	int end = 1130;
 	char outPathName[100];
 	sprintf(outPathName,"..\\result\\subsensex\\ptz\\input3\\postprocess\\");
 	CreateDir(outPathName);
@@ -897,10 +963,14 @@ void TestPostProcess()
 		cv::Mat img = cv::imread(fileName);
 		if(img.channels()==3)
 			cvtColor(img,img,CV_BGR2GRAY);
-		cv::Mat dst(mask.size(),mask.type());
-		refineSegments(img,mask,dst);
-		sprintf(fileName,"%spbin%06d.jpg",outPathName,i);
+		cv::Mat dst,imgDst;
+		/*(mask.size(),mask.type());
+		cv::Mat imgDst(mask.size(),mask.type());*/
+		postProcessSegments(img,mask,imgDst,dst);
+		sprintf(fileName,"%sbin%06d.png",outPathName,i);
 		imwrite(fileName,dst);
+		/*sprintf(fileName,"%spi%06d.jpg",outPathName,i);
+		imwrite(fileName,imgDst);*/
 	}
 }
 int main()

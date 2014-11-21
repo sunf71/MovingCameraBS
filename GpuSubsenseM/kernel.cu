@@ -136,14 +136,14 @@ void MRFOptimization()
 	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input3\\bin%06d.png",i);
-		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);
+		sprintf(imgFileName,"..\\ptz\\input2\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input2\\bin%06d.png",i);
+		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input2\\features\\features%06d.jpg",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input2\\bin%06d.png",i);
 		
-		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
+		/*sprintf(imgFileName,"..\\baseline\\input2\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input2\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input2\\bin%06d.png",i);*/
 		//optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
 		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(featureMaskFileName),string(resultFileName));
 	}
@@ -218,11 +218,11 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 1130;
+	int end = 3500;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input2\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}

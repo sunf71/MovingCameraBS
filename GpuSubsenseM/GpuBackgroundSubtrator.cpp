@@ -114,7 +114,7 @@ GpuBackgroundSubtractor::GpuBackgroundSubtractor(	 float fRelLBSPThreshold
 		LIST_SIZE(20){
 	CV_Assert(m_nBGSamples>0 && m_nRequiredBGSamples<=m_nBGSamples);
 	CV_Assert(m_nMinColorDistThreshold>=STAB_COLOR_DIST_OFFSET);
-	m_trackDist = 10;
+	m_trackDist = 1;
 }
 
 GpuBackgroundSubtractor::~GpuBackgroundSubtractor() 
@@ -490,10 +490,10 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 		if (inliers[i] == 1)
 			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0x100;
 	}
-	//cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
+	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
 	//cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
-	sprintf(filename,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex+1);
+	sprintf(filename,"..\\result\\subsensex\\ptz\\input2\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 
 	
