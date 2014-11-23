@@ -382,7 +382,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	cudaMalloc(&d_outMaskPtr,m_nPixels);
 	 m_outMaskPtr= new uchar[m_nPixels];
 	 m_nOutPixels = 0;
-	InitConstantMem();
+	InitConstantMem(m_anLBSPThreshold_8bitLUT);
 	m_thetaMat = cv::Mat(m_oImgSize,CV_32FC2);
 	m_preThetaMat =cv::Mat(m_oImgSize,CV_32FC2);
 
@@ -493,7 +493,7 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
 	//cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
-	sprintf(filename,"..\\result\\subsensex\\ptz\\input2\\features\\features%06d.jpg",m_nFrameIndex+1);
+	sprintf(filename,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 
 	

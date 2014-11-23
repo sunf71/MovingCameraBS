@@ -13,6 +13,7 @@
 #include "videoprocessor.h"
 #include "CudaBSOperator.h"
 #include "RandUtils.h"
+#include "MotionEstimate.h"
 void testCudaGpu()
 {
 	try
@@ -136,14 +137,14 @@ void MRFOptimization()
 	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(imgFileName,"..\\ptz\\input2\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input2\\bin%06d.png",i);
-		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input2\\features\\features%06d.jpg",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input2\\bin%06d.png",i);
+		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input3\\bin%06d.png",i);
+		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);
 		
-		/*sprintf(imgFileName,"..\\baseline\\input2\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input2\\bin%06d.png",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input2\\bin%06d.png",i);*/
+		/*sprintf(imgFileName,"..\\baseline\\input3\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input3\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input3\\bin%06d.png",i);*/
 		//optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(resultFileName));
 		optimizer.Optimize(&gs,string(imgFileName),string(maskFileName),string(featureMaskFileName),string(resultFileName));
 	}
@@ -218,11 +219,11 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 3500;
+	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\ptz\\input2\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -255,8 +256,31 @@ void TestGpuSubsense()
 	
 
 }
+void TestMotionEstimate()
+{
+	char fileName[100];
+	int start = 2;
+	int end = 1130;
+	cv::Mat curImg,prevImg,transM;
+	MotionEstimate me(320,240,5);
+	for(int i=start; i<=end; i++)
+	{
+		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
+		curImg = cv::imread(fileName);
+		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i-1);
+		prevImg = cv::imread(fileName);
+		
+		me.EstimateMotion(curImg,prevImg,transM);
+		sprintf(fileName,".//features//features%06d.jpg",i);
+		cv::imwrite(fileName,curImg);
+		/*cv::imshow("curImg",curImg);
+		cv::imshow("prevImg",prevImg);
+		cv::waitKey();*/
+	}
+}
 int main (int argc, char* argv[])
 {
+	//TestMotionEstimate();
 	//TestRandom();
 	TestGpuSubsense();
 	//MRFOptimization();

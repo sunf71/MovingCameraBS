@@ -636,14 +636,67 @@ void MapEdgePoint(const Mat& gray,const std::vector<EdgePoint>& ePoints1, const 
 		 }
 	 }
 }
-void GetTransformMatrix(const cv::Mat& gray, const cv::Mat pre_gray, cv::Mat& homoM, cv::Mat& affineM)
+//±ﬂ‘µµ„∆•≈‰
+void MapEdgePoint(const Mat& gray,const std::vector<EdgePoint>& ePoints1, const Mat& edge2,const Mat& edgeThetamat, const  Mat& transform, float deltaTheta, Mat& matchMask,Mat& unmatchMask)
+{
+	double * ptr = (double*)transform.data;
+	int r = 1;//À—Àÿ∑∂Œß
+	int width = edge2.cols;
+	int height = edge2.rows;
+	matchMask = Mat(edge2.size(),CV_8U);
+	matchMask = Scalar(0);
+	float thetaDist = 0.5;
+	float colorDist = 20;
+	 for(int i=0; i<ePoints1.size(); i++)
+	 {
+		 int ox = ePoints1[i].x;
+		 int oy = ePoints1[i].y;
+		 float theta = ePoints1[i].theta;
+		 float color = ePoints1[i].color;
+		 float x,y,w;
+		 x = ox*ptr[0] + oy*ptr[1] + ptr[2];
+		 y = ox*ptr[3] + oy*ptr[4] + ptr[5];
+		 w = ox*ptr[6] + oy*ptr[7] + ptr[8];
+		 x /=w;
+		 y/=w;
+		 int wx = int(x+0.5);
+		 int wy = int(y+0.5);
+		 bool matched = false;;
+		 for(int m=-r; m<=r; m++)
+		 {
+			 for(int n=-r; n<=r; n++)
+			 {
+				 int nx  = wx + m;
+				 int ny = wy + n;
+				 if (nx>=0 && nx<width && ny >=0 && ny<height)
+				 {
+					 int id = nx + ny*width;
+					 int tid = ny*edgeThetamat.step.p[0]+nx*edgeThetamat.step.p[1];
+					 float* angColorPtr = (float*)(edgeThetamat.data+tid);
+				
+					 if (edge2.data[id]==255  && 
+						abs( angColorPtr[0] - theta-deltaTheta) < thetaDist &&
+						 abs(AvgColor(gray,oy,ox) - angColorPtr[1]) < colorDist)
+					 {
+						 //match
+						 matchMask.data[ox+oy*width] = UCHAR_MAX;
+						 matched = true;
+					 }					 
+				 }
+			 }
+		 }
+		 if (!matched)
+			 unmatchMask.data[ox+oy*width] = UCHAR_MAX;
+	 }
+}
+void GetTransformMatrix(const cv::Mat& gray, const cv::Mat pre_gray, std::vector<cv::Point2f>& features1,std::vector<cv::Point2f>& features2,
+	cv::Mat& homoM, cv::Mat& affineM, std::vector<uchar>& inliers)
 {
 	int max_count = 50000;	  // maximum number of features to detect
 	double qlevel = 0.05;    // quality level for feature detection
 	double minDist = 2;   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
 	std::vector<float> err;    // error in tracking
-	std::vector<cv::Point2f> features1,features2;  // detected features
 	// detect the features
 	cv::goodFeaturesToTrack(gray, // the image 
 		features1,   // the output detected features
@@ -676,7 +729,8 @@ void GetTransformMatrix(const cv::Mat& gray, const cv::Mat pre_gray, cv::Mat& ho
 	features1.resize(k);
 	features2.resize(k);
 
-	std::vector<uchar> inliers(features1.size(),0);
+	inliers.resize(k);
+	memset(&inliers[0],0,sizeof(char)*k);
 	homoM= cv::findHomography(
 		cv::Mat(features1), // corresponding
 		cv::Mat(features2), // points
@@ -693,8 +747,9 @@ void TestEdgeTracking(cv::Mat& imgC, cv::Mat& imgPre)
 	cv::cvtColor(imgC,gray,CV_BGR2GRAY);
 	cv::cvtColor(imgPre,pre_gray,CV_BGR2GRAY);
 	std::vector<EdgePoint> pre_edgePoints,edgePoints;
+	std::vector<uchar> inliers;
 	double tr1(120.f),tr2(300.f);
-	
+	std::vector<cv::Point2f> features1,features2;
 	cv::Canny(gray,edge,tr1,tr2);	
 	thetaMat = Mat(gray.size(),CV_32FC2);
 	pre_thetaMat = Mat(gray.size(),CV_32FC2);
@@ -702,23 +757,31 @@ void TestEdgeTracking(cv::Mat& imgC, cv::Mat& imgPre)
 	cv::Canny(pre_gray,pre_edge,tr1,tr2);	
 	
 	ExtractEdgePoint(pre_gray,tr1,tr2,pre_edge,pre_thetaMat,pre_edgePoints);
-	GetTransformMatrix(gray,pre_gray,homoM,affineM);
+	GetTransformMatrix(gray,pre_gray,features1,features2,homoM,affineM,inliers);
 	double theta = atan(affineM.at<double>(1,0)/affineM.at<double>(1,1))/M_PI*180;
 	cv::imshow("current edge",edge);
 	cv::imshow("previous edge", pre_edge);
 	
 	Mat mask(gray.size(),CV_8U);
 	mask = Scalar(0);
-	MapEdgePoint(gray,edgePoints,pre_edge,pre_thetaMat,homoM,theta, mask);
-
+	Mat umask(gray.size(),CV_8U);
+	umask = Scalar(0);
+	MapEdgePoint(gray,edgePoints,pre_edge,pre_thetaMat,homoM,theta, mask,umask);
+	
 	imwrite("edgeMatched.jpg",mask);
 	cv::imshow("matched",mask);
+	for(int i=0; i<inliers.size(); i++)
+	{
+		if (inliers[i] == 1)		
+			cv::circle(umask,features1[i],2,cv::Scalar(100));
+	}
+	cv::imshow("unmatched",umask);
 	cv::waitKey();
 }
 void TestEdgeTracking2Img()
 {
-	cv::Mat imgC = cv::imread("..//PTZ//input3//in000256.jpg");
-	cv::Mat imgPre = cv::imread("..//PTZ//input3//in000242.jpg");
+	cv::Mat imgC = cv::imread("..//moseg//cars1//in000002.jpg");
+	cv::Mat imgPre = cv::imread("..//moseg//cars1//in000001.jpg");
 	TestEdgeTracking(imgC,imgPre);
 }
 void TestListEdgeTracking()	
@@ -786,7 +849,9 @@ void TestListEdgeTracking()
 			pre_edgePoints = *(eitr);
 		}
 		cv::Mat affineM,homoM;
-		GetTransformMatrix(gray,pre_gray,homoM,affineM);
+		std::vector<uchar> inliers;
+		std::vector<cv::Point2f> features1,features2;
+		GetTransformMatrix(gray,pre_gray,features1,features2,homoM,affineM,inliers);
 		//std::cout<<affine<<std::endl;
 		if (affineM.empty())
 		{
@@ -853,7 +918,9 @@ void TestEdgeTracking()
 			gray.copyTo(pre_gray);
 		}
 		cv::Mat affineM,homoM;
-		GetTransformMatrix(gray,pre_gray,homoM,affineM);
+		std::vector<uchar> inliers;
+		std::vector<cv::Point2f> features1,features2;
+		GetTransformMatrix(gray,pre_gray,features1,features2,homoM,affineM,inliers);
 		//std::cout<<affine<<std::endl;
 		
 
@@ -890,12 +957,8 @@ void postProcess(const Mat& img, Mat& mask, Mat& imgDst, Mat& dst)
 	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
 	cv::bitwise_or(mask,m_oFGMask_FloodedHoles,mask);
 	cv::bitwise_or(mask,m_oFGMask_PreFlood,mask);
-	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
-	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),2);
-	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
-	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	m_oFGMask_last.copyTo(oCurrFGMask);
+	cv::medianBlur(mask,mask,3);
+	
 }
 void postProcessSegments(const Mat& img, Mat& mask, Mat& imgDst, Mat& dst)
 {
@@ -966,9 +1029,10 @@ void TestPostProcess()
 		cv::Mat dst,imgDst;
 		/*(mask.size(),mask.type());
 		cv::Mat imgDst(mask.size(),mask.type());*/
-		postProcessSegments(img,mask,imgDst,dst);
+		//postProcessSegments(img,mask,imgDst,dst);
+		postProcess(img,mask,imgDst,dst);
 		sprintf(fileName,"%sbin%06d.png",outPathName,i);
-		imwrite(fileName,dst);
+		imwrite(fileName,mask);
 		/*sprintf(fileName,"%spi%06d.jpg",outPathName,i);
 		imwrite(fileName,imgDst);*/
 	}

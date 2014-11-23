@@ -6,6 +6,7 @@
 int width = 0;
 int height = 0;
 __constant__ uchar cpopcount_LUT8[256];
+__constant__ size_t LBSPThres[256];
 //curandState* devStates;
 texture<uchar4> ImageTexture;
 #define TILE_W 16
@@ -115,7 +116,7 @@ void InitRandState(int width, int height,curandState* devStates)
     setup_kernel <<< (N+127)/128,128>>> (N, devStates, time(NULL) );
 }
 
-void InitConstantMem()
+void InitConstantMem(size_t* h_LBSPThres)
 {
 		const uchar hpopcount_LUT8[256] = {
 		0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
@@ -136,6 +137,7 @@ void InitConstantMem()
 		4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8,
 	};
 	cudaMemcpyToSymbol(cpopcount_LUT8,hpopcount_LUT8,sizeof(uchar)*256);
+	cudaMemcpyToSymbol(LBSPThres,h_LBSPThres,sizeof(size_t)*256);
 }
 
 __global__ void TestRandNeighbourKernel(curandState* devStates,int width, int height, int* rand)
@@ -405,7 +407,8 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 		//const uchar4 CurrColor = img(y,x);
 		uchar anCurrColor[3] = {CurrColor.x,CurrColor.y,CurrColor.z};
 		ushort4 CurrInterDesc, CurrIntraDesc;
-		const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[CurrColor.x],m_anLBSPThreshold_8bitLUT[CurrColor.y],m_anLBSPThreshold_8bitLUT[CurrColor.z]};
+		//const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[CurrColor.x],m_anLBSPThreshold_8bitLUT[CurrColor.y],m_anLBSPThreshold_8bitLUT[CurrColor.z]};
+		const size_t anCurrIntraLBSPThresholds[3] = {LBSPThres[CurrColor.x],LBSPThres[CurrColor.y],LBSPThres[CurrColor.z]};
 		//LBSP(img,CurrColor,x,y,anCurrIntraLBSPThresholds,CurrIntraDesc);
 		LBSP(scolor,CurrColor,threadIdx.x,threadIdx.y,BLOCK_W,anCurrIntraLBSPThresholds,CurrIntraDesc);
 
@@ -488,7 +491,8 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 			
 			uchar anBGColor[3] = {BGColor.x,BGColor.y,BGColor.z};
 			ushort anBGIntraDesc[3] = {BGIntraDesc.x,BGIntraDesc.y,BGIntraDesc.z};
-			const size_t anCurrInterLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[BGColor.x],m_anLBSPThreshold_8bitLUT[BGColor.y],m_anLBSPThreshold_8bitLUT[BGColor.z]};
+			//const size_t anCurrInterLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[BGColor.x],m_anLBSPThreshold_8bitLUT[BGColor.y],m_anLBSPThreshold_8bitLUT[BGColor.z]};
+			const size_t anCurrInterLBSPThresholds[3] = {LBSPThres[BGColor.x],LBSPThres[BGColor.y],LBSPThres[BGColor.z]};
 			//const size_t anCurrInterLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[0],m_anLBSPThreshold_8bitLUT[0],m_anLBSPThreshold_8bitLUT[0]};
 			
 			LBSP(scolor,BGColor,threadIdx.x,threadIdx.y,BLOCK_W,anCurrInterLBSPThresholds,CurrInterDesc);

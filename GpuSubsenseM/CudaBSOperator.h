@@ -7,7 +7,7 @@
 #include <curand_kernel.h>
 using namespace cv;
 using namespace cv::gpu;
-void InitConstantMem();
+void InitConstantMem(size_t* LBSPThres);
 void CudaBSOperator(const cv::gpu::GpuMat& img, curandState* randStates, double* homography, int frameIdx, 
 PtrStep<uchar4> colorModel,PtrStep<uchar4> wcolorModel,
 PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
