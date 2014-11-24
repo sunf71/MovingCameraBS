@@ -399,6 +399,8 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 	d_CurrentColorFrame.upload(image);
 	cv::gpu::cvtColor(d_CurrentColorFrame,d_gray,CV_BGRA2GRAY);
 	(*m_gpuDetector)(d_gray,d_currPts);
+	
+
 	if (d_preGray.empty())
 		d_gray.copyTo(d_preGray);
 	d_pyrLk.sparse(d_gray,d_preGray,d_currPts,d_prevPts,d_status);
@@ -493,7 +495,7 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
 	//cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
-	sprintf(filename,"..\\result\\subsensex\\ptz\\input0\\features\\features%06d.jpg",m_nFrameIndex);
+	sprintf(filename,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex+1);
 	//cv::imwrite(filename,m_features);
 	m_features = cv::imread(filename);
 	if (m_features.channels() == 3)
@@ -518,7 +520,56 @@ void GpuBackgroundSubtractor::cloneModels()
 	d_bModels.copyTo(d_wbModels);*/
 
 }
+void postProcessa(const Mat& img, Mat& mask)
+{
+	cv::Mat m_oFGMask_PreFlood(img.size(),CV_8U);
+	cv::Mat m_oFGMask_FloodedHoles(img.size(),CV_8U);
+	cv::morphologyEx(mask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(mask,m_oFGMask_FloodedHoles,mask);
+	cv::bitwise_or(mask,m_oFGMask_PreFlood,mask);
+	cv::medianBlur(mask,mask,3);
+	
+}
+void postProcessSegments(const Mat& img, Mat& mask)
+{
+	int niters = 3;
 
+	vector<vector<Point> > contours,imgContours;
+	vector<Vec4i> hierarchy,imgHierarchy;
+	
+	Mat temp;
+
+
+	dilate(mask, temp, Mat(), Point(-1,-1), niters);//ÅòÕÍ£¬3*3µÄelement£¬µü´ú´ÎÊýÎªniters
+	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//¸¯Ê´
+	dilate(temp, temp, Mat(), Point(-1,-1), niters);
+	
+	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//ÕÒÂÖÀª
+	
+	
+	if( contours.size() == 0 )
+		return;
+
+	
+	double minArea = 10*10;
+	Scalar color( 255, 255, 255 );
+	for( int i = 0; i< contours.size(); i++ )
+	{
+		const vector<Point>& c = contours[i];
+		double area = fabs(contourArea(Mat(c)));
+		if( area > minArea )
+		{
+			drawContours( mask, contours, i, color, CV_FILLED, 8, hierarchy, 0, Point() );
+			
+		}
+		
+	}
+	
+}
 void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
 	cv::Mat oInputImg = _image.getMat();
@@ -530,12 +581,14 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	
 	getHomography(img,m_homography);
 	cloneModels();
-	
+	d_features.upload(m_features);
 	/*GpuTimer gtimer;
 	gtimer.Start();*/
 	//d_CurrentColorFrame.upload(img);
-	CudaBSOperator(d_CurrentColorFrame, d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
-		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
+	/*CudaBSOperator(d_CurrentColorFrame, d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
+		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);*/
+	CudaBSOperator(d_CurrentColorFrame, d_features,d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
+		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 	
 	
 	cudaMemcpy(m_outMaskPtr,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
@@ -589,7 +642,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_FGMask.download(m_rawFGMask);
 	MaskHomographyTest(m_rawFGMask,m_gray,m_preGray,m_homography);
 	d_FGMask.copyTo(d_FGMask_last);
-	//d_features.upload(m_features);
+	
 	//CudaRefreshModel(d_randStates,0.1f,m_oImgSize.width,m_oImgSize.height,d_features, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
 	/*uchar4* d_ptr = d_CurrentColorFrame.ptr<uchar4>();
 	uchar4* h_ptr = new uchar4[m_oImgSize.width*m_oImgSize.height];
@@ -668,8 +721,10 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
 	}
+	
+	//postProcessa(m_gray,oCurrFGMask);
+	//postProcessSegments(m_gray,oCurrFGMask);
 	//MaskHomographyTest(oCurrFGMask,m_gray,m_preGray,m_homography);
-
 }
 void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 	// == refresh

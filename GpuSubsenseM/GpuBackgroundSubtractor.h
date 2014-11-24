@@ -311,6 +311,7 @@ protected:
 	cv::gpu::GpuMat d_prevPts;
 	cv::gpu::GpuMat d_currPts;
 	cv::gpu::GpuMat d_status;
+	cv::gpu::GpuMat d_bgMask;
 	cv::Mat m_homography;
 	std::vector<uchar> m_status; // status of tracked features
 	std::vector<cv::Point2f> m_points[2];

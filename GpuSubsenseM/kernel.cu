@@ -137,10 +137,10 @@ void MRFOptimization()
 	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);
-		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input0\\o\\bin%06d.png",i);
-		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input0\\features\\features%06d.jpg",i);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
+		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input3\\o\\bin%06d.png",i);
+		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);
 		
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
@@ -219,11 +219,11 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 1700;
+	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\ptz\\input0\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -260,19 +260,19 @@ void TestMotionEstimate()
 {
 	char fileName[100];
 	int start = 2;
-	int end = 1700;
+	int end = 1130;
 	cv::Mat curImg,prevImg,transM;
-	MotionEstimate me(704,480,5);
+	MotionEstimate me(320,240,5);
 	cv::Mat mask;
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//ptz//input0//in%06d.jpg",i);
+		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName,"..//ptz//input0//in%06d.jpg",i-1);
+		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
 		
 		me.EstimateMotion(curImg,prevImg,transM,mask);
-		sprintf(fileName,".//features//input0//features%06d.jpg",i);
+		sprintf(fileName,".//features//input3//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
 		cv::imshow("prevImg",prevImg);
