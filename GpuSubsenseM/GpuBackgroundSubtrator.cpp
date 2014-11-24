@@ -376,7 +376,7 @@ void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vec
 	//	imwrite(filename, m_voBGDescSamples[i]);
 	//}
 	
-	m_gpuDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(50000,0.01);
+	m_gpuDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(50000,0.05);
 	//±£¥Êhomography“‘º∞invhomography
 	cudaMalloc(&d_homoPtr,sizeof(double)*18);
 	cudaMalloc(&d_outMaskPtr,m_nPixels);
@@ -488,15 +488,16 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 	for(int i=0; i<inliers.size(); i++)
 	{
 		if (inliers[i] == 1)
-			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0x100;
+			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0xff;
 	}
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
 	//cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
-	sprintf(filename,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_features);
-
-	
+	sprintf(filename,"..\\result\\subsensex\\ptz\\input0\\features\\features%06d.jpg",m_nFrameIndex);
+	//cv::imwrite(filename,m_features);
+	m_features = cv::imread(filename);
+	if (m_features.channels() == 3)
+		cv::cvtColor(m_features,m_features,CV_BGR2GRAY);
 	/*cv::swap(m_preEdges,m_edges);
 	cv::swap(m_preThetaMat,m_thetaMat);
 	cv::swap(m_preFeatures,m_features);
@@ -585,7 +586,8 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);*/
 
-	d_FGMask.download(oCurrFGMask);
+	d_FGMask.download(m_rawFGMask);
+	MaskHomographyTest(m_rawFGMask,m_gray,m_preGray,m_homography);
 	d_FGMask.copyTo(d_FGMask_last);
 	//d_features.upload(m_features);
 	//CudaRefreshModel(d_randStates,0.1f,m_oImgSize.width,m_oImgSize.height,d_features, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
@@ -594,7 +596,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cudaMemcpy(h_ptr,d_ptr,sizeof(uchar4)*m_oImgSize.width*m_oImgSize.height,cudaMemcpyDeviceToHost);
 	cv::Mat himg(m_oImgSize,CV_8UC4,h_ptr);
 	cv::imwrite("test.jpg",himg);*/
-	//m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_features,oCurrFGMask);
+	m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_gs,oInputImg,m_rawFGMask,m_preFeatures,oCurrFGMask);
 	/*if (m_nFrameIndex == 99)
 	{
@@ -1195,7 +1197,7 @@ void GpuBackgroundSubtractor::MapEdgePoint(const std::vector<EdgePoint>& ePoints
 {
 	using namespace cv;
 	double * ptr = (double*)transform.data;
-	int r = 1;//À—Àÿ∑∂Œß
+	int r = 0;//À—Àÿ∑∂Œß
 	int width = edge2.cols;
 	int height = edge2.rows;
 	//matchMask = Scalar(0);

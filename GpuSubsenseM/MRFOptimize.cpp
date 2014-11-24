@@ -1368,16 +1368,16 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 					if (m_labels[idx] == i )
 					{		
 						
-						if ( mask[idx] == 0xff &&featureMask[idx] != 0xff && featureMask[idx] != 100)
+						if ( mask[idx] == 0xff && featureMask[idx] != 0xff)
 							n++;
-						/*if (featureMask[idx] == 0xff)
+						if (featureMask[idx] == 0xff)
 						{
 							nBGEdges++;
 						}
 						else if(featureMask[idx] == 100)
 						{
 							nBgInliers++;
-						}*/
+						}
 					}
 					//else if(isNeighbour(i,x,y,m_width,m_height,m_labels))
 					//{
@@ -1386,8 +1386,9 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 					//}
 				}
 			}
+			//m_spPtr[i].ps  = min((max(n-nBGEdges-nBgInliers,0))/m_centers[i].nPoints,1.0f);
 			m_spPtr[i].ps  = n/m_centers[i].nPoints;
-			/*if (nBGEdges > 0 )
+		/*	if (nBGEdges > 0 )
 				m_spPtr[i].ps = 0;
 			else
 				m_spPtr[i].ps  = min(n/m_centers[i].nPoints,1.f);*/

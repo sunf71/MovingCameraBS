@@ -1,7 +1,21 @@
 #include "MotionEstimate.h"
 #include "GpuSuperpixel.h"
 #include <algorithm>
-void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM)
+void postProcess(const Mat& img, Mat& mask)
+{
+	cv::Mat m_oFGMask_PreFlood(img.size(),CV_8U);
+	cv::Mat m_oFGMask_FloodedHoles(img.size(),CV_8U);
+	cv::morphologyEx(mask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(mask,m_oFGMask_FloodedHoles,mask);
+	cv::bitwise_or(mask,m_oFGMask_PreFlood,mask);
+	cv::medianBlur(mask,mask,3);
+	
+}
+void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
 {
 	//super pixel
 	//CV_ASSERT(curImg.rows == _height && curImg.cols == _width);
@@ -37,7 +51,8 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM)
 	cv::cvtColor(prevImg,preGray,CV_BGR2GRAY);
 	cv::goodFeaturesToTrack(gray,_features0,_maxCorners,_dataQuality,_minDist);
 	cv::goodFeaturesToTrack(preGray,_features1,_maxCorners,_dataQuality,_minDist);
-
+	size_t features0Size = _features0.size();
+	size_t features1Size = _features1.size();
 	for(int i=0; i<_nSuperPixels; i++)
 	{
 		_features0.push_back(cv::Point2f(centers0[i].xy.x,centers0[i].xy.y));
@@ -92,13 +107,39 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM)
 	
 	//ransac
 	std::vector<uchar> inliers(_features0.size(),0);
-	transM = cv::findHomography(_features0,_matched0,inliers,CV_RANSAC,0.01);
+	transM = cv::findHomography(_features0,_matched0,inliers,CV_RANSAC,0.1);
 	cv::Scalar color(255,0,0);
+	mask.create(_height,_width,CV_8UC1);
+	mask = cv::Scalar(0);
 	for(int i=0; i<_features0.size(); i++)
 	{
 		if (inliers[i]==1)
-			cv::circle(curImg,_features0[i],2,color);
+		{
+			cv::circle(curImg,_features0[i],5,color);
+			int k = _features0[i].x;
+			int j = _features0[i].y;		
+			int label = _labels0[k+ j*_width];
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = _step;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>_width-1 || y<0 || y> _height-1)
+						continue;
+					int idx = x+y*_width;
+					//std::cout<<idx<<std::endl;
+					if (_labels0[idx] == label )
+					{		
+						mask.data[idx] = 0xff;						
+					}					
+				}
+			}
+		}
+
 	}
+	//postProcess(img0,mask);
+	
 	////find most match superpixel
 	//std::vector<int> matchedCount0(_nSuperPixels,0);
 	//std::vector<int> matchedCount1(_nSuperPixels,0);

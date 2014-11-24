@@ -27,7 +27,7 @@ public:
 		delete[] _imgData0;
 		delete[] _imgData1;
 	}
-	void EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM);
+	void EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask);
 private:
 	GpuSuperpixel* _gs;
 	uchar4* _imgData0, *_imgData1;

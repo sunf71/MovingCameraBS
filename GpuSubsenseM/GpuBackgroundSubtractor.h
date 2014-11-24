@@ -129,7 +129,7 @@ public:
 	//检测所求出前景的运动是否与背景一致，去掉错误前景
 	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
 	{
-		float threshold = 0.6;
+		float threshold = 0.5;
 		std::vector<cv::Point2f> currPoints, trackedPoints;
 		std::vector<uchar> status; // status of tracked features
 		std::vector<float> err;    // error in tracking
