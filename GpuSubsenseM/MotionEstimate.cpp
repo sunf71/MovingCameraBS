@@ -19,38 +19,77 @@ void RegionGrowing(std::vector<cv::Point2f>& seeds,const cv::Mat& img, cv::Mat& 
 {	
 	const int nx[] = {-1,0,1,0};
 	const int ny[] = {0,-1,0,1};
+	cv::Mat gray;
+	cv::cvtColor(img,gray,CV_BGR2GRAY);
 	int width = img.cols;
 	int height = img.rows;
-	float3 avgColor = make_float3(0,0,0);
-	float pixMaxDist(0);
-	float regMaxDist = 0.2;
+	float pixDist(0);
+	float regMaxDist = 0.2*255;
 	int regSize(0);
 	int imgSize = width*height;
 	char* visited = new char[imgSize];
+	memset(visited ,0,imgSize);
 	std::vector<cv::Point2i> neighbors;
-	float regMean(0);
+	float3 regMean;
+	char filename[50];
 	for(int i=0; i<seeds.size(); i++)
 	{
-		memset(visited ,0,imgSize);
-		pixMaxDist = 0;
-		regSize = 0;
-		regMean = 0;
+		/*cv::Mat smask(img.size(),CV_8U);
+		smask = cv::Scalar(0);*/
+		pixDist = 0;
+		regSize = 1;
+		
 		neighbors.clear();
 		int ix = seeds[i].x;
 		int iy = seeds[i].y;
-		while(pixMaxDist < regMaxDist && regSize<imgSize)
+
+		sprintf(filename,"%d_%d.jpg",ix,iy);
+		size_t idx_uchar = (ix+iy*width);
+		size_t idx_rgb = idx_uchar*3;
+		regMean = make_float3(img.data[idx_rgb],img.data[idx_rgb+1],img.data[idx_rgb+2]);
+		while(pixDist < regMaxDist && regSize<imgSize)
 		{
 			for(int d=0; d<4; d++)
 			{
 				int x = ix+nx[d];
 				int y = iy + ny[d];
-				if (!visited[x+y*width] && x>=0 && x<width && y>=0 && y<=height)
+				if (!visited[x+y*width] && x>=0 && x<width && y>=0 && y<height)
 				{
 					neighbors.push_back(cv::Point2i(x,y));
+					visited[x+y*width] = true;
 				}
 			}
-			for(
+			int idxMin = 0;
+			pixDist = 255;
+			for(int j=0; j<neighbors.size(); j++)
+			{
+				size_t idx = neighbors[j].x+neighbors[j].y*width;
+				size_t idx_rgb= idx*3;
+				float dist = (abs(img.data[idx_rgb] - regMean.x) + abs(img.data[idx_rgb+1]-regMean.y )+ abs(img.data[idx_rgb+2]-regMean.z))/3;
+				if (dist < pixDist)
+				{
+					pixDist = dist;
+					idxMin = j;
+				}				
+			}
+			if (neighbors.size() == 0)
+				break;
+			ix = neighbors[idxMin].x;
+			iy = neighbors[idxMin].y;
+			int minIdx =ix + iy*width;
+			size_t minIdx_rgb = minIdx*3;
+			//std::cout<<ix<<" "<<iy<<" added ,regMean = "<< regMean<<" pixDist "<<pixDist<<std::endl;
+			regMean.x = (img.data[minIdx_rgb] + regMean.x*regSize )/(regSize+1);
+			regMean.y = (img.data[minIdx_rgb+1] + regMean.y*regSize )/(regSize+1);
+			regMean.z = (img.data[minIdx_rgb+2] + regMean.z*regSize )/(regSize+1);
+			regSize++;
+			result.data[minIdx] = 0xff;
+			//smask.data[minIdx] = 0xff;
+			neighbors[idxMin] = neighbors[neighbors.size()-1];
+			neighbors.pop_back();
 		}
+		/*cv::bitwise_and(smask,gray,smask);
+		cv::imwrite(filename,smask);*/
 	}
 }
 void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
@@ -61,6 +100,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	cv::Mat img0,img1;
 	cv::cvtColor(curImg,img0,CV_BGR2BGRA);
 	cv::cvtColor(prevImg,img1,CV_BGR2BGRA);
+	
 	for(int i=0; i< _width; i++)
 	{		
 		for(int j=0; j<_height; j++)
@@ -91,11 +131,11 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	cv::goodFeaturesToTrack(preGray,_features1,_maxCorners,_dataQuality,_minDist);
 	size_t features0Size = _features0.size();
 	size_t features1Size = _features1.size();
-	for(int i=0; i<_nSuperPixels; i++)
+	/*for(int i=0; i<_nSuperPixels; i++)
 	{
 		_features0.push_back(cv::Point2f(centers0[i].xy.x,centers0[i].xy.y));
 		_features1.push_back(cv::Point2f(centers0[i].xy.x,centers1[i].xy.y));
-	}
+	}*/
 	// 2. track features
 	cv::calcOpticalFlowPyrLK(gray, preGray, // 2 consecutive images
 		_features0, // input point position in first image
@@ -117,7 +157,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 			_matched0[k++] = _matched0[i];
 		}
 	}
-	_features0.resize(k);
+	_features0.resize(k);	
 	_matched0.resize(k);
 
 	cv::calcOpticalFlowPyrLK(preGray, gray, // 2 consecutive images
@@ -149,10 +189,12 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	cv::Scalar color(255,0,0);
 	mask.create(_height,_width,CV_8UC1);
 	mask = cv::Scalar(0);
+	std::vector<cv::Point2f> bgPoints;
 	for(int i=0; i<_features0.size(); i++)
 	{
 		if (inliers[i]==1)
 		{
+			bgPoints.push_back(_features0[i]);
 			cv::circle(curImg,_features0[i],5,color);
 			int k = _features0[i].x;
 			int j = _features0[i].y;		
@@ -165,16 +207,23 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 				{
 					if  (x<0 || x>_width-1 || y<0 || y> _height-1)
 						continue;
+					
 					int idx = x+y*_width;
 					//std::cout<<idx<<std::endl;
 					if (_labels0[idx] == label )
 					{		
-						mask.data[idx] = 0xff;						
+						bgPoints.push_back(cv::Point2f(x,y));
+						//mask.data[idx] = 0xff;						
 					}					
 				}
 			}
 		}
 	}
+	mask.create(curImg.size(),CV_8U);
+	mask = cv::Scalar(0);
+	RegionGrowing(bgPoints,curImg,mask);
+	
+
 	inliers.resize(_features1.size());
 	transM = cv::findHomography(_features1,_matched1,inliers,CV_RANSAC,0.1);
 	for(int i=0; i<_features1.size(); i++)
@@ -182,25 +231,25 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 		if (inliers[i]==1)
 		{
 			cv::circle(curImg,_matched1[i],5,color);
-			int k = _matched1[i].x;
-			int j = _matched1[i].y;		
-			int label = _labels0[k+ j*_width];
-			//以原来的中心点为中心，step +2　为半径进行更新
-			int radius = _step;
-			for (int x = k- radius; x<= k+radius; x++)
-			{
-				for(int y = j - radius; y<= j+radius; y++)
-				{
-					if  (x<0 || x>_width-1 || y<0 || y> _height-1)
-						continue;
-					int idx = x+y*_width;
-					//std::cout<<idx<<std::endl;
-					if (_labels0[idx] == label )
-					{		
-						mask.data[idx] = 0xff;						
-					}					
-				}
-			}
+			//int k = _matched1[i].x;
+			//int j = _matched1[i].y;		
+			//int label = _labels0[k+ j*_width];
+			////以原来的中心点为中心，step +2　为半径进行更新
+			//int radius = _step;
+			//for (int x = k- radius; x<= k+radius; x++)
+			//{
+			//	for(int y = j - radius; y<= j+radius; y++)
+			//	{
+			//		if  (x<0 || x>_width-1 || y<0 || y> _height-1)
+			//			continue;
+			//		int idx = x+y*_width;
+			//		//std::cout<<idx<<std::endl;
+			//		if (_labels0[idx] == label )
+			//		{		
+			//			mask.data[idx] = 0xff;						
+			//		}					
+			//	}
+			//}
 		}
 	}
 	//postProcess(img0,mask);
@@ -241,35 +290,35 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//{
 	//	cv::circle(prevImg,_features1[f[i]],2,color);
 	//}
-	cv::Mat dmat(mask.size(),CV_8U);
-	dmat = cv::Scalar(0);
-	//求每个超像素inliers的密度
-	int winSize = _step*10;
-	for(int i=0; i< _nSuperPixels; i++)
-	{		
-		float2 center = centers0[i].xy;
-		int ox = center.x;
-		int oy = center.y;
-		int bgInliers = 0;
-		int nPixels(0);
-		for(int m = ox-winSize; m<=ox+winSize; m++)
-		{
-			for(int n=oy-winSize; n<=oy+winSize; n++)
-			{
-				if (m>=0 && m<_width && n>=0 && n<_height)
-				{
-					if (mask.data[m+n*_width] == 0xff)
-					{
-						bgInliers++;
-					}
-					nPixels++;
-				}
-			}
-		}
-		float density = bgInliers*1.0/nPixels;
-		if (density > 0.5)
-			dmat.data[oy*_width+ox] = 0xff;
-	}
-	cv::imwrite("dmat.jpg",dmat);
-	cv::imwrite("mask.jpg",mask);
+	//cv::Mat dmat(mask.size(),CV_8U);
+	//dmat = cv::Scalar(0);
+	////求每个超像素inliers的密度
+	//int winSize = _step*10;
+	//for(int i=0; i< _nSuperPixels; i++)
+	//{		
+	//	float2 center = centers0[i].xy;
+	//	int ox = center.x;
+	//	int oy = center.y;
+	//	int bgInliers = 0;
+	//	int nPixels(0);
+	//	for(int m = ox-winSize; m<=ox+winSize; m++)
+	//	{
+	//		for(int n=oy-winSize; n<=oy+winSize; n++)
+	//		{
+	//			if (m>=0 && m<_width && n>=0 && n<_height)
+	//			{
+	//				if (mask.data[m+n*_width] == 0xff)
+	//				{
+	//					bgInliers++;
+	//				}
+	//				nPixels++;
+	//			}
+	//		}
+	//	}
+	//	float density = bgInliers*1.0/nPixels;
+	//	if (density > 0.5)
+	//		dmat.data[oy*_width+ox] = 0xff;
+	//}
+	//cv::imwrite("dmat.jpg",dmat);
+	//cv::imwrite("mask.jpg",mask);
 }

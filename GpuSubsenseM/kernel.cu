@@ -259,8 +259,8 @@ void TestGpuSubsense()
 void TestMotionEstimate()
 {
 	char fileName[100];
-	int start = 260;
-	int end = 261;
+	int start = 226;
+	int end = 1130;
 	cv::Mat curImg,prevImg,transM;
 	MotionEstimate me(320,240,5);
 	cv::Mat mask;
@@ -279,8 +279,20 @@ void TestMotionEstimate()
 		cv::waitKey();*/
 	}
 }
+void TestRegionGrowing()
+{
+	std::vector<cv::Point2f> seeds;
+	seeds.push_back(cv::Point2f(30,66));
+	cv::Mat img = cv::imread("..//ptz//input3//in000225.jpg");
+	cv::Mat result(img.size(),CV_8U);
+	result = cv::Scalar(0);
+	RegionGrowing(seeds,img,result);
+	cv::imshow("region grow",result);
+	cv::waitKey();
+}
 int main (int argc, char* argv[])
 {
+	//TestRegionGrowing();
 	TestMotionEstimate();
 	//TestRandom();
 	//TestGpuSubsense();
