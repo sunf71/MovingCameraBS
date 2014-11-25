@@ -259,8 +259,8 @@ void TestGpuSubsense()
 void TestMotionEstimate()
 {
 	char fileName[100];
-	int start = 2;
-	int end = 1130;
+	int start = 260;
+	int end = 261;
 	cv::Mat curImg,prevImg,transM;
 	MotionEstimate me(320,240,5);
 	cv::Mat mask;
@@ -281,9 +281,9 @@ void TestMotionEstimate()
 }
 int main (int argc, char* argv[])
 {
-	//TestMotionEstimate();
+	TestMotionEstimate();
 	//TestRandom();
-	TestGpuSubsense();
+	//TestGpuSubsense();
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();

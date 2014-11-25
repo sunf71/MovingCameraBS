@@ -15,6 +15,44 @@ void postProcess(const Mat& img, Mat& mask)
 	cv::medianBlur(mask,mask,3);
 	
 }
+void RegionGrowing(std::vector<cv::Point2f>& seeds,const cv::Mat& img, cv::Mat& result)
+{	
+	const int nx[] = {-1,0,1,0};
+	const int ny[] = {0,-1,0,1};
+	int width = img.cols;
+	int height = img.rows;
+	float3 avgColor = make_float3(0,0,0);
+	float pixMaxDist(0);
+	float regMaxDist = 0.2;
+	int regSize(0);
+	int imgSize = width*height;
+	char* visited = new char[imgSize];
+	std::vector<cv::Point2i> neighbors;
+	float regMean(0);
+	for(int i=0; i<seeds.size(); i++)
+	{
+		memset(visited ,0,imgSize);
+		pixMaxDist = 0;
+		regSize = 0;
+		regMean = 0;
+		neighbors.clear();
+		int ix = seeds[i].x;
+		int iy = seeds[i].y;
+		while(pixMaxDist < regMaxDist && regSize<imgSize)
+		{
+			for(int d=0; d<4; d++)
+			{
+				int x = ix+nx[d];
+				int y = iy + ny[d];
+				if (!visited[x+y*width] && x>=0 && x<width && y>=0 && y<=height)
+				{
+					neighbors.push_back(cv::Point2i(x,y));
+				}
+			}
+			for(
+		}
+	}
+}
 void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
 {
 	//super pixel
@@ -136,7 +174,34 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 				}
 			}
 		}
-
+	}
+	inliers.resize(_features1.size());
+	transM = cv::findHomography(_features1,_matched1,inliers,CV_RANSAC,0.1);
+	for(int i=0; i<_features1.size(); i++)
+	{
+		if (inliers[i]==1)
+		{
+			cv::circle(curImg,_matched1[i],5,color);
+			int k = _matched1[i].x;
+			int j = _matched1[i].y;		
+			int label = _labels0[k+ j*_width];
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = _step;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>_width-1 || y<0 || y> _height-1)
+						continue;
+					int idx = x+y*_width;
+					//std::cout<<idx<<std::endl;
+					if (_labels0[idx] == label )
+					{		
+						mask.data[idx] = 0xff;						
+					}					
+				}
+			}
+		}
 	}
 	//postProcess(img0,mask);
 	
@@ -176,4 +241,35 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//{
 	//	cv::circle(prevImg,_features1[f[i]],2,color);
 	//}
+	cv::Mat dmat(mask.size(),CV_8U);
+	dmat = cv::Scalar(0);
+	//求每个超像素inliers的密度
+	int winSize = _step*10;
+	for(int i=0; i< _nSuperPixels; i++)
+	{		
+		float2 center = centers0[i].xy;
+		int ox = center.x;
+		int oy = center.y;
+		int bgInliers = 0;
+		int nPixels(0);
+		for(int m = ox-winSize; m<=ox+winSize; m++)
+		{
+			for(int n=oy-winSize; n<=oy+winSize; n++)
+			{
+				if (m>=0 && m<_width && n>=0 && n<_height)
+				{
+					if (mask.data[m+n*_width] == 0xff)
+					{
+						bgInliers++;
+					}
+					nPixels++;
+				}
+			}
+		}
+		float density = bgInliers*1.0/nPixels;
+		if (density > 0.5)
+			dmat.data[oy*_width+ox] = 0xff;
+	}
+	cv::imwrite("dmat.jpg",dmat);
+	cv::imwrite("mask.jpg",mask);
 }

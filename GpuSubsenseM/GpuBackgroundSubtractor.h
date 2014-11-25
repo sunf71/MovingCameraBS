@@ -127,8 +127,9 @@ public:
 	//边缘点匹配
 	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);
 	//检测所求出前景的运动是否与背景一致，去掉错误前景
-	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography)
+	void MaskHomographyTest(cv::Mat& mCurr, cv::Mat& curr, cv::Mat & prev, cv::Mat& homography, float* distance)
 	{
+		
 		float threshold = 0.5;
 		std::vector<cv::Point2f> currPoints, trackedPoints;
 		std::vector<uchar> status; // status of tracked features
@@ -161,7 +162,7 @@ public:
 		// eliminate unsuccesful points
 		currPoints.resize(k);
 		trackedPoints.resize(k);
-		float distance = 0;
+		
 		for(int i=0; i<k; i++)
 		{
 			cv::Point2f pt = currPoints[i];
@@ -172,12 +173,14 @@ public:
 			x /= w;
 			y /= w;
 			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
-			distance += d;
-			if (d < threshold)
+			const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
+			distance[idx_char]= d;
+			/*if (d < threshold)
 			{
-				const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;				
+								
 				mCurr.data[idx_char] = 0x0;			
-			}			
+				
+			}*/			
 		}
 	}
 protected:
@@ -341,5 +344,6 @@ protected:
 	MRFOptimize* m_optimizer;
 	curandState* d_randStates;
 	std::ofstream m_ofstream;
+	float* m_distance;
 };
 

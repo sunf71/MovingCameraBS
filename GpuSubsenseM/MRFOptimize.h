@@ -29,6 +29,7 @@ struct SuperPixel
 	std::vector<SuperPixel*> neighbors;
 	float avgColor;
 	float ps;
+	float distance;
 	int n[8];
 };
 
@@ -63,10 +64,13 @@ public:
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName,  const string& featuremaskImgName,const string& resultImgName);
 	void Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg, cv::Mat& featureImg, cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, cv::Mat& resultImg);
+	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, float* distance, cv::Mat& resultImg);
 	//mask:前景
 	void GetSuperpixels(const unsigned char* mask);
 	//mask:前景， features：特征点跟踪情况的mask
 	void GetSuperpixels(const unsigned char* fgMask, const unsigned char* featuresMask);
+	//mask:前景， features：特征点跟踪情况的mask, distance: homography*pt - klttracted Position
+	void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask,const float* distanceMask);
 private:
 	SuperPixel* m_spPtr;
 	SLICClusterCenter* m_centers;
