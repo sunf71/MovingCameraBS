@@ -1,6 +1,9 @@
 #include "MotionEstimate.h"
 #include "GpuSuperpixel.h"
 #include <algorithm>
+#include "timer.h"
+#include <set>
+#include <opencv2\opencv.hpp>
 void postProcess(const Mat& img, Mat& mask)
 {
 	cv::Mat m_oFGMask_PreFlood(img.size(),CV_8U);
@@ -14,6 +17,227 @@ void postProcess(const Mat& img, Mat& mask)
 	cv::bitwise_or(mask,m_oFGMask_PreFlood,mask);
 	cv::medianBlur(mask,mask,3);
 	
+}
+float EDistance(const float4& f1, const float4& f2)
+{
+	float dx = f1.x - f2.x;
+	float dy = f1.y - f2.y;
+	float dz = f1.z - f2.z;
+	//float dw = f1.w - f2.w;
+	return sqrt(dx*dx + dy*dy + dz*dz);
+}
+float avgDist(int widht, int height,int step,int nPixel,const SLICClusterCenter* centers)
+{
+	float avgE = 0;
+	size_t count = 0;	
+	int xStep = ((widht+ step-1) / step);
+	for(int i=0; i<nPixel; i++)
+	{
+		if (centers[i].nPoints > 0)
+		{
+			if (i-1>=0)
+			{
+				if (centers[i-1].nPoints > 0 )
+				{
+					avgE += EDistance(centers[i].rgb,centers[i-1].rgb);
+					count ++;
+				}
+				if(i+xStep-1<nPixel && centers[i+xStep-1].nPoints > 0)
+				{
+					avgE += EDistance(centers[i].rgb,centers[i+xStep-1].rgb);
+					count ++;
+				}
+				if (i-xStep-1>=0 && centers[i-xStep-1].nPoints > 0)
+				{
+					avgE += EDistance(centers[i].rgb,centers[i-xStep-1].rgb);
+					count ++;
+				}
+
+			}
+			if(i+1<nPixel)
+			{
+				if (centers[i+1].nPoints > 0)
+				{
+					avgE += EDistance(centers[i].rgb,centers[i+1].rgb);
+					count ++;
+
+				}
+				if(i+xStep+1<nPixel && centers[i+xStep+1].nPoints > 0)
+				{
+					avgE += EDistance(centers[i].rgb,centers[i+xStep+1].rgb);
+					count ++;
+				}
+				if (i-xStep+1>=0 && centers[i-xStep+1].nPoints >0)
+				{
+					avgE += EDistance(centers[i].rgb,centers[i-xStep+1].rgb);
+					count ++;
+				}				
+			}
+
+			if (i-xStep>=0 && centers[i-xStep].nPoints > 0)
+			{
+				avgE += EDistance(centers[i].rgb,centers[i-xStep].rgb);
+				count ++;
+			}			
+
+			if(i+xStep<nPixel && centers[i+xStep].nPoints > 0)
+			{
+				avgE += EDistance(centers[i].rgb,centers[i+xStep].rgb);
+				count ++;
+			}	
+
+		}	
+	}
+
+	avgE /= count;
+	return avgE;
+}
+float OstuThreshold(int width, int height, int step, const SLICClusterCenter* centers)
+{
+	size_t histogram[256] = {0};
+	int spSize = (width+step-1)/step * (height+step-1)/step;
+	for(int i=0; i<spSize; i++)
+	{
+		float4 rgb = centers[i].rgb;
+		uchar gray = (uchar)((rgb.x+rgb.y+rgb.z)/3);
+		histogram[gray]++;
+	}
+	size_t sum = 0;
+	for(int i=0; i<256; i++)
+	{
+		sum += i*histogram[i];
+	}
+	size_t sumB(0),wB(0),wF(0);
+	size_t mB,mF;
+
+	float max(0.f),between(0.f), threshold1(0.f),threshold2(0.f);
+	for(int i=0; i<256; i++)
+	{
+		wB += histogram[i];
+		if (wB == 0)
+			continue;
+		wF = spSize - wB;
+		if (wF ==0 )
+			break;
+		sumB += i*histogram[i];
+		mB = sumB/wB;
+		mF = (sum - sumB)/wF;
+		between = wB * wF * pow(mB-mF,2.0);
+		if(between >= max)
+		{
+			threshold1 = i;
+			if (between > max)
+				threshold2 = i;
+			max = between;
+		}
+	}
+	return ( threshold1 + threshold2 ) / 2.0;
+}
+void SuperPixelRegionGrowing(int width, int height, int step,std::vector<int>& spLabels, const int*  labels, const SLICClusterCenter* centers, cv::Mat& result,int threshold)
+{
+	if (result.empty())
+	{
+		result.create(height,width,CV_8U);
+		result = cv::Scalar(0);
+	}
+	const int nx[] = {-1,0,1,0};
+	const int ny[] = {0,-1,0,1};
+	int spWidth = (width+step-1)/step;
+	int spHeight = (height+step-1)/step;
+	float pixDist(0);
+	float regMaxDist = 45;/*threshold;*/
+	int regSize(0);
+	int imgSize = spWidth*spHeight;
+	char* visited = new char[imgSize];
+	char* segmented = new char[imgSize];
+	memset(segmented,0,imgSize);
+	std::vector<cv::Point2i> neighbors;
+	float4 regMean;
+	std::set<int> resLabels;
+	/*nih::Timer timer;
+	timer.start();*/
+	for(int i=0; i<spLabels.size(); i++)
+	{
+		memset(visited ,0,imgSize);
+		resLabels.insert(spLabels[i]);
+		SLICClusterCenter cc = centers[spLabels[i]];
+		int k = cc.xy.x;
+		int j = cc.xy.y;		
+		int label = labels[k+ j*width];
+		int ix = label%spWidth;
+		int iy = label/spWidth;
+		pixDist = 0;
+		regSize = 1;
+		
+		neighbors.clear();
+	
+		regMean = cc.rgb;
+		while(pixDist < regMaxDist && regSize<imgSize)
+		{
+			for(int d=0; d<4; d++)
+			{
+				int x = ix+nx[d];
+				int y = iy + ny[d];
+				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[x+y*spWidth] && !segmented[x+y*spWidth])
+				{
+					neighbors.push_back(cv::Point2i(x,y));
+					visited[x+y*spWidth] = true;
+				}
+			}
+			int idxMin = 0;
+			pixDist = 255;
+			if (neighbors.size() == 0)
+				break;
+			for(int j=0; j<neighbors.size(); j++)
+			{
+				size_t idx = neighbors[j].x+neighbors[j].y*spWidth;
+				float4 rgb = centers[idx].rgb;
+				float dx = rgb.x - regMean.x;
+				float dy = rgb.y -regMean.y;
+				float dz = rgb.z - regMean.z;
+				//float dist = (abs(dx) + abs(dy)+ abs(dz))/3;
+				float dist = sqrt(dx*dx + dy*dy + dz*dz);
+				if (dist < pixDist)
+				{
+					pixDist = dist;
+					idxMin = j;
+				}				
+			}
+			
+			ix = neighbors[idxMin].x;
+			iy = neighbors[idxMin].y;
+			int minIdx =ix + iy*spWidth;
+			float4 rgb = centers[minIdx].rgb;
+			//std::cout<<ix<<" "<<iy<<" added ,regMean = "<< regMean<<" pixDist "<<pixDist<<std::endl;
+			regMean.x = (rgb.x + regMean.x*regSize )/(regSize+1);
+			regMean.y = (rgb.y + regMean.y*regSize )/(regSize+1);
+			regMean.z = (rgb.z + regMean.z*regSize )/(regSize+1);
+			regSize++;
+			int label = minIdx;
+			resLabels.insert(label);
+			segmented[minIdx] = 1;
+			//result.data[minIdx] = 0xff;
+			//smask.data[minIdx] = 0xff;
+			neighbors[idxMin] = neighbors[neighbors.size()-1];
+			neighbors.pop_back();
+		}
+	}
+	//timer.stop();
+	//std::cout<<"region growing "<<timer.seconds()<<std::endl;
+	//timer.start();
+	for(int i=0; i<width; i++)
+	{
+		for(int j=0; j<height; j++)
+		{
+			int idx = i+j*width;
+			if (resLabels.find(labels[idx]) != resLabels.end())
+				result.data[idx] = 0xff;
+		}
+	}
+	/*timer.stop();
+	std::cout<<"result updating "<<timer.seconds()<<std::endl;*/
+	delete[] visited;
+	delete[] segmented;
 }
 void RegionGrowing(std::vector<cv::Point2f>& seeds,const cv::Mat& img, cv::Mat& result)
 {	
@@ -190,6 +414,8 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	mask.create(_height,_width,CV_8UC1);
 	mask = cv::Scalar(0);
 	std::vector<cv::Point2f> bgPoints;
+	std::vector<int> spLabels;
+	int spWidth = (_width+_step-1)/_step;
 	for(int i=0; i<_features0.size(); i++)
 	{
 		if (inliers[i]==1)
@@ -199,6 +425,16 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 			int k = _features0[i].x;
 			int j = _features0[i].y;		
 			int label = _labels0[k+ j*_width];
+			spLabels.push_back(label);
+			////添加周围邻域superpixel
+			//if (label+1<_nSuperPixels)
+			//	spLabels.push_back(label+1);
+			//if (label-1>=0)
+			//	spLabels.push_back(label-1);
+			//if (label+spWidth <_nSuperPixels)
+			//	spLabels.push_back(label+spWidth);
+			//if(label-spWidth >=0)
+			//	spLabels.push_back(label-spWidth);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = _step;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -221,7 +457,12 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	}
 	mask.create(curImg.size(),CV_8U);
 	mask = cv::Scalar(0);
-	RegionGrowing(bgPoints,curImg,mask);
+	//RegionGrowing(bgPoints,curImg,mask);
+	/*float threshold = OstuThreshold(_width,_height,_step,centers0);*/
+	
+	float threshold = avgDist(_width,_height,_step,_nSuperPixels,centers0);
+	std::cout<<"threshold= "<<threshold<<std::endl;
+	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,centers0,mask,threshold);
 	
 
 	inliers.resize(_features1.size());

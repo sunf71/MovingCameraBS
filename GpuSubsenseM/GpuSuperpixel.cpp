@@ -38,7 +38,7 @@ void GpuSuperpixel::Superpixel(uchar4* rgbaBuffer, int& num,int* labels,SLICClus
 	cudaMemcpy(d_rgbaBuffer,rgbaBuffer,sizeof(uchar4)*m_size,cudaMemcpyHostToDevice);
 	InitClusterCenters(d_rgbaBuffer,d_labels,m_width,m_height,m_step, m_nSuperpixels,d_centers);
 	int itrNum(0);
-	while(itrNum < 10)
+	while(itrNum < 0)
 	{
 		UpdateBoundary(d_rgbaBuffer, m_height, m_width,d_labels, d_centers, m_nPixels,m_alpha, m_radius);		
 		UpdateClusterCenter(d_rgbaBuffer,m_height,m_width,m_step,d_labels,d_centers,m_nPixels);

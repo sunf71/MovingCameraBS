@@ -1643,7 +1643,7 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 			float nBGEdges(0);
 			float nBgInliers(0);
 			float distance = 0;
-			float minDistance = 0;
+			int nZero(0);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = m_step;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -1656,10 +1656,10 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 					//std::cout<<idx<<std::endl;
 					if (m_labels[idx] == i )
 					{		
-						if (distanceMask[idx] <minDistance)
+						if (distanceMask[idx] >0)
 						{
-							minDistance = distanceMask[idx];
-							
+							distance +=distanceMask[idx];
+							nZero++;
 						}
 						if ( mask[idx] == 0xff)
 							n++;
@@ -1680,12 +1680,11 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 				}
 			}
 			//m_spPtr[i].ps  = min((max(n-nBGEdges-nBgInliers,0))/m_centers[i].nPoints,1.0f);
-			/*if (abs(nZero) < 1e-6)
+			if (abs(nZero) < 1e-6)
 				m_spPtr[i].distance = 1;
 			else
-				m_spPtr[i].distance = distance/nZero;*/
-			m_spPtr[i].distance = minDistance;
-			m_spPtr[i].ps  = n/m_centers[i].nPoints*(m_spPtr[i].distance);
+				m_spPtr[i].distance = distance/nZero;
+			m_spPtr[i].ps  = n/m_centers[i].nPoints;
 			avgDis += m_spPtr[i].distance;
 			//m_spPtr[i].ps *=  distance;
 			//if (m_spPtr[i].distance < 0.3 )

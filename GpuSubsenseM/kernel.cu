@@ -259,7 +259,7 @@ void TestGpuSubsense()
 void TestMotionEstimate()
 {
 	char fileName[100];
-	int start = 226;
+	int start = 2;
 	int end = 1130;
 	cv::Mat curImg,prevImg,transM;
 	MotionEstimate me(320,240,5);
@@ -283,7 +283,7 @@ void TestRegionGrowing()
 {
 	std::vector<cv::Point2f> seeds;
 	seeds.push_back(cv::Point2f(30,66));
-	cv::Mat img = cv::imread("..//ptz//input3//in000225.jpg");
+	cv::Mat img = cv::imread("..//ptz//input3in000225.jpg");
 	cv::Mat result(img.size(),CV_8U);
 	result = cv::Scalar(0);
 	RegionGrowing(seeds,img,result);
