@@ -497,7 +497,7 @@ void GpuBackgroundSubtractor::getHomography(const cv::Mat& image, cv::Mat&  homo
 	cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),2);
 	//cv::bitwise_or(m_features,m_preFeatures,m_mixFeatures);
 	char filename[200];	
-	sprintf(filename,"..\\result\\subsensex\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex+1);
+	sprintf(filename,".\\features\\input0\\features%06d.jpg",m_nFrameIndex+1);
 	//cv::imwrite(filename,m_features);
 	m_features = cv::imread(filename);
 	if (m_features.channels() == 3)
@@ -587,10 +587,10 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	/*GpuTimer gtimer;
 	gtimer.Start();*/
 	//d_CurrentColorFrame.upload(img);
-	/*CudaBSOperator(d_CurrentColorFrame, d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
-		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);*/
-	CudaBSOperator(d_CurrentColorFrame, d_features,d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
-		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
+	CudaBSOperator(d_CurrentColorFrame, d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
+		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap, d_anLBSPThreshold_8bitLUT);
+	//CudaBSOperator(d_CurrentColorFrame, d_features,d_randStates,d_homoPtr,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
+	//	d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 	
 	
 	cudaMemcpy(m_outMaskPtr,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
@@ -641,7 +641,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	d_oMeanFinalSegmResFrame_LT.upload(m_oMeanFinalSegmResFrame_LT);
 	d_oMeanFinalSegmResFrame_ST.upload(m_oMeanFinalSegmResFrame_ST);*/
 
-	d_FGMask.download(oCurrFGMask);
+	d_FGMask.download(m_rawFGMask);
 	//memset(m_distance,0,sizeof(float)*m_oImgSize.height*m_oImgSize.width);
 	//MaskHomographyTest(m_rawFGMask,m_gray,m_preGray,m_homography, m_distance);
 	//d_FGMask.copyTo(d_FGMask_last);
@@ -652,7 +652,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	cudaMemcpy(h_ptr,d_ptr,sizeof(uchar4)*m_oImgSize.width*m_oImgSize.height,cudaMemcpyDeviceToHost);
 	cv::Mat himg(m_oImgSize,CV_8UC4,h_ptr);
 	cv::imwrite("test.jpg",himg);*/
-	//m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_features,m_distance,oCurrFGMask);
+	m_optimizer->Optimize(m_gs,d_CurrentColorFrame.ptr<uchar4>(),m_rawFGMask,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_gs,oInputImg,m_rawFGMask,m_preFeatures,oCurrFGMask);
 	/*if (m_nFrameIndex == 99)
 	{
@@ -727,7 +727,7 @@ void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArr
 	
 	//postProcessa(m_gray,oCurrFGMask);
 	//postProcessSegments(m_gray,oCurrFGMask);
-	//MaskHomographyTest(oCurrFGMask,m_gray,m_preGray,m_homography);
+	MaskHomographyTest(oCurrFGMask,m_gray,m_preGray,m_homography,NULL);
 }
 void GpuBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac) {
 	// == refresh

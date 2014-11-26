@@ -4,6 +4,43 @@
 #include "timer.h"
 #include <set>
 #include <opencv2\opencv.hpp>
+void postProcessSegments(Mat& img)
+{
+	int niters = 3;
+
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy,imgHierarchy;
+	
+	Mat temp;
+	
+	//Mat edge(img.size(),CV_8U);	
+	////cv::Canny(img,edge,100,300);
+	//dilate(img, img, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
+	//erode(img, img, Mat(), Point(-1,-1), niters*2);//腐蚀
+	//dilate(img, img, Mat(), Point(-1,-1), niters);
+	findContours( img, contours, imgHierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
+
+	
+	
+	if( contours.size() == 0 )
+		return;
+	img = cv::Scalar(0);
+	
+	double minArea = 10*10;
+	Scalar color( 255, 255, 255 );
+	//img = cv::Scalar(0);
+	for( int i = 0; i< contours.size(); i++ )
+	{
+		const vector<Point>& c = contours[i];
+		double area = fabs(contourArea(Mat(c)));
+		if( area > minArea )
+		{
+			drawContours( img, contours, i, color, 1, 8, hierarchy, 0, Point() );			
+		}
+		
+	}
+	
+}
 void postProcess(const Mat& img, Mat& mask)
 {
 	cv::Mat m_oFGMask_PreFlood(img.size(),CV_8U);
@@ -140,8 +177,10 @@ void SuperPixelRegionGrowing(int width, int height, int step,std::vector<int>& s
 		result.create(height,width,CV_8U);
 		result = cv::Scalar(0);
 	}
-	const int nx[] = {-1,0,1,0};
-	const int ny[] = {0,-1,0,1};
+	/*const int nx[] = {-1,0,1,0};
+	const int ny[] = {0,-1,0,1};*/
+	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
 	int spWidth = (width+step-1)/step;
 	int spHeight = (height+step-1)/step;
 	float pixDist(0);
@@ -174,10 +213,10 @@ void SuperPixelRegionGrowing(int width, int height, int step,std::vector<int>& s
 		regMean = cc.rgb;
 		while(pixDist < regMaxDist && regSize<imgSize)
 		{
-			for(int d=0; d<4; d++)
+			for(int d=0; d<9; d++)
 			{
-				int x = ix+nx[d];
-				int y = iy + ny[d];
+				int x = ix+dx8[d];
+				int y = iy + dy8[d];
 				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[x+y*spWidth] && !segmented[x+y*spWidth])
 				{
 					neighbors.push_back(cv::Point2i(x,y));
@@ -421,7 +460,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 		if (inliers[i]==1)
 		{
 			bgPoints.push_back(_features0[i]);
-			cv::circle(curImg,_features0[i],5,color);
+			//cv::circle(curImg,_features0[i],5,color);
 			int k = _features0[i].x;
 			int j = _features0[i].y;		
 			int label = _labels0[k+ j*_width];
@@ -454,15 +493,15 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 				}
 			}
 		}
+		else
+		{
+			cv::circle(curImg,_features0[i],5,color);
+		}
 	}
 	mask.create(curImg.size(),CV_8U);
 	mask = cv::Scalar(0);
 	//RegionGrowing(bgPoints,curImg,mask);
 	/*float threshold = OstuThreshold(_width,_height,_step,centers0);*/
-	
-	float threshold = avgDist(_width,_height,_step,_nSuperPixels,centers0);
-	std::cout<<"threshold= "<<threshold<<std::endl;
-	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,centers0,mask,threshold);
 	
 
 	inliers.resize(_features1.size());
@@ -472,9 +511,10 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 		if (inliers[i]==1)
 		{
 			cv::circle(curImg,_matched1[i],5,color);
-			//int k = _matched1[i].x;
-			//int j = _matched1[i].y;		
-			//int label = _labels0[k+ j*_width];
+			int k = _matched1[i].x;
+			int j = _matched1[i].y;		
+			int label = _labels0[k+ j*_width];
+			spLabels.push_back(label);
 			////以原来的中心点为中心，step +2　为半径进行更新
 			//int radius = _step;
 			//for (int x = k- radius; x<= k+radius; x++)
@@ -493,7 +533,10 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 			//}
 		}
 	}
-	//postProcess(img0,mask);
+	float threshold = avgDist(_width,_height,_step,_nSuperPixels,centers0);
+	std::cout<<"threshold= "<<threshold<<std::endl;
+	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,centers0,mask,threshold);
+	//postProcessSegments(mask);
 	
 	////find most match superpixel
 	//std::vector<int> matchedCount0(_nSuperPixels,0);
@@ -562,4 +605,6 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//}
 	//cv::imwrite("dmat.jpg",dmat);
 	//cv::imwrite("mask.jpg",mask);
+	delete[] centers0;
+	delete[] centers1;
 }

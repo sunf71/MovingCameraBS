@@ -174,13 +174,13 @@ public:
 			y /= w;
 			float d = abs(trackedPoints[i].x-x) + abs(trackedPoints[i].y - y);
 			const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
-			distance[idx_char]= d;
-			/*if (d < threshold)
+			//distance[idx_char]= d;
+			if (d < threshold)
 			{
 								
 				mCurr.data[idx_char] = 0x0;			
 				
-			}*/			
+			}			
 		}
 	}
 protected:

@@ -17,7 +17,7 @@ public:
 		_imgData1 = new uchar4[_nPixels];
 		_maxCorners = _nPixels;
 		_dataQuality = 0.05;
-		_minDist = 1.f;
+		_minDist = 5.f;
 		_nSuperPixels =( _width+_step-1)/_step * (_height+_step-1)/_step;
 	}
 	~MotionEstimate()
