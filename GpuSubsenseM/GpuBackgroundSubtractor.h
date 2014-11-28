@@ -59,6 +59,11 @@ public:
 	virtual void refreshModel(float fSamplesRefreshFrac);
 	//! turns automatic model reset on or off
 	void setAutomaticModelReset(bool);
+	void upload(std::vector<cv::Point2f>& vec, cv::gpu::GpuMat& d_mat)
+	{
+		cv::Mat mat(1, vec.size(), CV_32FC2, (void*)&vec[0]);
+		d_mat.upload(mat);
+	}
 	void download(const cv::gpu::GpuMat& d_mat, std::vector<cv::Point2f>& vec)
  	{
  	    vec.resize(d_mat.cols);
@@ -123,6 +128,7 @@ public:
 		affineM = estimateRigidTransform(features1,features2,true);
 	}
 	void getHomography(const cv::Mat& dImage, cv::Mat&  homography);
+	void MotionEstimate(const cv::Mat& dImage, cv::Mat& homography);
 	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
 	//±ﬂ‘µµ„∆•≈‰
 	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);

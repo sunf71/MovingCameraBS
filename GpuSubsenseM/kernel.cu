@@ -219,11 +219,11 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 1700;
+	int end = 19;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\ptz\\input0\\in%06d.jpg",i);
+		sprintf(name,"..\\moseg\\people1\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -260,23 +260,23 @@ void TestMotionEstimate()
 {
 	char fileName[100];
 	int start = 2;
-	int end = 1130;
+	int end = 40;
 	cv::Mat curImg,prevImg,transM;
-	MotionEstimate me(320,240,5);
+	MotionEstimate me(640,480,5);
 	cv::Mat mask;
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i-1);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
 		
 		me.EstimateMotion(curImg,prevImg,transM,mask);
-		sprintf(fileName,".//features//input3//features%06d.jpg",i);
+		sprintf(fileName,".//features//people1//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
-		cv::imshow("prevImg",prevImg);
-		cv::waitKey();*/
+		cv::imshow("prevImg",prevImg);*/
+		cv::waitKey();
 	}
 }
 void TestRegionGrowing()
@@ -293,9 +293,9 @@ void TestRegionGrowing()
 int main (int argc, char* argv[])
 {
 	//TestRegionGrowing();
-	TestMotionEstimate();
+	//TestMotionEstimate();
 	//TestRandom();
-	//TestGpuSubsense();
+	TestGpuSubsense();
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();

@@ -16,7 +16,7 @@ using namespace std;
 typedef std::pair<int,int> Point2i;
 
 bool compare(const Point2i& p1, const Point2i& p2);
-
+void SuperPixelRegionGrowing(int width, int height, int step,std::vector<int>& spLabels, const int*  labels, const SLICClusterCenter* centers, cv::Mat& result,int threshold);
 struct SuperPixel
 {
 	int idx;
@@ -65,12 +65,21 @@ public:
 	void Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg, cv::Mat& featureImg, cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, float* distance, cv::Mat& resultImg);
+	void Optimize(const cv::Mat& maskImg, const  cv::Mat& featureImg, cv::Mat& resultImg);
+	void ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba);
 	//mask:前景
 	void GetSuperpixels(const unsigned char* mask);
 	//mask:前景， features：特征点跟踪情况的mask
 	void GetSuperpixels(const unsigned char* fgMask, const unsigned char* featuresMask);
 	//mask:前景， features：特征点跟踪情况的mask, distance: homography*pt - klttracted Position
 	void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask,const float* distanceMask);
+	void GetSuperpixelResult(int& nPixels,int*& labels, SLICClusterCenter*& centers, float& avgE)
+	{
+		labels = m_labels;
+		centers = m_centers;
+		avgE = m_avgE;
+		nPixels = m_nPixel;
+	}
 private:
 	SuperPixel* m_spPtr;
 	SLICClusterCenter* m_centers;
@@ -93,6 +102,6 @@ private:
 	unsigned int* m_idata;
 	
 	std::vector<std::vector<int>> m_neighbor;
-	
+	float m_avgE;
 	
 };

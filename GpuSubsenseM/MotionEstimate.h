@@ -13,6 +13,7 @@ public:
 		_nPixels = width*height;
 		_labels0 = new int[_nPixels];
 		_labels1 = new int[_nPixels];
+		_centers0 = new SLICClusterCenter[_nPixels];
 		_imgData0 = new uchar4[_nPixels];
 		_imgData1 = new uchar4[_nPixels];
 		_maxCorners = _nPixels;
@@ -27,6 +28,7 @@ public:
 		delete[] _labels1;
 		delete[] _imgData0;
 		delete[] _imgData1;
+		delete[] _centers0;
 	}
 	void EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask);
 private:
@@ -46,4 +48,5 @@ private:
 	float _minDist;
 	std::vector<uchar> _status;
 	std::vector<float> _err;
+	SLICClusterCenter* _centers0;
 };

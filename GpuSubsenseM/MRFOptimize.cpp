@@ -1025,6 +1025,151 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 #endif
 
 }
+void MRFOptimize::ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba)
+{
+	int numlabels;
+	GS->DSuperpixel(d_rgba,numlabels,m_labels,m_centers);
+	//计算超像素之间的平均颜色差
+	m_avgE= 0;
+	size_t count = 0;	
+	for(int i=0; i<m_nPixel; i++)
+	{
+		for (int j=0; j< m_neighbor[i].size(); j++)
+		{
+			if (m_centers[i].nPoints > 0 && m_centers[m_neighbor[i][j]].nPoints >0 )
+			{				
+				m_avgE += abs(m_spPtr[i].avgColor-m_spPtr[m_neighbor[i][j]].avgColor);
+				count++;
+			}
+		}		
+	}
+	m_avgE /= count;
+	//std::cout<<"avg e "<<m_avgE<<std::endl;
+}
+void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv::Mat& resultImg)
+{
+#ifdef REPORT
+	nih::Timer timer;
+	nih::Timer timer0;
+	timer0.start();
+	timer.start();
+#endif
+	
+	//superpixel			
+
+	const unsigned char* maskImgData = maskImg.data;
+	const unsigned char* featureMaskData = featureImg.data;
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
+#endif
+
+	int numlabels(0);
+
+#ifdef REPORT
+	GpuTimer gtimer;
+	gtimer.Start();
+#endif	
+	
+
+#ifdef REPORT
+	gtimer.Stop();
+	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT
+
+	timer.start();
+#endif
+	//ComputeAvgColor(m_spPtr,spSize,m_width,m_height,m_idata,maskImgData);
+	GetSuperpixels(maskImgData,featureMaskData);
+	
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+#ifdef REPORT
+	timer.start();
+#endif
+	float avgE = 0;
+	size_t count = 0;	
+	for(int i=0; i<m_nPixel; i++)
+	{
+		for (int j=0; j< m_neighbor[i].size(); j++)
+		{
+			if (m_centers[i].nPoints > 0 && m_centers[m_neighbor[i][j]].nPoints >0 )
+			{				
+				avgE += abs(m_spPtr[i].avgColor-m_spPtr[m_neighbor[i][j]].avgColor);
+				count++;
+			}
+		}		
+	}
+	avgE /= count;
+	avgE = 1/(2*avgE);
+	//std::cout<<"avg e "<<avgE<<std::endl;
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT
+
+	timer.start();
+#endif
+	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT	
+	timer.start();
+#endif
+	
+	resultImg = cv::Scalar(0);
+	unsigned char* imgPtr = resultImg.data;
+	for(int i=0; i<m_nPixel; i++)
+	{
+		if(m_result[i] == 1)			
+		{
+			/*for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+			{
+			int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
+			imgPtr[idx] = 0xff;
+			}*/
+			int k = m_centers[i].xy.x;
+			int j = m_centers[i].xy.y;
+			int radius = m_step+5;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					if (m_labels[idx] == i)
+					{					
+						imgPtr[idx] = 0xff;
+					}					
+				}
+			}
+		}	
+	}
+	
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+	//delete[] m_spPtr;
+
+#ifdef REPORT
+	timer0.stop();
+	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
+#endif
+
+}
 void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, cv::Mat& featureMaskImg, float* distance,cv::Mat& resultImg)
 {
 	#ifdef REPORT
