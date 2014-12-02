@@ -351,7 +351,162 @@ void TestLBP()
 	cv::imshow("diff2",diff2);
 	cv::waitKey(0);	
 }
+void TestHomographyEstimate()
+{
+	using namespace cv;
+	Mat img1 = imread("..//PTZ//input0//in000089.jpg");
+	Mat img2 = imread("..//PTZ//input0//in000090.jpg");
 
+
+	Mat gray1,gray2;
+	cvtColor(img1, gray1, CV_BGR2GRAY); 
+	cvtColor(img2, gray2, CV_BGR2GRAY);
+
+	
+	std::vector<cv::Point2f> features1,features2;  // detected features
+
+	int max_count = 5000;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 10;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	// detect the features
+	cv::goodFeaturesToTrack(gray1, // the image 
+		features1,   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
+
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(gray1, gray2, // 2 consecutive images
+		features1, // input point position in first image
+		features2, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+
+	int k=0;
+	for(int i=0; i<features1.size(); i++)
+	{
+		if (status[i] == 1)
+		{
+			features2[k] = features2[i];
+			features1[k] = features1[i];
+			k++;
+		}
+	}
+	features1.resize(k);
+	features2.resize(k);
+
+	std::vector<uchar> inliers(features1.size(),0);
+	cv::Mat homography= cv::findHomography(
+		cv::Mat(features1), // corresponding
+		cv::Mat(features2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+
+	double* ptr = (double*)homography.data;
+	cv::Mat diffMask(gray1.rows,gray1.cols,CV_8U);
+	diffMask = cv::Scalar(0);
+	
+	
+	for(int i=0; i<gray1.rows; i++)
+	{
+		for(int j=0; j<gray1.cols; j++)
+		{
+			uchar color = gray1.data[j + i*gray1.cols];
+			float x,y,w;
+			x = j*ptr[0] + i*ptr[1] + ptr[2];
+			y = j*ptr[3] + i*ptr[4] + ptr[5];
+			w = j*ptr[6] + i*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			int wx = int(x+0.5);
+			int wy = int(y+0.5);
+
+			if (wx >= 0 && wx<gray1.cols && wy >=0 && wy<gray1.rows)
+			{
+				diffMask.data[j+i*gray1.cols] = abs(color-gray2.data[wx+wy*gray1.cols]);
+			}
+			
+		}
+	}
+	cv::imshow("diffMask",diffMask);
+	k = 0;
+	for(int i=0; i<inliers.size(); i++)
+	{
+		if (inliers[i]==1)
+		{
+			cv::circle(img1,features1[i],3,cv::Scalar(255,0,0));
+			cv::circle(img2,features2[i],3,cv::Scalar(255,0,0));
+		}
+		else
+		{
+			features1[k] = features1[i];
+			features2[k] = features2[i];
+			k++;
+		}
+	}
+	features1.resize(k);
+	features2.resize(k);
+	inliers.resize(k);
+	homography= cv::findHomography(
+		cv::Mat(features1), // corresponding
+		cv::Mat(features2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+	
+	k=0;
+	for(int i=0; i<inliers.size(); i++)
+	{
+		if (inliers[i]==1)
+		{
+			cv::circle(img1,features1[i],3,cv::Scalar(0,0,255));
+			cv::circle(img2,features2[i],3,cv::Scalar(0,0,255));
+		}
+		else
+		{
+			features1[k] = features1[i];
+			features2[k] = features2[i];
+			k++;
+		}
+	}
+	diffMask = cv::Scalar(0);
+	ptr = (double*)homography.data;
+	
+	for(int i=0; i<gray1.rows; i++)
+	{
+		for(int j=0; j<gray1.cols; j++)
+		{
+			uchar color = gray1.data[j + i*gray1.cols];
+			float x,y,w;
+			x = j*ptr[0] + i*ptr[1] + ptr[2];
+			y = j*ptr[3] + i*ptr[4] + ptr[5];
+			w = j*ptr[6] + i*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			int wx = int(x+0.5);
+			int wy = int(y+0.5);
+
+			if (wx >= 0 && wx<gray1.cols && wy >=0 && wy<gray1.rows)
+			{
+				diffMask.data[j+i*gray1.cols] = abs(color-gray2.data[wx+wy*gray1.cols]);
+			}
+			
+		}
+	}
+	cv::imshow("diffMask2",diffMask);
+
+	
+	cv::namedWindow("img1");
+	cv::imshow("img1",img1);
+	cv::namedWindow("img2");
+	cv::imshow("img2",img2);
+
+
+	cv::waitKey();
+}
 void TestPerspective()
 {
 	using namespace cv;
@@ -368,7 +523,7 @@ void TestPerspective()
 
 	std::vector<cv::Point2f> features1,features2;  // detected features
 
-	int max_count = 500;	  // maximum number of features to detect
+	int max_count = 5000;	  // maximum number of features to detect
 	double qlevel = 0.05;    // quality level for feature detection
 	double minDist = 10;   // minimum distance between two feature points
 	std::vector<uchar> status; // status of tracked features
@@ -1037,15 +1192,41 @@ void TestPostProcess()
 		imwrite(fileName,imgDst);*/
 	}
 }
+
+//void TestImageRetification()
+//{
+//	int start = 2; 
+//	int end = 2;
+//	char outPathName[100];
+//	sprintf(outPathName,"..\\result\\subsensex\\ptz\\input3\\postprocess\\");
+//	CreateDir(outPathName);
+//	char fileName[100];
+//	cv::Mat curImg,prevImg,curGray, prevGray;
+//	std::vector<cv::Point2f> features0,features1;
+//	for(int i=start; i<=end;i++)
+//	{
+//		sprintf(fileName,"..//PTZ//input3//bin%06d.png",i);
+//		curImg = cv::imread(filename);
+//		sprintf(fileName,"..//PTZ//input3//bin%06d.png",i-1);
+//		prevImg = cv::imread(filename);
+//		cv::cvtColor(curImg,curGray,CV_BGR2GRAY);
+//		cv::cvtColor(prevImg,prevGray,CV_BGR2GRAY);
+//		cv::goodFeaturesToTrack(curGray, features0, 5000,0.05,10);
+//		cv:
+//		
+//	}
+//}
 int main()
 {
-	TestPostProcess();
+	TestHomographyEstimate();
+	return 0;
+	//TestPostProcess();
 	//TestEdgeTracking2Img();
 	//TestListEdgeTracking();
 	//TestLBP();
 	//TestPerspective();	
 	//TestAffine();
-	return 0;
+	
 	// Create video procesor instance
 	VideoProcessor processor;
 
