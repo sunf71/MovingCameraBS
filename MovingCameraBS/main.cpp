@@ -16,6 +16,7 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 \*------------------------------------------------------------------------------------------*/
 #define _USE_MATH_DEFINES
 #include <iostream>
+#include <fstream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -31,6 +32,11 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include <direct.h>
 #include <io.h>
 #include <list>
+//#include "libAnn.h"
+//#include "mclmcr.h"
+//#include "matrix.h"
+//#include "mclcppclass.h"
+
 int CreateDir(char *pszDir)
 {
 	int i = 0;
@@ -351,18 +357,31 @@ void TestLBP()
 	cv::imshow("diff2",diff2);
 	cv::waitKey(0);	
 }
+cv::Point2f warpPoint(cv::Point2f&p, double* ptr)
+{
+	float x,y,w;
+	float j = p.x;
+	float i = p.y;
+	x = j*ptr[0] + i*ptr[1] + ptr[2];
+	y = j*ptr[3] + i*ptr[4] + ptr[5];
+	w = j*ptr[6] + i*ptr[7] + ptr[8];
+	x /=w;
+	y/=w;
+	return cv::Point2f(x,y);
+}
 void TestHomographyEstimate()
 {
 	using namespace cv;
-	Mat img1 = imread("..//PTZ//input0//in000089.jpg");
-	Mat img2 = imread("..//PTZ//input0//in000090.jpg");
+	Mat img1 = imread("..//moseg//people1//in000018.jpg");
+	Mat img2 = imread("..//moseg//people1//in000019.jpg");
 
 
 	Mat gray1,gray2;
 	cvtColor(img1, gray1, CV_BGR2GRAY); 
 	cvtColor(img2, gray2, CV_BGR2GRAY);
+	cv::Mat img3(img1.rows,img2.cols*2,CV_8UC3);
+	cv::Mat img4(img1.rows,img2.cols*2,CV_8UC3);
 
-	
 	std::vector<cv::Point2f> features1,features2;  // detected features
 
 	int max_count = 5000;	  // maximum number of features to detect
@@ -396,7 +415,59 @@ void TestHomographyEstimate()
 	}
 	features1.resize(k);
 	features2.resize(k);
+	/*{
+		FILE* file = fopen("data.txt","r");
+		features1.clear();
+		features2.clear();
+		int x,y,wx,wy;
+		while(fscanf(file,"%d %d %d %d ",&x,&y,&wx,&wy)!=EOF )
+		{
+			uchar diff = abs(gray1.data[x+y*gray1.cols] - gray2.data[wx+wy*gray1.cols]);
+			if (diff>50)
+				std::cout<<(int)diff<<std::endl;
+			else
+			{
+				features1.push_back(cv::Point2f(x,y));
+				features2.push_back(cv::Point2f(wx,wy));
+			}
+		}
+		
 
+	}*/
+	cv::Mat fMatrix,h1,h2;
+	fMatrix = cv::findFundamentalMat(features1,features2);
+	cv::stereoRectifyUncalibrated(features1,features2,fMatrix,img1.size(),h1,h2);
+	cv::Mat rec1,rec2;
+	cv::warpPerspective(img1,rec1,h1,img1.size());
+	cv::warpPerspective(img2,rec2,h2,img2.size());
+	cv::imshow("rec1",rec1);
+	cv::imshow("rec2",rec2);
+	for(int i=0; i<img1.rows; i++)
+	{
+		for(int j=0; j<img1.cols; j++)
+		{
+			uchar* ptr3 = img3.data+ i*img3.step.p[0]+j*img3.step.p[1];
+			uchar* ptr4 = img4.data+ i*img4.step.p[0]+j*img4.step.p[1];
+			uchar* ptr1 = rec1.data+ i*rec1.step.p[0]+j*rec1.step.p[1];
+			uchar* ptr2 = rec2.data+ i*rec2.step.p[0]+j*rec2.step.p[1];
+			uchar* iptr1 = img1.data+ i*img1.step.p[0]+j*img1.step.p[1];
+			uchar* iptr2 = img2.data+ i*img2.step.p[0]+j*img2.step.p[1];
+			for(int c =0; c<3; c++)
+			{
+				ptr3[c] = ptr1[c];
+				ptr4[c] = iptr1[c];
+			}
+			ptr3 = img3.data+ i*img3.step.p[0]+(img2.cols+j)*img3.step.p[1];
+			ptr4 = img4.data+ i*img4.step.p[0]+(img2.cols+j)*img4.step.p[1];
+			for(int c =0; c<3; c++)
+			{
+				ptr3[c] = ptr2[c];
+				ptr4[c] = iptr2[c];
+			}
+			
+	
+		}
+	}
 	std::vector<uchar> inliers(features1.size(),0);
 	cv::Mat homography= cv::findHomography(
 		cv::Mat(features1), // corresponding
@@ -404,11 +475,18 @@ void TestHomographyEstimate()
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
 		0.1); // max distance to reprojection point
-
+	std::cout<<"homography\n"<<homography<<std::endl;
 	double* ptr = (double*)homography.data;
 	cv::Mat diffMask(gray1.rows,gray1.cols,CV_8U);
 	diffMask = cv::Scalar(0);
-	
+	cv::Mat interDiffMask(gray1.rows,gray1.cols,CV_8U);
+	interDiffMask = cv::Scalar(0);
+	cv::Mat warp,warpDiff;
+	cv::Mat featureMask(gray1.rows,gray1.cols,CV_8U);
+	featureMask = cv::Scalar(0);
+	cv::warpPerspective(gray1,warp,homography,gray1.size());
+	cv::absdiff(warp,gray2,warpDiff);
+	cv::imshow("warp idff",warpDiff);
 	
 	for(int i=0; i<gray1.rows; i++)
 	{
@@ -423,30 +501,75 @@ void TestHomographyEstimate()
 			y/=w;
 			int wx = int(x+0.5);
 			int wy = int(y+0.5);
-
+			uchar ucolor = LinearInterData(gray1.cols,gray1.rows,gray2.data,x,y);
 			if (wx >= 0 && wx<gray1.cols && wy >=0 && wy<gray1.rows)
 			{
 				diffMask.data[j+i*gray1.cols] = abs(color-gray2.data[wx+wy*gray1.cols]);
+				interDiffMask.data[j+i*gray1.cols] = abs(color-ucolor);
 			}
 			
 		}
 	}
 	cv::imshow("diffMask",diffMask);
+	cv::imshow("interDiffMask",interDiffMask);
 	k = 0;
+	double avgerr = 0;
+	int c = 0;
 	for(int i=0; i<inliers.size(); i++)
 	{
+		cv::Point2f features3 = warpPoint(features2[i],(double*)h2.data);
+		features3.x = features3.x+img2.cols;
+		cv::Point2f wf1 = warpPoint(features1[i],(double*)h1.data);
+		if (wf1.x<img1.cols && features3.x > img1.cols)
+		{
+			cv::circle(img3,features3,3,cv::Scalar(255,0,0));
+			cv::circle(img3,wf1,3,cv::Scalar(255,0,0));
+			cv::line(img3,wf1,features3,cv::Scalar(0,255,0));
+		}
+		features3 = cv::Point2f(features2[i].x+gray1.cols,features2[i].y);
+		cv::circle(img4,features3,3,cv::Scalar(255,0,0));
+		cv::circle(img4,features1[i],3,cv::Scalar(255,0,0));
+		cv::line(img4,features1[i],features3,cv::Scalar(0,255,0));
 		if (inliers[i]==1)
 		{
+			
 			cv::circle(img1,features1[i],3,cv::Scalar(255,0,0));
 			cv::circle(img2,features2[i],3,cv::Scalar(255,0,0));
+			
+			
+			float x,y,w;
+			float fx,fy;
+			fx = features1[i].x;
+			fy = features1[i].y;
+			x = fx*ptr[0] + fy*ptr[1] + ptr[2];
+			y = fx*ptr[3] + fy*ptr[4] + ptr[5];
+			w = fx*ptr[6] + fy*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			double dx = x-features2[i].x;
+			double dy = y- features2[i].y;
+			uchar diff = abs(gray1.data[(int)fx+(int)fy*gray1.cols] - gray2.data[(int)features2[i].x+(int)(features2[i].y)*gray1.cols]);
+			/*if (diff > 50)
+			{
+				
+			}*/
+			featureMask.data[(int)fx+(int)fy*gray1.cols] = diff < 255 ? diff : 255;
+			avgerr += sqrt(dx*dx+dy*dy);
+			c++;
 		}
 		else
 		{
 			features1[k] = features1[i];
 			features2[k] = features2[i];
 			k++;
+			/*cv::circle(img3,features1[i],3,cv::Scalar(255,0,0));
+			cv::circle(img3,features3,3,cv::Scalar(255,0,0));
+			cv::line(img3,features1[i],features3,cv::Scalar(255,255,255));*/
 		}
 	}
+	std::cout<<"avg err "<<avgerr/c<<std::endl;
+	cv::dilate(featureMask,featureMask,cv::Mat(),cv::Point(-1,-1),2);
+	cv::imshow("featureMask",featureMask);
 	features1.resize(k);
 	features2.resize(k);
 	inliers.resize(k);
@@ -504,7 +627,8 @@ void TestHomographyEstimate()
 	cv::namedWindow("img2");
 	cv::imshow("img2",img2);
 
-
+	cv::imshow("img3",img3);
+	cv::imshow("img4",img4);
 	cv::waitKey();
 }
 void TestPerspective()
@@ -1192,7 +1316,10 @@ void TestPostProcess()
 		imwrite(fileName,imgDst);*/
 	}
 }
+void TestCSHAnn()
+{
 
+}
 //void TestImageRetification()
 //{
 //	int start = 2; 
