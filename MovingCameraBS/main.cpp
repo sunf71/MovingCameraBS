@@ -444,10 +444,10 @@ void DrawHistogram(std::vector<float>& histogram, int size)
 void TestOpticalFlowHistogram()
 {
 	int start = 1; 
-	int end = 1130;
+	int end = 19;
 	char outPathName[100];
 	char fileName[100];
-	sprintf(outPathName,".\\histogram\\ptz\\input3\\features\\");
+	sprintf(outPathName,".\\histogram\\moseg\\cars1\\features\\");
 	CreateDir(outPathName);
 	cv::Mat img,preImg,gray,preGray;
 	std::vector<cv::Point2f> features1,features2;  // detected features
@@ -460,7 +460,7 @@ void TestOpticalFlowHistogram()
 	{
 		features1.clear();
 		features2.clear();
-		sprintf(fileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(fileName,"..\\moseg\\cars1\\in%06d.jpg",i);
 		img = cv::imread(fileName);
 		cv::cvtColor(img,gray,CV_BGR2GRAY);
 		if (preImg.empty())
@@ -494,6 +494,24 @@ void TestOpticalFlowHistogram()
 		}
 		features1.resize(k);
 		features2.resize(k);
+
+		cv::Mat histImg = img.clone();
+
+		std::vector<uchar> inliers(features1.size(),0);
+		cv::Mat homography= cv::findHomography(
+			cv::Mat(features1), // corresponding
+			cv::Mat(features2), // points
+			inliers, // outputted inliers matches
+			CV_RANSAC, // RANSAC method
+			0.); // max distance to reprojection point
+		for(int i=0; i<inliers.size(); i++)
+		{
+			if (inliers[i] == 1)
+			{
+				cv::circle(histImg,features1[i],3,cv::Scalar(0,255,0));
+			}
+		}
+
 		std::vector<float> histogram;
 		std::vector<std::vector<int>> ids;
 		OpticalFlowHistogram(features1,features2,histogram,ids);
@@ -509,7 +527,7 @@ void TestOpticalFlowHistogram()
 				idx = i;
 			}
 		}
-		cv::Mat histImg = img.clone();
+		
 		for(int i=0; i<ids[idx].size(); i++)
 		{
 			cv::circle(histImg,features1[ids[idx][i]],3,cv::Scalar(255,0,0));
