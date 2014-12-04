@@ -369,11 +369,162 @@ cv::Point2f warpPoint(cv::Point2f&p, double* ptr)
 	y/=w;
 	return cv::Point2f(x,y);
 }
+void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16,int thetaSize = 16)
+{
+	//直方图共256个bin，其中根据光流强度分16个bin，每个bin根据光流方向分16个bin
+	int binSize = DistSize * thetaSize;
+	histogram.resize(binSize);
+	ids.resize(binSize);
+	for(int i=0; i<binSize; i++)
+		ids[i].clear();
+	memset(&histogram[0],0,sizeof(float)*binSize);
+	float max = -9999;
+	float min = -max;
+	std::vector<float> thetas(f1.size());
+	std::vector<float> rads(f1.size());
+	for(int i =0; i<f1.size(); i++)
+	{
+		float dx = f1[i].x - f2[i].x;
+		float dy = f1[i].y - f2[i].y;
+		float theta = atan(dy/(dx+1e-6))/M_PI*180;
+		if (theta<0)
+			theta+=90;
+		thetas[i] = theta;
+		rads[i] = sqrt(dx*dx + dy*dy);
+	
+		max = rads[i] >max? rads[i] : max;
+		min = rads[i]<min ? rads[i]: min;
+
+	}
+	float stepR = (max-min+1e-6)/DistSize;
+	float stepT = 180/thetaSize;
+	for(int i=0; i<f1.size(); i++)
+	{
+		int r = (int)((rads[i] - min)/stepR);
+		int t = (int)(thetas[i]/stepT);
+		r = r>DistSize? DistSize:r;
+		t = t>thetaSize? thetaSize:t;
+		int idx = t*DistSize+r;
+		//std::cout<<idx<<std::endl;
+		histogram[idx]++;
+		ids[idx].push_back(i);
+	
+	}
+}
+void DrawHistogram(std::vector<float>& histogram, int size)
+{
+	float max = histogram[0];
+	int idx = 0;
+	for(int i=1; i<size; i++)
+	{
+		if (histogram[i] > max)
+		{
+			max = histogram[i];
+			idx = i;
+		}
+
+	}
+	cv::Mat img(400,300,CV_8UC3);
+	img = cv::Scalar(0);
+	int step = (img.cols+size-1)/size;
+	cv::Scalar color(255,255,0);
+	for(int i=0; i<size; i++)
+	{
+		cv::Point2i pt1,pt2;
+		pt1.x = i*step;
+		pt1.y = img.rows - (histogram[i]/max*img.rows);
+		pt2.x = pt1.x + step;
+		pt2.y = img.rows;
+		cv::rectangle(img,cv::Rect(pt1,pt2),color);
+	}
+	cv::imshow("histogram",img);
+	//cv::waitKey();
+}
+void TestOpticalFlowHistogram()
+{
+	int start = 1; 
+	int end = 1130;
+	char outPathName[100];
+	char fileName[100];
+	sprintf(outPathName,".\\histogram\\ptz\\input3\\features\\");
+	CreateDir(outPathName);
+	cv::Mat img,preImg,gray,preGray;
+	std::vector<cv::Point2f> features1,features2;  // detected features
+	int max_count = 5000;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 10;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	for(int i=start; i<=end;i++)
+	{
+		features1.clear();
+		features2.clear();
+		sprintf(fileName,"..\\ptz\\input3\\in%06d.jpg",i);
+		img = cv::imread(fileName);
+		cv::cvtColor(img,gray,CV_BGR2GRAY);
+		if (preImg.empty())
+		{
+			preImg = img.clone();
+			preGray = gray.clone();
+		}
+		// detect the features
+		cv::goodFeaturesToTrack(gray, // the image 
+			features1,   // the output detected features
+			max_count,  // the maximum number of features 
+			qlevel,     // quality level
+			minDist);   // min distance between two features
+
+		// 2. track features
+		cv::calcOpticalFlowPyrLK(gray, preGray, // 2 consecutive images
+			features1, // input point position in first image
+			features2, // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
+
+		int k=0;
+		for(int i=0; i<features1.size(); i++)
+		{
+			if (status[i] == 1)
+			{
+				features2[k] = features2[i];
+				features1[k] = features1[i];
+				k++;
+			}
+		}
+		features1.resize(k);
+		features2.resize(k);
+		std::vector<float> histogram;
+		std::vector<std::vector<int>> ids;
+		OpticalFlowHistogram(features1,features2,histogram,ids);
+
+		//最大bin
+		int max =ids[0].size(); 
+		int idx(0);
+		for(int i=1; i<256; i++)
+		{
+			if (ids[i].size() > max)
+			{
+				max = ids[i].size();
+				idx = i;
+			}
+		}
+		cv::Mat histImg = img.clone();
+		for(int i=0; i<ids[idx].size(); i++)
+		{
+			cv::circle(histImg,features1[ids[idx][i]],3,cv::Scalar(255,0,0));
+		}
+		sprintf(fileName,"%sin%06d.jpg",outPathName,i);
+		cv::imwrite(fileName,histImg);
+		cv::swap(img,preImg);
+		cv::swap(gray,preGray);
+	}
+}
 void TestHomographyEstimate()
 {
 	using namespace cv;
-	Mat img1 = imread("..//moseg//people1//in000018.jpg");
-	Mat img2 = imread("..//moseg//people1//in000019.jpg");
+	Mat img1 = imread("..//moseg//people1//in000003.jpg");
+	Mat img2 = imread("..//moseg//people1//in000002.jpg");
 
 
 	Mat gray1,gray2;
@@ -415,6 +566,29 @@ void TestHomographyEstimate()
 	}
 	features1.resize(k);
 	features2.resize(k);
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+	OpticalFlowHistogram(features1,features2,histogram,ids);
+	
+	DrawHistogram(histogram,256);
+	//最大bin
+	int max =ids[0].size(); 
+	int idx(0);
+	for(int i=1; i<256; i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
+	cv::Mat histImg = img1.clone();
+	for(int i=0; i<ids[idx].size(); i++)
+	{
+		cv::circle(histImg,features1[ids[idx][i]],3,cv::Scalar(255,0,0));
+	}
+	cv::imshow("hist max bin",histImg);
+
 	/*{
 		FILE* file = fopen("data.txt","r");
 		features1.clear();
@@ -486,8 +660,8 @@ void TestHomographyEstimate()
 	featureMask = cv::Scalar(0);
 	cv::warpPerspective(gray1,warp,homography,gray1.size());
 	cv::absdiff(warp,gray2,warpDiff);
-	cv::imshow("warp idff",warpDiff);
-	
+	cv::imshow("warp diff",warpDiff);
+	double colorErr(0), interColorErr(0);
 	for(int i=0; i<gray1.rows; i++)
 	{
 		for(int j=0; j<gray1.cols; j++)
@@ -504,14 +678,18 @@ void TestHomographyEstimate()
 			uchar ucolor = LinearInterData(gray1.cols,gray1.rows,gray2.data,x,y);
 			if (wx >= 0 && wx<gray1.cols && wy >=0 && wy<gray1.rows)
 			{
+				colorErr +=abs(color-gray2.data[wx+wy*gray1.cols]);
 				diffMask.data[j+i*gray1.cols] = abs(color-gray2.data[wx+wy*gray1.cols]);
 				interDiffMask.data[j+i*gray1.cols] = abs(color-ucolor);
+				interColorErr +=abs(color-ucolor);
 			}
 			
 		}
 	}
 	cv::imshow("diffMask",diffMask);
 	cv::imshow("interDiffMask",interDiffMask);
+	std::cout<<"avg color error total "<<colorErr/img1.rows/img1.cols<<std::endl;
+	std::cout<<"avg interpolation color error total "<<interColorErr/img1.rows/img1.cols<<std::endl;
 	k = 0;
 	double avgerr = 0;
 	int c = 0;
@@ -567,7 +745,7 @@ void TestHomographyEstimate()
 			cv::line(img3,features1[i],features3,cv::Scalar(255,255,255));*/
 		}
 	}
-	std::cout<<"avg err "<<avgerr/c<<std::endl;
+	std::cout<<"avg distance  err "<<avgerr/c<<std::endl;
 	cv::dilate(featureMask,featureMask,cv::Mat(),cv::Point(-1,-1),2);
 	cv::imshow("featureMask",featureMask);
 	features1.resize(k);
@@ -1038,6 +1216,7 @@ void TestEdgeTracking(cv::Mat& imgC, cv::Mat& imgPre)
 	ExtractEdgePoint(pre_gray,tr1,tr2,pre_edge,pre_thetaMat,pre_edgePoints);
 	GetTransformMatrix(gray,pre_gray,features1,features2,homoM,affineM,inliers);
 	double theta = atan(affineM.at<double>(1,0)/affineM.at<double>(1,1))/M_PI*180;
+	std::cout<<"theta = "<<theta<<std::endl;
 	cv::imshow("current edge",edge);
 	cv::imshow("previous edge", pre_edge);
 	
@@ -1046,20 +1225,21 @@ void TestEdgeTracking(cv::Mat& imgC, cv::Mat& imgPre)
 	Mat umask(gray.size(),CV_8U);
 	umask = Scalar(0);
 	MapEdgePoint(gray,edgePoints,pre_edge,pre_thetaMat,homoM,theta, mask,umask);
-	
-	imwrite("edgeMatched.jpg",mask);
-	cv::imshow("matched",mask);
+	cv::cvtColor(mask,mask,CV_GRAY2BGR);
 	for(int i=0; i<inliers.size(); i++)
 	{
 		if (inliers[i] == 1)		
-			cv::circle(umask,features1[i],2,cv::Scalar(100));
+			cv::circle(mask,features1[i],2,cv::Scalar(255,0,0));
 	}
+	imwrite("edgeMatched.jpg",mask);
+	cv::imshow("matched",mask);
+	
 	cv::imshow("unmatched",umask);
 	cv::waitKey();
 }
 void TestEdgeTracking2Img()
 {
-	cv::Mat imgC = cv::imread("..//moseg//cars1//in000002.jpg");
+	cv::Mat imgC = cv::imread("..//moseg//cars1//in000003.jpg");
 	cv::Mat imgPre = cv::imread("..//moseg//cars1//in000001.jpg");
 	TestEdgeTracking(imgC,imgPre);
 }
@@ -1345,15 +1525,16 @@ void TestCSHAnn()
 //}
 int main()
 {
-	TestHomographyEstimate();
-	return 0;
+	TestOpticalFlowHistogram();
+	//TestHomographyEstimate();
+	//TestPerspective();	
 	//TestPostProcess();
 	//TestEdgeTracking2Img();
 	//TestListEdgeTracking();
 	//TestLBP();
 	//TestPerspective();	
 	//TestAffine();
-	
+	return 0;
 	// Create video procesor instance
 	VideoProcessor processor;
 
