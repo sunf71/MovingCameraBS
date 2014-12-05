@@ -441,6 +441,42 @@ void DrawHistogram(std::vector<float>& histogram, int size)
 	cv::imshow("histogram",img);
 	//cv::waitKey();
 }
+void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
+{
+	homography.create(3,3,CV_64F);
+	double* homoData = (double*)homography.data;
+	cv::Mat dataM(2*f1.size(),9,CV_64F);
+	double* ptr = (double*)dataM.data;
+	int rowStep = dataM.step.p[0];
+	for(int i=0; i<f1.size(); i++)
+	{
+		ptr[0] = ptr[1] = ptr[2] =0;
+		ptr[3] = -1*f1[i].x;
+		ptr[4] = -1*f1[i].y;
+		ptr[5] = -1;
+		ptr[6] = f2[i].y*f1[i].x;
+		ptr[7] = f2[i].y*f1[i].y;
+		ptr[8] = f2[i].y;
+		ptr += 9;
+		ptr[0] = f1[i].x;
+		ptr[1] = f1[i].y;
+		ptr[2] = 1;
+		ptr[3] = ptr[4] = ptr[5] = 0;
+		ptr[6] = -f2[i].x * f1[i].x;
+		ptr[7] = -f2[i].x * f1[i].y;
+		ptr[8] = -f2[i].x;
+		ptr += 9;
+	}
+	cv::Mat w,u,vt;
+	//std::cout<<"A = "<<dataM<<std::endl;
+	cv::SVDecomp(dataM,w,u,vt);
+	//std::cout<<"vt = "<<vt<<std::endl;
+	ptr = (double*)(vt.data + (vt.rows-1)*vt.step.p[0]);
+	for(int i=0; i<9; i++)
+		homoData[i] = ptr[i]/ptr[8];
+
+
+}
 void TestOpticalFlowHistogram()
 {
 	int start = 1; 
@@ -503,7 +539,7 @@ void TestOpticalFlowHistogram()
 			cv::Mat(features2), // points
 			inliers, // outputted inliers matches
 			CV_RANSAC, // RANSAC method
-			0.); // max distance to reprojection point
+			0.1); // max distance to reprojection point
 		for(int i=0; i<inliers.size(); i++)
 		{
 			if (inliers[i] == 1)
@@ -538,11 +574,47 @@ void TestOpticalFlowHistogram()
 		cv::swap(gray,preGray);
 	}
 }
+double TestHomoAccuracy(const cv::Mat& gray1, const cv::Mat& gray2, const cv::Mat& homography)
+{
+	double colorErr(0);
+	cv::Mat mask = Mat::zeros(gray1.size(),gray1.type());
+	double* ptr = (double*)homography.data;
+	std::ofstream fout("inAccuracy.txt");
+	for(int i=0; i<gray1.rows; i++)
+	{
+		for(int j=0; j<gray1.cols; j++)
+		{
+			uchar color = gray1.data[j + i*gray1.cols];
+			float x,y,w;
+			x = j*ptr[0] + i*ptr[1] + ptr[2];
+			y = j*ptr[3] + i*ptr[4] + ptr[5];
+			w = j*ptr[6] + i*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			int wx = int(x+0.5);
+			int wy = int(y+0.5);
+			/*uchar ucolor = LinearInterData(gray1.cols,gray1.rows,gray2.data,x,y);*/
+			if (wx >= 0 && wx<gray1.cols && wy >=0 && wy<gray1.rows)
+			{
+				colorErr +=abs(color-gray2.data[wx+wy*gray1.cols]);
+				if ( abs(color-gray2.data[wx+wy*gray1.cols]) > 30)
+				{
+					mask.data[j+i*gray1.cols] = 0xff;
+					fout<<j<<","<<i<<" = "<<(int)color<<" "<<wx<<","<<wy<<" = "<<(int)gray2.data[wx+wy*gray1.cols]<<std::endl;
+				}
+			}
+			
+		}
+	}
+	cv::imshow("homo accuracy mask",mask);
+	fout.close();
+	return colorErr;
+}
 void TestHomographyEstimate()
 {
 	using namespace cv;
-	Mat img1 = imread("..//moseg//people1//in000003.jpg");
-	Mat img2 = imread("..//moseg//people1//in000002.jpg");
+	Mat img1 = imread("..//ptz//input0//in000013.jpg");
+	Mat img2 = imread("..//ptz//input0//in000012.jpg");
 
 
 	Mat gray1,gray2;
@@ -575,7 +647,8 @@ void TestHomographyEstimate()
 	int k=0;
 	for(int i=0; i<features1.size(); i++)
 	{
-		if (status[i] == 1)
+		if (status[i] == 1 /*&& 
+			 abs(gray1.data[(int)features1[i].x+(int)features1[i].y*gray1.cols] - gray2.data[(int)features2[i].x+(int)(features2[i].y)*gray1.cols]) < 30*/)
 		{
 			features2[k] = features2[i];
 			features1[k] = features1[i];
@@ -601,12 +674,22 @@ void TestHomographyEstimate()
 		}
 	}
 	cv::Mat histImg = img1.clone();
+
+	//用直方图统计最大的特征点求变换矩阵
+	std::vector<cv::Point2f> f1,f2;
 	for(int i=0; i<ids[idx].size(); i++)
 	{
 		cv::circle(histImg,features1[ids[idx][i]],3,cv::Scalar(255,0,0));
+		f1.push_back(features1[ids[idx][i]]);
+		f2.push_back(features2[ids[idx][i]]);
 	}
+	cv::Mat dHomo;
+	findHomographyDLT(f1,f2,dHomo);
+	std::cout<<"dhomo \n"<<dHomo<<std::endl;
+	std::cout<<"dhomo error "<<TestHomoAccuracy(gray1,gray2,dHomo)/gray1.rows/gray1.cols<<std::endl;
 	cv::imshow("hist max bin",histImg);
-
+	
+	
 	/*{
 		FILE* file = fopen("data.txt","r");
 		features1.clear();
@@ -1514,9 +1597,30 @@ void TestPostProcess()
 		imwrite(fileName,imgDst);*/
 	}
 }
-void TestCSHAnn()
+void TestfindHomographyDLT()
 {
+	int width(640),height(480);
+	int n = 5;
+	std::vector<cv::Point2f> f1,f2;
+	//for(int i=0; i<5; i++)
+	//{
+		//f1.push_back(cv::Point2f(rand()%width,rand()%height);
 
+	//}
+	f1.push_back(cv::Point2f(139,23));
+	f1.push_back(cv::Point2f(434,326));
+	f1.push_back(cv::Point2f(599,185));
+	f1.push_back(cv::Point2f(332,400));
+	f1.push_back(cv::Point2f(22,25));
+
+	f2.push_back(cv::Point2f(282,240));
+	f2.push_back(cv::Point2f(357,223));
+	f2.push_back(cv::Point2f(607,458));
+	f2.push_back(cv::Point2f(272,146));
+	f2.push_back(cv::Point2f(33,23));
+	cv::Mat homography;
+	findHomographyDLT(f1,f2,homography);
+	std::cout<<homography;
 }
 //void TestImageRetification()
 //{
@@ -1543,8 +1647,9 @@ void TestCSHAnn()
 //}
 int main()
 {
-	TestOpticalFlowHistogram();
-	//TestHomographyEstimate();
+	//TestOpticalFlowHistogram();
+	//TestfindHomographyDLT();
+	TestHomographyEstimate();
 	//TestPerspective();	
 	//TestPostProcess();
 	//TestEdgeTracking2Img();
