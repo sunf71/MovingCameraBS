@@ -214,6 +214,6 @@ protected:
 	cv::Mat m_mixEdges;
 	//保存特征点跟踪情况
 	cv::Mat m_features,m_preFeatures;
-
+	cv::Mat m_dx,m_dy;
 	std::ofstream m_ofstream;
 };

@@ -317,10 +317,10 @@ const static size_t NEIGHBOUR_SIZE = 16;
 
 public:
 	                                                            
-	static void computeGrayscaleDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg,const int _x, const int _y, const size_t _t, ushort& _res)
+	static void computeGrayscaleDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg,const int _x, const int _y, const size_t _t, ushort* _res)
 	{
 		CV_DbgAssert(!dxImg.empty());
-		CV_DbgAssert(dxImg.type()==CV_8UC1);
+		CV_DbgAssert(dxImg.type()==CV_16SC1);
 		CV_DbgAssert(LGBP::DESC_SIZE==2); // @@@ also relies on a constant desc size
 		CV_DbgAssert(_x>=(int)LGBP::PATCH_SIZE/2 && _y>=(int)LGBP::PATCH_SIZE/2);
 		CV_DbgAssert(_x<dxImg.cols-(int)LGBP::PATCH_SIZE/2 && _y<dxImg.rows-(int)LGBP::PATCH_SIZE/2);
@@ -342,8 +342,8 @@ public:
 		double ang[NEIGHBOUR_SIZE];
 		for(int i=0; i<NEIGHBOUR_SIZE; i++)
 		{
-			rad[i] = sqrt(dxValue[i]*dxValue[i] + dyValue[i]*dyValue[i]);
-			ang[i] = atan(dyValue[i]/dxValue[i]);
+			rad[i] = sqrt((double)(dxValue[i]*dxValue[i] + dyValue[i]*dyValue[i]));
+			ang[i] = atan(dyValue[i]*1.f/dxValue[i]);
 		}
 		/*for(int i=0; i<16; i++)
 		{
@@ -352,40 +352,48 @@ public:
 		std::cout<<std::endl;*/
 		for(int i=0; i<NEIGHBOUR_SIZE/2; i++)
 		{
-			_res |= (abs(rad[i]-rad[i+NEIGHBOUR_SIZE/2])>=0 )<< NEIGHBOUR_SIZE-1-i;
+			_res[0] |= (abs(rad[i]-rad[i+NEIGHBOUR_SIZE/2])>=0 )<< NEIGHBOUR_SIZE-1-i;
 		}
 		for(int i=0; i<NEIGHBOUR_SIZE; i+=2)
 		{
-			_res |= (abs(ang[i]-ang[i+1])>=0 )<< NEIGHBOUR_SIZE/2-1-i;
+			_res[0] |= (abs(ang[i]-ang[i+1])>=0 )<< NEIGHBOUR_SIZE/2-1-i;
 		}
 	
 	
 
 	}
-	static void computeRGBDescriptor(const cv::Mat& oInputImg, const int _x, const int _y, const size_t* _t, ushort* _res)
+	static void computeRGBDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg,const int _x, const int _y, const size_t* _t, ushort* _res)
 	{
-		CV_DbgAssert(!oInputImg.empty());
-		CV_DbgAssert(oInputImg.type()==CV_8UC3);
+		CV_DbgAssert(!dxImg.empty());
+		CV_DbgAssert(dxImg.type()==CV_16SC3);
 		CV_DbgAssert(LGBP::DESC_SIZE==2); // @@@ also relies on a constant desc size
 		CV_DbgAssert(_x>=(int)LGBP::PATCH_SIZE/2 && _y>=(int)LGBP::PATCH_SIZE/2);
-		CV_DbgAssert(_x<oInputImg.cols-(int)LGBP::PATCH_SIZE/2 && _y<oInputImg.rows-(int)LGBP::PATCH_SIZE/2);
-		const size_t _step_row = oInputImg.step.p[0];
-		const uchar* const _data = oInputImg.data;
-		int width = oInputImg.cols;
-		int height = oInputImg.rows;
-		uchar value[NEIGHBOUR_SIZE*3];
-		uchar* cValue = oInputImg.data + _x*3+ _step_row*_y;
+		CV_DbgAssert(_x<dxImg.cols-(int)LGBP::PATCH_SIZE/2 && _y<dxImg.rows-(int)LGBP::PATCH_SIZE/2);
+		const size_t _step_row = dxImg.step.p[0];
+		const short* const _dxData = (short*)dxImg.data;
+		const short* const _dyData = (short*)dyImg.data;
+		int width = dxImg.cols;
+		int height = dxImg.rows;
+		
+		short dxValue[NEIGHBOUR_SIZE*3];
+		short dyValue[NEIGHBOUR_SIZE*3];
+		//short dxCenter = _dxData+ (_x+_y*width)*3*2
 		for( int i=0; i<NEIGHBOUR_SIZE; i++)
-			LBP::BilinearInterpolation(width,height,_data,_x,_y,&dxdy[2*i],value+3*i);
-
-		//中心3*3的平局值
-		/*uchar avg[3];
-		for(int c=0; c<3; c++)
 		{
-			avg[c] =( oInputImg.data[(_x-1+_y*width)*3+c] +oInputImg.data[(_x-1+(_y-1)*width)*3+c] +  oInputImg.data[(_x-1+(_y+1)*width)*3+c]+
-				 oInputImg.data[(_x+_y*width)*3+c] +oInputImg.data[(_x+(_y-1)*width)*3+c] +  oInputImg.data[(_x+(_y+1)*width)*3+c]+
-				 oInputImg.data[(_x+1+_y*width)*3+c] +oInputImg.data[(_x+1+(_y-1)*width)*3+c] +  oInputImg.data[(_x+1+(_y+1)*width)*3+c])/9;
-		}*/
+			LBP::BilinearInterpolation(width,height,_dxData,_x,_y,&dxdy[2*i],dxValue+i*3,2,3);
+			LBP::BilinearInterpolation(width,height,_dyData,_x,_y,&dxdy[2*i],dyValue+i*3,2,3);
+		}
+		double rad[NEIGHBOUR_SIZE*3];
+		double ang[NEIGHBOUR_SIZE*3];
+		for(int i=0; i<NEIGHBOUR_SIZE; i++)
+		{
+			for(int c=0; c<3; c++)
+			{
+				rad[i*3+c] = sqrt((double)(dxValue[i]*dxValue[i] + dyValue[i]*dyValue[i]));
+				ang[3*i+c] = atan(dyValue[i]*1.f/dxValue[i]);
+			}
+		}
+		
 		for(int c=0; c<3; c++)
 		{
 			_res[c] = 0;
@@ -395,8 +403,8 @@ public:
 			}*/
 			for(int i=0; i<NEIGHBOUR_SIZE/2; i++)
 			{
-				_res[c] |= ((value[i*3+c]-value[(i+NEIGHBOUR_SIZE/2)*3+c]) >=_t[c])<< NEIGHBOUR_SIZE-1-i;
-				_res[c] |= ((value[(i+NEIGHBOUR_SIZE/2)*3+c]-value[i*3+c]) >=_t[c])<< NEIGHBOUR_SIZE/2-1-i;
+				_res[c] |= ((rad[i*3+c]-rad[(i+NEIGHBOUR_SIZE/2)*3+c]) >= 0)<< NEIGHBOUR_SIZE-1-i;
+				//_res[c] |= ((ang[(i+NEIGHBOUR_SIZE/2)*3+c]-ang[i*3+c]) >= 0)<< NEIGHBOUR_SIZE/2-1-i;
 			}
 			/*for(int i=0; i<NEIGHBOUR_SIZE; i+=2)
 			{
