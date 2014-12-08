@@ -827,12 +827,14 @@ void TestHomographyEstimate()
 			y/=w;
 			double dx = x-features2[i].x;
 			double dy = y- features2[i].y;
-			uchar diff = abs(gray1.data[(int)fx+(int)fy*gray1.cols] - gray2.data[(int)features2[i].x+(int)(features2[i].y)*gray1.cols]);
+			uchar icolor = LinearInterData(gray2.cols,gray2.rows,gray2.data,features2[i].x,features2[i].y);
+			//uchar diff = abs(gray1.data[(int)fx+(int)fy*gray1.cols] - gray2.data[(int)features2[i].x+(int)(features2[i].y)*gray1.cols]);
+			uchar diff = abs(gray1.data[(int)fx+(int)fy*gray1.cols] - icolor);
 			/*if (diff > 50)
 			{
 				
 			}*/
-			featureMask.data[(int)fx+(int)fy*gray1.cols] = diff < 255 ? diff : 255;
+			featureMask.data[(int)fx+(int)fy*gray1.cols] = diff < 35 ? diff : 255;
 			avgerr += sqrt(dx*dx+dy*dy);
 			c++;
 		}
