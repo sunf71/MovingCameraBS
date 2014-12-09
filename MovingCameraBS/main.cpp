@@ -73,7 +73,186 @@ int CreateDir(char *pszDir)
 
 	return 0;
 }
+//统计类，用于计算标准差，协方差等统计数据
+class STAT
+{
+public:
 
+	STAT(void)
+	{
+	}
+
+	~STAT(void)
+	{
+	}
+
+	//计算均值 
+	template  <class T>
+	static double Mean(vector<T>& v)
+	{
+		double sum = 0;
+		for(int i=0; i<v.size(); i++)
+		{
+			sum += v[i];
+		}
+		return sum/v.size();
+	}
+	//计算方差
+	template <class T>
+	static double Variance(vector<T>& v)
+	{
+		double ret = 0;
+		double mean = Mean(v);
+		for(int i=0; i<v.size(); i++)
+		{
+			ret += (v[i] - mean)*(v[i] - mean);
+		}
+		return ret/v.size();
+	}
+	template <class T>
+	static double Variance(vector<T>& v,double mean)
+	{
+		double ret = 0;		
+		for(int i=0; i<v.size(); i++)
+		{
+			ret += (v[i] - mean)*(v[i] - mean);
+		}
+		return ret/v.size();
+	}
+	//计算标准差
+	template <class T>
+	static double STD(vector<T>& v)
+	{
+		return sqrt(Variance(v));
+	}
+
+	//计算协方差
+	template <class T>
+	static double Cov(vector<T>& a, vector<T>& b)
+	{
+		assert(a.size() == b.size());
+
+		//cov(a,b) = E(a*b) - E(a)*E(b)
+		double ret = 0;
+		double suma = 0;
+		double sumb = 0;
+		for(int i=0; i<a.size(); i++)
+		{
+			ret += a[i]*b[i];
+			suma += a[i];
+			sumb += b[i];		
+		}
+		
+		return (ret - suma*sumb/a.size())/a.size();
+	}
+
+	template <class T>
+	static double Cov(vector<T>& a, vector<T>&b, double meanA, double meanB)
+	{
+		assert(a.size() == b.size());
+		double ret = 0;
+		
+		for(int i=0; i<a.size(); i++)
+		{
+			ret += a[i]*b[i];
+			
+		}
+		return ret/a.size() - meanA*meanB;
+	}
+
+	template<class T>
+	static double BhatBinDistance(const vector<T>& a, const vector<T>& b)
+	{
+		assert(a.size() == b.size());
+		float sumXY = 0;
+		float sumX = 0;
+		float sumY = 0;
+		for(int i=0; i<a.size(); i++)
+		{
+			sumXY += sqrt(a[i]*b[i]);
+			sumX += a[i];
+			sumY += b[i];
+		}
+
+		return 1 - sumXY/sqrt(sumX*sumY);
+	}
+
+	//计算直方图距离
+	template <class T>
+	static double BinDistance(const vector<T>& a, const vector<T>& b)
+	{
+		return 1- abs(CorDistance(a,b));
+	/*	return BhatBinDistance(a,b);*/
+	}
+
+	//计算直方图距离
+	template <class T>
+	static double BinDistance(const vector<vector<T>>& a, const vector<vector<T>>& b)
+	{
+		
+		double Max = 0;		
+		int c = 0;
+	    vector<T> sumA(a[0].size(),0),sumB(a[0].size(),0);
+
+		for(int i=0; i<3; i++)
+		{
+		/*	double max = *max_element(a[i].begin(),a[i].end());
+			double ratio = max/accumulate(a[i].begin(),a[i].end(),0);
+			max *= ratio;
+			if (max > Max)
+			{
+				Max = max;
+				c = i;
+			}*/
+			for(int j=0; j<a[0].size(); j++)
+			{
+				sumA[j] += a[i][j];
+				sumB[j] += b[i][j];
+			}
+		}	
+		return BinDistance(sumA,sumB);
+		//return BinDistance(a[c],b[c]);		
+	}
+	//计算直方图距离
+	template <class T>
+	static double CorDistance(const vector<T>& a, const vector<T>& b)
+	{	
+		//distance = (cov(a,b) + c)/(std(a)*std(b) + c) c是一个防止除0的常数 0.00001
+		const double c = 0.00001;
+		assert(a.size() == b.size());
+
+		//cov(a,b) = E(a*b) - E(a)*E(b)
+		double cov = 0;
+		double suma = 0;
+		double sumb = 0;
+		for(int i=0; i<a.size(); i++)
+		{
+			cov += a[i]*b[i];
+			suma += a[i];
+			sumb += b[i];		
+		}
+		
+		double meanA = suma/a.size();
+		double meanB = sumb/b.size();
+
+		double stdA = 0;
+		double stdB = 0;
+		for(int i=0; i<a.size(); i++)
+		{
+			stdA += (a[i] - meanA)*(a[i] - meanA);
+			stdB += (b[i] - meanB)*(b[i] - meanB);
+
+		}
+		stdA = sqrt(stdA/a.size());
+		stdB = sqrt(stdB/a.size());
+
+		cov /= a.size();
+		cov -= meanA * meanB;
+		
+		return (cov + c)/(stdA*stdB +c);	
+	
+	}
+};
 void TestAffine()
 {
 	using namespace cv;
@@ -199,7 +378,224 @@ T LinearInterData(int width, int height, T*data, float x, float y)
 	else
 		return 0;
 }
+//void computeGrayscaleDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg,const int _x, const int _y, ushort& res)
+//{
+//	
+//	const size_t patchSize = 5;
+//	const int halfPSize = patchSize/2;
+//	int width = dxImg.cols;
+//	int height = dxImg.rows;
+//	CV_DbgAssert(!dxImg.empty());
+//	CV_DbgAssert(dxImg.type()==CV_16SC1);
+//	if ( _x - halfPSize< 0 || _x+halfPSize > width-1 || _y-halfPSize <0 || _y+halfPSize > height-1)
+//		return;
+//	const int _step0 = dxImg.step.p[0];
+//	const int _step1 = dxImg.step.p[1];
+//	const uchar* const _dxData = dxImg.data;
+//	const uchar* const _dyData = dyImg.data;
+//	double lmd[patchSize*patchSize];
+//	double ori[patchSize*patchSize];
+//	for(int i=-halfPSize; i<=halfPSize; i++)
+//	{
+//		for(int j=-halfPSize; j<= halfPSize; j++)
+//		{
+//			int x = i+_x;
+//			int y = j+_y;
+//			int idx = y*_step0 +x*_step1;
+//			short dx = *((short*)(_dxData +idx ));
+//			short dy = *((short*)(_dyData +idx));
+//			double j11 = dx*dx;
+//			double j12 = dx*dy;
+//			double j22 = dy*dy;
+//			double tmp = sqrt(1.0*(j22-j11)*(j22-j11)+4*j12*j12);
+//			double lmdMax = 0.5*(j11+j22+tmp);
+//			double lmdMin =  0.5*(j11+j22-tmp);
+//			double orientation(0);		
+//			if (abs((j22-j11+tmp)< 1e-6))
+//			{
+//				orientation = 90.0;
+//			}
+//			else
+//			{
+//				orientation = atan(2*j12/(j22-j11+tmp))/M_PI*180.0;
+//
+//			}
+//			if (orientation < 0)
+//				orientation += 180;
+//			
+//			lmd[(i+halfPSize)+(j+halfPSize)*patchSize] = lmdMax;
+//			ori[(i+halfPSize)+(j+halfPSize)*patchSize] = orientation;
+//		}
+//	}
+//
+//	_res = ((absdiff_uchar(_val(-1, 1, n),_ref[n]) > _t[n]) << 15)
+//			+ ((absdiff_uchar(_val( 1,-1, n),_ref[n]) > _t[n]) << 14)
+//			+ ((absdiff_uchar(_val( 1, 1, n),_ref[n]) > _t[n]) << 13)
+//			+ ((absdiff_uchar(_val(-1,-1, n),_ref[n]) > _t[n]) << 12)
+//			+ ((absdiff_uchar(_val( 1, 0, n),_ref[n]) > _t[n]) << 11)
+//			+ ((absdiff_uchar(_val( 0,-1, n),_ref[n]) > _t[n]) << 10)
+//			+ ((absdiff_uchar(_val(-1, 0, n),_ref[n]) > _t[n]) << 9)
+//			+ ((absdiff_uchar(_val( 0, 1, n),_ref[n]) > _t[n]) << 8)
+//			+ ((absdiff_uchar(_val(-2,-2, n),_ref[n]) > _t[n]) << 7)
+//			+ ((absdiff_uchar(_val( 2, 2, n),_ref[n]) > _t[n]) << 6)
+//			+ ((absdiff_uchar(_val( 2,-2, n),_ref[n]) > _t[n]) << 5)
+//			+ ((absdiff_uchar(_val(-2, 2, n),_ref[n]) > _t[n]) << 4)
+//			+ ((absdiff_uchar(_val( 0, 2, n),_ref[n]) > _t[n]) << 3)
+//			+ ((absdiff_uchar(_val( 0,-2, n),_ref[n]) > _t[n]) << 2)
+//			+ ((absdiff_uchar(_val( 2, 0, n),_ref[n]) > _t[n]) << 1)
+//			+ ((absdiff_uchar(_val(-2, 0, n),_ref[n]) > _t[n]));
+//
+//}
+void computeRGBDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg, const int _x, const int _y, std::vector<std::vector<float>>&histogram,ushort* binPattern)
+{
+	const size_t binSize = 16 ;
+	histogram.resize(3);
+	
+	const size_t patchSize = 5;
+	const int halfPSize = patchSize/2;
+	int width = dxImg.cols;
+	int height = dxImg.rows;
+	CV_DbgAssert(!dxImg.empty());
+	CV_DbgAssert(dxImg.type()==CV_16SC3);
+	if ( _x - halfPSize< 0 || _x+halfPSize > width-1 || _y-halfPSize <0 || _y+halfPSize > height-1)
+		return;
+	const int _step0 = dxImg.step.p[0];
+	const int _step1 = dxImg.step.p[1];
+	const uchar* const _dxData = dxImg.data;
+	const uchar* const _dyData = dyImg.data;
+	float bin_step = (180+binSize-1)/binSize;
+	for(int c=0; c<3; c++)
+	{
+		histogram[c].resize(binSize);
+		memset(&histogram[c][0],0,sizeof(float)*binSize);
+		for(int i=-halfPSize; i<=halfPSize; i++)
+		{
+			for(int j=-halfPSize; j<= halfPSize; j++)
+			{
+				int x = i+_x;
+				int y = j+_y;
+				int idx = y*_step0 +x*_step1;
+				short dx = *((short*)(_dxData +idx)+c);
+				short dy = *((short*)(_dyData +idx)+c);
+				double j11 = dx*dx;
+				double j12 = dx*dy;
+				double j22 = dy*dy;
+				double tmp = sqrt(1.0*(j22-j11)*(j22-j11)+4*j12*j12);
+				double lmdMax = 0.5*(j11+j22+tmp);
+				double lmdMin =  0.5*(j11+j22-tmp);
+				double orientation(0);		
+				if (abs((j22-j11+tmp)< 1e-6))
+				{
+					orientation = 90.0;
+				}
+				else
+				{
+					orientation = atan(2*j12/(j22-j11+tmp))/M_PI*180.0;
 
+				}
+				if (orientation < 0)
+					orientation += 180;
+				/*float ang = atan(dy/(dx+1e-6))/M_PI*180;
+				if (ang<0)
+				ang+=180;
+				histogram[ang/bin_step] += (abs(dx)+abs(dy));*/
+				histogram[c][(int)(orientation/bin_step)] += lmdMax;
+
+			}
+		}
+		double max = histogram[c][0];
+		int idx(0);
+		for(int i=1; i<binSize; i++)
+		{
+			if (histogram[c][i] > max)
+			{
+				max = histogram[c][i];
+				idx = i;
+			}
+		}
+		binPattern[c] = 0;
+		for(int i=0; i<binSize; i++)
+		{
+			if (histogram[c][i] > max*0.5)
+			{
+				binPattern[c] |= 1 << (binSize-i-1);
+			}
+		}
+	}
+}
+void computeGrayscaleDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg,const int _x, const int _y, std::vector<float>& histogram,ushort& binPattern)
+{
+	const size_t binSize = 16 ;
+	histogram.resize(binSize);
+	memset(&histogram[0],0,sizeof(float)*binSize);
+	const size_t patchSize = 5;
+	const int halfPSize = patchSize/2;
+	int width = dxImg.cols;
+	int height = dxImg.rows;
+	CV_DbgAssert(!dxImg.empty());
+	CV_DbgAssert(dxImg.type()==CV_16SC1);
+	if ( _x - halfPSize< 0 || _x+halfPSize > width-1 || _y-halfPSize <0 || _y+halfPSize > height-1)
+		return;
+	const int _step0 = dxImg.step.p[0];
+	const int _step1 = dxImg.step.p[1];
+	const uchar* const _dxData = dxImg.data;
+	const uchar* const _dyData = dyImg.data;
+	float bin_step = (180+binSize-1)/binSize;
+	for(int i=-halfPSize; i<=halfPSize; i++)
+	{
+		for(int j=-halfPSize; j<= halfPSize; j++)
+		{
+			int x = i+_x;
+			int y = j+_y;
+			int idx = y*_step0 +x*_step1;
+			short dx = *((short*)(_dxData +idx ));
+			short dy = *((short*)(_dyData +idx));
+			double j11 = dx*dx;
+			double j12 = dx*dy;
+			double j22 = dy*dy;
+			double tmp = sqrt(1.0*(j22-j11)*(j22-j11)+4*j12*j12);
+			double lmdMax = 0.5*(j11+j22+tmp);
+			double lmdMin =  0.5*(j11+j22-tmp);
+			double orientation(0);		
+			if (abs((j22-j11+tmp)< 1e-6))
+			{
+				orientation = 90.0;
+			}
+			else
+			{
+				orientation = atan(2*j12/(j22-j11+tmp))/M_PI*180.0;
+
+			}
+			if (orientation < 0)
+				orientation += 180;
+			/*float ang = atan(dy/(dx+1e-6))/M_PI*180;
+			if (ang<0)
+				ang+=180;
+			histogram[ang/bin_step] += (abs(dx)+abs(dy));*/
+			histogram[(int)(orientation/bin_step)] += lmdMax;
+			
+		}
+	}
+	double max = histogram[0];
+	int idx(0);
+	for(int i=1; i<binSize; i++)
+	{
+		if (histogram[i] > max)
+		{
+			max = histogram[i];
+			idx = i;
+		}
+	}
+	binPattern = 0;
+	for(int i=0; i<binSize; i++)
+	{
+		if (histogram[i] > max*0.5)
+		{
+			binPattern |= 1 << (binSize-i-1);
+		}
+	}
+
+}
 //计算LBP
 uchar LBP(uchar* imgData,int width, int height, int c,int x, int y, int r, int p)
 {
@@ -412,7 +808,7 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	
 	}
 }
-void DrawHistogram(std::vector<float>& histogram, int size)
+void DrawHistogram(std::vector<float>& histogram, int size, const std::string name = "histogram")
 {
 	float max = histogram[0];
 	int idx = 0;
@@ -438,7 +834,7 @@ void DrawHistogram(std::vector<float>& histogram, int size)
 		pt2.y = img.rows;
 		cv::rectangle(img,cv::Rect(pt1,pt2),color);
 	}
-	cv::imshow("histogram",img);
+	cv::imshow(name,img);
 	//cv::waitKey();
 }
 void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
@@ -610,6 +1006,128 @@ double TestHomoAccuracy(const cv::Mat& gray1, const cv::Mat& gray2, const cv::Ma
 	fout.close();
 	return colorErr;
 }
+
+void TestPatchStructralSimilarity()
+{
+	using namespace cv;
+	Mat img1 = imread("..//ptz//input0//in000087.jpg");
+	Mat img2 = imread("..//ptz//input0//in000086.jpg");
+
+	GaussianBlur( img1, img1, Size(3,3), 0, 0, BORDER_DEFAULT );
+	GaussianBlur( img2, img2, Size(3,3), 0, 0, BORDER_DEFAULT );
+	Mat gray1,gray2;
+	cvtColor(img1, gray1, CV_BGR2GRAY); 
+	cvtColor(img2, gray2, CV_BGR2GRAY);
+	
+	Mat grad1x,grad2x,grad1y,grad2y;
+	Scharr(img1,grad1x,CV_16S,1,0);
+	Scharr(img1,grad2x,CV_16S,1,0);
+	Scharr(img2,grad1y,CV_16S,0,1);
+	Scharr(img2,grad2y,CV_16S,0,1);
+
+	std::vector<cv::Point2f> features1,features2;  // detected features
+
+	int max_count = 5000;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 10;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	// detect the features
+	cv::goodFeaturesToTrack(gray1, // the image 
+		features1,   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
+
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(gray1, gray2, // 2 consecutive images
+		features1, // input point position in first image
+		features2, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+
+	int k=0;
+	for(int i=0; i<features1.size(); i++)
+	{
+		if (status[i] == 1 /*&& 
+			 abs(gray1.data[(int)features1[i].x+(int)features1[i].y*gray1.cols] - gray2.data[(int)features2[i].x+(int)(features2[i].y)*gray1.cols]) < 30*/)
+		{
+			features2[k] = features2[i];
+			features1[k] = features1[i];
+			k++;
+		}
+	}
+	features1.resize(k);
+	features2.resize(k);
+	std::vector<uchar> inliers(features1.size(),0);
+	cv::Mat homography= cv::findHomography(
+		cv::Mat(features1), // corresponding
+		cv::Mat(features2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+	std::cout<<"homography\n"<<homography<<std::endl;
+	double* ptr = (double*)homography.data;
+	size_t patchSize = 5;
+	size_t hPSize = patchSize/2;
+	cv::Mat mask(gray1.size(),gray1.type());
+	mask = cv::Scalar(0);
+	std::vector<std::vector<float>> hist1,hist2;
+	/*int x(220),y(384);
+	int wx(211),wy(384);
+	computeGrayscaleDescriptor(grad1x,grad1y,x,y,hist1);
+	computeGrayscaleDescriptor(grad2x,grad2y,wx,wy,hist2);
+	DrawHistogram(hist1,hist1.size(),"hist1");
+	DrawHistogram(hist2,hist2.size(),"hist2");
+	std::cout<<"hist distance "<<STAT::BinDistance(hist1,hist2)<<std::endl;
+	cv::circle(img1,cv::Point2f(x,y),3,cv::Scalar(255,0,0));
+	cv::circle(img2,cv::Point2f(wx,wy),3,cv::Scalar(255,0,0));
+*/
+	for(int i=hPSize; i<gray1.rows-hPSize; i++)
+	{
+		for(int j=hPSize; j<gray1.cols-hPSize; j++)
+		{
+			uchar color = gray1.data[j + i*gray1.cols];
+			float x,y,w;
+			x = j*ptr[0] + i*ptr[1] + ptr[2];
+			y = j*ptr[3] + i*ptr[4] + ptr[5];
+			w = j*ptr[6] + i*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			int wx = int(x+0.5);
+			int wy = int(y+0.5);			
+			if (wx >= hPSize && wx<gray1.cols-hPSize && wy >=hPSize && wy<gray1.rows-hPSize)
+			{
+				
+				if (abs(color-gray2.data[wx+wy*gray1.cols])> 20)
+				{
+					ushort p1[3],p2[3];
+					computeRGBDescriptor(grad1x,grad1y,j,i,hist1,p1);
+					computeRGBDescriptor(grad2x,grad2y,wx,wy,hist2,p2);
+					//double dist = STAT::BinDistance(hist1,hist2);
+					size_t pdist = hdist_ushort_8bitLUT(p1,p2);
+					if ( /*dist < 0.45*/pdist < 10 )
+					{
+						
+						cv::circle(img1,cv::Point2f(j,i),3,cv::Scalar(255,0,0));
+						cv::circle(img2,cv::Point2f(wx,wy),3,cv::Scalar(255,0,0));
+					}
+					else
+					{
+						mask.data[j+i*gray1.cols] = 0xff;
+						cv::circle(img1,cv::Point2f(j,i),3,cv::Scalar(0,255,0));
+						cv::circle(img2,cv::Point2f(wx,wy),3,cv::Scalar(0,255,0));
+					}
+					
+				}			
+			}			
+		}
+	}
+	cv::imshow("img1",img1);
+	cv::imshow("img2",img2);
+	cv::imshow("mask",mask);
+	cv::waitKey();
+}
 void TestHomographyEstimate()
 {
 	using namespace cv;
@@ -622,7 +1140,7 @@ void TestHomographyEstimate()
 	cvtColor(img2, gray2, CV_BGR2GRAY);
 	cv::Mat img3(img1.rows,img2.cols*2,CV_8UC3);
 	cv::Mat img4(img1.rows,img2.cols*2,CV_8UC3);
-
+	
 	std::vector<cv::Point2f> features1,features2;  // detected features
 
 	int max_count = 5000;	  // maximum number of features to detect
@@ -690,25 +1208,25 @@ void TestHomographyEstimate()
 	cv::imshow("hist max bin",histImg);
 	
 	
-	/*{
-		FILE* file = fopen("data.txt","r");
-		features1.clear();
-		features2.clear();
-		int x,y,wx,wy;
-		while(fscanf(file,"%d %d %d %d ",&x,&y,&wx,&wy)!=EOF )
-		{
-			uchar diff = abs(gray1.data[x+y*gray1.cols] - gray2.data[wx+wy*gray1.cols]);
-			if (diff>50)
-				std::cout<<(int)diff<<std::endl;
-			else
-			{
-				features1.push_back(cv::Point2f(x,y));
-				features2.push_back(cv::Point2f(wx,wy));
-			}
-		}
-		
+	//{
+	//	FILE* file = fopen("data.txt","r");
+	//	features1.clear();
+	//	features2.clear();
+	//	int x,y,wx,wy;
+	//	while(fscanf(file,"%d %d %d %d ",&x,&y,&wx,&wy)!=EOF )
+	//	{
+	//		uchar diff = abs(gray1.data[x+y*gray1.cols] - gray2.data[wx+wy*gray1.cols]);
+	//		if (diff>50)
+	//			std::cout<<(int)diff<<std::endl;
+	//		else
+	//		{
+	//			features1.push_back(cv::Point2f(x,y));
+	//			features2.push_back(cv::Point2f(wx,wy));
+	//		}
+	//	}
+	//	
 
-	}*/
+	//}
 	cv::Mat fMatrix,h1,h2;
 	fMatrix = cv::findFundamentalMat(features1,features2);
 	cv::stereoRectifyUncalibrated(features1,features2,fMatrix,img1.size(),h1,h2);
@@ -756,6 +1274,7 @@ void TestHomographyEstimate()
 	diffMask = cv::Scalar(0);
 	cv::Mat interDiffMask(gray1.rows,gray1.cols,CV_8U);
 	interDiffMask = cv::Scalar(0);
+	cv::Mat gradDiffMask(gray1.rows,gray1.cols,CV_16U);
 	cv::Mat warp,warpDiff;
 	cv::Mat featureMask(gray1.rows,gray1.cols,CV_8U);
 	featureMask = cv::Scalar(0);
@@ -780,6 +1299,8 @@ void TestHomographyEstimate()
 			if (wx >= 0 && wx<gray1.cols && wy >=0 && wy<gray1.rows)
 			{
 				colorErr +=abs(color-gray2.data[wx+wy*gray1.cols]);
+			/*	if (abs(color-gray2.data[wx+wy*gray1.cols]) > 50)
+					std::cout<<j<<" , "<<i<<std::endl;*/
 				diffMask.data[j+i*gray1.cols] = abs(color-gray2.data[wx+wy*gray1.cols]);
 				interDiffMask.data[j+i*gray1.cols] = abs(color-ucolor);
 				interColorErr +=abs(color-ucolor);
@@ -1649,9 +2170,10 @@ void TestfindHomographyDLT()
 //}
 int main()
 {
+	TestPatchStructralSimilarity();
 	//TestOpticalFlowHistogram();
 	//TestfindHomographyDLT();
-	TestHomographyEstimate();
+	//TestHomographyEstimate();
 	//TestPerspective();	
 	//TestPostProcess();
 	//TestEdgeTracking2Img();

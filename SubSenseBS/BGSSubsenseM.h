@@ -202,7 +202,9 @@ protected:
 	cv::Mat w_oUnstableRegionMask;
 	//! per-pixel blink detection results ('Z(x)')
 	cv::Mat w_oBlinksFrame;
-
+	cv::Mat m_oLastStructFrame;
+	std::vector<cv::Mat> m_voBGStructSamples;
+	std::vector<cv::Mat> w_voBGStructSamples;
 	//std::vector<cv::Mat> w_voBGColorSamples;
 	//std::vector<cv::Mat> w_voBGDescSamples;
 
