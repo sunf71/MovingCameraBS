@@ -84,6 +84,7 @@ void BGSSubsenseM::cloneModels()
 	{
 		w_voBGColorSamples[i] = m_voBGColorSamples[i].clone();
 		w_voBGDescSamples[i] = m_voBGDescSamples[i].clone();
+		w_voBGStructSamples[i] = m_voBGStructSamples[i].clone();
 	}
 }
 
@@ -174,8 +175,8 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 		voNewKeyPoints = voKeyPoints;
 	const size_t nOrigKeyPointsCount = voNewKeyPoints.size();
 	CV_Assert(nOrigKeyPointsCount>0);
-	LBSP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
-	//MBLBP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
+	//LBSP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
+	LSTBP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
 
 	CV_Assert(!voNewKeyPoints.empty());
 	m_voKeyPoints = voNewKeyPoints;
@@ -306,10 +307,10 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 				const uchar nCurrBGInitColor = oInitImg.data[idx_color+c];
 				m_oLastColorFrame.data[idx_color+c] = nCurrBGInitColor;
 				anCurrIntraLBSPThresholds[c] = m_anLBSPThreshold_8bitLUT[nCurrBGInitColor];
-				LBSP::computeSingleRGBDescriptor(oInitImg,nCurrBGInitColor,x_orig,y_orig,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(m_oLastDescFrame.data+idx_desc))[c]);
+				//LBSP::computeSingleRGBDescriptor(oInitImg,nCurrBGInitColor,x_orig,y_orig,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(m_oLastDescFrame.data+idx_desc))[c]);
 				
 			}
-			LSTBP::computeRGBDescriptor(m_dx,m_dy,x_orig,y_orig,(ushort*)(m_oLastStructFrame.data+idx_desc));
+			LSTBP::computeRGBDescriptor(m_dx,m_dy,x_orig,y_orig,(ushort*)(m_oLastDescFrame.data+idx_desc));
 			//LGBP::computeRGBDescriptor(m_dx,m_dy,x_orig,y_orig,NULL,(ushort*)(m_oLastDescFrame.data+idx_desc));
 			//LBP::computeRGBDescriptor(oInitImg,x_orig,y_orig,anCurrIntraLBSPThresholds,((ushort*)(m_oLastDescFrame.data+idx_desc)));
 			//LBP::computeRGBDescriptor(oInitImg,x_orig,y_orig,anCurrIntraLBSPThresholds,((ushort*)(m_oLastDescFrame.data+idx_desc)));
@@ -660,8 +661,8 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 {
 	cv::Mat oInputImg = _image.getMat();
 	cv::GaussianBlur(oInputImg,oInputImg,cv::Size(3,3),0,0);
-	cv::Sobel(_image.getMat(),m_dx,CV_16S,1,0);
-	cv::Sobel(_image.getMat(),m_dy,CV_16S,0,1);
+	cv::Scharr(_image.getMat(),m_dx,CV_16S,1,0);
+	cv::Scharr(_image.getMat(),m_dy,CV_16S,0,1);
 	getHomography(_image.getMat(),m_homography);
 	cv::Mat invHomo = m_homography.inv();
 	//std::cout<<m_homography;
@@ -1008,7 +1009,9 @@ failedcheck1ch:
 			const size_t nCurrSCColorDistThreshold = nCurrTotColorDistThreshold/2;
 			ushort anCurrInterDesc[3], anCurrIntraDesc[3];
 			const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[anCurrColor[0]],m_anLBSPThreshold_8bitLUT[anCurrColor[1]],m_anLBSPThreshold_8bitLUT[anCurrColor[2]]};
-			LBSP::computeRGBDescriptor(oInputImg,anCurrColor,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
+			//LBSP::computeRGBDescriptor(oInputImg,anCurrColor,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
+			//ushort CurrStructDesc[3];
+			LSTBP::computeRGBDescriptor(m_dx,m_dy,x,y,anCurrIntraDesc);
 			//LBP::computeRGBDescriptor(oInputImg,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
 			//LGBP::computeRGBDescriptor(m_dx,m_dy,x,y,NULL,anCurrIntraDesc);
 			*pbUnstableRegion = ((*pfCurrDistThresholdFactor)>UNSTABLE_REG_RDIST_MIN || (*pfCurrMeanRawSegmRes_LT-*pfCurrMeanFinalSegmRes_LT)>UNSTABLE_REG_RATIO_MIN || (*pfCurrMeanRawSegmRes_ST-*pfCurrMeanFinalSegmRes_ST)>UNSTABLE_REG_RATIO_MIN)?1:0;
@@ -1027,10 +1030,10 @@ failedcheck1ch:
 						break;
 					}
 					size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
-					LBSP::computeSingleRGBDescriptor(oInputImg,anBGColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[anBGColor[c]],anCurrInterDesc[c]);
+					/*LBSP::computeSingleRGBDescriptor(oInputImg,anBGColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[anBGColor[c]],anCurrInterDesc[c]);
 					size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
-					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
-					/*const size_t nDescDist = nIntraDescDist;*/
+					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;*/
+					const size_t nDescDist = nIntraDescDist;
 					const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
 					if(nSumDist>nCurrSCColorDistThreshold)
 					{
@@ -1127,19 +1130,52 @@ failedcheck1ch:
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
 			if(nGoodSamplesCount<m_nRequiredBGSamples /*&& m_features.data[oidx_uchar] != 0xff && m_preFeatures.data[oidx_uchar] != 0xff*/) {
 				// == foreground
-				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
-				*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
-				*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
-				*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
-				*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
-				oCurrFGMask.data[oidx_uchar] = UCHAR_MAX;
-				if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
-				const size_t s_rand = rand()%m_nBGSamples;
-				for(size_t c=0; c<3; ++c) {
-				*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
-				*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
+				//检查结构一致性
+				/*int goodStruct(0);
+				bool pass = false;
+				for(int i=0; i<m_nBGSamples; i++)
+				{
+					const ushort* const anBGStructDesc = (ushort*)(w_voBGStructSamples[i].data+idx_ushrt_rgb);
+					if ( hdist_ushort_8bitLUT(CurrStructDesc,anBGStructDesc) < 7)
+						goodStruct++;
+					if (goodStruct > 2)
+					{
+						pass = true;
+						break;
+					}
+
 				}
+				if (pass)
+				{
+					const float fNormalizedMinDist = ((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2;
+					*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
+					*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
+					*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT);
+					*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST);
+					UpdateBackground(pfCurrLearningRate,x,y,oidx_ushrt_rgb,oidx_uchar_rgb,(const ushort*)(anCurrIntraDesc),anCurrColor);
+
+					const size_t s_rand = rand()%m_nBGSamples;
+						for(size_t c=0; c<3; ++c) {
+							*((ushort*)(m_voBGStructSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = CurrStructDesc[c];
+							
+						}
 				}
+				else
+				{*/
+					const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
+					*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
+					*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
+					*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
+					*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
+					oCurrFGMask.data[oidx_uchar] = UCHAR_MAX;
+					if(m_nModelResetCooldown && (rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+						const size_t s_rand = rand()%m_nBGSamples;
+						for(size_t c=0; c<3; ++c) {
+							*((ushort*)(m_voBGDescSamples[s_rand].data+oidx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+							*(m_voBGColorSamples[s_rand].data+oidx_uchar_rgb+c) = anCurrColor[c];
+						}
+					}
+				//}
 			}
 			else {
 				// == background
@@ -1381,7 +1417,7 @@ failedcheck1ch:
 	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	{
 		refreshModel(0.1);
-		resetPara();
+		//resetPara();
 		m_nOutPixels = 0;
 	}
 }

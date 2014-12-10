@@ -515,6 +515,7 @@ void computeRGBDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg, const int 
 			}
 		}
 		binPattern[c] = 0;
+		//std::cout<<max<<std::endl;
 		for(int i=0; i<binSize; i++)
 		{
 			if (histogram[c][i] > max*0.2)
@@ -1122,9 +1123,9 @@ void TestPatchStructralSimilarity()
 					ushort p1[3],p2[3];
 					computeRGBDescriptor(grad1x,grad1y,j,i,hist1,p1);
 					computeRGBDescriptor(grad2x,grad2y,wx,wy,hist2,p2);
-					//double dist = STAT::BinDistance(hist1,hist2);
+					double dist = STAT::BinDistance(hist1,hist2);
 					size_t pdist = hdist_ushort_8bitLUT(p1,p2);
-					if ( pdist < 12 )
+					if ( dist < 0.5/*pdist < 12*/ )
 					{
 						
 						cv::circle(img1,cv::Point2f(j,i),3,cv::Scalar(255,0,0));

@@ -11,7 +11,7 @@ int main()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start =1;
+	int start =186;
 	int end = 1130;
 	char name[50];
 	for(int i=start; i<=end;i++)
