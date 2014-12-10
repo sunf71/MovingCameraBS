@@ -1886,6 +1886,85 @@ void TestEdgeTracking2Img()
 	cv::Mat imgPre = cv::imread("..//moseg//cars1//in000001.jpg");
 	TestEdgeTracking(imgC,imgPre);
 }
+void TestDynamicTexture()
+{
+	int start = 1; 
+	int end = 18;
+	char outPathName[100];
+	char fileName[100];
+	sprintf(outPathName,".//DT//moseg//cars1//");
+	CreateDir(outPathName);
+	cv::Mat img1,img2,gray1,gray2;
+	std::vector<cv::Point2f> features1,features2;  // detected features
+	int max_count = 5000;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 10;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	int x(50), y(50);
+	for(int i=start; i<=end;i++)
+	{
+		sprintf(fileName,"..//moseg//cars1//in%06d.jpg",i);
+		img1 = cv::imread(fileName);
+		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
+		sprintf(fileName,"..//moseg//cars1//in%06d.jpg",i+1);
+		img2 = cv::imread(fileName);
+		cv::cvtColor(img2,gray2,CV_BGR2GRAY);
+		// detect the features
+		cv::goodFeaturesToTrack(gray1, // the image 
+			features1,   // the output detected features
+			max_count,  // the maximum number of features 
+			qlevel,     // quality level
+			minDist);   // min distance between two features
+
+		// 2. track features
+		cv::calcOpticalFlowPyrLK(gray1, gray2, // 2 consecutive images
+			features1, // input point position in first image
+			features2, // output point postion in the second image
+			status,    // tracking success
+			err);      // tracking error
+
+		int k=0;
+		for(int i=0; i<features1.size(); i++)
+		{
+			if (status[i] == 1 /*&& 
+							   abs(gray1.data[(int)features1[i].x+(int)features1[i].y*gray1.cols] - gray2.data[(int)features2[i].x+(int)(features2[i].y)*gray1.cols]) < 30*/)
+			{
+				features2[k] = features2[i];
+				features1[k] = features1[i];
+				k++;
+			}
+		}
+		features1.resize(k);
+		features2.resize(k);
+		std::vector<uchar> inliers(features1.size(),0);
+		cv::Mat homography= cv::findHomography(
+			cv::Mat(features1), // corresponding
+			cv::Mat(features2), // points
+			inliers, // outputted inliers matches
+			CV_RANSAC, // RANSAC method
+			0.1); // max distance to reprojection point
+		//std::cout<<"homography\n"<<homography<<std::endl;
+		double* ptr = (double*)homography.data;
+		float wx,wy,w;
+		wx = x*ptr[0] + y*ptr[1] + ptr[2];
+		wy = x*ptr[3] + y*ptr[4] + ptr[5];
+		w = x*ptr[6] + y*ptr[7] + ptr[8];
+		wx/=w;
+		wy/=w;
+		Mat img = imread(fileName);
+		cv::Mat texture2 = img2(cv::Rect((int)wx,(int)wy,32,32));
+		sprintf(fileName,"%stexture%06d.jpg",outPathName,i);
+		cv::imwrite(fileName,texture2);
+		cv::Mat texture1 = img1(cv::Rect(x,y,32,32));
+		sprintf(fileName,"%sotexture%06d.jpg",outPathName,i);
+		cv::imwrite(fileName,texture1);
+		sprintf(fileName,"%stexture_diff%06d.jpg",outPathName,i);
+		cv::Mat diffTexture;
+		cv::absdiff(texture1,texture2,diffTexture);
+		cv::imwrite(fileName,diffTexture);
+	}
+}
 void TestListEdgeTracking()	
 {
 	char fileName[150];
@@ -2189,7 +2268,8 @@ void TestfindHomographyDLT()
 //}
 int main()
 {
-	TestPatchStructralSimilarity();
+	TestDynamicTexture();
+	//TestPatchStructralSimilarity();
 	//TestOpticalFlowHistogram();
 	//TestfindHomographyDLT();
 	//TestHomographyEstimate();

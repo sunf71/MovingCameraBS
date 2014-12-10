@@ -92,7 +92,7 @@ void BGSSubsenseM::cloneModels()
 void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints)
 {
 	cv::Mat img;
-	cv::GaussianBlur(oInitImg,img,cv::Size(3,3),0,0);
+	//cv::GaussianBlur(oInitImg,img,cv::Size(3,3),0,0);
 	cv::Scharr(img,m_dx,CV_16S,1,0);
 	cv::Scharr(img,m_dy,CV_16S,0,1);
 	
@@ -175,8 +175,8 @@ void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::Key
 		voNewKeyPoints = voKeyPoints;
 	const size_t nOrigKeyPointsCount = voNewKeyPoints.size();
 	CV_Assert(nOrigKeyPointsCount>0);
-	//LBSP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
-	LSTBP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
+	LBSP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
+	//LSTBP::validateKeyPoints(voNewKeyPoints,oInitImg.size());
 
 	CV_Assert(!voNewKeyPoints.empty());
 	m_voKeyPoints = voNewKeyPoints;
@@ -383,6 +383,7 @@ void BGSSubsenseM::refreshModel(float fSamplesRefreshFrac)
 				for(size_t c=0; c<3; ++c) {
 					bg_color_ptr[c] = init_color_ptr[c];
 					bg_desc_ptr[c] = init_desc_ptr[c];
+					bg_struct_ptr[c] = init_struct_ptr[c];
 				}
 			}
 		}
@@ -1010,7 +1011,7 @@ failedcheck1ch:
 			ushort anCurrInterDesc[3], anCurrIntraDesc[3];
 			const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[anCurrColor[0]],m_anLBSPThreshold_8bitLUT[anCurrColor[1]],m_anLBSPThreshold_8bitLUT[anCurrColor[2]]};
 			//LBSP::computeRGBDescriptor(oInputImg,anCurrColor,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
-			//ushort CurrStructDesc[3];
+			ushort CurrStructDesc[3];
 			LSTBP::computeRGBDescriptor(m_dx,m_dy,x,y,anCurrIntraDesc);
 			//LBP::computeRGBDescriptor(oInputImg,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
 			//LGBP::computeRGBDescriptor(m_dx,m_dy,x,y,NULL,anCurrIntraDesc);

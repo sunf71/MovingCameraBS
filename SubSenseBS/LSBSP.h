@@ -192,7 +192,7 @@ public:
 class LSTBP
 {
 public:
-	const static size_t binSize = 16 ;
+	const static size_t binSize = 32 ;
 	const static size_t PATCH_SIZE = 5;
 	const static int halfPSize = PATCH_SIZE/2;
 	inline static void computeRGBDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg, const int _x, const int _y,ushort* binPattern)
@@ -262,7 +262,7 @@ public:
 			binPattern[c] = 0;
 			for(int i=0; i<binSize; i++)
 			{
-				if (histogram[c][i] > max*0.4)
+				if (histogram[c][i] > max*0.25)
 				{
 					binPattern[c] |= 1 << (binSize-i-1);
 				}
