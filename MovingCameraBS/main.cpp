@@ -1965,6 +1965,119 @@ void TestDynamicTexture()
 		cv::imwrite(fileName,diffTexture);
 	}
 }
+void GetHomography(const cv::Mat& gray, const cv::Mat& pre_gray, cv::Mat& homography)
+{
+	int max_count = 50000;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 2;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	std::vector<cv::Point2f> features1,features2;
+	// detect the features
+	cv::goodFeaturesToTrack(gray, // the image 
+		features1,   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
+
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(gray, pre_gray, // 2 consecutive images
+		features1, // input point position in first image
+		features2, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+
+	int k=0;
+
+	for( int i= 0; i < features1.size(); i++ ) 
+	{
+
+		// do we keep this point?
+		if (status[i] == 1) 
+		{
+
+			//m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
+			// keep this point in vector
+			features1[k] = features1[i];
+			features2[k++] = features2[i];
+		}
+	}
+	features1.resize(k);
+	features2.resize(k);
+
+	std::vector<uchar> inliers(features1.size());
+	homography= cv::findHomography(
+		cv::Mat(features1), // corresponding
+		cv::Mat(features2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+
+}
+void WarpPosition(const int x, const int y, int&wx, int& wy, const cv::Mat& homography)
+{
+	double* ptr = (double*)homography.data;
+	float fx,fy,w;
+	fx = x*ptr[0] + y*ptr[1] + ptr[2];
+	fy = x*ptr[3] + y*ptr[4] + ptr[5];
+	w = x*ptr[6] + y*ptr[7] + ptr[8];
+	fx /=w;
+	fy/=w;
+	wx = int(fx+0.5);
+	wy = int(fy+0.5);			
+
+}
+void TestVLBP()
+{
+	double dy = -1*sin(2*M_PI*1/4u);
+	cv::Mat img1,img2,img3;
+	img1 = cv::imread("..//ptz//input0//in000086.jpg");
+	img2 = cv::imread("..//ptz//input0//in000087.jpg");
+	img3 = cv::imread("..//ptz//input0//in000088.jpg");
+	cv::Mat gray1,gray2,gray3;
+	cv::cvtColor(img1,gray1,CV_BGR2GRAY);
+	cv::cvtColor(img2,gray2,CV_BGR2GRAY);
+	cv::cvtColor(img3,gray3,CV_BGR2GRAY);
+	cv::Mat h1,h2;
+	GetHomography(gray2,gray1,h1);
+	GetHomography(gray2,gray3,h2);
+	int x2(180),y2(131);
+	int x1,y1,x3,y3;
+	cv::Mat mask(gray1.size(),gray1.type());
+	mask = cv::Scalar(0);
+	cv::Mat mask2 = mask.clone();
+	for(int i=1; i<gray1.cols-1; i++)
+	{
+		for(int j=1; j<gray1.rows-1; j++)
+		{
+			x2 = i;
+			y2 = j;
+			/*WarpPosition(x2,y2,x1,y1,h1);
+			WarpPosition(x2,y2,x3,y3,h2);*/
+			x1 = x3 = x2;
+			y1 = y3 = y2;
+			if (x1>1 && x3>1 && y1>1 && y3>1 && x1<gray1.cols-1 &&  x3< gray1.cols-1 && y1<gray1.rows-1 && y3< gray1.rows-1)
+			{
+				ushort res1,res2;
+				VLBP::computeVLBPGrayscaleDescriptor(gray2,x2,y2,gray1,x1,y1,res1);
+				VLBP::computeVLBPGrayscaleDescriptor(gray3,x3,y3,gray2,x2,y2,res2);
+				if (hdist_ushort_8bitLUT(res1,res2) > 5)
+					mask.data[j*gray1.cols+i] = 0xff;
+
+				VLBP::computeLBPGrayscaleDescriptor(gray3,x3,y3,res1);
+				VLBP::computeLBPGrayscaleDescriptor(gray2,x2,y2,res2);
+				if (hdist_ushort_8bitLUT(res1,res2) > 2)
+					mask2.data[j*gray1.cols+i] = 0xff;
+			}
+			/*std::cout<<std::bitset<16>(res1)<<std::endl;
+			std::cout<<std::bitset<16>(res2)<<std::endl;*/
+		}
+	}
+	cv::imshow("mask",mask);
+	cv::imshow("mask2",mask2);
+	cv::waitKey();
+
+}
 void TestListEdgeTracking()	
 {
 	char fileName[150];
@@ -2268,7 +2381,8 @@ void TestfindHomographyDLT()
 //}
 int main()
 {
-	TestDynamicTexture();
+	TestVLBP();
+	//TestDynamicTexture();
 	//TestPatchStructralSimilarity();
 	//TestOpticalFlowHistogram();
 	//TestfindHomographyDLT();
