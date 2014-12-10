@@ -32,6 +32,7 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include <direct.h>
 #include <io.h>
 #include <list>
+#include <bitset>
 //#include "libAnn.h"
 //#include "mclmcr.h"
 //#include "matrix.h"
@@ -516,7 +517,7 @@ void computeRGBDescriptor(const cv::Mat& dxImg, const cv::Mat& dyImg, const int 
 		binPattern[c] = 0;
 		for(int i=0; i<binSize; i++)
 		{
-			if (histogram[c][i] > max*0.5)
+			if (histogram[c][i] > max*0.2)
 			{
 				binPattern[c] |= 1 << (binSize-i-1);
 			}
@@ -1073,16 +1074,33 @@ void TestPatchStructralSimilarity()
 	cv::Mat mask(gray1.size(),gray1.type());
 	mask = cv::Scalar(0);
 	std::vector<std::vector<float>> hist1,hist2;
-	/*int x(220),y(384);
-	int wx(211),wy(384);
-	computeGrayscaleDescriptor(grad1x,grad1y,x,y,hist1);
-	computeGrayscaleDescriptor(grad2x,grad2y,wx,wy,hist2);
-	DrawHistogram(hist1,hist1.size(),"hist1");
-	DrawHistogram(hist2,hist2.size(),"hist2");
-	std::cout<<"hist distance "<<STAT::BinDistance(hist1,hist2)<<std::endl;
-	cv::circle(img1,cv::Point2f(x,y),3,cv::Scalar(255,0,0));
-	cv::circle(img2,cv::Point2f(wx,wy),3,cv::Scalar(255,0,0));
-*/
+	
+	ushort p1[3],p2[3];
+	//int x(309),y(3);
+	//float wx =x*ptr[0] + y*ptr[1] + ptr[2];
+	//float wy = x*ptr[3] + y*ptr[4] + ptr[5];
+	//float w = x*ptr[6] + y*ptr[7] + ptr[8];
+	//wx /=w;
+	//wy/=w;
+	//
+	//computeRGBDescriptor(grad1x,grad1y,x,y,hist1,p1);
+	//computeRGBDescriptor(grad2x,grad2y,(int)(wx+0.5),(int)(wy+0.5),hist2,p2);
+	//char name[20];
+	//for(int c=0; c<3; c++)
+	//{
+	//	sprintf(name,"hist1_%d",c);
+	//	DrawHistogram(hist1[c],hist1[c].size(),name);
+	//	sprintf(name,"hist2_%d",c);
+	//	DrawHistogram(hist2[c],hist2[c].size(),name);
+	//	std::cout<<"hist distance "<<STAT::BinDistance(hist1[c],hist2[c])<<
+	//		" p distance "<<hdist_ushort_8bitLUT(p1[c],p2[c])<<std::endl;
+	//	std::cout<<"p1["<<c<<"] "<<std::bitset<16>(p1[c])<<std::endl;
+	//	std::cout<<"p2["<<c<<"] "<<std::bitset<16>(p2[c])<<std::endl;
+	//}
+	//cv::circle(img1,cv::Point2f(x,y),3,cv::Scalar(255,0,0));
+	//cv::circle(img2,cv::Point2f(wx,wy),3,cv::Scalar(255,0,0));
+
+
 	for(int i=hPSize; i<gray1.rows-hPSize; i++)
 	{
 		for(int j=hPSize; j<gray1.cols-hPSize; j++)
@@ -1099,14 +1117,14 @@ void TestPatchStructralSimilarity()
 			if (wx >= hPSize && wx<gray1.cols-hPSize && wy >=hPSize && wy<gray1.rows-hPSize)
 			{
 				
-				if (abs(color-gray2.data[wx+wy*gray1.cols])> 20)
+				if (abs(color-gray2.data[wx+wy*gray1.cols])>20)
 				{
 					ushort p1[3],p2[3];
 					computeRGBDescriptor(grad1x,grad1y,j,i,hist1,p1);
 					computeRGBDescriptor(grad2x,grad2y,wx,wy,hist2,p2);
 					//double dist = STAT::BinDistance(hist1,hist2);
 					size_t pdist = hdist_ushort_8bitLUT(p1,p2);
-					if ( /*dist < 0.45*/pdist < 10 )
+					if ( pdist < 12 )
 					{
 						
 						cv::circle(img1,cv::Point2f(j,i),3,cv::Scalar(255,0,0));
