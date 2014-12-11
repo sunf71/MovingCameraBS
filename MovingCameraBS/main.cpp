@@ -2028,8 +2028,7 @@ void WarpPosition(const int x, const int y, int&wx, int& wy, const cv::Mat& homo
 
 }
 void TestVLBP()
-{
-	double dy = -1*sin(2*M_PI*1/4u);
+{	
 	cv::Mat img1,img2,img3;
 	img1 = cv::imread("..//ptz//input0//in000086.jpg");
 	img2 = cv::imread("..//ptz//input0//in000087.jpg");
@@ -2046,9 +2045,9 @@ void TestVLBP()
 	cv::Mat mask(gray1.size(),gray1.type());
 	mask = cv::Scalar(0);
 	cv::Mat mask2 = mask.clone();
-	for(int i=1; i<gray1.cols-1; i++)
+	for(int i=2; i<gray1.cols-2; i++)
 	{
-		for(int j=1; j<gray1.rows-1; j++)
+		for(int j=2; j<gray1.rows-2; j++)
 		{
 			x2 = i;
 			y2 = j;
@@ -2056,14 +2055,14 @@ void TestVLBP()
 			WarpPosition(x2,y2,x3,y3,h2);*/
 			x1 = x3 = x2;
 			y1 = y3 = y2;
-			if (x1>1 && x3>1 && y1>1 && y3>1 && x1<gray1.cols-1 &&  x3< gray1.cols-1 && y1<gray1.rows-1 && y3< gray1.rows-1)
+			if (x1>2 && x3>2 && y1>2 && y3>2 && x1<gray1.cols-2 &&  x3< gray1.cols-2 && y1<gray1.rows-2 && y3< gray1.rows-2)
 			{
-				ushort res1,res2;
-				VLBP::computeVLBPGrayscaleDescriptor(gray2,x2,y2,gray1,x1,y1,res1);
-				VLBP::computeVLBPGrayscaleDescriptor(gray3,x3,y3,gray2,x2,y2,res2);
-				if (hdist_ushort_8bitLUT(res1,res2) > 5)
+				ushort cres1[3],cres2[3];
+				VLBP::computeVLBPRGBDescriptor(img2,x2,y2,img1,x1,y1,cres1);
+				VLBP::computeVLBPRGBDescriptor(img3,x3,y3,img2,x2,y2,cres2);
+				if (hdist_ushort_8bitLUT(cres1,cres2) > 15)
 					mask.data[j*gray1.cols+i] = 0xff;
-
+				ushort res1,res2;
 				VLBP::computeLBPGrayscaleDescriptor(gray3,x3,y3,res1);
 				VLBP::computeLBPGrayscaleDescriptor(gray2,x2,y2,res2);
 				if (hdist_ushort_8bitLUT(res1,res2) > 2)

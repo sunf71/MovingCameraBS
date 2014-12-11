@@ -158,6 +158,8 @@ public:
 	}
 	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
 	void cloneModels();
+	//局部搜索，在前一帧图像中某个位置(wx,wy)邻域内，搜索一个与目标最接近的像素（梯度和颜色）
+	void LocalSearch(const cv::Mat& img, const int x, const int y,  int& wx,  int& wy, const int s = 2);
 	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
 	//边缘点匹配
 	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);
@@ -217,5 +219,6 @@ protected:
 	//保存特征点跟踪情况
 	cv::Mat m_features,m_preFeatures;
 	cv::Mat m_dx,m_dy;
+	cv::Mat m_preDx, m_preDy;
 	std::ofstream m_ofstream;
 };

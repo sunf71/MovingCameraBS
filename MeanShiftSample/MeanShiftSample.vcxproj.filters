@@ -15,8 +15,52 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
+    <ClCompile Include="meanshiftSeg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="MeanShift.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="segment.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="main1.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MeanShift.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="convolve.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="disjoint-set.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="filter.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="image.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="imconv.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="imutil.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="misc.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="pnmfile.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="segment-graph.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="segment-image.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

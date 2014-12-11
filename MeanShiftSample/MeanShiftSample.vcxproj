@@ -76,7 +76,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="main1.cpp" />
+    <ClCompile Include="MeanShift.cpp" />
+    <ClCompile Include="meanshiftSeg.cpp" />
+    <ClCompile Include="segment.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="convolve.h" />
+    <ClInclude Include="disjoint-set.h" />
+    <ClInclude Include="filter.h" />
+    <ClInclude Include="image.h" />
+    <ClInclude Include="imconv.h" />
+    <ClInclude Include="imutil.h" />
+    <ClInclude Include="MeanShift.h" />
+    <ClInclude Include="misc.h" />
+    <ClInclude Include="pnmfile.h" />
+    <ClInclude Include="segment-graph.h" />
+    <ClInclude Include="segment-image.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

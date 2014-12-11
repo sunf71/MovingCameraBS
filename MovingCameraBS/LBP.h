@@ -46,8 +46,8 @@ public:
 		{
 			int sx = (int)x;
 			int sy = (int)y;
-			int bx = sx +1;
-			int by = sy +1;
+			int bx = min(sx +1,width-1);
+			int by = min(sy +1,height-1);
 			float tx = x - sx;
 			float ty = y - sy;
 			size_t idx_rgb_lu = (sx+sy*width)*step;
@@ -162,10 +162,10 @@ class VLBP
 {
 protected:
 
-const static size_t PATCH_SIZE = 3;
+const static size_t PATCH_SIZE = 5;
 const static size_t DESC_SIZE = 2;
-const static size_t NEIGHBOUR_SIZE = 4;
-const static size_t r = 1;
+const static size_t NEIGHBOUR_SIZE = 7;
+const static size_t r = 2;
 public:	
 	static void computeVLBPGrayscaleDescriptor(const cv::Mat& img1, const int _x, const int _y,const cv::Mat& img2,  const int wx, const int wy, ushort& _res)
 	{
@@ -181,15 +181,21 @@ public:
 		int height = img1.rows;
 		uchar value[NEIGHBOUR_SIZE*2+1];
 		_res = 0;
-		value[0] = *(_data1 + (_x-1) + _y*_step_row);
-		value[1] = *(_data1 + (_x) + (_y+1)*_step_row);
-		value[2] = *(_data1 + (_x+1) + _y*_step_row);
-		value[3] = *(_data1 + (_x) +( _y-1)*_step_row);
-		value[4] = *(_data2 + (wx) +( wy)*_step_row);
-		value[5] = *(_data2 + (wx-1) +( wy)*_step_row);
-		value[5] = *(_data2 + (wx) +( wy+1)*_step_row);
-		value[7] = *(_data2 + (wx+1) +( wy)*_step_row);
-		value[8] = *(_data2 + (wx) +( wy-1)*_step_row);
+		double dx[NEIGHBOUR_SIZE];
+		double dy[NEIGHBOUR_SIZE];
+		for(int i=0; i<NEIGHBOUR_SIZE; i++)
+		{
+			dx[i] = r*cos(2*M_PI*i/NEIGHBOUR_SIZE);			
+			dy[i] = -1.0*r*sin(2*M_PI*i/4);
+			
+		}
+		for(int i=0; i<NEIGHBOUR_SIZE; i++)
+		{			
+			LBP::BilinearInterpolation(width,height,_data1,_x+dx[i],_y+dy[i],value+i,1,1);
+			LBP::BilinearInterpolation(width,height,_data2,wx+dx[i],wy+dy[i],value+i+NEIGHBOUR_SIZE,1,1);
+		}
+		value[NEIGHBOUR_SIZE*2] = *(_data2+wx+wy*_step_row);
+	
 		/*for(int i=0; i<16; i++)
 		{
 			std::cout<<(int)value[i]<<" ";
@@ -201,10 +207,50 @@ public:
 		{
 			_res |= (value[i]-cvalue>=0) << size-1-i;
 		}
+	}
+	static void computeVLBPRGBDescriptor(const cv::Mat& img1, const int _x, const int _y,const cv::Mat& img2,  const int wx, const int wy, ushort* _res)
+	{
 		
-	
-	
-
+		CV_DbgAssert(!img1.empty() && !img2.empty());
+		CV_DbgAssert(img1.type()==CV_8UC3 && img2.type()== CV_8UC3);
+		
+		CV_DbgAssert(_x>=(int)VLBP::PATCH_SIZE/2 && _y>=(int)VLBP::PATCH_SIZE/2);
+		CV_DbgAssert(_x<img1.cols-(int)VLBP::PATCH_SIZE/2 && _y<img1.rows-(int)VLBP::PATCH_SIZE/2);
+		memset(_res,9,3*sizeof(ushort));
+		const size_t _step_row = img1.step.p[0];
+		const size_t _step_col = img1.step.p[1];
+		const uchar* const _data1= img1.data;
+		const uchar* const _data2 = img2.data;
+		int width = img1.cols;
+		int height = img1.rows;
+		const size_t size = NEIGHBOUR_SIZE*2+1;
+		uchar value[size*3];
+		
+		double dx[NEIGHBOUR_SIZE];
+		double dy[NEIGHBOUR_SIZE];
+		for(int i=0; i<NEIGHBOUR_SIZE; i++)
+		{
+			dx[i] = r*cos(2*M_PI*i/NEIGHBOUR_SIZE);			
+			dy[i] = -1.0*r*sin(2*M_PI*i/4);
+			
+		}
+		for(int i=0; i<NEIGHBOUR_SIZE; i++)
+		{			
+			LBP::BilinearInterpolation(width,height,_data1,_x+dx[i],_y+dy[i],value+i*3,3,3);
+			LBP::BilinearInterpolation(width,height,_data2,wx+dx[i],wy+dy[i],value+(i+NEIGHBOUR_SIZE)*3,3,3);
+		}
+		
+		for(int c=0; c<3; c++)
+		{
+			value[(NEIGHBOUR_SIZE*2)*3 +c] = *(_data2+wx*_step_col+wy*_step_row+c);
+		
+			uchar cvalue = *(_data1+_x*_step_col+_y*_step_row+c);
+			
+			for(int i=0; i<size; i++)
+			{
+				_res[c] |= (value[i*3+c]-cvalue>=0) << size-1-i;
+			}
+		}
 	}
 	static void computeLBPGrayscaleDescriptor(const cv::Mat& img1, const int _x, const int _y, ushort& _res)
 	{
@@ -224,8 +270,8 @@ public:
 		for(int i=0; i<NEIGHBOUR_SIZE; i++)
 		{
 			double dx = r*cos(2*M_PI*i/NEIGHBOUR_SIZE);
-			std::cout<< -1*r*sin(2*M_PI*i/4)<<std::endl;
-			double dy = -1*r*sin(2*M_PI*i/4);
+			
+			double dy = -1.0*r*sin(2*M_PI*i/4);
 			LBP::BilinearInterpolation(width,height,_data1,_x+dx,_y+dy,value+i,1,1);
 		}
 		

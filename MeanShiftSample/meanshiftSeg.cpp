@@ -49,7 +49,7 @@ static void meanShiftSegmentation( int, void* )
     imshow( winName, res );
 }
 
-int main(int argc, char** argv)
+int opencv_main(int argc, char** argv)
 {
     if( argc !=2 )
     {
