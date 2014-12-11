@@ -664,6 +664,16 @@ void BGSSubsenseM::LocalSearch(const cv::Mat& img, const int x, const int y,  in
 	int matchedMax = 0;
 	double distMin = 1e10;
 	int optX(wx),optY(wy);
+	size_t idx = x + y* m_oImgSize.width;
+	size_t idx_rgb = idx*3;
+	size_t idx_short_rgb = idx_rgb*2;
+	uchar* color = (img.data+ idx_rgb);
+	short* dx = (short*)(m_dx.data + idx_short_rgb);
+	short* dy = (short*)(m_dy.data + idx_short_rgb);
+	
+	ushort anCurrIntraDesc[3];
+	const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[color[0]],m_anLBSPThreshold_8bitLUT[color[1]],m_anLBSPThreshold_8bitLUT[color[2]]};
+	LBSP::computeRGBDescriptor(img,color,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
 	for(int m=-s; m<=s; m++)
 	{
 		for(int n=-s; n<=s; n++)
@@ -676,55 +686,26 @@ void BGSSubsenseM::LocalSearch(const cv::Mat& img, const int x, const int y,  in
 			size_t ridx_rgb = ridx * 3;
 			size_t ridx_float = ridx*4;
 			size_t ridx_ushrt_rgb = ridx_rgb*2;
-			size_t idx = x + y* m_oImgSize.width;
-			size_t idx_rgb = idx*3;
-			size_t idx_short_rgb = idx_rgb*2;
-			double dist = 0;
-			uchar* color = (img.data+ idx_rgb);
-			short* dx = (short*)(m_dx.data + idx_short_rgb);
-			short* dy = (short*)(m_dy.data + idx_short_rgb);
+			
+			//double dist = 0;
 			uchar* wcolor = m_oLastColorFrame.data+ridx_rgb;
 			short* wdx = (short*)(m_preDx.data + ridx_ushrt_rgb);
 			short* wdy = (short*)(m_preDy.data + ridx_ushrt_rgb);
-
-			for(int c=0; c<3; c++)
+			ushort res[3];
+			size_t thresholds[3] = {m_anLBSPThreshold_8bitLUT[wcolor[0]],m_anLBSPThreshold_8bitLUT[wcolor[1]],m_anLBSPThreshold_8bitLUT[wcolor[2]]};
+			LBSP::computeRGBDescriptor(m_oLastColorFrame,wcolor,wx,wy,thresholds,res);
+			double dist = 1.0*hdist_ushort_8bitLUT(res,anCurrIntraDesc)*255/48+ L1dist_uchar(wcolor,color)/3;
+			/*for(int c=0; c<3; c++)
 			{
 				dist += abs(wcolor[c] - color[c]) + (abs(wdx[c]-dx[c])+ abs(wdy[c]-dy[c]))/2 ;
 			}
+			*/	
 			if (dist<distMin)
 			{
 				optX = rx;
 				optY = ry;
 				distMin = dist;
-			}
-			/*			float* pCurrDistThresholdFactor =  (float*)(w_oDistThresholdFrame.data+ridx_float);
-			uchar *pUnstableRegion = w_oUnstableRegionMask.data+ridx;
-			size_t CurrDescDistThreshold =  3*((size_t)1<<((size_t)floor(*pCurrDistThresholdFactor+0.5f)))+m_nDescDistThreshold+((*pUnstableRegion)*UNSTAB_DESC_DIST_OFFSET);
-
-			int matched(0);
-			for (int i=0; i<m_nBGSamples; i++)
-			{
-			ushort* bgDesc = ((ushort*)(w_voBGDescSamples[i].data+ridx_ushrt_rgb));
-			bool pass = true;
-			for(size_t c=0;c<3; ++c) 
-			{
-			const size_t nDescDist = hdist_ushort_8bitLUT(bgDesc,anCurrIntraDesc);
-
-			if(nDescDist >CurrDescDistThreshold)
-			{
-			pass = false;
-			break;
-			}
-			}
-			if (pass)
-			matched++;
-			}
-			if (matched > matchedMax )
-			{
-			matchedMax = matched;
-			optX = rx;
-			optY = ry;
-			}	*/								
+			}										
 		}
 	}
 	/*	if (optX != wx || wy != optY)
@@ -1041,11 +1022,11 @@ failedcheck1ch:
 			ushort anCurrInterDesc[3], anCurrIntraDesc[3];
 			const size_t anCurrIntraLBSPThresholds[3] = {m_anLBSPThreshold_8bitLUT[anCurrColor[0]],m_anLBSPThreshold_8bitLUT[anCurrColor[1]],m_anLBSPThreshold_8bitLUT[anCurrColor[2]]};
 			LBSP::computeRGBDescriptor(oInputImg,anCurrColor,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
-			if ( m_oRawFGMask_last.data[wx+wy*m_oImgSize.width] == 0 ||
-				m_preEdges.data[oidx_uchar] ==0xff)
+			/*if ( m_oRawFGMask_last.data[wx+wy*m_oImgSize.width] == 0 ||
+				m_preEdges.data[oidx_uchar] ==0xff)*/
 			{
 
-				LocalSearch(oInputImg,x,y,wx,wy);
+				LocalSearch(oInputImg,x,y,wx,wy,2);
 			}
 
 			const size_t idx_uchar = m_oImgSize.width*wy +wx;
@@ -1125,23 +1106,23 @@ failedcheck1ch:
 						break;
 					}
 					size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
-					LBSP::computeSingleRGBDescriptor(oInputImg,anBGColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[anBGColor[c]],anCurrInterDesc[c]);
+					/*LBSP::computeSingleRGBDescriptor(oInputImg,anBGColor[c],x,y,c,m_anLBSPThreshold_8bitLUT[anBGColor[c]],anCurrInterDesc[c]);
 					size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
-					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
-					//const size_t nDescDist = nIntraDescDist;
+					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;*/
+					const size_t nDescDist = nIntraDescDist;
 					const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
-					if(nSumDist>nCurrSCColorDistThreshold)
+					/*if(nSumDist>nCurrSCColorDistThreshold)
 					{
 						pass = false; 
 						break;
-					}
+					}*/
 					nTotDescDist += nDescDist;
 					nTotSumDist += nSumDist;
 					//nTotSumDist += nColorDist;
 				}
 
-				if(nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold)
-					pass =false;
+				//if(nTotDescDist>nCurrTotDescDistThreshold || nTotSumDist>nCurrTotColorDistThreshold)
+				//	pass =false;
 				if (pass)
 				{
 					if(nMinTotDescDist>nTotDescDist)

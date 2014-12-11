@@ -76,7 +76,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="main1.cpp" />
     <ClCompile Include="MeanShift.cpp" />
     <ClCompile Include="meanshiftSeg.cpp" />
     <ClCompile Include="segment.cpp" />
