@@ -175,14 +175,14 @@ public:
 };
 
 
-//volum locol binary pattern
+//volum local binary pattern
 class VLBP
 {
 protected:
 
 const static size_t PATCH_SIZE = 5;
 const static size_t DESC_SIZE = 2;
-const static size_t NEIGHBOUR_SIZE = 16;
+const static size_t NEIGHBOUR_SIZE = 7;
 const static size_t r = 2;
 public:	
 	static void computeVLBPGrayscaleDescriptor(const cv::Mat& img1, const int _x, const int _y,const cv::Mat& img2,  const int wx, const int wy, ushort& _res)
@@ -266,7 +266,7 @@ public:
 			
 			for(int i=0; i<size; i++)
 			{
-				_res[c] |= (value[i*3+c]-cvalue>=t[c]) << size-1-i;
+				_res[c] |= (abs(value[i*3+c]-cvalue)>=t[c]) << size-1-i;
 			}
 		}
 	}

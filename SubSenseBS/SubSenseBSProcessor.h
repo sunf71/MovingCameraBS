@@ -55,7 +55,7 @@ public:
 	SubSenseBSProcessor():_initFlag(false)
 	{
 
-		sprintf(pathName,"..\\result\\subsensem\\ptz\\input0\\");
+		sprintf(pathName,"..\\result\\subsensem\\moseg\\people1\\");
 		CreateDir(pathName);
 	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)

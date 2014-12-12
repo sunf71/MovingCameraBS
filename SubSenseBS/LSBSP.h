@@ -262,7 +262,7 @@ public:
 			binPattern[c] = 0;
 			for(int i=0; i<binSize; i++)
 			{
-				if (histogram[c][i] > max*0.25)
+				if (histogram[c][i] > max*0.1)
 				{
 					binPattern[c] |= 1 << (binSize-i-1);
 				}

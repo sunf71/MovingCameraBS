@@ -4,6 +4,7 @@
 #include "timer.h"
 #include <set>
 #include <opencv2\opencv.hpp>
+#include "MeanShift.h"
 void postProcessSegments(Mat& img)
 {
 	int niters = 3;
@@ -413,6 +414,44 @@ void RegionGrowing(std::vector<cv::Point2f>& seeds,const cv::Mat& img, cv::Mat& 
 		cv::imwrite(filename,smask);*/
 	}
 }
+void MotionEstimate::KLT(Mat& curImg, Mat& prevImg)
+{
+	cv::Mat gray,preGray;
+	cv::cvtColor(curImg,gray,CV_BGR2GRAY);
+	cv::cvtColor(prevImg,preGray,CV_BGR2GRAY);
+	cv::goodFeaturesToTrack(gray,_features0,_maxCorners,_dataQuality,_minDist);
+	/*cv::goodFeaturesToTrack(preGray,_features1,_maxCorners,_dataQuality,_minDist);*/
+	size_t features0Size = _features0.size();
+	//size_t features1Size = _features1.size();
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(gray, preGray, // 2 consecutive images
+		_features0, // input point position in first image
+		_matched0, // output point postion in the second image
+		_status,    // tracking success
+		_err);      // tracking error
+
+	// 2. loop over the tracked points to reject the undesirables
+	int k=0;
+
+	for( int i= 0; i < features0Size; i++ ) {
+
+		// do we keep this point?
+		if (_status[i] == 1) {
+
+			//m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
+			// keep this point in vector
+			_features0[k] = _features0[i];
+			_matched0[k++] = _matched0[i];
+		}
+	}
+	_features0.resize(k);	
+	_matched0.resize(k);
+}
+void MotionEstimate::EstimateMotionMeanShift(Mat& curImg, Mat& prevImg, Mat& transM, Mat& mask)
+{
+	KLT(curImg,prevImg);
+	MeanShift(curImg,labels);
+}
 void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
 {
 	//super pixel
@@ -592,7 +631,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//}
 	float threshold = avgDist(_width,_height,_step,_nSuperPixels,_centers0);
 	std::cout<<"threshold= "<<threshold<<std::endl;
-	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,_centers0,mask,0);
+	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,_centers0,mask,threshold*0.8);
 	//postProcessSegments(mask);
 	//MaskHomographyTest(mask,gray,preGray,transM,NULL);
 	////find most match superpixel

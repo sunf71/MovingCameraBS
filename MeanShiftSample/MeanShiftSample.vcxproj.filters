@@ -24,9 +24,12 @@
     <ClCompile Include="segment.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+<<<<<<< HEAD
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+=======
+>>>>>>> c3659f53d52203558fe180e25a33f6e088d909ee
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MeanShift.h">

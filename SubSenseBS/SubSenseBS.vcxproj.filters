@@ -75,4 +75,18 @@
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="LBSP_16bits_dbcross_1ch.i">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="LBSP_16bits_dbcross_3ch1t.i">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="LBSP_16bits_dbcross_3ch3t.i">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="LBSP_16bits_dbcross_s3ch.i">
+      <Filter>头文件</Filter>
+    </None>
+  </ItemGroup>
 </Project>

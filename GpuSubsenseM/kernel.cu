@@ -260,19 +260,19 @@ void TestMotionEstimate()
 {
 	char fileName[100];
 	int start = 2;
-	int end = 40;
+	int end = 30;
 	cv::Mat curImg,prevImg,transM;
 	MotionEstimate me(640,480,5);
 	cv::Mat mask;
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//people2//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i-1);
+		sprintf(fileName,"..//moseg//people2//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
 		
 		me.EstimateMotion(curImg,prevImg,transM,mask);
-		sprintf(fileName,".//features//people1//features%06d.jpg",i);
+		sprintf(fileName,".//features//people2//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
 		cv::imshow("prevImg",prevImg);*/
@@ -293,9 +293,9 @@ void TestRegionGrowing()
 int main (int argc, char* argv[])
 {
 	//TestRegionGrowing();
-	//TestMotionEstimate();
+	TestMotionEstimate();
 	//TestRandom();
-	TestGpuSubsense();
+	//TestGpuSubsense();
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();
