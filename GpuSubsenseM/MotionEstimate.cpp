@@ -337,6 +337,106 @@ void SuperPixelRegionGrowing(int width, int height, int step,std::vector<int>& s
 	delete[] visited;
 	delete[] segmented;
 }
+void SuperPixelRGSegment(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,int threshold, int*& segmented)
+{
+	const int dx4[] = {-1,0,1,0};
+	const int dy4[] = {0,-1,0,1};
+	//const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+	//const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
+	int spWidth = (width+step-1)/step;
+	int spHeight = (height+step-1)/step;
+	float pixDist(0);
+	float regMaxDist = threshold;
+	int regSize(0);
+	int curLabel(1);
+	int imgSize = spWidth*spHeight;
+	char* visited = new char[imgSize];
+	memset(visited ,0,imgSize);
+	memset(segmented,0,sizeof(int)*imgSize);
+	std::vector<cv::Point2i> neighbors;
+	float4 regMean;
+	std::vector<int> resLabels;
+	//nih::Timer timer;
+	//timer.start();
+	std::set<int> boundarySet;
+	boundarySet.insert(rand()%imgSize);
+	
+	while(!boundarySet.empty())
+	{
+		std::set<int>::iterator itr = boundarySet.begin();
+		int label = *itr;
+		boundarySet.erase(itr);
+		SLICClusterCenter cc = centers[label];
+		int k = cc.xy.x;
+		int j = cc.xy.y;		
+		int ix = label%spWidth;
+		int iy = label/spWidth;
+		pixDist = 0;
+		regSize = 1;
+		segmented[ix+iy*spWidth] = curLabel;
+		neighbors.clear();
+		regMean = cc.rgb;
+		while(pixDist < regMaxDist && regSize<imgSize)
+		{
+			for(int d=0; d<4; d++)
+			{
+				int x = ix+dx4[d];
+				int y = iy + dy4[d];
+				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[x+y*spWidth] && !segmented[x+y*spWidth])
+				{
+					neighbors.push_back(cv::Point2i(x,y));
+					visited[x+y*spWidth] = true;
+				}
+			}
+			int idxMin = 0;
+			pixDist = 255;
+			if (neighbors.size() == 0)
+				break;
+
+			for(int j=0; j<neighbors.size(); j++)
+			{
+				size_t idx = neighbors[j].x+neighbors[j].y*spWidth;
+				float4 rgb = centers[idx].rgb;
+				float dx = rgb.x - regMean.x;
+				float dy = rgb.y -regMean.y;
+				float dz = rgb.z - regMean.z;
+				//float dist = (abs(dx) + abs(dy)+ abs(dz))/3;
+				float dist = sqrt(dx*dx + dy*dy + dz*dz);
+				if (dist < pixDist)
+				{
+					pixDist = dist;
+					idxMin = j;
+				}				
+			}
+
+			ix = neighbors[idxMin].x;
+			iy = neighbors[idxMin].y;
+			int minIdx =ix + iy*spWidth;
+			float4 rgb = centers[minIdx].rgb;
+			//std::cout<<ix<<" "<<iy<<" added ,regMean = "<< regMean<<" pixDist "<<pixDist<<std::endl;
+			regMean.x = (rgb.x + regMean.x*regSize )/(regSize+1);
+			regMean.y = (rgb.y + regMean.y*regSize )/(regSize+1);
+			regMean.z = (rgb.z + regMean.z*regSize )/(regSize+1);
+			regSize++;
+			segmented[minIdx] = k;
+			//result.data[minIdx] = 0xff;
+			//smask.data[minIdx] = 0xff;
+			neighbors[idxMin] = neighbors[neighbors.size()-1];
+			neighbors.pop_back();
+		}
+		for(int i=0; i<neighbors.size(); i++)
+		{
+			int label = neighbors[i].x + neighbors[i].y*spWidth;
+			if (boundarySet.find(label) != boundarySet.end())
+				boundarySet.insert(label);
+		}
+	}
+
+	
+	delete[] visited;
+	//delete[] segmented;
+
+}
 void RegionGrowing(std::vector<cv::Point2f>& seeds,const cv::Mat& img, cv::Mat& result)
 {	
 	const int nx[] = {-1,0,1,0};
@@ -450,7 +550,39 @@ void MotionEstimate::KLT(Mat& curImg, Mat& prevImg)
 void MotionEstimate::EstimateMotionMeanShift(Mat& curImg, Mat& prevImg, Mat& transM, Mat& mask)
 {
 	KLT(curImg,prevImg);
-	MeanShift(curImg,labels);
+	MeanShift(curImg,_labels0);
+	std::vector<uchar> inliers(_features0.size(),0);
+	transM = cv::findHomography(_features0,_matched0,inliers,CV_RANSAC,0.08);
+	cv::Scalar color(255,0,0);
+	mask.create(_height,_width,CV_8UC1);
+	mask = cv::Scalar(0);
+	std::vector<cv::Point2f> bgPoints;
+	std::set<int> spLabels;
+	int spWidth = (_width+_step-1)/_step;
+	for(int i=0; i<_features0.size(); i++)
+	{
+		if (inliers[i]==1)
+		{
+			int k = _features0[i].x;
+			int j = _features0[i].y;		
+			int label = _labels0[k+ j*_width];
+			spLabels.insert(label);
+		}
+	}
+	for(int i=0; i<_height; i++)
+	{
+		for(int j=0; j<_width; j++)
+		{
+			int idx = i*_width+j;
+			if (spLabels.find(_labels0[idx])!= spLabels.end())
+			{
+				mask.data[idx] = 0xff;
+			
+			}
+		}
+	}
+	
+	
 }
 void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
 {

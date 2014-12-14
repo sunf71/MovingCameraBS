@@ -260,19 +260,19 @@ void TestMotionEstimate()
 {
 	char fileName[100];
 	int start = 2;
-	int end = 30;
+	int end = 19;
 	cv::Mat curImg,prevImg,transM;
 	MotionEstimate me(640,480,5);
 	cv::Mat mask;
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//moseg//people2//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//cars1//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName,"..//moseg//people2//in%06d.jpg",i-1);
+		sprintf(fileName,"..//moseg//cars1//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
-		
+		//me.EstimateMotionMeanShift(curImg,prevImg,transM,mask);
 		me.EstimateMotion(curImg,prevImg,transM,mask);
-		sprintf(fileName,".//features//people2//features%06d.jpg",i);
+		sprintf(fileName,".//features//cars1//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
 		cv::imshow("prevImg",prevImg);*/
@@ -290,10 +290,71 @@ void TestRegionGrowing()
 	cv::imshow("region grow",result);
 	cv::waitKey();
 }
+void TestRegioinGrowingSegment()
+{
+	char fileName[100];
+	int start = 1;
+	int end = 19;
+	cv::Mat curImg,mask;
+	int _width = 640;
+	int _height = 480;
+	int _step = 5;
+	GpuSuperpixel gs(_width,_height,_step);
+	int spWidth = (_width+_step-1)/_step;
+	int spHeight = (_height+_step-1)/_step;
+	int spSize = spWidth*spHeight;
+	int* labels = new int[_width*_height];
+	SLICClusterCenter* centers= new SLICClusterCenter[spSize];
+	uchar4* _imgData0 = new uchar4[_width*_height];
+	int* segment = new int[_width*_height];
+	mask.create(_height,_width,CV_8UC3);
+	std::vector<int> color(spSize);
+	CvRNG rng= cvRNG(cvGetTickCount());
+	for(int i=0;i<spSize;i++)
+		color[i] = cvRandInt(&rng);
+	for(int i=start; i<=end; i++)
+	{
+		sprintf(fileName,"..//moseg//cars1//in%06d.jpg",i);
+		curImg = cv::imread(fileName);
+		cv::cvtColor(curImg,curImg,CV_BGR2BGRA);
+		for(int i=0; i< _width; i++)
+		{		
+			for(int j=0; j<_height; j++)
+			{
+				int idx = curImg.step[0]*j + curImg.step[1]*i;
+				int id = i + j*_width;
+				_imgData0[id].x = curImg.data[idx];
+				_imgData0[id].y = curImg.data[idx+ curImg.elemSize1()];
+				_imgData0[id].z = curImg.data[idx+2*curImg.elemSize1()];
+				_imgData0[id].w = curImg.data[idx+3*curImg.elemSize1()];						
+			}
+		}
+		int num(0);		
+		gs.Superpixel(_imgData0,num,labels,centers);
+		SuperPixelRGSegment(_width,_height,_step,labels,centers,30,segment);
+		// Draw random color
+		for(int i=0;i<_height;i++)
+			for(int j=0;j<_width;j++)
+			{ 
+				int cl = segment[i*_width+j];
+				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 0] = (color[cl])&255;
+				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 1] = (color[cl]>>8)&255;
+				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 2] = (color[cl]>>16)&255;
+			}
+			sprintf(fileName,".//segment//cars1//features%06d.jpg",i);
+			cv::imwrite(fileName,mask);
+
+	}
+	delete[] labels;
+	delete[] centers;
+	delete[] _imgData0;
+	delete[] segment;
+}
 int main (int argc, char* argv[])
 {
 	//TestRegionGrowing();
-	TestMotionEstimate();
+	TestRegioinGrowingSegment();
+	//TestMotionEstimate();
 	//TestRandom();
 	//TestGpuSubsense();
 	//MRFOptimization();
