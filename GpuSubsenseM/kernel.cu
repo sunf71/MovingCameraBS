@@ -310,7 +310,8 @@ void TestRegioinGrowingSegment()
 	mask.create(_height,_width,CV_8UC3);
 	std::vector<int> color(spSize);
 	CvRNG rng= cvRNG(cvGetTickCount());
-	for(int i=0;i<spSize;i++)
+	color[0] = 0;
+	for(int i=1;i<spSize;i++)
 		color[i] = cvRandInt(&rng);
 	for(int i=start; i<=end; i++)
 	{
@@ -331,7 +332,7 @@ void TestRegioinGrowingSegment()
 		}
 		int num(0);		
 		gs.Superpixel(_imgData0,num,labels,centers);
-		SuperPixelRGSegment(_width,_height,_step,labels,centers,30,segment);
+		SuperPixelRGSegment(_width,_height,_step,labels,centers,40,segment);
 		// Draw random color
 		for(int i=0;i<_height;i++)
 			for(int j=0;j<_width;j++)
@@ -341,6 +342,8 @@ void TestRegioinGrowingSegment()
 				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 1] = (color[cl]>>8)&255;
 				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 2] = (color[cl]>>16)&255;
 			}
+			cv::Mat fmask;
+			/*cv::bilateralFilter(mask,fmask,5,10,2.5);*/
 			sprintf(fileName,".//segment//cars1//features%06d.jpg",i);
 			cv::imwrite(fileName,mask);
 

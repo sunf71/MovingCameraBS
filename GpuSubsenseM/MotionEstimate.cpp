@@ -348,23 +348,30 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 	float pixDist(0);
 	float regMaxDist = threshold;
 	int regSize(0);
+	//当前新标签
 	int curLabel(1);
 	int imgSize = spWidth*spHeight;
 	char* visited = new char[imgSize];
 	memset(visited ,0,imgSize);
-	memset(segmented,0,sizeof(int)*imgSize);
+	memset(segmented,0,sizeof(int)*width*height);
 	std::vector<cv::Point2i> neighbors;
 	float4 regMean;
-	std::vector<int> resLabels;
+	//region growing 后的新label
+	std::vector<int> newLabels;
+	newLabels.resize(imgSize);
 	//nih::Timer timer;
 	//timer.start();
 	std::set<int> boundarySet;
 	boundarySet.insert(rand()%imgSize);
+	std::vector<int> labelGroup;
 	
 	while(!boundarySet.empty())
 	{
+		labelGroup.clear();
 		std::set<int>::iterator itr = boundarySet.begin();
 		int label = *itr;
+		labelGroup.push_back(label);
+		//newLabels[label] = curLabel;
 		boundarySet.erase(itr);
 		SLICClusterCenter cc = centers[label];
 		int k = cc.xy.x;
@@ -373,19 +380,21 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 		int iy = label/spWidth;
 		pixDist = 0;
 		regSize = 1;
-		segmented[ix+iy*spWidth] = curLabel;
+		//segmented[ix+iy*spWidth] = curLabel;
 		neighbors.clear();
 		regMean = cc.rgb;
+		
+		
 		while(pixDist < regMaxDist && regSize<imgSize)
 		{
 			for(int d=0; d<4; d++)
 			{
 				int x = ix+dx4[d];
 				int y = iy + dy4[d];
-				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[x+y*spWidth] && !segmented[x+y*spWidth])
+				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[x+y*spWidth])
 				{
 					neighbors.push_back(cv::Point2i(x,y));
-					visited[x+y*spWidth] = true;
+					
 				}
 			}
 			int idxMin = 0;
@@ -411,25 +420,64 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 
 			ix = neighbors[idxMin].x;
 			iy = neighbors[idxMin].y;
-			int minIdx =ix + iy*spWidth;
+			int minIdx =ix + iy*spWidth;			
 			float4 rgb = centers[minIdx].rgb;
 			//std::cout<<ix<<" "<<iy<<" added ,regMean = "<< regMean<<" pixDist "<<pixDist<<std::endl;
 			regMean.x = (rgb.x + regMean.x*regSize )/(regSize+1);
 			regMean.y = (rgb.y + regMean.y*regSize )/(regSize+1);
 			regMean.z = (rgb.z + regMean.z*regSize )/(regSize+1);
 			regSize++;
-			segmented[minIdx] = k;
+			labelGroup.push_back(minIdx);
+			
+			visited[minIdx] = true;
+			/*segmented[minIdx] = k;*/
 			//result.data[minIdx] = 0xff;
 			//smask.data[minIdx] = 0xff;
 			neighbors[idxMin] = neighbors[neighbors.size()-1];
 			neighbors.pop_back();
 		}
+		//孤立点
+		if (regSize <5)
+		{
+			for(int i=0; i<labelGroup.size(); i++)
+			{
+				newLabels[labelGroup[i]] = 0;
+			}
+		}
+		else
+		{
+			for(int i=0; i<labelGroup.size(); i++)
+			{
+				newLabels[labelGroup[i]] = curLabel;
+			}
+			curLabel++;
+		}
 		for(int i=0; i<neighbors.size(); i++)
 		{
 			int label = neighbors[i].x + neighbors[i].y*spWidth;
-			if (boundarySet.find(label) != boundarySet.end())
+			if (boundarySet.find(label) == boundarySet.end())
 				boundarySet.insert(label);
 		}
+	}
+	for(int i=0; i<newLabels.size(); i++)
+	{
+		int x = centers[i].xy.x;
+		int y = centers[i].xy.y;
+		for(int dx= -step; dx<=step; dx++)
+		{
+			for(int dy = -step; dy<=step; dy++)
+			{
+				int sx = x+dx;
+				int sy = y + dy;
+				if(sx>=0 && sx<width && sy>=0 && sy<height)
+				{
+					int idx = sx+sy*width;
+					if (labels[idx] == i)
+						segmented[idx] = newLabels[i];
+				}
+			}
+		}
+
 	}
 
 	
