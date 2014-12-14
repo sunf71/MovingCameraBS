@@ -332,7 +332,7 @@ void TestRegioinGrowingSegment()
 		}
 		int num(0);		
 		gs.Superpixel(_imgData0,num,labels,centers);
-		SuperPixelRGSegment(_width,_height,_step,labels,centers,40,segment);
+		SuperPixelRGSegment(_width,_height,_step,labels,centers,30,segment);
 		// Draw random color
 		for(int i=0;i<_height;i++)
 			for(int j=0;j<_width;j++)

@@ -337,6 +337,38 @@ void SuperPixelRegionGrowing(int width, int height, int step,std::vector<int>& s
 	delete[] visited;
 	delete[] segmented;
 }
+void SPRGPostProcess(int width, int height, int step, int spWidth, int spHeight,int flagLabel, int nlabel, std::vector<int>& newLabels)
+{
+	const int dx4[] = {-1,0,1,0};
+	const int dy4[] = {0,-1,0,1};
+	int stack[1024];
+	int p(0);
+	for(int i=0; i<spWidth; i++)
+	{
+		for(int j=0; j<spHeight; j++)
+		{
+			int idx = i+j*spWidth;
+			if (newLabels[idx] == flagLabel)
+			{
+				stack[p++] = idx;
+				while(p>=0)
+				{
+					int id = stack[--p];
+					newLabels[id] = nLabel;
+					for(int x = 0; x<4; x++)
+					{
+						for(int y=0; y<4; y++)
+						{
+							if (
+						}
+
+					}
+				}
+
+			}
+		}
+	}
+}
 void SuperPixelRGSegment(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,int threshold, int*& segmented)
 {
 	const int dx4[] = {-1,0,1,0};
@@ -437,7 +469,7 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 			neighbors.pop_back();
 		}
 		//¹ÂÁ¢µã
-		if (regSize <5)
+		if (regSize <2)
 		{
 			for(int i=0; i<labelGroup.size(); i++)
 			{
