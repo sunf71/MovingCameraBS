@@ -1,6 +1,7 @@
 #include "ComSuperpixel.h"
 #include <math.h>
 #include <iostream>
+#include <opencv\cv.h>
 void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* labels)
 {
 	//initialize
@@ -197,11 +198,12 @@ void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned
 		
 		vector<bool> istaken(sz, false);
 
-		int mainindex(0);
+		
 		for( int j = 0; j < m_height; j++ )
 		{
 			for( int k = 0; k < m_width; k++ )
 			{
+				int mainindex = k + j*m_width;
 				int np(0);
 				std::vector<int> nl;
 				for( int i = 0; i < 4; i++ )
@@ -239,6 +241,161 @@ void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned
 					}
 					if (idx >=0)
 					labels[mainindex] = nl[idx];
+				}
+				//mainindex++;
+				//std::cout<<mainindex<<std::endl;
+			}
+		}
+
+		//-----------------------------------------------------------------
+		// Recalculate the centroid and store in the seed values
+		//-----------------------------------------------------------------
+		sigmal.assign(m_nSuperpixels, 0);
+		sigmaa.assign(m_nSuperpixels, 0);
+		sigmab.assign(m_nSuperpixels, 0);
+		sigmax.assign(m_nSuperpixels, 0);
+		sigmay.assign(m_nSuperpixels, 0);
+		clustersize.assign(m_nSuperpixels, 0);
+
+		for( int j = 0; j < sz; j++ )
+		{
+			int temp = labels[j];
+			//std::cout<<j<<":"<<labels[j]<<std::endl;
+			sigmal[labels[j]] += m_rvec[j];
+			sigmaa[labels[j]] += m_gvec[j];
+			sigmab[labels[j]] += m_bvec[j];
+			sigmax[labels[j]] += (j%m_width);
+			sigmay[labels[j]] += (j/m_width);
+
+			clustersize[labels[j]]++;
+		}
+
+		{for( int k = 0; k < num; k++ )
+		{
+			//_ASSERT(clustersize[k] > 0);
+			if( clustersize[k] <= 0 ) clustersize[k] = 1;
+			inv[k] = 1.0/double(clustersize[k]);//computing inverse now to multiply, than divide later
+		}}
+		
+		{for( int k = 0; k < num; k++ )
+		{
+			kseedsr[k] = sigmal[k]*inv[k];
+			kseedsg[k] = sigmaa[k]*inv[k];
+			kseedsb[k] = sigmab[k]*inv[k];
+			kseedsx[k] = sigmax[k]*inv[k];
+			kseedsy[k] = sigmay[k]*inv[k];
+		}}
+	}
+}
+void ComSuperpixel::SuperpixelLattice(unsigned int * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num, int* labels)
+{
+	//initialize
+	vector<double> kseedsr(0);
+	vector<double> kseedsg(0);
+	vector<double> kseedsb(0);
+	vector<double> kseedsx(0);
+	vector<double> kseedsy(0);
+
+	//--------------------------------------------------
+	m_width  = width;
+	m_height = height;
+	m_alpha = alpha;
+	m_labels = labels;
+	int sz = m_width*m_height;
+	//--------------------------------------------------
+	//if(0 == klabels) klabels = new int[sz];
+	for( int s = 0; s < sz; s++ ) labels[s] = -1;
+	//--------------------------------------------------
+
+	m_rvec = new double[sz];
+	m_gvec = new double[sz];
+	m_bvec = new double[sz];
+
+	for( int j = 0; j < sz; j++ )
+	{
+		m_rvec[j] = (rgbBuffer[j] >> 16) & 0xFF;
+		m_gvec[j] = (rgbBuffer[j] >>  8) & 0xFF;
+		m_bvec[j] = (rgbBuffer[j]      ) & 0xFF;
+
+
+	}
+
+	vector<double> edgemag(0);
+	DetectRGBEdges(m_rvec, m_gvec, m_bvec, m_width, m_height, edgemag);
+	GetRGBXYSeeds_ForGivenStep(kseedsr,kseedsg,kseedsb,kseedsx,kseedsy,step,true,edgemag);
+	num = m_nSuperpixels;
+	//iteration
+	vector<double> sigmal(m_nSuperpixels, 0);
+	vector<double> sigmaa(m_nSuperpixels, 0);
+	vector<double> sigmab(m_nSuperpixels, 0);
+	vector<double> sigmax(m_nSuperpixels, 0);
+	vector<double> sigmay(m_nSuperpixels, 0);
+	vector<int> clustersize(m_nSuperpixels, 0);
+	vector<double> inv(m_nSuperpixels, 0);//to store 1/clustersize[k] values
+	int itr = 0;
+	const int dx4[4] = {-1,  0,  1, 0,};
+	const int dy4[4] = { 0, -1, 0, 1};
+	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
+	while(itr < 10)
+	{
+		itr++;
+		
+		vector<bool> istaken(sz, false);
+
+		int mainindex(0);
+		for( int j = 0; j < m_height; j++ )
+		{
+			for( int k = 0; k < m_width; k++ )
+			{
+				int np(0);
+				std::vector<int> nl;
+				mainindex = k+j*m_width;
+				for( int i = 0; i < 4; i++ )
+				{
+					int x = k + dx4[i];
+					int y = j + dy4[i];
+
+					if( (x >= 0 && x < m_width) && (y >= 0 && y < m_height) )
+					{
+						int index = y*m_width + x;
+
+						if( false == istaken[index] )//comment this to obtain internal contours
+						{
+							if( labels[mainindex] != labels[index] ) 
+							{
+								np++;
+								nl.push_back(labels[index]);
+							}
+							 istaken[index] = true;
+						}
+					}
+				}
+				if( np > 0 )//change to 2 or 3 for thinner lines
+				{
+					double min = Distance(k,j,labels[mainindex],kseedsr,kseedsb,kseedsb,kseedsx,kseedsy);
+					int idx = -1;
+					for(int i=0; i<nl.size(); i++)
+					{
+						double dis = Distance(k,j,nl[i],kseedsr,kseedsb,kseedsb,kseedsx,kseedsy);
+						if (dis < min)
+						{
+							min = dis;
+							idx = i;
+						}
+					}
+					if (idx >=0)
+					{
+						//检查约束1，对于p 8邻域内且与p的label相同的的像素，必须是联通的
+						/*std::vector<cv::Point2i> Qp;
+						for(int d=0; d<8; d++)
+						{
+							int x = k + dx8[i];
+							int y = j + dy8[i];
+							if (labels[x+y*width] == label)
+						}*/
+						labels[mainindex] = nl[idx];
+					}
 				}
 				mainindex++;
 				//std::cout<<mainindex<<std::endl;
@@ -285,7 +442,6 @@ void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned
 		}}
 	}
 }
-
 void ComSuperpixel::PerturbSeeds(
 	vector<double>&				kseedsl,
 	vector<double>&				kseedsa,

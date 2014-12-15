@@ -52,6 +52,7 @@ void InitClusterCenters(uchar4* d_imgBuffer,int* d_labels, int nWidth, int nHeig
 void InitClusterCenters(int* d_labels, int nWidth, int nHeight, int step, int& nSeg, SLICClusterCenter* d_center);
 void UpdateClusterCenter(uchar4* imgBuffer, int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters);
 void UpdateBoundary(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius);
+void UpdateBoundaryLattice(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius);
 void UpdateBoundary(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_cenetersIn, SLICClusterCenter* d_centersOut, int nClusters,float alpha, float radius);
 void AvgClusterCenter(SLICClusterCenter* d_cenetersIn, int nClusters);
 void UpdateClusters(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_centers_in,

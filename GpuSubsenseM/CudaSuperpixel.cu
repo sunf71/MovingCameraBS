@@ -200,7 +200,120 @@ __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth
 			labels[mainindex] = nl[idx];
 		}
 	}
-	
+//更新时检查是否满足lattice条件
+__global__  void UpdateBoundaryLatticeKernel(uchar4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
+{
+
+	int dx4[4] = {-1,  0,  1, 0,};
+	int dy4[4] = { 0, -1, 0, 1};
+	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
+	int k = threadIdx.x + blockIdx.x * blockDim.x;
+	int j = threadIdx.y + blockIdx.y * blockDim.y;
+	int mainindex = k+j*nWidth;
+
+	int np(0);
+	int nl[4];
+	int nlx[4];
+	int nly[4];
+	for( int i = 0; i < 4; i++ )
+	{
+		int x = k + dx4[i];
+		int y = j + dy4[i];
+
+		if( (x >= 0 && x < nWidth) && (y >= 0 && y < nHeight) )
+		{
+			int index = y*nWidth + x;
+			if( labels[mainindex] != labels[index] ) 
+			{	
+				nlx[np] = x;
+				nly[np] = y;
+				nl[np++] = labels[index];				
+			}			
+		}
+	}
+	if( np > 0 )//change to 2 or 3 for thinner lines
+	{
+		double min = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,labels[mainindex],d_ceneters);
+		int idx = -1;
+		for(int i=0; i<np; i++)
+		{
+			double dis = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,nl[i],d_ceneters);
+			if (dis < min)
+			{
+				min = dis;
+				idx = i;
+			}
+		}
+		if (idx >=0)
+		{
+			//检查约束1，p所在8邻域内与p的label相同的像素必须是联通的
+			bool pass1(true);
+			int nx[8],ny[8];
+			int nc(0);
+			for(int i=0; i<8; i++)
+			{
+				int x = k + dx8[i];
+				int y = j + dy8[i];
+				if ( (x >= 0 && x < nWidth) && (y >= 0 && y < nHeight) )
+				{
+					int index = y*nWidth + x;
+					if( labels[mainindex] == labels[index] ) 
+					{				
+						nx[nc] = x;
+						ny[nc] = y;
+						nc++;
+					}
+				}
+			}
+			
+			for(int i=0; i<nc; i++)
+			{
+				bool connect(false);
+				for(j=0; j<nc; j++)
+				{
+					if (j!=i && (abs(nx[i]-nx[j])<2 && abs(ny[i] - ny[j]) <2))
+					{
+						connect = true;
+						break;
+					}
+
+				}
+				if (!connect)
+				{
+					pass1 = false;
+					break;
+				}
+			}
+			//约束2，对于p四邻域内的邻居label n，在p的8邻域内必须存在除p之外的点是n的邻居
+			bool pass2(true);
+			for(int i=0; i<np; i++)
+			{
+				if (i!=idx)
+				{
+					bool connect(false);
+					int x = nlx[i];
+					int y = nly[i];
+					for(int j=0; j<nc; j++)
+					{
+						if ((abs(nx[j] - x) < 2) && abs(ny[j] -y) <2)
+						{
+							connect = true;
+							break;
+						}
+					}
+					if (!connect)
+					{
+						pass2 = false;
+						break;
+					}
+				}
+			}
+			if (pass1 && pass2)
+				labels[mainindex] = nl[idx];
+		}
+	}
+}	
 
 __global__ void AvgClusterCenterKernel(SLICClusterCenter* d_cenetersIn, int nClusters)
 {
@@ -421,6 +534,16 @@ void UpdateBoundary(uchar4* imgBuffer, int nHeight, int nWidth,int * labels,SLIC
 	dim3 blockDim(16,16);
 	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
 	UpdateBoundaryKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters,alpha,radius);
+	//timer.Stop();
+	//std::cout<<"update UpdateBoundary "<<timer.Elapsed()<<std::endl;
+}
+void UpdateBoundaryLattice(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_centers, int nClusters,float alpha, float radius)
+{
+	//GpuTimer timer;
+	//timer.Start();
+	dim3 blockDim(16,16);
+	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
+	UpdateBoundaryLatticeKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters,alpha,radius);
 	//timer.Stop();
 	//std::cout<<"update UpdateBoundary "<<timer.Elapsed()<<std::endl;
 }

@@ -5,6 +5,7 @@
 #include <set>
 #include <opencv2\opencv.hpp>
 #include "MeanShift.h"
+#include <fstream>
 void postProcessSegments(Mat& img)
 {
 	int niters = 3;
@@ -343,6 +344,8 @@ void SPRGPostProcess(int width, int height, int step, int spWidth, int spHeight,
 	const int dy4[] = {0,-1,0,1};
 	int stack[1024];
 	int p(0);
+	int* visited = new int[spWidth*spHeight];
+	memset(visited,0,spWidth*spHeight*sizeof(int));
 	for(int i=0; i<spWidth; i++)
 	{
 		for(int j=0; j<spHeight; j++)
@@ -350,22 +353,45 @@ void SPRGPostProcess(int width, int height, int step, int spWidth, int spHeight,
 			int idx = i+j*spWidth;
 			if (newLabels[idx] == flagLabel)
 			{
-				stack[p++] = idx;
-				while(p>=0)
+				for(int d = 0; d<4; d++)
 				{
-					int id = stack[--p];
-					newLabels[id] = nLabel;
-					for(int x = 0; x<4; x++)
+					int ix = dx4[d] + i;
+					int iy = dy4[d] +j;
+					if(ix>=0 && ix < spWidth && iy >=0 && iy <spHeight)
 					{
-						for(int y=0; y<4; y++)
+						if (newLabels[ix+iy*spWidth] != flagLabel)
 						{
-							if (
-						}
+							newLabels[idx] = newLabels[ix+iy*spWidth];
 
+							break;
+						}
 					}
 				}
+				//p=0;
+				//stack[p++] = idx;
+				//while(p>=0)
+				//{
+				//	int id = stack[--p];
+				//	newLabels[id] = nlabel;
+				//	visited[id] = 1;
+				//	for(int d = 0; d<4; d++)
+				//	{
+
+				//		int ix = dx4[d] + i;
+				//		int iy = dy4[d] +j;
+				//		if(ix>=0 && ix < spWidth && iy >=0 && iy <spHeight)
+				//		{
+				//			int nid = ix+iy*spWidth;
+				//			if (!visited[nid] && newLabels[nid] == flagLabel)
+				//				stack[p++] = idx;
+				//		}
+
+
+				//	}
+				//}
 
 			}
+			nlabel++;
 		}
 	}
 }
@@ -395,6 +421,7 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 	//timer.start();
 	std::set<int> boundarySet;
 	boundarySet.insert(rand()%imgSize);
+	
 	std::vector<int> labelGroup;
 	
 	while(!boundarySet.empty())
@@ -426,7 +453,7 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[x+y*spWidth])
 				{
 					neighbors.push_back(cv::Point2i(x,y));
-					
+					visited[x+y*spWidth] = true;
 				}
 			}
 			int idxMin = 0;
@@ -474,6 +501,7 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 			for(int i=0; i<labelGroup.size(); i++)
 			{
 				newLabels[labelGroup[i]] = 0;
+				//std::cout<<labels[labelGroup[i]]<<std::endl;
 			}
 		}
 		else
@@ -489,8 +517,10 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 			int label = neighbors[i].x + neighbors[i].y*spWidth;
 			if (boundarySet.find(label) == boundarySet.end())
 				boundarySet.insert(label);
+			
 		}
 	}
+	//SPRGPostProcess(width,height,step,spWidth,spHeight,0,curLabel,newLabels);
 	for(int i=0; i<newLabels.size(); i++)
 	{
 		int x = centers[i].xy.x;
@@ -914,4 +944,79 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//cv::imwrite("dmat.jpg",dmat);
 	//cv::imwrite("mask.jpg",mask);
 	
+}
+
+void TestRegioinGrowingSegment()
+{
+	char fileName[100];
+	int start = 1;
+	int end = 1130;
+	cv::Mat curImg,mask;
+	int _width = 320;
+	int _height = 240;
+	int _step = 5;
+	GpuSuperpixel gs(_width,_height,_step);
+	int spWidth = (_width+_step-1)/_step;
+	int spHeight = (_height+_step-1)/_step;
+	int spSize = spWidth*spHeight;
+	int* labels = new int[_width*_height];
+	SLICClusterCenter* centers= new SLICClusterCenter[spSize];
+	uchar4* _imgData0 = new uchar4[_width*_height];
+	int* segment = new int[_width*_height];
+	mask.create(_height,_width,CV_8UC3);
+	std::vector<int> color(spSize);
+	CvRNG rng= cvRNG(cvGetTickCount());
+	color[0] = 0;
+	for(int i=1;i<spSize;i++)
+		color[i] = cvRandInt(&rng);
+	for(int i=start; i<=end; i++)
+	{
+		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
+		curImg = cv::imread(fileName);
+		cv::blur(curImg,curImg,cv::Size(3,3));
+		cv::cvtColor(curImg,curImg,CV_BGR2BGRA);
+		for(int i=0; i< _width; i++)
+		{		
+			for(int j=0; j<_height; j++)
+			{
+				int idx = curImg.step[0]*j + curImg.step[1]*i;
+				int id = i + j*_width;
+				_imgData0[id].x = curImg.data[idx];
+				_imgData0[id].y = curImg.data[idx+ curImg.elemSize1()];
+				_imgData0[id].z = curImg.data[idx+2*curImg.elemSize1()];
+				_imgData0[id].w = curImg.data[idx+3*curImg.elemSize1()];						
+			}
+		}
+		int num(0);		
+		gs.Superpixel(_imgData0,num,labels,centers);
+		/*std::ofstream file("label.txt");
+		for(int j=0; j<_height; j++)
+		{
+			for(int i=0; i<_width; i++)
+			{
+				file<<labels[i+j*_height]<<"\t";
+			}
+			file<<"\n";
+		}
+		file.close();*/
+		SuperPixelRGSegment(_width,_height,_step,labels,centers,28,segment);
+		// Draw random color
+		for(int i=0;i<_height;i++)
+			for(int j=0;j<_width;j++)
+			{ 
+				int cl = segment[i*_width+j];
+				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 0] = (color[cl])&255;
+				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 1] = (color[cl]>>8)&255;
+				((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 2] = (color[cl]>>16)&255;
+			}
+			cv::Mat fmask;
+			/*cv::bilateralFilter(mask,fmask,5,10,2.5);*/
+			sprintf(fileName,".//segment//input3//features%06d.jpg",i);
+			cv::imwrite(fileName,mask);
+
+	}
+	delete[] labels;
+	delete[] centers;
+	delete[] _imgData0;
+	delete[] segment;
 }
