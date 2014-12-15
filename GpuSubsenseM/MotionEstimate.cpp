@@ -8,6 +8,7 @@
 #include <fstream>
 void postProcessSegments(Mat& img)
 {
+	cv::bitwise_not(img,img);
 	int niters = 3;
 
 	vector<vector<Point> > contours;
@@ -28,7 +29,7 @@ void postProcessSegments(Mat& img)
 		return;
 	img = cv::Scalar(0);
 	
-	double minArea = 10*10;
+	double minArea = 50*50;
 	Scalar color( 255, 255, 255 );
 	//img = cv::Scalar(0);
 	for( int i = 0; i< contours.size(); i++ )
@@ -520,7 +521,7 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 			
 		}
 	}
-	//SPRGPostProcess(width,height,step,spWidth,spHeight,0,curLabel,newLabels);
+	SPRGPostProcess(width,height,step,spWidth,spHeight,0,curLabel,newLabels);
 	for(int i=0; i<newLabels.size(); i++)
 	{
 		int x = centers[i].xy.x;
@@ -721,7 +722,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	}
 	
 	/*centers1 = new SLICClusterCenter[_nSuperPixels];*/
-	_gs->Superpixel(_imgData0,num,_labels0,_centers0);
+	_gs->SuperpixelLattice(_imgData0,num,_labels0,_centers0);
 	//_gs->Superpixel(_imgData1,num,_labels1,centers1);
 	
 	//Good Features
@@ -874,7 +875,8 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	float threshold = avgDist(_width,_height,_step,_nSuperPixels,_centers0);
 	std::cout<<"threshold= "<<threshold<<std::endl;
 	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,_centers0,mask,threshold*0.8);
-	//postProcessSegments(mask);
+	
+	postProcessSegments(mask);
 	//MaskHomographyTest(mask,gray,preGray,transM,NULL);
 	////find most match superpixel
 	//std::vector<int> matchedCount0(_nSuperPixels,0);
@@ -945,15 +947,211 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//cv::imwrite("mask.jpg",mask);
 	
 }
+void OpticalFlowHistogram(cv::Mat& flow,
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16,int thetaSize = 16)
+{
+	//直方图共256个bin，其中根据光流强度分16个bin，每个bin根据光流方向分16个bin
+	int binSize = DistSize * thetaSize;
+	histogram.resize(binSize);
+	ids.resize(binSize);
+	for(int i=0; i<binSize; i++)
+		ids[i].clear();
+	memset(&histogram[0],0,sizeof(float)*binSize);
+	
 
+	cv::Mat xy[2];
+	cv::split(flow, xy);
+
+	//calculate angle and magnitude
+	cv::Mat magnitude, angle;
+	cv::cartToPolar(xy[0], xy[1], magnitude, angle, true);
+
+	//translate magnitude to range [0;1]
+	double mag_max;
+	cv::minMaxLoc(magnitude, 0, &mag_max);
+	magnitude.convertTo(magnitude, -1, 1.0/mag_max);
+
+	
+	float stepR = 1.0/DistSize;
+	float stepT = 360.0/thetaSize;
+	double* magPtr = (double*)magnitude.data;
+	double* angPtr = (double*)angle.data;
+	for(int i = 0; i<magnitude.rows; i++)
+	{
+		for(int j=0; j<magnitude.cols; j++)
+		{
+			int idx = i*magnitude.cols+j;
+			int r = (int)(magPtr[idx]/stepR);
+			int t = (int)(angPtr[idx]/stepT);
+			r = r>DistSize? DistSize:r;
+			t = t>thetaSize? thetaSize:t;
+			idx = t*DistSize+r;
+			//std::cout<<idx<<std::endl;
+			histogram[idx]++;
+			ids[idx].push_back(idx);
+
+		}
+	}
+	
+}
+void MotionEstimate::EstimateMotionHistogram( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
+{
+	//super pixel
+	//CV_ASSERT(curImg.rows == _height && curImg.cols == _width);
+	int num;
+	cv::Mat img0,img1;
+	cv::cvtColor(curImg,img0,CV_BGR2BGRA);
+	cv::cvtColor(prevImg,img1,CV_BGR2BGRA);
+	
+	for(int i=0; i< _width; i++)
+	{		
+		for(int j=0; j<_height; j++)
+		{
+			int idx = img0.step[0]*j + img0.step[1]*i;
+			_imgData0[i + j*_width].x = img0.data[idx];
+			_imgData0[i + j*_width].y = img0.data[idx+ img0.elemSize1()];
+			_imgData0[i + j*_width].z = img0.data[idx+2*img0.elemSize1()];
+			_imgData0[i + j*_width].w = img0.data[idx+3*img0.elemSize1()];			
+
+			/*_imgData1[i + j*_width].x = img1.data[idx];
+			_imgData1[i + j*_width].y = img1.data[idx+ img1.elemSize1()];
+			_imgData1[i + j*_width].z = img1.data[idx+2*img1.elemSize1()];
+			_imgData1[i + j*_width].w = img1.data[idx+3*img1.elemSize1()];*/
+		}
+	}
+	
+	/*centers1 = new SLICClusterCenter[_nSuperPixels];*/
+	_gs->SuperpixelLattice(_imgData0,num,_labels0,_centers0);
+	//_gs->Superpixel(_imgData1,num,_labels1,centers1);
+	
+	cv::Mat flow;
+	cv::calcOpticalFlowSF(curImg,prevImg,flow,3,2,4);
+	
+	cv::Scalar color(255,0,0);
+	mask.create(_height,_width,CV_8UC1);
+	mask = cv::Scalar(0);
+	std::vector<cv::Point2f> bgPoints;
+	std::vector<int> spLabels;
+	int spWidth = (_width+_step-1)/_step;
+	
+	mask.create(curImg.size(),CV_8U);
+	mask = cv::Scalar(0);
+	//RegionGrowing(bgPoints,curImg,mask);
+	/*float threshold = OstuThreshold(_width,_height,_step,centers0);*/
+	
+
+	//inliers.resize(_features1.size());
+	//cv::findHomography(_features1,_matched1,inliers,CV_RANSAC,0.1);
+	//for(int i=0; i<_features1.size(); i++)
+	//{
+	//	if (inliers[i]==1)
+	//	{
+	//		cv::circle(curImg,_matched1[i],5,color);
+	//		/*int k = _matched1[i].x;
+	//		int j = _matched1[i].y;		
+	//		int label = _labels0[k+ j*_width];
+	//		spLabels.push_back(label);*/
+	//		////以原来的中心点为中心，step +2　为半径进行更新
+	//		//int radius = _step;
+	//		//for (int x = k- radius; x<= k+radius; x++)
+	//		//{
+	//		//	for(int y = j - radius; y<= j+radius; y++)
+	//		//	{
+	//		//		if  (x<0 || x>_width-1 || y<0 || y> _height-1)
+	//		//			continue;
+	//		//		int idx = x+y*_width;
+	//		//		//std::cout<<idx<<std::endl;
+	//		//		if (_labels0[idx] == label )
+	//		//		{		
+	//		//			mask.data[idx] = 0xff;						
+	//		//		}					
+	//		//	}
+	//		//}
+	//	}
+	//}
+	float threshold = avgDist(_width,_height,_step,_nSuperPixels,_centers0);
+	std::cout<<"threshold= "<<threshold<<std::endl;
+	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,_centers0,mask,threshold*0.8);
+	
+	postProcessSegments(mask);
+	//MaskHomographyTest(mask,gray,preGray,transM,NULL);
+	////find most match superpixel
+	//std::vector<int> matchedCount0(_nSuperPixels,0);
+	//std::vector<int> matchedCount1(_nSuperPixels,0);
+	////每个超像素的特征点id
+	//std::vector<std::vector<int>> featuresPerSP0(_nSuperPixels);
+	//std::vector<std::vector<int>> featuresPerSP1(_nSuperPixels);
+	//for(int i=0; i< _features0.size(); i++)
+	//{
+	//	int ix = (int)_features0[i].x;
+	//	int iy = (int)_features0[i].y;
+	//	int label = _labels0[iy*_width+ix];
+	//	matchedCount0[label]++;
+	//	featuresPerSP0[label].push_back(i);
+	//}
+	//std::vector<int>::iterator itr = std::max_element(matchedCount0.begin(),matchedCount0.end());
+	//std::vector<int>& f = featuresPerSP0[itr-matchedCount0.begin()];
+	//cv::Scalar color(255,0,0);
+	//for(int i=0; i<f.size(); i++)
+	//{
+	//	cv::circle(curImg,_features0[f[i]],2,color);
+	//}
+
+	//for(int i=0; i< _features1.size(); i++)
+	//{
+	//	int ix = (int)_features1[i].x;
+	//	int iy = (int)_features1[i].y;
+	//	int label = _labels0[iy*_width+ix];
+	//	matchedCount1[label]++;
+	//	featuresPerSP1[label].push_back(i);
+	//}
+	//itr = std::max_element(matchedCount1.begin(),matchedCount1.end());
+	//f = featuresPerSP1[itr-matchedCount1.begin()];
+	//for(int i=0; i<f.size(); i++)
+	//{
+	//	cv::circle(prevImg,_features1[f[i]],2,color);
+	//}
+	//cv::Mat dmat(mask.size(),CV_8U);
+	//dmat = cv::Scalar(0);
+	////求每个超像素inliers的密度
+	//int winSize = _step*10;
+	//for(int i=0; i< _nSuperPixels; i++)
+	//{		
+	//	float2 center = centers0[i].xy;
+	//	int ox = center.x;
+	//	int oy = center.y;
+	//	int bgInliers = 0;
+	//	int nPixels(0);
+	//	for(int m = ox-winSize; m<=ox+winSize; m++)
+	//	{
+	//		for(int n=oy-winSize; n<=oy+winSize; n++)
+	//		{
+	//			if (m>=0 && m<_width && n>=0 && n<_height)
+	//			{
+	//				if (mask.data[m+n*_width] == 0xff)
+	//				{
+	//					bgInliers++;
+	//				}
+	//				nPixels++;
+	//			}
+	//		}
+	//	}
+	//	float density = bgInliers*1.0/nPixels;
+	//	if (density > 0.5)
+	//		dmat.data[oy*_width+ox] = 0xff;
+	//}
+	//cv::imwrite("dmat.jpg",dmat);
+	//cv::imwrite("mask.jpg",mask);
+	
+}
 void TestRegioinGrowingSegment()
 {
 	char fileName[100];
 	int start = 1;
 	int end = 1130;
 	cv::Mat curImg,mask;
-	int _width = 320;
-	int _height = 240;
+	int _width = 640;
+	int _height = 480;
 	int _step = 5;
 	GpuSuperpixel gs(_width,_height,_step);
 	int spWidth = (_width+_step-1)/_step;
@@ -971,7 +1169,7 @@ void TestRegioinGrowingSegment()
 		color[i] = cvRandInt(&rng);
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
 		cv::blur(curImg,curImg,cv::Size(3,3));
 		cv::cvtColor(curImg,curImg,CV_BGR2BGRA);
@@ -988,7 +1186,7 @@ void TestRegioinGrowingSegment()
 			}
 		}
 		int num(0);		
-		gs.Superpixel(_imgData0,num,labels,centers);
+		gs.SuperpixelLattice(_imgData0,num,labels,centers);
 		/*std::ofstream file("label.txt");
 		for(int j=0; j<_height; j++)
 		{
@@ -1011,7 +1209,7 @@ void TestRegioinGrowingSegment()
 			}
 			cv::Mat fmask;
 			/*cv::bilateralFilter(mask,fmask,5,10,2.5);*/
-			sprintf(fileName,".//segment//input3//features%06d.jpg",i);
+			sprintf(fileName,".//segment//people1//features%06d.jpg",i);
 			cv::imwrite(fileName,mask);
 
 	}

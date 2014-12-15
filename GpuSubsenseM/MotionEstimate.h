@@ -33,6 +33,7 @@ public:
 		delete[] _centers0;
 	}
 	void KLT(Mat& curImg, Mat& preImg);
+	void EstimateMotionHistogram( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask);
 	void RansacEstimate(Mat& transM, std::vector<cv::Point2f>& inliers);
 	void HistogramEstimate(Mat& transM,std::vector<cv::Point2f>& inliers);
 	void EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask);

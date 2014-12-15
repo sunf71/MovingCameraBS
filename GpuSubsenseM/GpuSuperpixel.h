@@ -17,6 +17,7 @@ public:
 		Release();
 	}
 	void Superpixel(uchar4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);
+	void SuperpixelLattice(uchar4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);
 	void Superpixel(uchar4* rgbaBuffer, int& num,int* labels,int iterThreshold = 10);
 	void SuperpixelLattice(uchar4* rgbaBuffer, int& num,int* labels,int iterThreshold = 10);
 	void DSuperpixel(uchar4* d_rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);

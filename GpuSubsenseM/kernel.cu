@@ -269,19 +269,19 @@ void TestMotionEstimate()
 {
 	char fileName[100];
 	int start = 2;
-	int end = 1130;
+	int end = 30;
 	cv::Mat curImg,prevImg,transM;
-	MotionEstimate me(320,240,5);
+	MotionEstimate me(640,480,5);
 	cv::Mat mask;
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName,"..//ptz//input3//in%06d.jpg",i-1);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
-		me.EstimateMotionMeanShift(curImg,prevImg,transM,mask);
-		//me.EstimateMotion(curImg,prevImg,transM,mask);
-		sprintf(fileName,".//features//input3//features%06d.jpg",i);
+		//me.EstimateMotionMeanShift(curImg,prevImg,transM,mask);
+		me.EstimateMotion(curImg,prevImg,transM,mask);
+		sprintf(fileName,".//features//people1//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
 		cv::imshow("prevImg",prevImg);*/
@@ -304,11 +304,11 @@ int main (int argc, char* argv[])
 {
 	//TestRegionGrowing();
 	//TestRegioinGrowingSegment();
-	//TestMotionEstimate();
+	TestMotionEstimate();
 	//TestRandom();
 	//TestGpuSubsense();
 	//MRFOptimization();
-	TestSuperpixel();
+	//TestSuperpixel();
 	//testCudaGpu();
 	return 0;
 
