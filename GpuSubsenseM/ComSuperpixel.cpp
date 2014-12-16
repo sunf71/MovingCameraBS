@@ -179,7 +179,7 @@ void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned
 
 	vector<double> edgemag(0);
 	DetectRGBEdges(m_rvec, m_gvec, m_bvec, m_width, m_height, edgemag);
-	GetRGBXYSeeds_ForGivenStep(kseedsr,kseedsg,kseedsb,kseedsx,kseedsy,step,true,edgemag);
+	GetRGBXYSeeds_ForGivenStep(kseedsr,kseedsg,kseedsb,kseedsx,kseedsy,step,false,edgemag);
 	num = m_nSuperpixels;
 	//iteration
 	vector<double> sigmal(m_nSuperpixels, 0);
@@ -215,15 +215,14 @@ void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned
 					{
 						int index = y*m_width + x;
 
-						if( false == istaken[index] )//comment this to obtain internal contours
+						
+						if( labels[mainindex] != labels[index] ) 
 						{
-							if( labels[mainindex] != labels[index] ) 
-							{
-								np++;
-								nl.push_back(labels[index]);
-							}
-							 istaken[index] = true;
+							np++;
+							nl.push_back(labels[index]);
 						}
+						
+
 					}
 				}
 				if( np > 0 )//change to 2 or 3 for thinner lines
@@ -504,33 +503,13 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenStep(
 	int yoff = T/2;
 
 	int n(0);int r(0);
-	for( int y = 0; y <= m_height/T; y++ )
+	for( int y = 0; y < (m_height+T-1)/T; y++ )
 	{
-		int Y = y*T + yoff;
-		if( Y > m_height-1 )
-		{
-			Y = (y*T + m_height-1)/2;
-		}
-
-		for( int x = 0; x <= m_width/T; x++ )
+		for( int x = 0; x < (m_width+T-1)/T; x++ )
 		{
 			int X = x*T + xoff;//square grid
-			//int X = x*step + (xoff<<(r&0x1));//hex grid
-			if(X > m_width-1)
-			{
-				X = (x*T + m_width-1)/2;
-			}
-
+			int Y = y*T + yoff;
 			int i = Y*m_width + X;
-
-			//_ASSERT(n < K);
-
-			//kseedsl[n] = m_lvec[i];
-			//kseedsa[n] = m_avec[i];
-			//kseedsb[n] = m_bvec[i];
-			//kseedsx[n] = X;
-			//kseedsy[n] = Y;
-			
 			kseedsx.push_back(X);
 			kseedsy.push_back(Y);
 			double avgR(0);
@@ -539,28 +518,29 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenStep(
 			int count(0);
 			for(int k= X - xoff; k<= X + xoff; k++)
 			{
-				if (k>m_width-1)
+				if ( k > m_width-1)
 					continue;
 				for(int j=Y-yoff; j<= Y+yoff; j++)
 				{
-					if (j>m_height-1)
+					if ( j > m_height-1 )
 						continue;
+
 					int idx  = k + j*m_width;
 					avgR += m_rvec[idx];
 					avgG += m_gvec[idx];
 					avgB += m_bvec[idx];
 					m_labels[idx] = n;
 					count++;
+					
 				}
 			}
 			kseedsl.push_back(avgR/count);
 			kseedsa.push_back(avgG/count);
 			kseedsb.push_back(avgB/count);
 			n++;
-		}
-		//r++;
+		}		
 	}
-	m_nSuperpixels = n;
+	m_nSuperpixels = (m_height+T-1)/T*(m_width+T-1)/T;
 	if(perturbseeds)
 	{
 		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);

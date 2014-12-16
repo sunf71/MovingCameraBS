@@ -100,23 +100,25 @@ void TestSuperpixel()
 			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
-	CpuSuperpixel(idata,img.cols,img.rows,5);
-	GpuSuperpixel gs(img.cols,img.rows,5);
+	CpuSuperpixel(idata,img.cols,img.rows,35);
+	GpuSuperpixel gs(img.cols,img.rows,35);
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
 
 	GpuTimer timer;
+	SLIC aslic;	
+	PictureHandler handler;
+
 	timer.Start();
 	gs.Superpixel(imgData,num,labels);
 	timer.Stop();
 	std::cout<<timer.Elapsed()<<"ms"<<std::endl;
-	SLIC aslic;
 	
-	PictureHandler handler;
 	aslic.DrawContoursAroundSegments(idata, labels, img.cols,img.rows,0x00ff00);
 	handler.SavePicture(idata,img.cols,img.rows,std::string("GpuSp.jpg"),std::string(".\\"));
 	aslic.SaveSuperpixelLabels(labels,img.cols,img.rows,std::string("GpuSp.txt"),std::string(".\\"));
 	
+	memset(labels,0,sizeof(int)*img.rows*img.cols);
 	timer.Start();
 	gs.SuperpixelLattice(imgData,num,labels);
 	timer.Stop();
@@ -269,7 +271,7 @@ void TestMotionEstimate()
 {
 	char fileName[100];
 	int start = 2;
-	int end = 30;
+	int end = 2;
 	cv::Mat curImg,prevImg,transM;
 	MotionEstimate me(640,480,5);
 	cv::Mat mask;
@@ -280,7 +282,8 @@ void TestMotionEstimate()
 		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
 		//me.EstimateMotionMeanShift(curImg,prevImg,transM,mask);
-		me.EstimateMotion(curImg,prevImg,transM,mask);
+		//me.EstimateMotion(curImg,prevImg,transM,mask);
+		me.EstimateMotionHistogram(curImg,prevImg,transM,mask);
 		sprintf(fileName,".//features//people1//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
@@ -304,11 +307,11 @@ int main (int argc, char* argv[])
 {
 	//TestRegionGrowing();
 	//TestRegioinGrowingSegment();
-	TestMotionEstimate();
+	//TestMotionEstimate();
 	//TestRandom();
 	//TestGpuSubsense();
 	//MRFOptimization();
-	//TestSuperpixel();
+	TestSuperpixel();
 	//testCudaGpu();
 	return 0;
 

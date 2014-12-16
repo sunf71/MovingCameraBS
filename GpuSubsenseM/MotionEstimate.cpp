@@ -947,6 +947,35 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//cv::imwrite("mask.jpg",mask);
 	
 }
+void DrawHistogram(std::vector<float>& histogram, int size, const std::string name = "histogram")
+{
+	float max = histogram[0];
+	int idx = 0;
+	for(int i=1; i<size; i++)
+	{
+		if (histogram[i] > max)
+		{
+			max = histogram[i];
+			idx = i;
+		}
+
+	}
+	cv::Mat img(400,300,CV_8UC3);
+	img = cv::Scalar(0);
+	int step = (img.cols+size-1)/size;
+	cv::Scalar color(255,255,0);
+	for(int i=0; i<size; i++)
+	{
+		cv::Point2i pt1,pt2;
+		pt1.x = i*step;
+		pt1.y = img.rows - (histogram[i]/max*img.rows);
+		pt2.x = pt1.x + step;
+		pt2.y = img.rows;
+		cv::rectangle(img,cv::Rect(pt1,pt2),color);
+	}
+	cv::imshow(name,img);
+	//cv::waitKey();
+}
 void OpticalFlowHistogram(cv::Mat& flow,
 	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16,int thetaSize = 16)
 {
@@ -974,21 +1003,22 @@ void OpticalFlowHistogram(cv::Mat& flow,
 	
 	float stepR = 1.0/DistSize;
 	float stepT = 360.0/thetaSize;
-	double* magPtr = (double*)magnitude.data;
-	double* angPtr = (double*)angle.data;
+	float* magPtr = (float*)magnitude.data;
+	float* angPtr = (float*)angle.data;
 	for(int i = 0; i<magnitude.rows; i++)
 	{
 		for(int j=0; j<magnitude.cols; j++)
 		{
-			int idx = i*magnitude.cols+j;
-			int r = (int)(magPtr[idx]/stepR);
-			int t = (int)(angPtr[idx]/stepT);
-			r = r>DistSize? DistSize:r;
-			t = t>thetaSize? thetaSize:t;
-			idx = t*DistSize+r;
+			int index = i*magnitude.cols+j;
+			int r = (int)(magnitude.at<float>(i,j)/stepR);
+			int t = (int)(angle.at<float>(i,j)/stepT);
+			//std::cout<<magnitude.at<float>(i,j)<<","<<angle.at<float>(i,j)<<std::endl;
+			r = r>=DistSize? DistSize-1:r;
+			t = t>=thetaSize? thetaSize-1:t;
+			int idx = t*DistSize+r;
 			//std::cout<<idx<<std::endl;
 			histogram[idx]++;
-			ids[idx].push_back(idx);
+			ids[idx].push_back(index);
 
 		}
 	}
@@ -996,6 +1026,7 @@ void OpticalFlowHistogram(cv::Mat& flow,
 }
 void MotionEstimate::EstimateMotionHistogram( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
 {
+	using namespace cv;
 	//super pixel
 	//CV_ASSERT(curImg.rows == _height && curImg.cols == _width);
 	int num;
@@ -1023,125 +1054,41 @@ void MotionEstimate::EstimateMotionHistogram( Mat& curImg,  Mat& prevImg, Mat& t
 	/*centers1 = new SLICClusterCenter[_nSuperPixels];*/
 	_gs->SuperpixelLattice(_imgData0,num,_labels0,_centers0);
 	//_gs->Superpixel(_imgData1,num,_labels1,centers1);
-	
+
 	cv::Mat flow;
 	cv::calcOpticalFlowSF(curImg,prevImg,flow,3,2,4);
-	
+
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+	OpticalFlowHistogram(flow,histogram,ids);
+	//DrawHistogram(histogram,256);
+	//最大bin
+	int max =ids[0].size(); 
+	int idx(0);
+	for(int i=1; i<256; i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
 	cv::Scalar color(255,0,0);
-	mask.create(_height,_width,CV_8UC1);
-	mask = cv::Scalar(0);
-	std::vector<cv::Point2f> bgPoints;
-	std::vector<int> spLabels;
-	int spWidth = (_width+_step-1)/_step;
+	mask.create(_height,_width,CV_8UC3);
+	mask = curImg.clone();
+	for(int i=0; i<ids[idx].size(); i++)
+	{
+		int id = ids[idx][i];
+		int y = id/_width;
+		int x = id%_width;
+		//std::cout<<id<<" "<<x<<","<<y<<std::endl;
+		cv::circle(mask,cv::Point2i(x,y),3,cv::Scalar(255,2,0));
+	}
 	
-	mask.create(curImg.size(),CV_8U);
-	mask = cv::Scalar(0);
-	//RegionGrowing(bgPoints,curImg,mask);
-	/*float threshold = OstuThreshold(_width,_height,_step,centers0);*/
 	
 
-	//inliers.resize(_features1.size());
-	//cv::findHomography(_features1,_matched1,inliers,CV_RANSAC,0.1);
-	//for(int i=0; i<_features1.size(); i++)
-	//{
-	//	if (inliers[i]==1)
-	//	{
-	//		cv::circle(curImg,_matched1[i],5,color);
-	//		/*int k = _matched1[i].x;
-	//		int j = _matched1[i].y;		
-	//		int label = _labels0[k+ j*_width];
-	//		spLabels.push_back(label);*/
-	//		////以原来的中心点为中心，step +2　为半径进行更新
-	//		//int radius = _step;
-	//		//for (int x = k- radius; x<= k+radius; x++)
-	//		//{
-	//		//	for(int y = j - radius; y<= j+radius; y++)
-	//		//	{
-	//		//		if  (x<0 || x>_width-1 || y<0 || y> _height-1)
-	//		//			continue;
-	//		//		int idx = x+y*_width;
-	//		//		//std::cout<<idx<<std::endl;
-	//		//		if (_labels0[idx] == label )
-	//		//		{		
-	//		//			mask.data[idx] = 0xff;						
-	//		//		}					
-	//		//	}
-	//		//}
-	//	}
-	//}
-	float threshold = avgDist(_width,_height,_step,_nSuperPixels,_centers0);
-	std::cout<<"threshold= "<<threshold<<std::endl;
-	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,_centers0,mask,threshold*0.8);
-	
-	postProcessSegments(mask);
-	//MaskHomographyTest(mask,gray,preGray,transM,NULL);
-	////find most match superpixel
-	//std::vector<int> matchedCount0(_nSuperPixels,0);
-	//std::vector<int> matchedCount1(_nSuperPixels,0);
-	////每个超像素的特征点id
-	//std::vector<std::vector<int>> featuresPerSP0(_nSuperPixels);
-	//std::vector<std::vector<int>> featuresPerSP1(_nSuperPixels);
-	//for(int i=0; i< _features0.size(); i++)
-	//{
-	//	int ix = (int)_features0[i].x;
-	//	int iy = (int)_features0[i].y;
-	//	int label = _labels0[iy*_width+ix];
-	//	matchedCount0[label]++;
-	//	featuresPerSP0[label].push_back(i);
-	//}
-	//std::vector<int>::iterator itr = std::max_element(matchedCount0.begin(),matchedCount0.end());
-	//std::vector<int>& f = featuresPerSP0[itr-matchedCount0.begin()];
-	//cv::Scalar color(255,0,0);
-	//for(int i=0; i<f.size(); i++)
-	//{
-	//	cv::circle(curImg,_features0[f[i]],2,color);
-	//}
 
-	//for(int i=0; i< _features1.size(); i++)
-	//{
-	//	int ix = (int)_features1[i].x;
-	//	int iy = (int)_features1[i].y;
-	//	int label = _labels0[iy*_width+ix];
-	//	matchedCount1[label]++;
-	//	featuresPerSP1[label].push_back(i);
-	//}
-	//itr = std::max_element(matchedCount1.begin(),matchedCount1.end());
-	//f = featuresPerSP1[itr-matchedCount1.begin()];
-	//for(int i=0; i<f.size(); i++)
-	//{
-	//	cv::circle(prevImg,_features1[f[i]],2,color);
-	//}
-	//cv::Mat dmat(mask.size(),CV_8U);
-	//dmat = cv::Scalar(0);
-	////求每个超像素inliers的密度
-	//int winSize = _step*10;
-	//for(int i=0; i< _nSuperPixels; i++)
-	//{		
-	//	float2 center = centers0[i].xy;
-	//	int ox = center.x;
-	//	int oy = center.y;
-	//	int bgInliers = 0;
-	//	int nPixels(0);
-	//	for(int m = ox-winSize; m<=ox+winSize; m++)
-	//	{
-	//		for(int n=oy-winSize; n<=oy+winSize; n++)
-	//		{
-	//			if (m>=0 && m<_width && n>=0 && n<_height)
-	//			{
-	//				if (mask.data[m+n*_width] == 0xff)
-	//				{
-	//					bgInliers++;
-	//				}
-	//				nPixels++;
-	//			}
-	//		}
-	//	}
-	//	float density = bgInliers*1.0/nPixels;
-	//	if (density > 0.5)
-	//		dmat.data[oy*_width+ox] = 0xff;
-	//}
-	//cv::imwrite("dmat.jpg",dmat);
-	//cv::imwrite("mask.jpg",mask);
+	
 	
 }
 void TestRegioinGrowingSegment()

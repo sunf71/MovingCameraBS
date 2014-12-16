@@ -238,7 +238,7 @@ void SLIC::DrawContoursAroundSegments(
 					}
 				}
 			}
-			if( np > 1 )//change to 2 or 3 for thinner lines
+			if( np > 2 )//change to 2 or 3 for thinner lines
 			{
 				ubuff[mainindex] = color;
 				istaken[mainindex] = true;

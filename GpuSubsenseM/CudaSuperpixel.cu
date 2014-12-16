@@ -160,12 +160,14 @@ __device__ double distance(int x, int y, uchar4* imgBuffer,int width, int height
 }
 __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
 {
-
-	int dx4[4] = {-1,  0,  1, 0,};
-	int dy4[4] = { 0, -1, 0, 1};
 	int k = threadIdx.x + blockIdx.x * blockDim.x;
 	int j = threadIdx.y + blockIdx.y * blockDim.y;
 	int mainindex = k+j*nWidth;
+	if (mainindex >= nHeight*nWidth)
+		return;
+	int dx4[4] = {-1,  0,  1, 0,};
+	int dy4[4] = { 0, -1, 0, 1};
+	
 
 	int np(0);
 	int nl[4];
@@ -543,6 +545,8 @@ void UpdateBoundaryLattice(uchar4* imgBuffer, int nHeight, int nWidth,int* label
 	//timer.Start();
 	dim3 blockDim(16,16);
 	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
+	//dim3 blockDim(1,1);
+	//dim3 gridDim(1,1);
 	UpdateBoundaryLatticeKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters,alpha,radius);
 	//timer.Stop();
 	//std::cout<<"update UpdateBoundary "<<timer.Elapsed()<<std::endl;

@@ -59,7 +59,7 @@ void GetRGBXYSeeds_ForGivenStep(
 		double d_rgb = sqrt(dr*dr + dg*dg + db*db);
 		double dx = abs(x - kseedsx[labelIdx]);
 		double dy =  abs(y - kseedsy[labelIdx]);
-		double d_xy = sqrt(dx*dx + dy*dy);
+		double d_xy = (dx*dx + dy*dy);
 		return (1-m_alpha)*d_rgb + m_alpha*d_xy/(m_radius);
 	}
 	void Superpixel(unsigned * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* lables);
