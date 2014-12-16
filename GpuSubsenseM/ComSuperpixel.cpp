@@ -339,7 +339,7 @@ void ComSuperpixel::SuperpixelLattice(unsigned int * rgbBuffer,unsigned width, u
 	while(itr < 10)
 	{
 		itr++;
-		
+		std::cout<<itr<<"------------"<<std::endl;
 		vector<bool> istaken(sz, false);
 
 		int mainindex(0);
@@ -347,8 +347,11 @@ void ComSuperpixel::SuperpixelLattice(unsigned int * rgbBuffer,unsigned width, u
 		{
 			for( int k = 0; k < m_width; k++ )
 			{
+				//std::cout<<k<<" , "<<j<<std::endl;
 				int np(0);
 				std::vector<int> nl;
+				int nlx[4];
+				int nly[4];
 				mainindex = k+j*m_width;
 				for( int i = 0; i < 4; i++ )
 				{
@@ -358,16 +361,14 @@ void ComSuperpixel::SuperpixelLattice(unsigned int * rgbBuffer,unsigned width, u
 					if( (x >= 0 && x < m_width) && (y >= 0 && y < m_height) )
 					{
 						int index = y*m_width + x;
-
-						if( false == istaken[index] )//comment this to obtain internal contours
+						if( labels[mainindex] != labels[index] ) 
 						{
-							if( labels[mainindex] != labels[index] ) 
-							{
-								np++;
-								nl.push_back(labels[index]);
-							}
-							 istaken[index] = true;
-						}
+							
+							nlx[np] = x;
+							nly[np] = y;
+							np++;
+							nl.push_back(labels[index]);
+						}											
 					}
 				}
 				if( np > 0 )//change to 2 or 3 for thinner lines
@@ -385,18 +386,93 @@ void ComSuperpixel::SuperpixelLattice(unsigned int * rgbBuffer,unsigned width, u
 					}
 					if (idx >=0)
 					{
-						//检查约束1，对于p 8邻域内且与p的label相同的的像素，必须是联通的
-						/*std::vector<cv::Point2i> Qp;
-						for(int d=0; d<8; d++)
+						
+						//检查约束1，p所在8邻域内与p的label相同的像素必须是联通的
+						bool pass1(true);
+						int nx[8],ny[8];
+						int nc(0);
+						for(int i=0; i<8; i++)
 						{
 							int x = k + dx8[i];
 							int y = j + dy8[i];
-							if (labels[x+y*width] == label)
-						}*/
-						labels[mainindex] = nl[idx];
+							if ( (x >= 0 && x < m_width) && (y >= 0 && y < m_height) )
+							{
+								int index = y*m_width + x;
+								if( labels[mainindex] == labels[index] ) 
+								{				
+									nx[nc] = x;
+									ny[nc] = y;
+									nc++;
+								}
+							}
+						}
+						if (nc>1)
+						{
+							for(int i=0; i<nc; i++)
+							{
+								bool connect(false);
+								for(int j=0; j<nc; j++)
+								{
+									if (j!=i && (abs(nx[i]-nx[j])<2 && abs(ny[i] - ny[j]) <2))
+									{
+										connect = true;
+										break;
+									}
+
+								}
+								if (!connect)
+								{
+									pass1 = false;
+									break;
+								}
+							}
+						}
+						
+						//约束2，对于p四邻域内的邻居label n，在p的8邻域内必须存在除p之外的点是n的邻居
+						bool pass2(true);
+						for(int i=0; i<np; i++)
+						{
+							if (i!=idx)
+							{
+								bool connect(false);
+								int x = nlx[i];
+								int y = nly[i];
+								for(int j=0; j<nc; j++)
+								{
+									if ((abs(nx[j] - x) < 2) && abs(ny[j] -y) <2)
+									{
+										connect = true;
+										break;
+									}
+								}
+								if (!connect)
+								{
+									pass2 = false;
+									break;
+								}
+							}
+						}
+						if (pass1 )
+							labels[mainindex] = nl[idx];
+						else
+						{
+							/*std::cout<<labels[mainindex]<<" "<<nl[idx]<<std::endl;
+							for(int i=0; i<8; i++)
+							{
+								int x = k + dx8[i];
+								int y = j + dy8[i];
+								if ( (x >= 0 && x < m_width) && (y >= 0 && y < m_height) )
+								{
+									int index = y*m_width + x;
+									std::cout<< labels[index]<<" ";
+								}
+							}
+							std::cout<<std::endl;*/
+						}
+
 					}
 				}
-				mainindex++;
+				
 				//std::cout<<mainindex<<std::endl;
 			}
 		}
@@ -540,7 +616,7 @@ void ComSuperpixel::GetRGBXYSeeds_ForGivenStep(
 			n++;
 		}		
 	}
-	m_nSuperpixels = (m_height+T-1)/T*(m_width+T-1)/T;
+	m_nSuperpixels = ((m_height+T-1)/T)*((m_width+T-1)/T);
 	if(perturbseeds)
 	{
 		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);

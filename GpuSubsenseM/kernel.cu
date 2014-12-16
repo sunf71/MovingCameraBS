@@ -64,7 +64,7 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 	nih::Timer timer;
 	timer.start();
 #endif
-	CS.Superpixel(idata,width,height,step,alpha,numlabels,labels);
+	CS.SuperpixelLattice(idata,width,height,step,alpha,numlabels,labels);
 #ifdef REPORT
 	timer.stop();
 	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
@@ -80,7 +80,7 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 void TestSuperpixel()
 {
 	using namespace cv;
-	Mat img = imread("in000090.jpg");
+	Mat img = imread("..//ptz//input0//in000090.jpg");
 	//cv::resize(img,img,cv::Size(16,16));
 	uchar4* imgData = new uchar4[img.rows*img.cols];
 	unsigned int* idata = new unsigned int[img.rows*img.cols];
