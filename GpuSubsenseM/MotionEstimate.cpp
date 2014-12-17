@@ -6,6 +6,7 @@
 #include <opencv2\opencv.hpp>
 #include "MeanShift.h"
 #include <fstream>
+#include "ComSuperpixel.h"
 void postProcessSegments(Mat& img)
 {
 	cv::bitwise_not(img,img);
@@ -714,6 +715,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 			_imgData0[i + j*_width].z = img0.data[idx+2*img0.elemSize1()];
 			_imgData0[i + j*_width].w = img0.data[idx+3*img0.elemSize1()];			
 
+			
 			/*_imgData1[i + j*_width].x = img1.data[idx];
 			_imgData1[i + j*_width].y = img1.data[idx+ img1.elemSize1()];
 			_imgData1[i + j*_width].z = img1.data[idx+2*img1.elemSize1()];
@@ -722,9 +724,17 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	}
 	
 	/*centers1 = new SLICClusterCenter[_nSuperPixels];*/
-	_gs->SuperpixelLattice(_imgData0,num,_labels0,_centers0);
+	//_gs->SuperpixelLattice(_imgData0,num,_labels0,_centers0);
 	//_gs->Superpixel(_imgData1,num,_labels1,centers1);
-	
+
+	int numlabels(0);
+	ComSuperpixel CS;
+	//CS.Superpixel(idata,width,height,7000,0.9,labels);
+#ifdef REPORT
+	nih::Timer timer;
+	timer.start();
+#endif
+	CS.SuperpixelLattice(_imgData0,_width,_height,_step,0.9,numlabels,_labels0,_centers0);
 	//Good Features
 	cv::Mat gray,preGray;
 	cv::cvtColor(curImg,gray,CV_BGR2GRAY);
@@ -876,7 +886,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	std::cout<<"threshold= "<<threshold<<std::endl;
 	SuperPixelRegionGrowing(_width,_height,_step,spLabels,_labels0,_centers0,mask,threshold*0.8);
 	
-	postProcessSegments(mask);
+	//postProcessSegments(mask);
 	//MaskHomographyTest(mask,gray,preGray,transM,NULL);
 	////find most match superpixel
 	//std::vector<int> matchedCount0(_nSuperPixels,0);
@@ -1095,7 +1105,7 @@ void TestRegioinGrowingSegment()
 {
 	char fileName[100];
 	int start = 1;
-	int end = 1130;
+	int end = 19;
 	cv::Mat curImg,mask;
 	int _width = 640;
 	int _height = 480;

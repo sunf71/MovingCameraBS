@@ -29,7 +29,7 @@ __global__ void InitClusterCentersKernel(int* labels, int nWidth, int nHeight,in
 	avXY.x=threadIdx.x*step + (float)step/2.0;
 	avXY.y=blockIdx.x*step + (float)step/2.0;
 
-	
+
 
 	float4 tmp;
 	tmp.x = 0;
@@ -56,12 +56,12 @@ __global__ void InitClusterCentersKernel(int* labels, int nWidth, int nHeight,in
 	tmp.x = tmp.x / sz;
 	tmp.y = tmp.y /sz;
 	tmp.z = tmp.z/sz;
-	
+
 
 	vSLICCenterList[clusterIdx].rgb= tmp;
 	vSLICCenterList[clusterIdx].xy=avXY;
 	vSLICCenterList[clusterIdx].nPoints= (int)sz;
-	
+
 }
 __global__ void UpdateClustersKernel(int nHeight, int nWidth, int* keys,SLICClusterCenter* d_inCenters,SLICClusterCenter* d_outCenters, int nClusters,int tNClusters  )
 {
@@ -70,7 +70,7 @@ __global__ void UpdateClustersKernel(int nHeight, int nWidth, int* keys,SLICClus
 	if (clusterIdx >= nClusters)
 		return;
 	d_outCenters[keys[clusterIdx]] = d_inCenters[clusterIdx] * (1.0/d_inCenters[clusterIdx].nPoints);
-	
+
 }
 __global__ void UpdateClusterCenterKernel(int heigth,int width, int step, int* d_labels, SLICClusterCenter* d_inCenters,int nClusters)
 {
@@ -155,7 +155,7 @@ __device__ double distance(int x, int y, uchar4* imgBuffer,int width, int height
 	double d_rgb = sqrt(dr*dr + dg*dg + db*db);
 	double dx = (x*1.f - d_ceneters[label].xy.x);
 	double dy =  (y*1.f - d_ceneters[label].xy.y);
-	double d_xy = (dx*dx + dy*dy);
+	double d_xy = sqrt(dx*dx + dy*dy);
 	return (1-alpha)*d_rgb + alpha*d_xy/(radius);
 }
 __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
@@ -167,7 +167,7 @@ __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth
 		return;
 	int dx4[4] = {-1,  0,  1, 0,};
 	int dy4[4] = { 0, -1, 0, 1};
-	
+
 
 	int np(0);
 	int nl[4];
@@ -200,8 +200,8 @@ __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth
 		}
 		if (idx >=0)
 			labels[mainindex] = nl[idx];
-		}
 	}
+}
 //更新时检查是否满足lattice条件
 __global__  void UpdateBoundaryLatticeKernel(uchar4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
 {
@@ -210,112 +210,136 @@ __global__  void UpdateBoundaryLatticeKernel(uchar4* imgBuffer, int nHeight, int
 	int dy4[4] = { 0, -1, 0, 1};
 	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
 	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
-	int k = threadIdx.x + blockIdx.x * blockDim.x;
-	int j = threadIdx.y + blockIdx.y * blockDim.y;
-	int mainindex = k+j*nWidth;
-
-	int np(0);
-	int nl[4];
-	int nlx[4];
-	int nly[4];
-	for( int i = 0; i < 4; i++ )
+	for(int k = threadIdx.x + blockIdx.x * blockDim.x;
+		k < nWidth; k+= blockDim.x*gridDim.x)
 	{
-		int x = k + dx4[i];
-		int y = j + dy4[i];
-
-		if( (x >= 0 && x < nWidth) && (y >= 0 && y < nHeight) )
+		for(int j = threadIdx.y + blockIdx.y * blockDim.y;
+			j<nHeight; j+= blockDim.y*gridDim.y)
 		{
-			int index = y*nWidth + x;
-			if( labels[mainindex] != labels[index] ) 
-			{	
-				nlx[np] = x;
-				nly[np] = y;
-				nl[np++] = labels[index];				
-			}			
-		}
-	}
-	if( np > 0 )//change to 2 or 3 for thinner lines
-	{
-		double min = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,labels[mainindex],d_ceneters);
-		int idx = -1;
-		for(int i=0; i<np; i++)
-		{
-			double dis = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,nl[i],d_ceneters);
-			if (dis < min)
-			{
-				min = dis;
-				idx = i;
-			}
-		}
-		if (idx >=0)
-		{
-			//检查约束1，p所在8邻域内与p的label相同的像素必须是联通的
-			bool pass1(true);
+			
+			int mainindex = k+j*nWidth;
+			
+			int np(0);
+			int nl[4];
+			int nlx[4];
+			int nly[4];
 			int nx[8],ny[8];
-			int nc(0);
-			for(int i=0; i<8; i++)
+			int nnx[8],nny[8];
+			for( int i = 0; i < 4; i++ )
 			{
-				int x = k + dx8[i];
-				int y = j + dy8[i];
-				if ( (x >= 0 && x < nWidth) && (y >= 0 && y < nHeight) )
+				int x = k + dx4[i];
+				int y = j + dy4[i];
+
+				if( (x >= 0 && x < nWidth) && (y >= 0 && y < nHeight) )
 				{
 					int index = y*nWidth + x;
-					if( labels[mainindex] == labels[index] ) 
-					{				
-						nx[nc] = x;
-						ny[nc] = y;
-						nc++;
-					}
+					if( labels[mainindex] != labels[index] ) 
+					{	
+						nlx[np] = x;
+						nly[np] = y;
+						nl[np++] = labels[index];				
+					}			
 				}
 			}
-			
-			for(int i=0; i<nc; i++)
+			if( np > 0 )//change to 2 or 3 for thinner lines
 			{
-				bool connect(false);
-				for(j=0; j<nc; j++)
+				double min = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,labels[mainindex],d_ceneters);
+				int idx = -1;
+				for(int i=0; i<np; i++)
 				{
-					if (j!=i && (abs(nx[i]-nx[j])<2 && abs(ny[i] - ny[j]) <2))
+					double dis = distance(k,j,imgBuffer,nWidth,nHeight,alpha,radius,nl[i],d_ceneters);
+					if (dis < min)
 					{
-						connect = true;
-						break;
+						min = dis;
+						idx = i;
 					}
+				}
+				if (idx >=0)
+				{
+					//检查约束1，p所在8邻域内与p的label相同的像素必须是联通的
+					bool pass1(true);
 
-				}
-				if (!connect)
-				{
-					pass1 = false;
-					break;
-				}
-			}
-			//约束2，对于p四邻域内的邻居label n，在p的8邻域内必须存在除p之外的点是n的邻居
-			bool pass2(true);
-			for(int i=0; i<np; i++)
-			{
-				if (i!=idx)
-				{
-					bool connect(false);
-					int x = nlx[i];
-					int y = nly[i];
-					for(int j=0; j<nc; j++)
+					int nc(0);
+					int nnc(0);
+					for(int i=0; i<8; i++)
 					{
-						if ((abs(nx[j] - x) < 2) && abs(ny[j] -y) <2)
+						int x = k + dx8[i];
+						int y = j + dy8[i];
+						if ( (x >= 0 && x < nWidth) && (y >= 0 && y < nHeight) )
 						{
-							connect = true;
-							break;
+							nnx[nnc] = x;
+							nny[nnc] = y;
+							nnc++;
+							int index = y*nWidth + x;
+							if( labels[mainindex] == labels[index] ) 
+							{				
+								nx[nc] = x;
+								ny[nc] = y;
+								nc++;
+							}
 						}
 					}
-					if (!connect)
+					if (nc>1)
 					{
-						pass2 = false;
-						break;
+						bool xflag(true),yflag(true);
+						for(int i=0; i<nc; i++)
+						{
+							if (nx[i] == k)
+								xflag = false;
+							if (ny[i] == j)
+								yflag  = false;
+							bool connect(false);
+							for(int j=0; j<nc; j++)
+							{
+								if (j!=i && (abs(nx[i]-nx[j])<2 && abs(ny[i] - ny[j]) <2))
+								{
+									connect = true;
+									break;
+								}
+
+							}
+							if (!connect)
+							{
+								pass1 = false;
+								break;
+							}
+						}
+						if (pass1 && (xflag || yflag))
+							pass1 = false;
 					}
+
+					//约束2，对于p四邻域内的邻居label n，在p的8邻域内必须存在除p之外的点是n的邻居
+					bool pass2(true);
+					for(int i=0; i<np; i++)
+					{
+						if (i!=idx)
+						{
+							bool connect(false);
+							int x = nnx[i];
+							int y = nny[i];
+							for(int j=0; j<nnc; j++)
+							{
+								if ((abs(nnx[j] - x) < 2) && abs(nny[j] -y) <2)
+								{
+									connect = true;
+									break;
+								}
+							}
+							if (!connect)
+							{
+								pass2 = false;
+								break;
+							}
+						}
+					}
+					if (pass2 && pass1 )
+						labels[mainindex] = nl[idx];
+
 				}
 			}
-			if (pass1 && pass2)
-				labels[mainindex] = nl[idx];
 		}
-	}
-}	
+	}	
+}
 
 __global__ void AvgClusterCenterKernel(SLICClusterCenter* d_cenetersIn, int nClusters)
 {
@@ -351,7 +375,7 @@ __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth
 			int index = y*nWidth + x;
 			if( labels[mainindex] != labels[index] ) 
 			{
-				
+
 				nl[np++] = labels[index];
 			}			
 		}
@@ -379,8 +403,8 @@ __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth
 	d_centersOut[labels[mainindex]].rgb.z +=imgBuffer[mainindex].z;
 	d_centersOut[labels[mainindex]].xy.x +=k;
 	d_centersOut[labels[mainindex]].xy.y +=j;*/
-	
-	
+
+
 }
 //shared memory version, this version is SLOWER, because there is no data reuse between different threads in a block
 __global__  void SUpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
@@ -389,10 +413,10 @@ __global__  void SUpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidt
 	__shared__ int s_label[BLOCK_W*BLOCK_H];
 	// First batch loading
 	int dest = threadIdx.y * TILE_W + threadIdx.x,
-	destY = dest / BLOCK_W, destX = dest % BLOCK_W,
-	srcY = blockIdx.y * TILE_W + destY - R,
-	srcX = blockIdx.x * TILE_W + destX - R,
-	src = (srcY * nWidth + srcX);
+		destY = dest / BLOCK_W, destX = dest % BLOCK_W,
+		srcY = blockIdx.y * TILE_W + destY - R,
+		srcX = blockIdx.x * TILE_W + destX - R,
+		src = (srcY * nWidth + srcX);
 	srcX = max(0,srcX);
 	srcX = min(srcX,nWidth-1);
 	srcY = max(srcY,0);
@@ -425,7 +449,7 @@ __global__  void SUpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidt
 		return;
 	//unsigned idx = (threadIdx.y+R+y_sample)*BLOCK_W + threadIdx.x+R+x_sample;
 	int label = s_label[(threadIdx.y+R)*BLOCK_W + threadIdx.x+R];
-	
+
 	int np(0);
 	int nl[4];
 	for( int i = 0; i < 4; i++ )
@@ -439,7 +463,7 @@ __global__  void SUpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidt
 			int nlabel = s_label[(threadIdx.y+R+dy4[i])*BLOCK_W + threadIdx.x+R+dx4[i]];
 			if( label != nlabel ) 
 			{
-				
+
 				nl[np++] = nlabel;
 			}			
 		}
@@ -468,8 +492,8 @@ __global__  void SUpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidt
 	d_centersOut[labels[mainindex]].rgb.z +=imgBuffer[mainindex].z;
 	d_centersOut[labels[mainindex]].xy.x +=k;
 	d_centersOut[labels[mainindex]].xy.y +=j;*/
-	
-	
+
+
 }
 void UpdateClusterCenter(uchar4* imgBuffer, int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters)
 {
@@ -543,10 +567,10 @@ void UpdateBoundaryLattice(uchar4* imgBuffer, int nHeight, int nWidth,int* label
 {
 	//GpuTimer timer;
 	//timer.Start();
-	dim3 blockDim(16,16);
-	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
-	//dim3 blockDim(1,1);
-	//dim3 gridDim(1,1);
+	/*dim3 blockDim(16,16);
+	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);*/
+	dim3 blockDim(1,1);
+	dim3 gridDim(1,1);
 	UpdateBoundaryLatticeKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters,alpha,radius);
 	//timer.Stop();
 	//std::cout<<"update UpdateBoundary "<<timer.Elapsed()<<std::endl;
@@ -568,14 +592,14 @@ void UpdateClusters(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLIC
 	int size = nHeight*nWidth;	
 	typedef thrust::device_ptr<int>  keyPtr;
 	typedef thrust::device_ptr<SLICClusterCenter>  valuePtr;
-	
+
 	valuePtr centersPtr(d_centers);
-	
+
 	valuePtr d_ptrV(d_centers_in);	
 	keyPtr d_ptrK(labels);	
 	//std::cout<<"keys in before sort\n";
 	//thrust::copy(d_ptrK, d_ptrK+size, std::ostream_iterator<int>(std::cout, "\n"));
-	
+
 	//std::cout<<"centers in before sort\n";
 	//thrust::copy(d_ptrV, d_ptrV+size , std::ostream_iterator<SLICClusterCenter>(std::cout, "\n"));
 	//std::cout<<"sort\n";
@@ -587,8 +611,8 @@ void UpdateClusters(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLIC
 	thrust::pair<keyPtr, valuePtr>  new_end;
 	//std::cout<<"keys in after sort\n";
 	//thrust::copy(d_ptrK, d_ptrK+size, std::ostream_iterator<int>(std::cout, "\n"));
-	
-	
+
+
 	timer.Start();
 	//std::cout<<"centers in after sort\n";
 	//thrust::copy(d_ptrV, d_ptrV+size , std::ostream_iterator<SLICClusterCenter>(std::cout, "\n"));
@@ -600,7 +624,7 @@ void UpdateClusters(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLIC
 
 	nClusters = new_end.first - outKeyPtr;
 
-	
+
 	timer.Start();
 	SLICClusterCenter* d_centersOut = thrust::raw_pointer_cast(outValuePtr);
 	int * d_keysOut = thrust::raw_pointer_cast(outKeyPtr);;

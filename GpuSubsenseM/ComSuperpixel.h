@@ -1,17 +1,29 @@
 #pragma once
 #include <vector>
-#define safe_delete(X) if (X!=NULL) delete[] X;
+#include "CudaSuperpixel.h"
+template<typename T> void safe_delete_array(T*& a) 
+{
+
+	if (a!=NULL)
+	{
+		delete[] a;
+		a = NULL;
+	}
+}
 using namespace std;
 
 class ComSuperpixel
 {
 public:
-	ComSuperpixel(){};
+	ComSuperpixel()
+	{
+		m_rvec = m_gvec = m_bvec = NULL;
+	};
 	~ComSuperpixel()
 	{
-		safe_delete(m_rvec);
-		safe_delete(m_gvec);
-		safe_delete(m_bvec);
+		safe_delete_array(m_rvec);
+		safe_delete_array(m_gvec);
+		safe_delete_array(m_bvec);
 	}
 	void DetectRGBEdges(
 		const double*				rvec,
@@ -65,6 +77,7 @@ void GetRGBXYSeeds_ForGivenStep(
 	void Superpixel(unsigned * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* lables);
 	void Superpixel(unsigned * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
 	void SuperpixelLattice(unsigned * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
+	void SuperpixelLattice(uchar4 * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables,SLICClusterCenter* centers);
 private:
 	unsigned m_height;
 	unsigned m_width;
