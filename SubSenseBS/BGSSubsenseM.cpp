@@ -554,6 +554,9 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 		inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
 		0.1); // max distance to reprojection point
+
+	std::cout<<"ransac single homo\n";
+	std::cout<<homography<<std::endl;
 	for(int i=0; i<inliers.size(); i++)
 	{
 		if (inliers[i] == 1)
@@ -720,6 +723,7 @@ void BGSSubsenseM::LocalSearch(const cv::Mat& img, const int x, const int y,  in
 //! primary model update function; the learning param is used to override the internal learning thresholds (ignored when <= 0)
 void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride)
 {
+	//EstimateHomos();
 	cv::Mat oInputImg = _image.getMat();
 	//cv::GaussianBlur(oInputImg,oInputImg,cv::Size(3,3),0,0);
 	cv::Sobel(_image.getMat(),m_dx,CV_16S,1,0);
@@ -986,15 +990,29 @@ failedcheck1ch:
 		for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
-			double* ptr = (double*)m_homography.data;
+			
 			float fx,fy,fw;
-			fx = x*ptr[0] + y*ptr[1] + ptr[2];
-			fy = x*ptr[3] + y*ptr[4] + ptr[5];
-			fw = x*ptr[6] + y*ptr[7] + ptr[8];
-			fx /=fw;
-			fy/=fw;
-			int wx = (int)(fx+0.5);
-			int wy = (int)(fy+0.5);
+			int wx;
+			int wy;
+			if ( m_nFrameIndex >0)
+			{
+				double* ptr = (double*)m_homography.data;
+				fx = x*ptr[0] + y*ptr[1] + ptr[2];
+				fy = x*ptr[3] + y*ptr[4] + ptr[5];
+				fw = x*ptr[6] + y*ptr[7] + ptr[8];
+				fx /=fw;
+				fy/=fw;
+				wx = (int)(fx+0.5);
+				wy = (int)(fy+0.5);
+			}
+			else
+			{
+				cv::Point2i dst;
+				WarpPt(cv::Point2i(x,y),dst);
+				wx = dst.x;
+				wy = dst.y;
+			}
+
 			const size_t oidx_uchar = m_oImgSize.width*y + x;	
 			const size_t oidx_flt32 = oidx_uchar*4;
 			const size_t oidx_uchar_rgb = oidx_uchar*3;
@@ -1409,7 +1427,7 @@ failedcheck1ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	/*cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
 	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
 	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
@@ -1422,7 +1440,7 @@ failedcheck1ch:
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	m_oFGMask_last.copyTo(oCurrFGMask);
-	MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);*/
+	/*MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);*/
 	/*cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),3);
 	char filename[200];
 	sprintf(filename,"..\\result\\subsensem\\ptz\\input3\\features\\features%06d.jpg",m_nFrameIndex);
@@ -1594,3 +1612,52 @@ void BGSSubsenseM::MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv
 }
 
 
+//估算分块单应性矩阵
+void BGSSubsenseM::EstimateHomos()
+{
+	//fake implementation
+	//read from matlab result
+	FILE* file = fopen("homos.txt","r");
+	int width = m_oImgSize.width;
+	int height = m_oImgSize.height;
+	m_quadWidth = width/8;
+	m_quadHeight = height/8;
+	m_homos.resize(8 * 8);
+	float data[9];
+	for(int h=0; h<64; h++)
+	{
+		for(int i=0; i<3; i++)
+		{
+			fscanf(file,"%f\t%f\t%f\n", &data[i*3], &data[3*i+1], &data[3*i+2]);
+		}
+		cv::Mat mat(3,3,CV_32F,data);
+		m_homos[h] = (mat.clone());
+	}
+	for(int i=0; i<m_homos.size(); i++)
+	{
+		std::cout<<i<<"\n"<<m_homos[i]<<std::endl;
+
+	}
+}
+	//计算运动补偿后的位置
+void BGSSubsenseM::WarpPt(const cv::Point2i& src, cv::Point2i& dst)
+{
+	int blockX = src.x / m_quadWidth;
+	if (blockX > 7)
+		blockX = 7;
+	int blockY = src.y / m_quadHeight;
+	if (blockY > 7)
+		blockY = 7;
+	int homoIdx = blockX + blockY*8;
+	cv::Mat h = m_homos[homoIdx];
+	
+	float* ptr = (float*)h.data;
+	float fx,fy,fw;
+	fx = src.x*ptr[0] + src.y *ptr[1] + ptr[2];
+	fy = src.x*ptr[3] + src.y *ptr[4] + ptr[5];
+	fw = src.x*ptr[6] + src.y *ptr[7] + ptr[8];
+	fx /=fw;
+	fy/=fw;
+	dst.x = (int)(fx+0.5);
+	dst.y = (int)(fy+0.5);
+}

@@ -163,6 +163,11 @@ public:
 	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
 	//边缘点匹配
 	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);
+
+	//估算分块单应性矩阵
+	void EstimateHomos();
+	//计算运动补偿后的位置
+	void WarpPt(const cv::Point2i& src, cv::Point2i& dst);
 protected:
 	//! points used to compute the homography matrix between two continuous frames
 	std::vector<cv::Point2f> m_points[2];
@@ -221,4 +226,9 @@ protected:
 	cv::Mat m_dx,m_dy;
 	cv::Mat m_preDx, m_preDy;
 	std::ofstream m_ofstream;
+
+	//
+	size_t m_quadWidth;
+	size_t m_quadHeight;
+	std::vector<cv::Mat> m_homos;
 };
