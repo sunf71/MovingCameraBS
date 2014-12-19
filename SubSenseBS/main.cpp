@@ -11,12 +11,12 @@ int main()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start =1;
-	int end = 2;
+	int start =7;
+	int end = 10;
 	char name[50];
 	for(int i=start; i<=end;i++)
 	{		
-		sprintf(name,"..\\moseg\\people1\\warp\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input0\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}

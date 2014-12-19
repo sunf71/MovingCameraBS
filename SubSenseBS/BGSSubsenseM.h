@@ -158,6 +158,7 @@ public:
 	}
 	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
 	void cloneModels();
+	void SwapModels();
 	//局部搜索，在前一帧图像中某个位置(wx,wy)邻域内，搜索一个与目标最接近的像素（梯度和颜色）
 	void LocalSearch(const cv::Mat& img, const int x, const int y,  int& wx,  int& wy, const int s = 2);
 	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
@@ -168,6 +169,9 @@ public:
 	void EstimateHomos();
 	//计算运动补偿后的位置
 	void WarpPt(const cv::Point2i& src, cv::Point2i& dst);
+	void WarpModels();
+	void WarpImage(const cv::Mat img, cv::Mat& warpedImg);
+	void WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride);
 protected:
 	//! points used to compute the homography matrix between two continuous frames
 	std::vector<cv::Point2f> m_points[2];
@@ -178,7 +182,7 @@ protected:
 	std::vector<uchar> m_status; // status of tracked features
 	std::vector<float> m_err;    // error in tracking
 	cv::Mat m_homography; // 
-
+	cv::Mat m_invHomography;
 	std::vector<cv::Mat*> m_modelsPtr;
 	std::vector<cv::KeyPoint> m_voTKeyPoints;// transformed keypoints
 	cv::Mat m_warpMask;
@@ -212,6 +216,10 @@ protected:
 	cv::Mat m_oLastStructFrame;
 	std::vector<cv::Mat> m_voBGStructSamples;
 	std::vector<cv::Mat> w_voBGStructSamples;
+	//! copy of previously used pixel intensities used to calculate 'D_last(x)'
+	cv::Mat w_oLastColorFrame;
+	//! copy of previously used descriptors used to calculate 'D_last(x)'
+	cv::Mat w_oLastDescFrame;
 	//std::vector<cv::Mat> w_voBGColorSamples;
 	//std::vector<cv::Mat> w_voBGDescSamples;
 
@@ -231,4 +239,6 @@ protected:
 	size_t m_quadWidth;
 	size_t m_quadHeight;
 	std::vector<cv::Mat> m_homos;
+	
+	cv::Mat m_warpedImg;
 };
