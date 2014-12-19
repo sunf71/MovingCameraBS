@@ -52,10 +52,7 @@ static const size_t s_nColorMaxDataRange_1ch = UCHAR_MAX;
 static const size_t s_nDescMaxDataRange_1ch = LBSP::DESC_SIZE*8;
 static const size_t s_nColorMaxDataRange_3ch = s_nColorMaxDataRange_1ch*3;
 static const size_t s_nDescMaxDataRange_3ch = s_nDescMaxDataRange_1ch*3;
-void BGSSubsenseM::WarpModels()
-{
 
-}
 void BGSSubsenseM::cloneModels()
 {
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
@@ -109,25 +106,26 @@ void BGSSubsenseM::WarpModels()
 	cv::swap(m_oMeanMinDistFrame_ST,w_oMeanMinDistFrame_ST);
 	
 	//! per-pixel mean downsampled distances between consecutive frames (used to analyze camera movement and control max learning rates globally)
-	w_oMeanDownSampledLastDistFrame_LT = m_oMeanDownSampledLastDistFrame_LT.clone();
-	w_oMeanDownSampledLastDistFrame_ST = m_oMeanDownSampledLastDistFrame_ST.clone();
+	cv::swap(w_oMeanDownSampledLastDistFrame_LT, m_oMeanDownSampledLastDistFrame_LT);
+	cv::swap(w_oMeanDownSampledLastDistFrame_ST,m_oMeanDownSampledLastDistFrame_ST);
 	//! per-pixel mean raw segmentation results
-	w_oMeanRawSegmResFrame_LT = m_oMeanRawSegmResFrame_LT.clone();
-	w_oMeanRawSegmResFrame_ST = m_oMeanRawSegmResFrame_ST.clone();
+	cv::swap(w_oMeanRawSegmResFrame_LT, m_oMeanRawSegmResFrame_LT);
+	cv::swap(w_oMeanRawSegmResFrame_ST, m_oMeanRawSegmResFrame_ST);
+	
 	//! per-pixel mean final segmentation results
-	w_oMeanFinalSegmResFrame_LT = m_oMeanFinalSegmResFrame_LT.clone();
-	w_oMeanFinalSegmResFrame_ST = m_oMeanFinalSegmResFrame_ST.clone();
-	//! a lookup map used to keep track of unstable regions (based on segm. noise & local dist. thresholds)
-	w_oUnstableRegionMask = m_oUnstableRegionMask.clone();
-	//! per-pixel blink detection results ('Z(x)')
-	w_oBlinksFrame = m_oBlinksFrame.clone();
+	cv::swap(w_oMeanFinalSegmResFrame_LT,m_oMeanFinalSegmResFrame_LT);
+	cv::swap(w_oMeanFinalSegmResFrame_ST,m_oMeanFinalSegmResFrame_ST);
 
-	for( int i=0; i<m_nBGSamples; i++)
-	{
-		w_voBGColorSamples[i] = m_voBGColorSamples[i].clone();
-		w_voBGDescSamples[i] = m_voBGDescSamples[i].clone();
-		w_voBGStructSamples[i] = m_voBGStructSamples[i].clone();
-	}
+	//! a lookup map used to keep track of unstable regions (based on segm. noise & local dist. thresholds)
+	cv::swap(w_oUnstableRegionMask,m_oUnstableRegionMask);
+	//! per-pixel blink detection results ('Z(x)')
+	cv::swap(w_oBlinksFrame,m_oBlinksFrame);
+	cv::swap(m_oLastColorFrame,w_oLastColorFrame);
+	cv::swap(m_oLastDescFrame,w_oLastDescFrame);
+	std::swap(w_voBGColorSamples,m_voBGColorSamples);
+	std::swap(w_voBGDescSamples,m_voBGDescSamples);
+	
+	
 }
 void BGSSubsenseM::WarpImage(const cv::Mat img, cv::Mat& warpedImg)
 {
@@ -609,11 +607,11 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 
 	/*std::cout<<"ransac single homo\n";
 	std::cout<<homography<<std::endl;*/
-	for(int i=0; i<inliers.size(); i++)
+	/*for(int i=0; i<inliers.size(); i++)
 	{
 		if (inliers[i] == 1)
 			m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] =0xff;
-	}
+	}*/
 	//cv::Mat affine = cv::estimateRigidTransform(m_points[0],m_points[1],true);//std::cout<<affine<<std::endl;
 	//double theta = atan(affine.at<double>(1,0)/affine.at<double>(1,1))/M_PI*180;
 	////m_gray.copyTo(m_features);
@@ -774,6 +772,9 @@ void BGSSubsenseM::LocalSearch(const cv::Mat& img, const int x, const int y,  in
 }
 void BGSSubsenseM::WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride)
 {
+	char filename[30];
+	sprintf(filename,"lastColor%d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,m_oLastColorFrame);
 	cv::Mat oInputImg;
 	getHomography(_image.getMat(),m_homography);
 	m_invHomography = m_homography.inv();
@@ -865,6 +866,8 @@ void BGSSubsenseM::WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgm
 
 			ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
 			uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
+			ushort* wanLastIntraDesc = ((ushort*)(w_oLastDescFrame.data+widx_ushrt_rgb));
+			uchar* wanLastColor = w_oLastColorFrame.data+widx_uchar_rgb;
 			
 			const size_t nCurrColorDistThreshold = (size_t)(((*pfCurrDistThresholdFactor)*m_nMinColorDistThreshold)-((!m_oUnstableRegionMask.data[idx_uchar])*STAB_COLOR_DIST_OFFSET));
 			const size_t nCurrDescDistThreshold = ((size_t)1<<((size_t)floor(*pfCurrDistThresholdFactor+0.5f)))+m_nDescDistThreshold+(m_oUnstableRegionMask.data[idx_uchar]*UNSTAB_DESC_DIST_OFFSET);
@@ -987,8 +990,8 @@ failedcheck3ch:
 			if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
 				++nNonZeroDescCount;
 			for(size_t c=0; c<3; ++c) {
-				anLastIntraDesc[c] = anCurrIntraDesc[c];
-				anLastColor[c] = anCurrColor[c];
+				wanLastIntraDesc[c] = anCurrIntraDesc[c];
+				wanLastColor[c] = anCurrColor[c];
 			}
 			*wpfCurrDistThresholdFactor =  *pfCurrDistThresholdFactor;
 			*wpfCurrVariationFactor = *pfCurrVariationFactor;
@@ -1021,7 +1024,7 @@ failedcheck3ch:
 	cv::bitwise_or(m_oRawFGBlinkMask_curr,m_oRawFGBlinkMask_last,m_oBlinksFrame);
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	/*cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
 	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
 	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
@@ -1033,7 +1036,7 @@ failedcheck3ch:
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	m_oFGMask_last.copyTo(oCurrFGMask);
+	m_oFGMask_last.copyTo(oCurrFGMask);*/
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
 	const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nKeyPoints;
@@ -1093,7 +1096,7 @@ failedcheck3ch:
 		if(m_nModelResetCooldown>0)
 			--m_nModelResetCooldown;
 	}
-	//WarpModels();
+	WarpModels();
 }
 
 //! primary model update function; the learning param is used to override the internal learning thresholds (ignored when <= 0)
