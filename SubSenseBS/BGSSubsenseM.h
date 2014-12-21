@@ -28,6 +28,7 @@ public:
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
 	//! refreshes all samples based on the last analyzed frame
 	virtual void refreshModel(float fSamplesRefreshFrac);
+	virtual void refreshModel(const cv::Mat& mask, float fSamplesRefreshFrac);
 	//! refreshes all samples in edge eara
 	virtual void refreshEdgeModel(float fSamplesRefreshFrac);
 	//reset parameters
