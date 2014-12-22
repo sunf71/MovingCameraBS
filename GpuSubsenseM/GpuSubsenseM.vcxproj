@@ -175,6 +175,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="RandUtils.h" />
     <ClInclude Include="SLIC.h" />
     <ClInclude Include="SubSenseBSProcessor.h" />
+    <ClInclude Include="Test.h" />
     <ClInclude Include="timer.h" />
     <ClInclude Include="videoprocessor.h" />
   </ItemGroup>
@@ -192,6 +193,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="MRFOptimize.cpp" />
     <ClCompile Include="PictureHandler.cpp" />
     <ClCompile Include="SLIC.cpp" />
+    <ClCompile Include="Test.cpp" />
     <ClCompile Include="timer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

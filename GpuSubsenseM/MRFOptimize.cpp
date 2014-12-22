@@ -1170,6 +1170,46 @@ void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv
 #endif
 
 }
+void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg,const cv::Mat& lastMaskImg, const cv::Mat& flow, const cv::Mat& homography,cv::Mat& resultImg)
+{
+	//superpixel		
+	cv::Mat FImg(origImg.size(), CV_8UC4, m_imgData);
+	cv::Mat continuousRGBA(origImg.size(), CV_8UC4, m_idata);
+	cv::cvtColor(origImg,continuousRGBA,CV_BGR2BGRA);
+	continuousRGBA.convertTo(FImg,CV_8UC4);
+
+	int numlabels(0);
+	GS->Superpixel(m_imgData,numlabels,m_labels,m_centers);
+
+	uchar* lastMaskPtr = lastMaskImg.data;
+	cv::Mat lMask = cv::Mat(m_height,m_width,CV_8U);
+	lMask = cv::Scalar(0);
+	//mask from last mask
+	for(int i=0; i< m_width; i++)
+	{
+		for(int j=0; j<m_height; j++)
+		{
+			int idx = i + j*m_width;
+			int idx_flt32 = idx*4*2;
+			if (lastMaskPtr[idx] == 0xff)
+			{
+				float* flowPtr = (float*)(flow.data+ idx_flt32);
+				float dx = flowPtr[0];
+				float dy = flowPtr[1];
+				int wx = (i-dx);
+				int wy = (j-dy);
+				wx =  wx <0 ? 0 :wx;
+				wx = wx > m_width-1 ? m_width-1 : wx;
+				wy = wy<0 ? 0 : wy;
+				wy = wy > m_height-1 ? m_height-1 : wy;
+				int tid = wx + wy*m_width;
+				lMask.data[tid] = 0xff;
+			}
+		}
+	}
+	resultImg = lMask.clone();
+	GetSuperpixels(mask,lMask,flow,homography);
+}
 void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, cv::Mat& featureMaskImg, float* distance,cv::Mat& resultImg)
 {
 	#ifdef REPORT
@@ -1692,7 +1732,50 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask)
 	/*ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
 	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);*/
 }
+void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMask, const cv::Mat& flow, const cv::Mat& homography)
+{
+	int size = m_width*m_height;
+	float avgDis =0 ;
+	for(int i=0; i<m_nPixel; i++)
+	{		
+		int k = m_centers[i].xy.x;
+		int j = m_centers[i].xy.y;
+		if (m_centers[i].nPoints ==0)			
+		{
+			m_spPtr[i].ps = 0;
+			m_spPtr[i].avgColor = 0;
+			m_spPtr[i].idx = i;
+			m_spPtr[i].lable = i;
+			m_spPtr[i].distance = 0;
+		}
+		else
+		{
+			m_spPtr[i].avgColor = (m_centers[i].rgb.x+m_centers[i].rgb.y + m_centers[i].rgb.z)/3;
+			m_spPtr[i].idx = i;
+			m_spPtr[i].lable = i;
 
+			float n = 0;			
+			
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = m_step;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					//std::cout<<idx<<std::endl;
+					if (m_labels[idx] == i )
+					{		
+						n++;
+					}					
+				}
+			}
+			m_spPtr[i].ps  = n/m_centers[i].nPoints;
+		}
+	}
+}
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask)
 {
 	

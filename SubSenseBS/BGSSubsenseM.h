@@ -158,6 +158,8 @@ public:
 		//cv::imwrite(filename,gradMat);
 	}
 	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
+	//更新模型
+	void UpdateModel(const cv::Mat& curImg, const cv::Mat& curMask);
 	void cloneModels();
 	void SwapModels();
 	//局部搜索，在前一帧图像中某个位置(wx,wy)邻域内，搜索一个与目标最接近的像素（梯度和颜色）

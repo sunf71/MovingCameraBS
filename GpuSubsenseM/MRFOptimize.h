@@ -66,13 +66,16 @@ public:
 	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, float* distance, cv::Mat& resultImg);
 	void Optimize(const cv::Mat& maskImg, const  cv::Mat& featureImg, cv::Mat& resultImg);
+	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg,const cv::Mat& lastMaskImg, const cv::Mat& flow, const cv::Mat& homography,cv::Mat& resultImg);
 	void ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba);
 	//mask:前景
 	void GetSuperpixels(const unsigned char* mask);
 	//mask:前景， features：特征点跟踪情况的mask
 	void GetSuperpixels(const unsigned char* fgMask, const unsigned char* featuresMask);
 	//mask:前景， features：特征点跟踪情况的mask, distance: homography*pt - klttracted Position
-	void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask,const float* distanceMask);
+	void GetSuperpixels(const unsigned char* mask, const uchar* featureMask,const float* distanceMask);
+	//mask 前景，lastmask: 前一帧的前景， flow:光流， homography:单应性矩阵
+	void GetSuperpixels(const unsigned char* mask, const uchar* lastMask, const cv::Mat& flow, const cv::Mat& homography);
 	void GetSuperpixelResult(int& nPixels,int*& labels, SLICClusterCenter*& centers, float& avgE)
 	{
 		labels = m_labels;
