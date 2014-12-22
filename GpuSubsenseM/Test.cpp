@@ -371,8 +371,16 @@ void SFDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& p
 void FarnebackDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
 {
 	cv::Mat img0,img1;
-	cv::cvtColor(curImg,img0,CV_BGR2GRAY);
-	cv::cvtColor(prevImg,img1,CV_BGR2GRAY);
+	if (curImg.channels() == 3)
+	{
+		cv::cvtColor(curImg,img0,CV_BGR2GRAY);
+		cv::cvtColor(prevImg,img1,CV_BGR2GRAY);
+	}
+	else
+	{
+		img0 = curImg;
+		img1 = prevImg;
+	}
 	//cv::calcOpticalFlowSF(img0,img1,flow,3,2,15);
 	cv::calcOpticalFlowFarneback(img0,img1,flow,0.5, 3, 15, 3, 5, 1.2, 0);
 	//cv::Mat flowField;
@@ -381,9 +389,53 @@ void FarnebackDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv:
 	//getFlowField(flows[0],flows[1],flowField);
 	//cv::imwrite("flow_Farnback.jpg",flowField);
 }
-void GetHomography(const cv::Mat& curImg,const cv::Mat& preImg, cv::Mat& homography)
+void GetHomography(const cv::Mat& gray,const cv::Mat& pre_gray, cv::Mat& homography)
 {
+	int max_count = 50000;	  // maximum number of features to detect
+	double qlevel = 0.05;    // quality level for feature detection
+	double minDist = 2;   // minimum distance between two feature points
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	std::vector<cv::Point2f> features1,features2;
+	// detect the features
+	cv::goodFeaturesToTrack(gray, // the image 
+		features1,   // the output detected features
+		max_count,  // the maximum number of features 
+		qlevel,     // quality level
+		minDist);   // min distance between two features
 
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(gray, pre_gray, // 2 consecutive images
+		features1, // input point position in first image
+		features2, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+
+	int k=0;
+
+	for( int i= 0; i < features1.size(); i++ ) 
+	{
+
+		// do we keep this point?
+		if (status[i] == 1) 
+		{
+
+			//m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
+			// keep this point in vector
+			features1[k] = features1[i];
+			features2[k++] = features2[i];
+		}
+	}
+	features1.resize(k);
+	features2.resize(k);
+
+	std::vector<uchar> inliers(features1.size());
+	homography= cv::findHomography(
+		cv::Mat(features1), // corresponding
+		cv::Mat(features2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
 }
 void TCMRFOptimization()
 {
@@ -401,7 +453,8 @@ void TCMRFOptimization()
 	int end = 8;
 	std::vector<cv::Mat> imgs;
 	std::vector<cv::Mat> masks;
-	cv::Mat curImg,prevImg,mask,prevMask,resultImg;
+	cv::Mat curImg,prevImg,mask,prevMask,resultImg,gray,preGray;
+
 	cv::Mat flow;
 	//DenseOpticalFlowProvier* DOFP = new GpuDenseOptialFlow();
 	//DenseOpticalFlowProvier* DOFP = new SFDenseOptialFlow();
@@ -411,7 +464,7 @@ void TCMRFOptimization()
 		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);		
 		curImg = cv::imread(imgFileName);
 		imgs.push_back(curImg.clone());
-		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input0\\o\\bin%06d.png",i);
+		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input0\\bin%06d.png",i);
 		curImg = cv::imread(maskFileName);
 		cv::cvtColor(curImg,curImg,CV_BGR2GRAY);
 		masks.push_back(curImg.clone());		
@@ -421,12 +474,12 @@ void TCMRFOptimization()
 		curImg = imgs[i];
 		prevImg = imgs[i-1];
 		prevMask = masks[i-1];
-		cv::cvtColor(curImg,curImg,CV_BGR2GRAY);
-		cv::cvtColor(prevImg,prevImg,CV_BGR2GRAY);
+		cv::cvtColor(curImg,gray,CV_BGR2GRAY);
+		cv::cvtColor(prevImg,preGray,CV_BGR2GRAY);
 		mask = masks[i];
 		cv::Mat homography;
-		GetHomography(curImg,prevImg,homography);
-		DOFP->DenseOpticalFlow(curImg,prevImg,flow);
+		GetHomography(gray,preGray,homography);
+		DOFP->DenseOpticalFlow(gray,preGray,flow);
 		optimizer.Optimize(&gs,curImg,mask,prevMask,flow,homography,resultImg);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
 		cv::imwrite(resultFileName,resultImg);
