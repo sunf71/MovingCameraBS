@@ -1181,9 +1181,13 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 	int numlabels(0);
 	GS->Superpixel(m_imgData,numlabels,m_labels,m_centers);
 
-	uchar* lastMaskPtr = lastMaskImg.data;
 	cv::Mat lMask = cv::Mat(m_height,m_width,CV_8U);
 	lMask = cv::Scalar(0);
+	const uchar* maskPtr = maskImg.data;
+	const uchar* prevMaskPtr = lMask.data;
+	uchar* lastMaskPtr = lastMaskImg.data;
+	
+	
 	//mask from last mask
 	for(int i=0; i< m_width; i++)
 	{
@@ -1193,11 +1197,14 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			int idx_flt32 = idx*4*2;
 			if (lastMaskPtr[idx] == 0xff)
 			{
+				
+			
 				float* flowPtr = (float*)(flow.data+ idx_flt32);
 				float dx = flowPtr[0];
 				float dy = flowPtr[1];
-				int wx = (i-dx);
-				int wy = (j-dy);
+				//std::cout<<dx<<" , "<<dy<<std::endl;
+				int wx = (i+dx);
+				int wy = (j+dy);
 				wx =  wx <0 ? 0 :wx;
 				wx = wx > m_width-1 ? m_width-1 : wx;
 				wy = wy<0 ? 0 : wy;
@@ -1207,9 +1214,10 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			}
 		}
 	}
+	resultImg = lMask;
 	
-	const uchar* maskPtr = maskImg.data;
-	const uchar* prevMaskPtr = lMask.data;
+	
+	
 	GetSuperpixels(maskPtr,prevMaskPtr,flow,homography);
 	
 	float avgE = 0;
@@ -1806,6 +1814,8 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMas
 {
 	int size = m_width*m_height;
 	float avgDis =0 ;
+	double* data = (double*)homography.data;
+	float* flowPtr = (float*)flow.data;
 	for(int i=0; i<m_nPixel; i++)
 	{		
 		int k = m_centers[i].xy.x;
@@ -1835,10 +1845,25 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMas
 					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
 						continue;
 					int idx = x+y*m_width;
+					int flowIdx = idx*8;
 					//std::cout<<idx<<std::endl;
 					if (m_labels[idx] == i )
 					{		
-						n++;
+						if ( mask[idx] == 0xff /*|| lastMask[idx] == 0xf*/)
+						{
+							float wx = data[0]*x + data[1]*y + data[2];
+							float wy = data[3]*x + data[4]*y + data[5];
+							float w = data[6]*x + data[7]*y + data[8];
+							wx /= w;
+							wy /= w;
+							float fx = flowPtr[0] + x;
+							float fy = flowPtr[1] + y;
+							std::cout<<x<<", "<<y<<" fx "<<fx<<" , fy "<<fy<<" wx "<<wx<<" , "<<wy<<std::endl;
+							float d = abs(wx-fx) + abs(wy - fy);
+							if ( d > 0.6)
+								n++;
+						}
+							
 					}					
 				}
 			}

@@ -45,3 +45,8 @@ class FarnebackDenseOptialFlow:public DenseOpticalFlowProvier
 public:
 	virtual 	void  DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow);
 };
+class EPPMDenseOptialFlow:public DenseOpticalFlowProvier
+{
+public:
+	virtual 	void  DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow);
+};

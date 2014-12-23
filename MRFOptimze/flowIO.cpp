@@ -116,44 +116,44 @@ void ReadFlowFile(cv::Mat& img, const char* filename)
 }
 
 // write a 2-band image into flow file 
-//void WriteFlowFile(cv::Mat& img , const char* filename)
-//{
-//    if (filename == NULL)
-//	std::cout<<("WriteFlowFile: empty filename");
-//
-//    const char *dot = strrchr(filename, '.');
-//    if (dot == NULL)
-//	std::cout<<("WriteFlowFile: extension required in filename '%s'", filename);
-//
-//    if (strcmp(dot, ".flo") != 0)
-//	std::cout<<("WriteFlowFile: filename '%s' should have extension '.flo'", filename);
-//
-//    CShape sh = img.Shape();
-//    int width = sh.width, height = sh.height, nBands = sh.nBands;
-//
-//    if (nBands != 2)
-//	std::cout<<("WriteFlowFile(%s): image must have 2 bands", filename);
-//
-//    FILE *stream = fopen(filename, "wb");
-//    if (stream == 0)
-//        std::cout<<("WriteFlowFile: could not open %s", filename);
-//
-//    // write the header
-//    fprintf(stream, TAG_STRING);
-//    if ((int)fwrite(&width,  sizeof(int),   1, stream) != 1 ||
-//	(int)fwrite(&height, sizeof(int),   1, stream) != 1)
-//	std::cout<<("WriteFlowFile(%s): problem writing header", filename);
-//
-//    // write the rows
-//    int n = nBands * width;
-//    for (int y = 0; y < height; y++) {
-//	float* ptr = &img.Pixel(0, y, 0);
-//	if ((int)fwrite(ptr, sizeof(float), n, stream) != n)
-//	    std::cout<<("WriteFlowFile(%s): problem writing data", filename); 
-//   }
-//
-//    fclose(stream);
-//}
+void WriteFlowFile(cv::Mat& img , const char* filename)
+{
+    if (filename == NULL)
+	std::cout<<("WriteFlowFile: empty filename");
+
+    const char *dot = strrchr(filename, '.');
+    if (dot == NULL)
+	std::cout<<("WriteFlowFile: extension required in filename '%s'", filename);
+
+    if (strcmp(dot, ".flo") != 0)
+	std::cout<<("WriteFlowFile: filename '%s' should have extension '.flo'", filename);
+
+   
+	int width = img.cols, height = img.rows, nBands = img.channels();
+
+    if (nBands != 2)
+	std::cout<<("WriteFlowFile(%s): image must have 2 bands", filename);
+
+    FILE *stream = fopen(filename, "wb");
+    if (stream == 0)
+        std::cout<<("WriteFlowFile: could not open %s", filename);
+
+    // write the header
+    fprintf(stream, TAG_STRING);
+    if ((int)fwrite(&width,  sizeof(int),   1, stream) != 1 ||
+	(int)fwrite(&height, sizeof(int),   1, stream) != 1)
+	std::cout<<("WriteFlowFile(%s): problem writing header", filename);
+
+    // write the rows
+    int n = nBands * width;
+    for (int y = 0; y < height; y++) {
+		float* ptr = img.ptr<float>(y);
+	if ((int)fwrite(ptr, sizeof(float), n, stream) != n)
+	    std::cout<<("WriteFlowFile(%s): problem writing data", filename); 
+   }
+
+    fclose(stream);
+}
 
 
 /*

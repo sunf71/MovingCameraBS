@@ -351,7 +351,7 @@ void OpticalFlowTest(const char* preImgName, const char* currImgName, const char
 {
 	cv::Mat flowImg;
 	ReadFlowFile(flowImg,floImgName);
-	
+	WriteFlowFile(flowImg,"flow.flo");
 	cv::Mat img1,img2;
 	img1 = cv::imread(preImgName);
 	cv::cvtColor(img1,img1,CV_BGR2GRAY);
@@ -404,8 +404,8 @@ void OpticalFlowTest(const char* preImgName, const char* currImgName, const char
 }
 int main()
 {
-	/*OpticalFlowTest("in000289.jpg","in000290.jpg","in000289_mdpof.flo",0.8);
-	return 0;*/
+	OpticalFlowTest("..\\ptz\\input0\\in000087.jpg","..\\ptz\\input0\\in000088.jpg","ptz0_87.flo",0.8);
+	return 0;
 	/*testGCO();*/
 	/*testSuperpixel();*/
 	//testHomo();

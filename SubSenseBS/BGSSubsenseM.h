@@ -100,37 +100,38 @@ public:
 			distance += d;
 			if (d < threshold)
 			{
+				
 				const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
 				const size_t idx_flt32 = idx_char*4;
-			
-				float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
-
-				float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
-				//std::cout<<*pfCurrDistThresholdFactor<<std::endl;
-				*pfCurrDistThresholdFactor += 0.1;
-				/*ptr[idx_char] = 128;*/
 				mCurr.data[idx_char] = 0x0;
-				m_features.data[idx_char]=100;
-				if (m_nImgChannels == 3)
-				{
-					const size_t idx_ushrt_rgb = idx_char*2*3;
-					const size_t idx_uchar_rgb = idx_char*3;
-					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
-					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
-					//update model
-					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,anLastIntraDesc,anLastColor);
-					
-				}
-				else
-				{
-					const size_t idx_ushrt = idx_char*2;
-					const size_t idx_uchar = idx_char;
-					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
-					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar;
-					//update model
-					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,anLastIntraDesc,anLastColor);
+				//float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
 
-				}
+				//float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
+				////std::cout<<*pfCurrDistThresholdFactor<<std::endl;
+				//*pfCurrDistThresholdFactor += 0.1;
+				///*ptr[idx_char] = 128;*/
+				//
+				//m_features.data[idx_char]=100;
+				//if (m_nImgChannels == 3)
+				//{
+				//	const size_t idx_ushrt_rgb = idx_char*2*3;
+				//	const size_t idx_uchar_rgb = idx_char*3;
+				//	const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
+				//	uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
+				//	//update model
+				//	UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,anLastIntraDesc,anLastColor);
+				//	
+				//}
+				//else
+				//{
+				//	const size_t idx_ushrt = idx_char*2;
+				//	const size_t idx_uchar = idx_char;
+				//	const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
+				//	uchar* anLastColor = m_oLastColorFrame.data+idx_uchar;
+				//	//update model
+				//	UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,anLastIntraDesc,anLastColor);
+
+				//}
 			}
 			/*else
 			{

@@ -1,4 +1,5 @@
 #include "Test.h"
+#include "flowIO.h"
 void testCudaGpu()
 {
 	try
@@ -337,11 +338,18 @@ static void getFlowField(const Mat& u, const Mat& v, Mat& flowField)
 }
 void GpuDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
 {
+	cv::Mat gray1, gray2;
+	if (curImg.channels() == 3)
+		cv::cvtColor(curImg,gray1,CV_BGR2GRAY);
+	else
+		gray1 = curImg.clone();
+	if (prevImg.channels() ==3)
+		cv::cvtColor(prevImg,gray2,CV_BGR2GRAY);
+	else
+		gray2 = prevImg.clone();
+	cv::gpu::GpuMat dCurImg(gray1);
+	cv::gpu::GpuMat dPrevImg(gray2);
 	
-	cv::gpu::GpuMat dCurImg(curImg);
-	cv::gpu::GpuMat dPrevImg(prevImg);
-	cv::gpu::cvtColor(dCurImg,dCurImg,CV_BGR2GRAY);
-	cv::gpu::cvtColor(dPrevImg,dPrevImg,CV_BGR2GRAY);
 	cv::gpu::GpuMat du,dv;
 	cv::gpu::PyrLKOpticalFlow dPyrLK;
 
@@ -350,10 +358,10 @@ void GpuDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& 
 	std::vector<cv::Mat> flows(2);
 	du.download(flows[0]);
 	dv.download(flows[1]);
-	cv::Mat flowField;
+	/*cv::Mat flowField;
 	getFlowField(flows[0],flows[1],flowField);
 	cv::imwrite("flow.jpg",flowField);
-	
+	*/
 	cv::merge(flows,flow);
 }
 void SFDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
@@ -381,13 +389,31 @@ void FarnebackDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv:
 		img0 = curImg;
 		img1 = prevImg;
 	}
-	//cv::calcOpticalFlowSF(img0,img1,flow,3,2,15);
-	cv::calcOpticalFlowFarneback(img0,img1,flow,0.5, 3, 15, 3, 5, 1.2, 0);
-	//cv::Mat flowField;
-	//cv::Mat flows[2];
-	//cv::split(flow,flows);
-	//getFlowField(flows[0],flows[1],flowField);
-	//cv::imwrite("flow_Farnback.jpg",flowField);
+	//cv::calcOpticalFlowSF(img0,img1,flow,3,2,55);
+	cv::calcOpticalFlowFarneback(img0,img1,flow,0.5, 5, 5, 5, 5, 1.2, 0);
+	/*cv::Mat flowField;
+	cv::Mat flows[2];
+	cv::split(flow,flows);
+	getFlowField(flows[0],flows[1],flowField);
+	cv::imwrite("flow_Farnback.jpg",flowField);*/
+}
+void EPPMDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
+{
+	cv::Mat img0,img1;
+	if (curImg.channels() == 3)
+	{
+		cv::cvtColor(curImg,img0,CV_BGR2GRAY);
+		cv::cvtColor(prevImg,img1,CV_BGR2GRAY);
+	}
+	else
+	{
+		img0 = curImg;
+		img1 = prevImg;
+	}
+	cv::imwrite("img0.png",img0);
+	cv::imwrite("img1.png",img1);
+	std::system(" EPPM_flow.exe  img0.png img1.png flow.flo flow.png ");
+	ReadFlowFile(flow,"flow.flo");
 }
 void GetHomography(const cv::Mat& gray,const cv::Mat& pre_gray, cv::Mat& homography)
 {
@@ -437,20 +463,85 @@ void GetHomography(const cv::Mat& gray,const cv::Mat& pre_gray, cv::Mat& homogra
 		CV_RANSAC, // RANSAC method
 		0.1); // max distance to reprojection point
 }
+void TestFlow()
+{
+	DenseOpticalFlowProvier* DOFP = new GpuDenseOptialFlow();
+	cv::Mat preImg = cv::imread("..//ptz//input0//in000289.jpg");
+	cv::Mat curImg = cv::imread("..//ptz//input0//in000290.jpg");
+	cv::cvtColor(preImg,preImg,CV_BGR2GRAY);
+	cv::cvtColor(curImg,curImg,CV_BGR2GRAY);
+	cv::Mat preMsk = cv::imread("..//result//subsensem//ptz//input0//bin000289.png");
+	cv::Mat curMsk = cv::imread("..//result//subsensem//ptz//input0//bin000290.png");
+	cv::cvtColor(preMsk,preMsk,CV_BGR2GRAY);
+	cv::cvtColor(curMsk,curMsk,CV_BGR2GRAY);
+	
+	cv::Mat homography;
+	GetHomography(curImg,preImg,homography);
+	std::vector<cv::Point2f> curPts,prevPts;
+	int width = curImg.cols;
+	int height = curImg.rows;
+	for(int i=0; i<width; i++)
+	{
+		for(int j=0; j<height; j++)
+		{
+			int idx = i+j*width;
+			if (curMsk.data[idx] == 0xff)
+				curPts.push_back(cv::Point2f(i,j));
+		}
+	}
+	std::vector<uchar> status; // status of tracked features
+	std::vector<float> err;    // error in tracking
+	// 2. track features
+	cv::calcOpticalFlowPyrLK(curImg, preImg, // 2 consecutive images
+		curPts, // input point position in first image
+		prevPts, // output point postion in the second image
+		status,    // tracking success
+		err);      // tracking error
+	cv::Mat mask(height,width,CV_8U);
+	mask = cv::Scalar(0);
+	double* data = (double*)homography.data;
+	for(int i=0; i<status.size(); i++)
+	{
+		if (status[i] == 1)
+		{
+			int x = (int)(curPts[i].x);
+			int y = (int)(curPts[i].y);
+			float wx = data[0]*x + data[1]*y + data[2];
+			float wy = data[3]*x + data[4]*y + data[5];
+			float w = data[6]*x + data[7]*y + data[8];
+			wx /= w;
+			wy /= w;
+			int px = (int)(prevPts[i].x);
+			int py = (int)(prevPts[i].y);
+			int idx = py*width + px;
+			if (abs(px-wx) + abs(py-wy) < 0.6)
+				mask.data[idx] = preImg.data[idx];
+		}
+
+	}
+	cv::imwrite("tracked.jpg",mask);
+}
+void TestKLT()
+{
+	cv::Mat preImg = cv::imread("..//ptz//input0//in000087.jpg");
+	cv::Mat curImg = cv::imread("..//ptz//input0//in000088.jpg");
+}
 void TCMRFOptimization()
 {
+	TestFlow();
+	return;
 	using namespace std;
 	char imgFileName[150];
 	char maskFileName[150];
 	char resultFileName[150];
-	int cols = 704;
-	int rows = 480;
+	int cols = 320;
+	int rows = 240;
 	GpuSuperpixel gs(cols,rows,5);
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 7;
-	int end = 8;
+	int start = 289;
+	int end = 290;
 	std::vector<cv::Mat> imgs;
 	std::vector<cv::Mat> masks;
 	cv::Mat curImg,prevImg,mask,prevMask,resultImg,gray,preGray;
@@ -458,13 +549,13 @@ void TCMRFOptimization()
 	cv::Mat flow;
 	//DenseOpticalFlowProvier* DOFP = new GpuDenseOptialFlow();
 	//DenseOpticalFlowProvier* DOFP = new SFDenseOptialFlow();
-	DenseOpticalFlowProvier* DOFP = new FarnebackDenseOptialFlow();
+	DenseOpticalFlowProvier* DOFP = new EPPMDenseOptialFlow();
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(imgFileName,"..\\ptz\\input0\\in%06d.jpg",i);		
+		sprintf(imgFileName,"..\\ptz\\input3\\in%06d.jpg",i);		
 		curImg = cv::imread(imgFileName);
 		imgs.push_back(curImg.clone());
-		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input0\\bin%06d.png",i);
+		sprintf(maskFileName,"..\\result\\subsensem\\ptz\\input3\\bin%06d.png",i);
 		curImg = cv::imread(maskFileName);
 		cv::cvtColor(curImg,curImg,CV_BGR2GRAY);
 		masks.push_back(curImg.clone());		
@@ -480,6 +571,8 @@ void TCMRFOptimization()
 		cv::Mat homography;
 		GetHomography(gray,preGray,homography);
 		DOFP->DenseOpticalFlow(gray,preGray,flow);
+		//WriteFlowFile(flow,"flow.flo");
+		//ReadFlowFile(flow,"ptz0_87.flo");
 		optimizer.Optimize(&gs,curImg,mask,prevMask,flow,homography,resultImg);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
 		cv::imwrite(resultFileName,resultImg);

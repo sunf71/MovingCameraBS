@@ -124,7 +124,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
 copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
     <CudaCompile>
-      <CodeGeneration>compute_35,sm_35</CodeGeneration>
+      <CodeGeneration>compute_20,sm_20</CodeGeneration>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -161,6 +161,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="CudaSuperpixel.h" />
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="energy.h" />
+    <ClInclude Include="flowIO.h" />
     <ClInclude Include="GCoptimization.h" />
     <ClInclude Include="GpuBackgroundSubtractor.h" />
     <ClInclude Include="GpuSuperpixel.h" />
@@ -181,6 +182,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ComSuperpixel.cpp" />
+    <ClCompile Include="flowIO.cpp" />
     <ClCompile Include="GCoptimization.cpp" />
     <ClCompile Include="GpuBackgroundSubtrator.cpp" />
     <ClCompile Include="GpuSuperpixel.cpp" />

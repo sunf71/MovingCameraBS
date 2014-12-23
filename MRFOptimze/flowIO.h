@@ -16,4 +16,4 @@ bool unknown_flow(float *f);
 void ReadFlowFile(cv::Mat& img, const char* filename);
 
 // write a 2-band image into flow file 
-//void WriteFlowFile(cv::Mat& img, const char* filename)
+void WriteFlowFile(cv::Mat& img, const char* filename);
