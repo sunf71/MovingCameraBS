@@ -466,12 +466,12 @@ void GetHomography(const cv::Mat& gray,const cv::Mat& pre_gray, cv::Mat& homogra
 void TestFlow()
 {
 	DenseOpticalFlowProvier* DOFP = new GpuDenseOptialFlow();
-	cv::Mat preImg = cv::imread("..//ptz//input0//in000289.jpg");
-	cv::Mat curImg = cv::imread("..//ptz//input0//in000290.jpg");
+	cv::Mat preImg = cv::imread("..//ptz//input3//in000289.jpg");
+	cv::Mat curImg = cv::imread("..//ptz//input3//in000290.jpg");
 	cv::cvtColor(preImg,preImg,CV_BGR2GRAY);
 	cv::cvtColor(curImg,curImg,CV_BGR2GRAY);
-	cv::Mat preMsk = cv::imread("..//result//subsensem//ptz//input0//bin000289.png");
-	cv::Mat curMsk = cv::imread("..//result//subsensem//ptz//input0//bin000290.png");
+	cv::Mat preMsk = cv::imread("..//result//subsensem//ptz//input3//bin000289.png");
+	cv::Mat curMsk = cv::imread("..//result//subsensem//ptz//input3//bin000290.png");
 	cv::cvtColor(preMsk,preMsk,CV_BGR2GRAY);
 	cv::cvtColor(curMsk,curMsk,CV_BGR2GRAY);
 	
@@ -497,9 +497,11 @@ void TestFlow()
 		prevPts, // output point postion in the second image
 		status,    // tracking success
 		err);      // tracking error
-	cv::Mat mask(height,width,CV_8U);
+	cv::Mat mask(height,width,CV_32F);
 	mask = cv::Scalar(0);
 	double* data = (double*)homography.data;
+	double maxD(0),minD(1e10);
+
 	for(int i=0; i<status.size(); i++)
 	{
 		if (status[i] == 1)
@@ -514,12 +516,21 @@ void TestFlow()
 			int px = (int)(prevPts[i].x);
 			int py = (int)(prevPts[i].y);
 			int idx = py*width + px;
-			if (abs(px-wx) + abs(py-wy) < 0.6)
-				mask.data[idx] = preImg.data[idx];
+			float d = abs(px-wx) + abs(py-wy);
+			
+			if (d>maxD)
+				maxD = d;
+			if (d<minD)
+				minD = d;
+			float * ptr = (float*)(mask.data + idx*4);
+			*ptr= d;
 		}
 
 	}
-	cv::imwrite("tracked.jpg",mask);
+
+	cv::Mat B;
+	mask.convertTo(B,CV_8U,255.0/(maxD-minD),0);
+	cv::imwrite("tracked.jpg",B);
 }
 void TestKLT()
 {
@@ -528,8 +539,8 @@ void TestKLT()
 }
 void TCMRFOptimization()
 {
-	TestFlow();
-	return;
+	/*TestFlow();
+	return;*/
 	using namespace std;
 	char imgFileName[150];
 	char maskFileName[150];
@@ -574,7 +585,7 @@ void TCMRFOptimization()
 		//WriteFlowFile(flow,"flow.flo");
 		//ReadFlowFile(flow,"ptz0_87.flo");
 		optimizer.Optimize(&gs,curImg,mask,prevMask,flow,homography,resultImg);
-		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
+		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input3\\bin%06d.png",i);
 		cv::imwrite(resultFileName,resultImg);
 	}
 	timer.stop();

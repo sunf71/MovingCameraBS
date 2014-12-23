@@ -214,16 +214,20 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 
 	typedef Graph<float,float,float> GraphType;
 	GraphType *g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
-
+	float theta = 2*4;
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
 		
 		float d = min(1.0f,spPtr[i].ps*2);
-		d = max(1e-20f,d);
+		float dis = spPtr[i].distance;
+		float d1 = exp(-dis/theta);
+		float d2 = 1-d1;
+		std::cout<<dis<<std::endl;
+		/*d = max(1e-20f,d);
 		float d1 = -log(d);
-		float d2 =  - log(1-d);
-		g->add_tweights(i,d1,d2);
+		float d2 =  - log(1-d);*/
+		g->add_tweights(i,d2,d1);
 	}
 	for(int i=0; i<num_pixels; i++)
 	{
@@ -234,7 +238,7 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 			{
 				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
 				//file<<energy<<std::endl;
-				g->add_edge(i,m_neighbor[i][j],energy,energy);
+				g->add_edge(i,m_neighbor[i][j],0,0);
 			}
 		}
 	}
@@ -1810,12 +1814,51 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask)
 	/*ProbImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
 	NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height,m_neighbor);*/
 }
+void DistanceMat(const cv::Mat& homography, const cv::Mat& flow, cv::Mat& dist)
+{
+	int width = flow.cols;
+	int height = flow.rows;
+	double * homoPtr = (double*)homography.data;
+	float * flowPtr = (float*)flow.data;
+	float * distPtr = (float*)dist.data;
+	float distMin(1e5);
+	float distMax(0);
+	for( int i = 0; i<width; i++)
+	{
+		for(int j=0; j<height; j++)
+		{
+			
+			float wx = homoPtr[0]*i + homoPtr[1]*j + homoPtr[2];
+			float wy = homoPtr[3]*i + homoPtr[4]*j + homoPtr[5];
+			float w = homoPtr[6]*i + homoPtr[7]*j + homoPtr[8];
+			wx /= w;
+			wy /= w;
+			int idx = (i + j*width);
+			float fx = i+flowPtr[idx*2];
+			float fy = j+flowPtr[idx*2+1];
+			float dx = fx - wx;
+			float dy = fy - wy;
+			float d = dx*dx + dy*dy;
+			distPtr[idx] = d;
+			if (d>distMax)
+				distMax = d;
+			if (d<distMin)
+				distMin = d;
+		}
+	}
+	cv::Mat mask;
+	dist.convertTo(mask,CV_8U,255/(distMax-distMin),0);
+	cv::imwrite("distMask..jpg",mask);
+}
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMask, const cv::Mat& flow, const cv::Mat& homography)
 {
+	cv::Mat dist(m_height,m_width,CV_32F);
+	DistanceMat(homography,flow,dist);
 	int size = m_width*m_height;
 	float avgDis =0 ;
 	double* data = (double*)homography.data;
 	float* flowPtr = (float*)flow.data;
+	float* distPtr = (float*)dist.data;
 	for(int i=0; i<m_nPixel; i++)
 	{		
 		int k = m_centers[i].xy.x;
@@ -1835,7 +1878,8 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMas
 			m_spPtr[i].lable = i;
 
 			float n = 0;			
-			
+			float d(0);
+			int c(0);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = m_step;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -1849,25 +1893,19 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMas
 					//std::cout<<idx<<std::endl;
 					if (m_labels[idx] == i )
 					{		
+						c++;
+						d+= distPtr[idx];
 						if ( mask[idx] == 0xff /*|| lastMask[idx] == 0xf*/)
 						{
-							float wx = data[0]*x + data[1]*y + data[2];
-							float wy = data[3]*x + data[4]*y + data[5];
-							float w = data[6]*x + data[7]*y + data[8];
-							wx /= w;
-							wy /= w;
-							float fx = flowPtr[0] + x;
-							float fy = flowPtr[1] + y;
-							std::cout<<x<<", "<<y<<" fx "<<fx<<" , fy "<<fy<<" wx "<<wx<<" , "<<wy<<std::endl;
-							float d = abs(wx-fx) + abs(wy - fy);
-							if ( d > 0.6)
+							
 								n++;
 						}
 							
 					}					
 				}
 			}
-			m_spPtr[i].ps  = n/m_centers[i].nPoints;
+			m_spPtr[i].ps  = n/c;
+			m_spPtr[i].distance = d/c;
 		}
 	}
 }
