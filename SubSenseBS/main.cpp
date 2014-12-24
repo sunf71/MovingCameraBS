@@ -1,11 +1,22 @@
 #include "SubSenseBSProcessor.h"
 #include "BGSMovieMaker.h"
 #include "timer.h"
+#include "ASAPWarping.h"
 using namespace cv;
+void TestASAPWarping()
+{
+	cv::Mat img = cv::imread("..\\ptz\\input0\\in000001.jpg");
+	Mesh mesh(img.rows,img.cols,img.cols/8,img.rows/8);
+	cv::Mat nimg;
+	mesh.drawMesh(img,0,nimg);
+	cv::imshow("mesh",nimg);
+	cv::waitKey();
+}
 int main()
 {
-	/*BGSMovieMaker::MakeMovie("..\\result\\subsense\\ptz\\input0","..\\ptz\\input0",cv::Size(704,480),1,1700,"continuousPan_s.avi");
-	return 0;*/
+	TestASAPWarping();
+	/*BGSMovieMaker::MakeMovie("..\\result\\subsense\\ptz\\input0","..\\ptz\\input0",cv::Size(704,480),1,1700,"continuousPan_s.avi");*/
+	return 0;
 	VideoProcessor processor;
 	
 	// Create feature tracker instance

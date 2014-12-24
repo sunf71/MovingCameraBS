@@ -76,6 +76,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ASAPWarping.h" />
     <ClInclude Include="BackgroundSubtractorLBSP.h" />
     <ClInclude Include="BackgroundSubtractorSuBSENSE.h" />
     <ClInclude Include="BGSMovieMaker.h" />
