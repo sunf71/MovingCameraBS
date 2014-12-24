@@ -1214,7 +1214,7 @@ void BGSSubsenseM::operator()(cv::InputArray _image, cv::OutputArray _fgmask, do
 	cv::Mat oInputImg = _image.getMat();
 	cv::Mat outMask(m_oImgSize,CV_8U);
 	outMask = cv::Scalar(0);
-	//cv::GaussianBlur(oInputImg,oInputImg,cv::Size(3,3),0,0);
+	cv::GaussianBlur(oInputImg,oInputImg,cv::Size(3,3),0,0);
 	cv::Sobel(_image.getMat(),m_dx,CV_16S,1,0);
 	cv::Sobel(_image.getMat(),m_dy,CV_16S,0,1);
 	if (m_preDx.empty())
@@ -1925,19 +1925,19 @@ failedcheck1ch:
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);	
 	//BlockMaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
-	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
-	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
-	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
-	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
-	cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
-	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),2);
-	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
-	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
-	m_oFGMask_last.copyTo(oCurrFGMask);
+	//cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	//m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	//cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	//cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	//cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	//cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
+	//cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
+	//cv::medianBlur(oCurrFGMask,m_oFGMask_last,m_nMedianBlurKernelSize);
+	//cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),2);
+	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	//cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
+	//cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	//m_oFGMask_last.copyTo(oCurrFGMask);
 	/*MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);*/
 	/*cv::dilate(m_features,m_features,cv::Mat(),cv::Point(-1,-1),3);
 	char filename[200];

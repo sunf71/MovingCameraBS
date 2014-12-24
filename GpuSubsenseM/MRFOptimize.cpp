@@ -214,20 +214,21 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 
 	typedef Graph<float,float,float> GraphType;
 	GraphType *g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
-	float theta = 2*4;
+	float theta = 0.5;
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
 		
-		float d = min(1.0f,spPtr[i].ps*2);
+		float d = min(1.0f,spPtr[i].distance);
 		float dis = spPtr[i].distance;
-		float d1 = exp(-dis/theta);
-		float d2 = 1-d1;
-		std::cout<<dis<<std::endl;
-		/*d = max(1e-20f,d);
-		float d1 = -log(d);
-		float d2 =  - log(1-d);*/
-		g->add_tweights(i,d2,d1);
+		float dd1 = exp(-dis/theta);
+		float dd2 = 1-dd1;
+		
+		d = max(1e-20f,d);
+		float d1 = -log(d);		
+		float d2 =  - log(1-d);
+		//std::cout<<dd1<<std::endl;
+		g->add_tweights(i,d1,d2);
 	}
 	for(int i=0; i<num_pixels; i++)
 	{
@@ -1823,6 +1824,7 @@ void DistanceMat(const cv::Mat& homography, const cv::Mat& flow, cv::Mat& dist)
 	float * distPtr = (float*)dist.data;
 	float distMin(1e5);
 	float distMax(0);
+	float distAvg(0);
 	for( int i = 0; i<width; i++)
 	{
 		for(int j=0; j<height; j++)
@@ -1840,18 +1842,23 @@ void DistanceMat(const cv::Mat& homography, const cv::Mat& flow, cv::Mat& dist)
 			float dy = fy - wy;
 			float d = dx*dx + dy*dy;
 			distPtr[idx] = d;
+			distAvg += d;
 			if (d>distMax)
 				distMax = d;
 			if (d<distMin)
 				distMin = d;
 		}
 	}
+	distAvg/=(width*height);
+	std::cout<<distAvg<<std::endl;
 	cv::Mat mask;
 	dist.convertTo(mask,CV_8U,255/(distMax-distMin),0);
-	cv::imwrite("distMask..jpg",mask);
+	cv::imwrite("distMask.jpg",mask);
 }
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMask, const cv::Mat& flow, const cv::Mat& homography)
 {
+	std::vector<double> histogram(256);
+	memset(&histogram[0],0,sizeof(double)*256);
 	cv::Mat dist(m_height,m_width,CV_32F);
 	DistanceMat(homography,flow,dist);
 	int size = m_width*m_height;
@@ -1906,8 +1913,51 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMas
 			}
 			m_spPtr[i].ps  = n/c;
 			m_spPtr[i].distance = d/c;
+			histogram[(uchar)m_spPtr[i].avgColor] += m_spPtr[i].ps;
 		}
 	}
+	double minV(1e10),maxV(0);
+	int minIdx,maxIdx;
+	for(int i=0; i<histogram.size(); i++)
+	{
+		if (histogram[i]>maxV)
+		{
+			maxV = histogram[i];
+			maxIdx = i;
+		}
+		if (histogram[i] < minV)
+		{
+			minV = histogram[i];
+			minIdx = i;
+		}
+	}
+	cv::Mat grayMask(m_height,m_width,CV_8U);
+	grayMask = cv::Scalar(0);
+	for(int i=0; i<m_nPixel; i++)
+	{
+		m_spPtr[i].distance = (histogram[(uchar)m_spPtr[i].avgColor]-minV)/(maxV- minV);
+
+		//int k = m_centers[i].xy.x;
+		//int j = m_centers[i].xy.y;
+		//int radius = m_step;
+		//if (1)
+		//{
+		//	for (int x = k- radius; x<= k+radius; x++)
+		//	{
+		//		for(int y = j - radius; y<= j+radius; y++)
+		//		{
+		//			if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+		//				continue;
+		//			int idx = x+y*m_width;
+		//			if (m_labels[idx] == i )
+		//			{		
+		//				grayMask.data[idx] = (uchar)m_spPtr[i].avgColor;
+		//			}
+		//		}
+		//	}
+		//}
+	}
+	cv::imwrite("maxHist.jpg",grayMask);
 }
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask)
 {

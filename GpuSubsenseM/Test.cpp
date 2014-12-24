@@ -470,8 +470,8 @@ void TestFlow()
 	cv::Mat curImg = cv::imread("..//ptz//input3//in000290.jpg");
 	cv::cvtColor(preImg,preImg,CV_BGR2GRAY);
 	cv::cvtColor(curImg,curImg,CV_BGR2GRAY);
-	cv::Mat preMsk = cv::imread("..//result//subsensem//ptz//input3//bin000289.png");
-	cv::Mat curMsk = cv::imread("..//result//subsensem//ptz//input3//bin000290.png");
+	cv::Mat preMsk = cv::imread("..//result//subsensem//ptz//input3//wap//bin000289.png");
+	cv::Mat curMsk = cv::imread("..//result//subsensem//ptz//input3//warp//bin000290.png");
 	cv::cvtColor(preMsk,preMsk,CV_BGR2GRAY);
 	cv::cvtColor(curMsk,curMsk,CV_BGR2GRAY);
 	
@@ -551,8 +551,8 @@ void TCMRFOptimization()
 	MRFOptimize optimizer(cols,rows,5);
 	nih::Timer timer;
 	timer.start();
-	int start = 289;
-	int end = 290;
+	int start = 300;
+	int end = 330;
 	std::vector<cv::Mat> imgs;
 	std::vector<cv::Mat> masks;
 	cv::Mat curImg,prevImg,mask,prevMask,resultImg,gray,preGray;
