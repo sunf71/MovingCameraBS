@@ -3,16 +3,7 @@
 #include <math.h>
 #include <opencv2\opencv.hpp>
 using namespace std;
-bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2)
- {   float lambda1 = ((V1.y-V2.y)*(pt.x-V2.x) + (V2.x-V1.x)*(pt.y-V2.y)) / ((V1.y-V2.y)*(V0.x-V2.x) + (V2.x-V1.x)*(V0.y-V2.y));
-	float lambda2 = ((V2.y-V0.y)*(pt.x-V2.x) + (V0.x-V2.x)*(pt.y-V2.y)) / ((V2.y-V0.y)*(V1.x-V2.x) + (V0.x-V2.x)*(V1.y-V2.y));
-    float lambda3 = 1-lambda1-lambda2;
-    if (lambda1 >= 0.0 && lambda1 <= 1.0 && lambda2 >= 0.0 && lambda2 <= 1.0 && lambda3 >= 0.0 && lambda3 <= 1.0)
-       return true;
-    else
-        return false;
-
-}
+bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2);
 
 
 
@@ -69,7 +60,7 @@ public:
 				if (tmp3 >= -0.999999 && tmp3 <= 1.000001)
 				{   
 					k1 = tmp1;
-				
+
 					k2 = tmp3;
 				}
 				else if (tmp4 >= -0.999999 && tmp4 <= 1.000001)
@@ -102,7 +93,7 @@ public:
 			coefficients.push_back((1.0-k1)*k2);
 			coefficients.push_back(k1*k2);
 
-			
+
 
 			return true;
 		}
@@ -153,19 +144,18 @@ public:
 	Mesh(int rows, int cols, int quadWidth, int quadHeight):_imgWidth(cols), _imgHeight(rows),_quadWidth(quadWidth), _quadHeight(quadHeight)
 	{
 		std::vector<int> quadX, quadY;
-		quadX.push_back(0);
-		quadY.push_back(0);
-		int x = _quadWidth-1;
+	
+		int x = 0;
 		int halfWidth = _quadWidth/2;
-		while( _imgWidth - x > halfWidth)
+		while( _imgWidth-1 - x > halfWidth)
 		{
 			quadX.push_back(x);
 			x += _quadWidth;
 		}
 		quadX.push_back(_imgWidth-1);
 		int halfHeight = _quadHeight/2;
-		int y = _quadHeight-1;
-		while(_imgHeight - y > halfHeight)
+		int y = 0;
+		while(_imgHeight - y -1> halfHeight)
 		{
 			quadY.push_back(y);
 			y += _quadHeight;
@@ -235,7 +225,7 @@ public:
 			end.x = _xMat.at<float>(i,_meshWidth-1) + gap;
 			end.y = _yMat.at<float>(i,_meshWidth-1) + gap;
 			cv::line(nimg,start,end,color2);
-		
+
 		}
 		for(int i=0; i<_meshWidth; i++)
 		{
@@ -248,19 +238,580 @@ public:
 		}
 	}
 
-private:
+
 	int _imgWidth, _imgHeight, _meshWidth, _meshHeight, _quadWidth, _quadHeight;
-	
+
 	cv::Mat _xMat, _yMat;
 };
 
 class ASAPWarping
 {
 public:
-	ASAPWarping(int height, int width, int quadWidth, int quadHeight, float weight):_height(height),_width(width),
-		_quadWidth(quadWidth),_quadHeight(quadHeight),_weight(weight)
+	ASAPWarping(int height, int width, int quadWidth, int quadHeight, float weight):_quadWidth(quadWidth),_quadHeight(quadHeight),_weight(weight)
 	{
+		_source = new Mesh(height,width,quadWidth,quadHeight);
+		_destin = new Mesh(height,width,quadWidth,quadHeight);
+		_height = _source->_meshHeight;
+		_width = _source->_meshWidth;
+
+		_x_index.resize(_height*_width);
+		_y_index.resize(_height*_width);
+		for(int i=0; i<_height*_width; i++)
+		{
+			_x_index[i] = i;
+			_y_index[i] = _height*_width+i;
+		}
+		_num_smooth_cons = (_height-2)*(_width-2)*16 + (2*(_width+_height)-8)*8+4*4;
+
+		_columns = _width*_height*2;
+
+		_SmoothConstraints = cv::Mat::zeros(_num_smooth_cons*5,3,CV_32F);
+		_SCc = 0;
+
+		CreateSmoothCons(weight);
+		//std::cout<<_SmoothConstraints;
 	};
+	~ASAPWarping()
+	{
+		delete _source;
+		delete _destin;
+	}
+	void SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts);
+
+	void CreateDataCons(cv::Mat& b);
+protected:
+	void getSmoothWeight(const cv::Point2f& V1, const cv::Point2f& V2, const cv::Point2f& V3, float& u, float& v)
+	{
+		float d1 = sqrt((V1.x - V2.x)*(V1.x - V2.x) + (V1.y - V2.y)*(V1.y - V2.y));
+		float   d3 = sqrt((V2.x - V3.x)*(V2.x - V3.x) + (V2.y - V3.y)*(V2.y - V3.y));
+
+		cv::Point2f v21 = cv::Point2f(V1.x-V2.x,V1.y-V2.y);
+		cv::Point2f v23 = cv::Point2f(V3.x-V2.x,V3.y-V2.y);
+
+		float cosin = v21.x*v23.x + v21.y*v23.y;
+		cosin = cosin/(d1*d3);
+
+		float u_dis = cosin*d1;
+		u = u_dis/d3;
+
+		float v_dis = sqrt(d1*d1 - u_dis*u_dis);
+		v = v_dis/d3;
+	}
+
+	void addCoefficient_1(int i, int j, float weight)
+	{
+		//V3(i-1,j-1)
+		//|
+		//|____
+		//V2   V1(i,j)
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i,j-1);
+		cv::Point2f  V3 = _source->getVertex(i-1,j-1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  i*_width+j-1;
+		int coordv3 = (i-1)*_width+j-1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void addCoefficient_2(int i, int j, float weight)
+	{
+		//     V3   V2
+		//       _____
+		//       |
+		//       |
+		//      V1(i,j)
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i-1,j);
+		cv::Point2f  V3 = _source->getVertex(i-1,j-1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  (i-1)*_width+j;
+		int coordv3 = (i-1)*_width+j-1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void addCoefficient_3(int i, int j, float weight)
+	{
+		//V3(i-1,j-1)
+		//|
+		//|____
+		//V2   V1(i,j)
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i-1,j);
+		cv::Point2f  V3 = _source->getVertex(i-1,j+1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  (i-1)*_width+j;
+		int coordv3 = (i-1)*_width+j+1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void addCoefficient_4(int i, int j, float weight)
+	{
+		//          V3(i-1,j+1)
+		//            |
+		//    ______|
+		//   V1     V2
+		//   
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i,j+1);
+		cv::Point2f  V3 = _source->getVertex(i-1,j+1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  i*_width+j+1;
+		int coordv3 = (i-1)*_width+j+1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void addCoefficient_5(int i, int j, float weight)
+	{
+		//             V1   V2
+		//             _____
+		//             |
+		//             |
+		//             V3
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i,j+1);
+		cv::Point2f  V3 = _source->getVertex(i+1,j+1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  i*_width+j+1;
+		int coordv3 = (i+1)*_width+j+1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void addCoefficient_6(int i, int j, float weight)
+	{
+		//             V1(i,j)
+		//             |
+		//             |____
+		//             V2   V3(i+1,j+1)
+		//             (i+1,j)
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i+1,j);
+		cv::Point2f  V3 = _source->getVertex(i+1,j+1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  (i+1)*_width+j;
+		int coordv3 = (i+1)*_width+j+1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void addCoefficient_7(int i, int j, float weight)
+	{
+		//             V1(i,j)
+		//             |
+		//             |
+		//             _______|
+		//             V3      V2
+		//             (i+1,j-1)
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i+1,j);
+		cv::Point2f  V3 = _source->getVertex(i+1,j-1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  (i+1)*_width+j;
+		int coordv3 = (i+1)*_width+j-1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void addCoefficient_8(int i, int j, float weight)
+	{
+		//             V2        V1(i,j)
+		//             _________
+		//             |
+		//             |
+		//             |
+		//             V3(i+1,j-1)
+		cv::Point2f V1 = _source->getVertex(i,j);
+		cv::Point2f  V2 = _source->getVertex(i,j-1);
+		cv::Point2f  V3 = _source->getVertex(i+1,j-1);
+
+		float u,v;
+		getSmoothWeight(V1,V2,V3,u,v);
+
+		int coordv1 =  i*_width+j;
+		int coordv2 =  i*_width+j-1;
+		int coordv3 = (i+1)*_width+j-1;            
+
+
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),v*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv1),(-1.0)*weight);
+
+		//V1.x =  V2.x + u * (V3.x - V2.x) + v * (V2.y - V3.y);
+		float* ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv2),(1.0-u)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv3),u*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv3),v*weight);
+		//            _SmoothCons.add_row(rowCount,_x_index(coordv2),(-1.0*v)*weight);
+		//            _SmoothCons.add_row(rowCount,_y_index(coordv1),(-1.0)*weight);
+		//            rowCount = rowCount+1;
+
+		//V1.y = V2.y + u * (V3.y - V2.y) + v * (V3.x - V2.x);
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv2]; ptr[2] = (1.0-u)*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv3]; ptr[2] = u*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv2]; ptr[2] = v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[coordv3]; ptr[2] = -1.0*v*weight;  _SCc = _SCc + 1;
+		ptr = _SmoothConstraints.ptr<float>(_SCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[coordv1]; ptr[2] = -1.0*weight;  _SCc = _SCc + 1;
+
+		_rowCount = _rowCount+1; 
+
+
+
+	}
+	void CreateSmoothCons(float weight);
+	void Solve();
 private:
 	int  _height;
 	int _width;
@@ -269,4 +820,27 @@ private:
 	float _weight;
 	std::vector<float> _V00, _V01, _V10, _V11;
 	std::vector<cv::Point2f> _orgPts, _destPts;
+	std::vector<int> _x_index, _y_index;
+	Mesh* _source, *_destin;
+	int _columns;
+	
+	//smooth constraints
+	int _num_smooth_cons;	
+	cv::Mat _SmoothConstraints;
+	int _SCc;
+
+	//data constraints
+	std::vector<float>    _dataterm_element_i;
+	std::vector<float>    _dataterm_element_j;
+	std::vector<cv::Point2f>   _dataterm_element_orgPt;
+	std::vector<cv::Point2f>    _dataterm_element_desPt;
+	std::vector<float>   _dataterm_element_V00;
+	std::vector<float>   _dataterm_element_V01;
+	std::vector<float>  _dataterm_element_V10;
+	std::vector<float>   _dataterm_element_V11;
+	cv::Mat _DataConstraints;
+	int _DCc;
+	int _num_data_cons;
+
+	int _rowCount;
 };

@@ -5,11 +5,14 @@
 using namespace cv;
 void TestASAPWarping()
 {
-	cv::Mat img = cv::imread("..\\ptz\\input0\\in000001.jpg");
-	Mesh mesh(img.rows,img.cols,img.cols/8,img.rows/8);
-	cv::Mat nimg;
-	mesh.drawMesh(img,0,nimg);
-	cv::imshow("mesh",nimg);
+	//cv::Mat img = cv::imread("..\\ptz\\input0\\in000001.jpg");
+	//Mesh mesh(img.rows,img.cols,img.cols/8,img.rows/8);
+	//cv::Mat nimg;
+	//mesh.drawMesh(img,0,nimg);
+	//cv::imshow("mesh",nimg);
+
+	ASAPWarping asap(4,4,2,2,1.f);
+	
 	cv::waitKey();
 }
 int main()

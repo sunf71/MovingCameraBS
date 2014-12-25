@@ -92,6 +92,7 @@
     <ClInclude Include="videoprocessor.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ASAPWarping.cpp" />
     <ClCompile Include="BackgroundSubtractorLBSP.cpp" />
     <ClCompile Include="BackgroundSubtractorSuBSENSE.cpp" />
     <ClCompile Include="BGSSubsenseM.cpp" />
