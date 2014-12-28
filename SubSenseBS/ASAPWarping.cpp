@@ -1,4 +1,6 @@
 #include "ASAPWarping.h"
+#include "SparseSolver.h"
+#include <fstream>
 bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2)
 {   
 	float lambda1 = ((V1.y-V2.y)*(pt.x-V2.x) + (V2.x-V1.x)*(pt.y-V2.y)) / ((V1.y-V2.y)*(V0.x-V2.x) + (V2.x-V1.x)*(V0.y-V2.y));
@@ -107,10 +109,10 @@ void ASAPWarping::SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector
 
 		
 		qd.getBilinearCoordinates(pt,coefficients);
-		_dataterm_element_V00[i] = coefficients[1];
-		_dataterm_element_V01[i] = coefficients[2];
-		_dataterm_element_V10[i] = coefficients[3];
-		_dataterm_element_V11[i] = coefficients[4];
+		_dataterm_element_V00[i] = coefficients[0];
+		_dataterm_element_V01[i] = coefficients[1];
+		_dataterm_element_V10[i] = coefficients[2];
+		_dataterm_element_V11[i] = coefficients[3];
 	}
 
 }
@@ -119,11 +121,13 @@ void ASAPWarping::CreateDataCons(cv::Mat& b)
 {
 	int len = _dataterm_element_i.size();
 	_num_data_cons = len*2;
-	_DataConstraints.create(_num_data_cons,3,CV_32F);
+	_DataConstraints.create(_num_data_cons*4,3,CV_32F);
 	b.create(_num_data_cons+_num_smooth_cons,1,CV_32F);
+	b = cv::Scalar(0);
 	_DCc = 0;
 	for(int k=0; k<len; k++)
 	{
+		//std::cout<<k<<std::endl;
 		float i = _dataterm_element_i[k];
 		float j = _dataterm_element_j[k];
 		float v00 = _dataterm_element_V00[k];
@@ -131,26 +135,28 @@ void ASAPWarping::CreateDataCons(cv::Mat& b)
 		float v10 = _dataterm_element_V10[k];
 		float v11 = _dataterm_element_V11[k];
 		float * ptr = _DataConstraints.ptr<float>(_DCc);       
-		ptr[0] = _rowCount; ptr[1] = _x_index[(i-1)*_width+j-1+1]; ptr[2]= v00; _DCc = _DCc+1;
+		ptr[0] = _rowCount; ptr[1] = _x_index[(i-1)*_width+j-1]; ptr[2]= v00; _DCc = _DCc+1;
 		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _x_index[(i-1)*_width+j+1]; ptr[2]= v01; _DCc = _DCc+1;
+		ptr[0] = _rowCount; ptr[1] = _x_index[(i-1)*_width+j]; ptr[2]= v01; _DCc = _DCc+1;
 		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width+j-1+1]; ptr[2]= v10; _DCc = _DCc+1;
+		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width+j-1]; ptr[2]= v10; _DCc = _DCc+1;
 		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width+j+1]; ptr[2]= v11; _DCc = _DCc+1;		
-		_rowCount = _rowCount+1;
+		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width+j]; ptr[2]= v11; _DCc = _DCc+1;		
+		
 		b.at<float>(_rowCount,0) = _dataterm_element_desPt[k].x;
+		_rowCount = _rowCount+1;
 
 		ptr = _DataConstraints.ptr<float>(_DCc);       
-		ptr[0] = _rowCount; ptr[1] = _y_index[(i-1)*_width+j-1+1]; ptr[2]= v00; _DCc = _DCc+1;
+		ptr[0] = _rowCount; ptr[1] = _y_index[(i-1)*_width+j-1]; ptr[2]= v00; _DCc = _DCc+1;
 		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _y_index[(i-1)*_width+j+1]; ptr[2]= v01; _DCc = _DCc+1;
+		ptr[0] = _rowCount; ptr[1] = _y_index[(i-1)*_width+j]; ptr[2]= v01; _DCc = _DCc+1;
 		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width+j-1+1]; ptr[2]= v10; _DCc = _DCc+1;
+		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width+j-1]; ptr[2]= v10; _DCc = _DCc+1;
 		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width+j+1]; ptr[2]= v11; _DCc = _DCc+1;		
+		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width+j]; ptr[2]= v11; _DCc = _DCc+1;		
+		
+		b.at<float>(_rowCount,0) = _dataterm_element_desPt[k].y;
 		_rowCount = _rowCount+1;        
-		b.at<float>(_rowCount,0) = _dataterm_element_desPt[k].x;
 
 
 	}
@@ -162,11 +168,29 @@ void ASAPWarping::Solve()
 	CreateDataCons(b);
 	int N = _SmoothConstraints.rows + _DataConstraints.rows;
 
-	cv::Mat ARows = cv::Mat::zeros(N,1,CV_32F);
-	cv::Mat ACols = cv::Mat::zeros(N,1,CV_32F);
-	cv::Mat AVals = cv::Mat::zeros(N,1,CV_32F);
+	cv::Mat AMat(N,3,CV_32F);
+	std::ofstream sc("smooth.txt");
+	sc<<_SmoothConstraints;
+	sc.close();
+	std::ofstream dc("data.txt");
+	dc<<_DataConstraints;
+	dc.close();
+	_SmoothConstraints.copyTo(AMat(cv::Rect(0,0,3,_SmoothConstraints.rows)));
+	_DataConstraints.copyTo(AMat(cv::Rect(0,_SmoothConstraints.rows,3,_DataConstraints.rows)));
 
-	int cc = 0;
-	for( int i=0; i<_Smooth
+	std::vector<double> bm(b.rows),x;
+	for(int i=0; i<bm.size(); i++)
+		bm[i] = b.at<float>(i,0);
+	//b.col(0).copyTo(bm);
+	SolveSparse(AMat,bm,x);
 
+	int hwidth = _width/2;
+	for(int i=0; i<_height; i++)
+	{
+		for(int j=0; j<_width; j++)
+		{
+			cv::Point2f pt(x[i*_width+j+1],x[hwidth+i*_width+j+1]);
+			_destin->setVertex(i,j,pt);
+		}
+	}
 }

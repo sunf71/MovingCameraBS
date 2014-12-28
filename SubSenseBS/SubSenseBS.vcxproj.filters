@@ -57,6 +57,9 @@
     <ClInclude Include="ASAPWarping.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="SparseSolver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BackgroundSubtractorLBSP.cpp">
@@ -78,6 +81,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="ASAPWarping.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SparseSolver.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

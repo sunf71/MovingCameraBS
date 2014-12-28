@@ -39,7 +39,7 @@ public:
 		float tmp2 = -1;
 		float tmp3 = -1;
 		float tmp4 = -1;
-		float k1,k2;
+		float k1(2),k2(2);
 		if (bigB*bigB - 4*bigA*bigC >= 0.0)
 		{
 			if( abs(bigA) >= 0.000001)
@@ -69,20 +69,21 @@ public:
 					k2 = tmp4;
 				}
 			}
-		}
-		if ( tmp2 >= -0.999999 && tmp2 <= 1.000001)
-		{   
-			if (tmp3 >= -0.999999 && tmp3 <= 1.000001)
-			{
-				k1 = tmp2;
-				k2 = tmp3;
+			if ( tmp2 >= -0.999999 && tmp2 <= 1.000001)
+			{   
+				if (tmp3 >= -0.999999 && tmp3 <= 1.000001)
+				{
+					k1 = tmp2;
+					k2 = tmp3;
+				}
+				else if (tmp4 >= -0.999999 && tmp4 <= 1.000001)
+				{
+					k1 = tmp2;
+					k2 = tmp4;
+				}
 			}
-			else if (tmp4 >= -0.999999 && tmp4 <= 1.000001)
-			{
-				k1 = tmp2;
-				k2 = tmp4;
-			}
 		}
+		
 
 
 		if (k1>=-0.999999 && k1<=1.000001 && k2>=-0.999999 && k2<=1.000001)
@@ -195,10 +196,10 @@ public:
 
 	Quad getQuad(int i, int j)
 	{
-		cv::Point2f v00 = getVertex(i,j);
-		cv::Point2f v01 = getVertex(i,j+1);
-		cv::Point2f v10 = getVertex(i+1,j);
-		cv::Point2f v11 = getVertex(i+1,j+1);
+		cv::Point2f v00 = getVertex(i-1,j-1);
+		cv::Point2f v01 = getVertex(i-1,j);
+		cv::Point2f v10 = getVertex(i,j-1);
+		cv::Point2f v11 = getVertex(i,j);
 		return Quad(v00,v01,v10,v11);
 	}
 	void drawMesh(const cv::Mat& img, int gap, cv::Mat& nimg)
@@ -279,6 +280,7 @@ public:
 	void SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts);
 
 	void CreateDataCons(cv::Mat& b);
+	void Solve();
 protected:
 	void getSmoothWeight(const cv::Point2f& V1, const cv::Point2f& V2, const cv::Point2f& V3, float& u, float& v)
 	{
@@ -811,7 +813,7 @@ protected:
 
 	}
 	void CreateSmoothCons(float weight);
-	void Solve();
+	
 private:
 	int  _height;
 	int _width;
