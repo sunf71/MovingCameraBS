@@ -27,13 +27,13 @@ void TestASAPWarping()
 	while(fscanf(f1,"%f\t%f",&x,&y) > 0)
 	{
 		
-		vf1.push_back(cv::Point2f(x,y));
+		vf1.push_back(cv::Point2f(x-1,y-1));
 		
 	}
 	while(fscanf(f2,"%f\t%f",&x,&y)>0)
 	{
 		
-		vf2.push_back(cv::Point2f(x,y));
+		vf2.push_back(cv::Point2f(x-1,y-1));
 		
 	}
 	fclose(f1);

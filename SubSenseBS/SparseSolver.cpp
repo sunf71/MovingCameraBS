@@ -76,11 +76,29 @@ void SolveSparse(const cv::Mat& cmat, std::vector<double>& rhs, std::vector<doub
 	sfile.close();
 	int    m = rhs.size();
 	int	n = ia.size()-1;
-	int    *Ap = &ia[0];
+	cv::Mat fullA = cv::Mat::zeros(m,n,CV_32F);
+	for(int i=0; i<idx.size(); i++)
+	{
+		fullA.at<float>(r[idx[i]],c[idx[i]]) = v[idx[i]];
+	}
+	cv::Mat bMat(rhs.size(),1,CV_32F);
+	cv::Mat xMat(n,1,CV_32F);
+	for(int i=0; i<rhs.size(); i++)
+		bMat.at<float>(i,0) = rhs[i];
+	cv::solve(fullA,bMat,xMat,cv::DECOMP_SVD);
+	result.resize(n);
+	std::ofstream xfile("x.txt");
+	for(int i=0; i<n; i++)
+	{
+		result[i] = xMat.at<float>(i,0);
+		xfile<<result[i]<<std::endl;
+	}
+	xfile.close();
+	/*int    *Ap = &ia[0];
 	int    *Ai =&jn[0];
 	double* Ax = &an[0];
 	double *b = &rhs[0];
-	result.resize(n);
+	
 	double *x = &result[0];
 	double *null = (double *) NULL ;
    
@@ -89,6 +107,6 @@ void SolveSparse(const cv::Mat& cmat, std::vector<double>& rhs, std::vector<doub
     (void) umfpack_di_numeric (Ap, Ai, Ax, Symbolic, &Numeric, null, null) ;
     umfpack_di_free_symbolic (&Symbolic) ;
     (void) umfpack_di_solve (UMFPACK_A, Ap, Ai, Ax, x, b, Numeric, null, null) ;
-    umfpack_di_free_numeric (&Numeric) ;
+    umfpack_di_free_numeric (&Numeric) ;*/
 
 }

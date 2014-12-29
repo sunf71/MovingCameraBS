@@ -101,8 +101,8 @@ void ASAPWarping::SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector
 	for(int i=0; i<len; i++)
 	{
 		cv::Point2f pt = inputsPts[i];
-		_dataterm_element_i[i] = floor(pt.y/_quadHeight)+1;
-		_dataterm_element_j[i] = floor(pt.x/_quadWidth)+1;
+		_dataterm_element_i[i] = (int)((ceil(pt.y)+_quadHeight-1)/(_quadHeight-1));
+		_dataterm_element_j[i] = (int)((ceil(pt.x)+_quadWidth-1)/(_quadWidth-1));
 
 		Quad qd = _source->getQuad(_dataterm_element_i[i],_dataterm_element_j[i]);
 
@@ -179,8 +179,13 @@ void ASAPWarping::Solve()
 	_DataConstraints.copyTo(AMat(cv::Rect(0,_SmoothConstraints.rows,3,_DataConstraints.rows)));
 
 	std::vector<double> bm(b.rows),x;
+	std::ofstream bfile("b.txt");
 	for(int i=0; i<bm.size(); i++)
+	{
 		bm[i] = b.at<float>(i,0);
+		bfile<<bm[i]<<std::endl;
+	}
+	bfile.close();
 	//b.col(0).copyTo(bm);
 	SolveSparse(AMat,bm,x);
 
