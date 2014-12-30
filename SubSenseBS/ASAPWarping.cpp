@@ -100,9 +100,10 @@ void ASAPWarping::SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector
 	std::vector<float> coefficients;
 	for(int i=0; i<len; i++)
 	{
+		//std::cout<<i<<std::endl;
 		cv::Point2f pt = inputsPts[i];
-		_dataterm_element_i[i] = (int)((ceil(pt.y)+_quadHeight-1)/(_quadHeight-1));
-		_dataterm_element_j[i] = (int)((ceil(pt.x)+_quadWidth-1)/(_quadWidth-1));
+		_dataterm_element_i[i] = (int)((ceil(pt.y)+_quadHeight-1)/(_quadHeight));
+		_dataterm_element_j[i] = (int)((ceil(pt.x)+_quadWidth-1)/(_quadWidth));
 
 		Quad qd = _source->getQuad(_dataterm_element_i[i],_dataterm_element_j[i]);
 
@@ -213,7 +214,8 @@ void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap)
 			quadWarp(img1,i-1,j-1,qd1,qd2);
 		}
 	}
-	warpImg = _warpImg.clone();
+	//warpImg = _warpImg.clone();
+	cv::remap(img1,warpImg,_mapX,_mapY,CV_INTER_CUBIC);
 }
 void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
 {
@@ -339,7 +341,7 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
              //qd = Quad(q2.V00,q2.V01,q2.V10,q2.V11);
            // _warpIm = myWarp(minx,maxx,miny,maxy,im,obj.warpIm,H,obj.gap);
             //_warpIm = uint8(obj.warpIm);
-	if(gap > 0)
+	/*if(gap > 0)
 	{
 		minx = floor(minx);
 		miny =floor(miny);
@@ -348,21 +350,31 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 	{
 		minx = max(floor(minx),1);
 		miny = max(floor(miny),1);
-	}
+	}*/
 	int width = img.cols;
 	int height = img.rows;
-	maxx = min(ceil(maxx),w);
-	maxy = min(ceil(maxy),h);
-	cv::Size size = cv::Size(maxx-minx,maxy-miny);
-	cv::Mat map_x,map_y;
-	map_y.create(size,CV_32F);
-	map_x.create(size,CV_32F);
-	double* homoPtr = (double*)invHomo.data;
-	for(int i=0; i<size.width; i++)
+	/*maxx = min(ceil(maxx),w);
+	maxy = min(ceil(maxy),h);*/
+	/*cv::Size size = cv::Size(maxx-minx,maxy-miny);
+	cv::Mat map_x,map_y;*/
+	
+	double* ptr = (double*)invHomo.data;
+	for(int i=0; i<_quadHeight; i++)
 	{
-		for(int j=0; j<size.height; j++)
+		int r = row*_quadHeight+i;
+		float* ptrX = _mapX.ptr<float>(r);
+		float* ptrY = _mapY.ptr<float>(r);
+		for(int j=0; j<_quadWidth; j++)
 		{
-			map_y.at<float>(j,i) = 
+			int c = col*_quadWidth+j;
+			float x,y,w;
+			x = c*ptr[0] + r*ptr[1] + ptr[2];
+			y = c*ptr[3] + r*ptr[4] + ptr[5];
+			w = c*ptr[6] + r*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			ptrX[c] = x;
+			ptrY[c] = y;
 		}
 	}
 

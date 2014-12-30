@@ -287,6 +287,8 @@ public:
 		_SCc = 0;
 
 		CreateSmoothCons(weight);
+		_mapX.create(height,width,CV_32F);
+		_mapY.create(height,width,CV_32F);
 		//std::cout<<_SmoothConstraints;
 	};
 	~ASAPWarping()
@@ -852,6 +854,7 @@ private:
 	int _SCc;
 	std::vector<cv::Mat> _homographies;
 	std::vector<cv::Mat> _invHomographies;
+	cv::Mat _mapX,_mapY;
 	//data constraints
 	std::vector<float>    _dataterm_element_i;
 	std::vector<float>    _dataterm_element_j;

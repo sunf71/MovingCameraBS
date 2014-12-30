@@ -33,6 +33,9 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include <io.h>
 #include <list>
 #include <bitset>
+#include "opencv2/core/core.hpp"//因为在属性中已经配置了opencv等目录，所以把其当成了本地目录一样
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/highgui/highgui.hpp"
 //#include "libAnn.h"
 //#include "mclmcr.h"
 //#include "matrix.h"
@@ -2030,7 +2033,8 @@ void TestRemap()
 	cv::GaussianBlur(gray2,gray2,cv::Size(3,3),0.1);
 	cv::Mat homography;
 	GetHomography(gray2,gray1,homography);
-	double* ptr = (double*)homography.data;
+	cv::Mat invHomography = homography.inv();
+	double* ptr = (double*)invHomography.data;
 	cv::Mat map_x,map_y;
 	map_x.create(gray1.size(),CV_32F);
 	map_y.create(gray1.size(),CV_32F);
@@ -2051,10 +2055,12 @@ void TestRemap()
 
 		}
 	}
-	cv::Mat warpImg;
-	cv::remap(img2,warpImg,map_x,map_y,CV_INTER_CUBIC);
+	cv::Mat warpImg,remapImg;
+	cv::remap(img2,remapImg,map_x,map_y,CV_INTER_CUBIC);
+	cv::warpPerspective(img2,warpImg,homography,img2.size());
 	cv::imshow("img1",img1);
 	cv::imshow("img2",img2);
+	cv::imshow("remap image", remapImg);
 	cv::imshow("warpImg",warpImg);
 
 	cv::waitKey();
