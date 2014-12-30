@@ -40,6 +40,9 @@ void TestASAPWarping()
 	fclose(f2);
 	asap.SetControlPts(vf1,vf2);
 	asap.Solve();
+	cv::Mat wimg;
+	asap.Warp(simg,wimg);
+	cv::imshow("warped",wimg);
 }
 void TestCVSolve()
 {
@@ -93,7 +96,7 @@ void TestCVSolve()
 }
 int main()
 {
-	TestCVSolve();
+	//TestCVSolve();
 	TestASAPWarping();
 	/*BGSMovieMaker::MakeMovie("..\\result\\subsense\\ptz\\input0","..\\ptz\\input0",cv::Size(704,480),1,1700,"continuousPan_s.avi");*/
 	return 0;

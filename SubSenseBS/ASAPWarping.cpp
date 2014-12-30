@@ -189,13 +189,182 @@ void ASAPWarping::Solve()
 	//b.col(0).copyTo(bm);
 	SolveSparse(AMat,bm,x);
 
-	int hwidth = _width/2;
+	int hwidth = _columns/2;
 	for(int i=0; i<_height; i++)
 	{
 		for(int j=0; j<_width; j++)
 		{
-			cv::Point2f pt(x[i*_width+j+1],x[hwidth+i*_width+j+1]);
+			cv::Point2f pt(x[i*_width+j],x[hwidth+i*_width+j]);
 			_destin->setVertex(i,j,pt);
 		}
 	}
+}
+
+void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap)
+{
+	_warpImg = cv::Mat::zeros(img1.rows+2*gap,img1.cols+2*gap,CV_8UC3);
+	for(int i=1; i<_height; i++)
+	{
+		for(int j=1; j<_width; j++)
+		{
+			
+			Quad qd1 = _source->getQuad(i,j);
+			Quad qd2 = _destin->getQuad(i,j);
+			quadWarp(img1,i-1,j-1,qd1,qd2);
+		}
+	}
+	warpImg = _warpImg.clone();
+}
+void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
+{
+	homography.create(3,3,CV_64F);
+	double* homoData = (double*)homography.data;
+	cv::Mat dataM(2*f1.size(),9,CV_64F);
+	double* ptr = (double*)dataM.data;
+	int rowStep = dataM.step.p[0];
+	for(int i=0; i<f1.size(); i++)
+	{
+		ptr[0] = ptr[1] = ptr[2] =0;
+		ptr[3] = -1*f1[i].x;
+		ptr[4] = -1*f1[i].y;
+		ptr[5] = -1;
+		ptr[6] = f2[i].y*f1[i].x;
+		ptr[7] = f2[i].y*f1[i].y;
+		ptr[8] = f2[i].y;
+		ptr += 9;
+		ptr[0] = f1[i].x;
+		ptr[1] = f1[i].y;
+		ptr[2] = 1;
+		ptr[3] = ptr[4] = ptr[5] = 0;
+		ptr[6] = -f2[i].x * f1[i].x;
+		ptr[7] = -f2[i].x * f1[i].y;
+		ptr[8] = -f2[i].x;
+		ptr += 9;
+	}
+	cv::Mat w,u,vt;
+	//std::cout<<"A = "<<dataM<<std::endl;
+	cv::SVDecomp(dataM,w,u,vt);
+	//std::cout<<"vt = "<<vt<<std::endl;
+	ptr = (double*)(vt.data + (vt.rows-1)*vt.step.p[0]);
+	for(int i=0; i<9; i++)
+		homoData[i] = ptr[i]/ptr[8];
+
+
+}
+void findHomographySVD(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
+{
+	homography.create(3,3,CV_64F);
+	double* homoData = (double*)homography.data;
+	
+	if (f1.size() != f2.size())
+		return;
+	int n = f1.size();
+	if (n<4)
+		return;
+	cv::Mat h(9,2*n,CV_64F);
+	cv::Mat rowsXY = cv::Mat::ones(3,n,CV_64F);
+	double* ptr = rowsXY.ptr<double>(0);
+	for(int i=0; i<n; i++)
+		ptr[i] = -1*f1[i].x;
+	ptr = rowsXY.ptr<double>(1);
+	for(int i=0; i<n; i++)
+		ptr[i] = -1*f1[i].y;
+	ptr = rowsXY.ptr<double>(2);
+	for(int i=0; i<n; i++)
+		ptr[i] = -1;
+	cv::Mat rows0 = cv::Mat::zeros(3,n,CV_64F);
+	/*std::cout<<"rowsXY\n"<<rowsXY<<std::endl;*/
+	rowsXY.copyTo(h(cv::Rect(0,0,rowsXY.cols,rowsXY.rows)));
+	rows0.copyTo(h(cv::Rect(0,rowsXY.rows,n,3)));
+	ptr = h.ptr<double>(6);
+	for(int i=0; i<n; i++)
+		ptr[i] = f1[i].x*f2[i].x;
+
+	ptr = h.ptr<double>(7);
+	for(int i=0; i<n; i++)
+		ptr[i] = f1[i].y*f2[i].x;
+	ptr = h.ptr<double>(8);
+	for(int i=0; i<n; i++)
+		ptr[i] = f2[i].x;
+
+	rows0.copyTo(h(cv::Rect(n,0,n,3)));
+	rowsXY.copyTo(h(cv::Rect(n,rows0.rows,rowsXY.cols,rowsXY.rows)));
+	ptr = h.ptr<double>(6);
+	for(int i=0; i<n; i++)
+		ptr[n+i] = f1[i].x*f2[i].y;
+	ptr = h.ptr<double>(7);
+	for(int i=0; i<n; i++)
+		ptr[n+i] = f1[i].y*f2[i].y;
+	ptr = h.ptr<double>(8);
+	for(int i=0; i<n; i++)
+		ptr[i+n] = f2[i].y;
+	/*std::cout<<"h\n"<<h<<std::endl;*/
+	cv::Mat w,u,v;
+	cv::SVD::compute(h,w,u,v,cv::SVD::FULL_UV);
+	/*std::cout<<"w\n"<<w<<std::endl;
+	std::cout<<"u\n"<<u<<std::endl;
+	std::cout<<"v\n"<<v<<std::endl;*/
+	cv::Mat ut;
+	cv::transpose(u,ut);
+	/*std::cout<<"ut\n"<<ut<<std::endl;*/
+	ptr = (double*)(ut.data + (ut.rows-1)*ut.step.p[0]);
+	for(int i=0; i<9; i++)
+		homoData[i] = ptr[i]/ptr[8];
+}
+void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad& q2)
+{
+	float minx = q2.getMinX();
+    float maxx = q2.getMaxX();
+    float  miny = q2.getMinY();
+    float  maxy = q2.getMaxY();
+             
+    std::vector<cv::Point2f> f1,f2;
+	f1.push_back(q1.getV00());
+	f1.push_back(q1.getV01());
+	f1.push_back(q1.getV10());
+	f1.push_back(q1.getV11());
+             
+	f2.push_back(q2.getV00());
+	f2.push_back(q2.getV01());
+	f2.push_back(q2.getV10());
+	f2.push_back(q2.getV11());
+	
+	cv::Mat homography;	
+	findHomographySVD(f1,f2,homography);
+	cv::Mat invHomo = homography.inv();
+	_homographies[row*_width+col] = homography.clone();
+	_invHomographies[row*_width+col] =invHomo.clone();
+	//std::cout<<homography;
+	
+             //qd = Quad(q2.V00,q2.V01,q2.V10,q2.V11);
+           // _warpIm = myWarp(minx,maxx,miny,maxy,im,obj.warpIm,H,obj.gap);
+            //_warpIm = uint8(obj.warpIm);
+	if(gap > 0)
+	{
+		minx = floor(minx);
+		miny =floor(miny);
+	}
+	else
+	{
+		minx = max(floor(minx),1);
+		miny = max(floor(miny),1);
+	}
+	int width = img.cols;
+	int height = img.rows;
+	maxx = min(ceil(maxx),w);
+	maxy = min(ceil(maxy),h);
+	cv::Size size = cv::Size(maxx-minx,maxy-miny);
+	cv::Mat map_x,map_y;
+	map_y.create(size,CV_32F);
+	map_x.create(size,CV_32F);
+	double* homoPtr = (double*)invHomo.data;
+	for(int i=0; i<size.width; i++)
+	{
+		for(int j=0; j<size.height; j++)
+		{
+			map_y.at<float>(j,i) = 
+		}
+	}
+
+
 }

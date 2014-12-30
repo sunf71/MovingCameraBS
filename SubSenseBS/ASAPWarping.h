@@ -134,6 +134,22 @@ public:
 		maxy = max(maxy,_V11.y);
 		return maxy;
 	}
+	cv::Point2f getV00()
+	{
+		return _V00;
+	}
+	cv::Point2f getV01()
+	{
+		return _V01;
+	}
+	cv::Point2f getV10()
+	{
+		return _V10;
+	}
+	cv::Point2f getV11()
+	{
+		return _V11;
+	}
 private:
 
 	cv::Point2f _V00,_V01,_V10,_V11;
@@ -265,7 +281,8 @@ public:
 		_num_smooth_cons = (_height-2)*(_width-2)*16 + (2*(_width+_height)-8)*8+4*4;
 
 		_columns = _width*_height*2;
-
+		_homographies.resize(_width*_height);
+		_invHomographies.resize(_width*_height);
 		_SmoothConstraints = cv::Mat::zeros(_num_smooth_cons*5,3,CV_32F);
 		_SCc = 0;
 
@@ -281,7 +298,10 @@ public:
 
 	void CreateDataCons(cv::Mat& b);
 	void Solve();
+	void Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
+	
 protected:
+	void quadWarp(const cv::Mat& img, int row, int col, Quad& qd1, Quad& qd2);
 	void getSmoothWeight(const cv::Point2f& V1, const cv::Point2f& V2, const cv::Point2f& V3, float& u, float& v)
 	{
 		float d1 = sqrt((V1.x - V2.x)*(V1.x - V2.x) + (V1.y - V2.y)*(V1.y - V2.y));
@@ -830,7 +850,8 @@ private:
 	int _num_smooth_cons;	
 	cv::Mat _SmoothConstraints;
 	int _SCc;
-
+	std::vector<cv::Mat> _homographies;
+	std::vector<cv::Mat> _invHomographies;
 	//data constraints
 	std::vector<float>    _dataterm_element_i;
 	std::vector<float>    _dataterm_element_j;
@@ -843,6 +864,6 @@ private:
 	cv::Mat _DataConstraints;
 	int _DCc;
 	int _num_data_cons;
-
+	cv::Mat _warpImg;
 	int _rowCount;
 };

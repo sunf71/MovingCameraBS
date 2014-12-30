@@ -1452,6 +1452,7 @@ void TestHomographyEstimate()
 	cv::imshow("img4",img4);
 	cv::waitKey();
 }
+
 void TestPerspective()
 {
 	using namespace cv;
@@ -2014,6 +2015,50 @@ void GetHomography(const cv::Mat& gray, const cv::Mat& pre_gray, cv::Mat& homogr
 		0.1); // max distance to reprojection point
 
 }
+void TestRemap()
+{
+	using namespace cv;
+	Mat img1 = imread("..//PTZ//input0//in000289.jpg");
+	Mat img2 = imread("..//PTZ//input0//in000290.jpg");
+
+
+	Mat gray1,gray2;
+	cvtColor(img1, gray1, CV_BGR2GRAY); 
+	cvtColor(img2, gray2, CV_BGR2GRAY);
+
+	cv::GaussianBlur(gray1,gray1,cv::Size(3,3),0.1);
+	cv::GaussianBlur(gray2,gray2,cv::Size(3,3),0.1);
+	cv::Mat homography;
+	GetHomography(gray2,gray1,homography);
+	double* ptr = (double*)homography.data;
+	cv::Mat map_x,map_y;
+	map_x.create(gray1.size(),CV_32F);
+	map_y.create(gray1.size(),CV_32F);
+	for(int i=0; i<gray1.rows; i++)
+	{
+		float* ptrX = map_x.ptr<float>(i);
+		float* ptrY = map_y.ptr<float>(i);
+		for(int j=0; j<gray1.cols; j++)
+		{
+			float x,y,w;
+			x = j*ptr[0] + i*ptr[1] + ptr[2];
+			y = j*ptr[3] + i*ptr[4] + ptr[5];
+			w = j*ptr[6] + i*ptr[7] + ptr[8];
+			x /=w;
+			y/=w;
+			ptrX[j] = x;
+			ptrY[j] = y;
+
+		}
+	}
+	cv::Mat warpImg;
+	cv::remap(img2,warpImg,map_x,map_y,CV_INTER_CUBIC);
+	cv::imshow("img1",img1);
+	cv::imshow("img2",img2);
+	cv::imshow("warpImg",warpImg);
+
+	cv::waitKey();
+}
 void WarpPosition(const int x, const int y, int&wx, int& wy, const cv::Mat& homography)
 {
 	double* ptr = (double*)homography.data;
@@ -2380,7 +2425,8 @@ void TestfindHomographyDLT()
 //}
 int main()
 {
-	TestVLBP();
+	TestRemap();
+	//TestVLBP();
 	//TestDynamicTexture();
 	//TestPatchStructralSimilarity();
 	//TestOpticalFlowHistogram();
