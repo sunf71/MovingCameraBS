@@ -55,7 +55,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opencv_highgui249d.lib;opencv_core249d.lib;opencv_imgproc249d.lib;opencv_features2d249d.lib;opencv_calib3d249d.lib;opencv_video249d.lib;opencv_legacy249d.lib;libumfpack.lib;libamd.lib;libf77blas.lib;libatlas.lib;libg2c.lib;libgcc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opencv_highgui249d.lib;opencv_core249d.lib;opencv_imgproc249d.lib;opencv_features2d249d.lib;opencv_calib3d249d.lib;opencv_video249d.lib;opencv_legacy249d.lib;opencv_nonfree249d.lib;opencv_flann249d.lib;libumfpack.lib;libamd.lib;libf77blas.lib;libatlas.lib;libg2c.lib;libgcc.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>./UMFPACK/lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

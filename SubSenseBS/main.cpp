@@ -1,14 +1,111 @@
+#define _USE_MATH_DEFINES
 #include "SubSenseBSProcessor.h"
 #include "BGSMovieMaker.h"
 #include "timer.h"
 #include "ASAPWarping.h"
 #include <fstream>
-#include "opencv2/features2d/features2d.hpp"
+#include <opencv2/features2d/features2d.hpp>
 #include "SparseSolver.h"
+#include <opencv2\opencv.hpp>
+#include <opencv2\nonfree\features2d.hpp>
+#include <math.h>
 using namespace cv;
+void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
+{
+	std::vector<uchar> inliers(vf1.size());
+	cv::Mat homography = cv::findHomography(
+		cv::Mat(vf1), // corresponding
+		cv::Mat(vf2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+	int k=0;
+	for(int i=0; i<vf1.size(); i++)
+	{
+		if (inliers[i] ==1)
+		{
+			vf1[k] = vf1[i];
+			vf2[k] = vf2[i];
+			k++;
+		}
+	}
+	vf1.resize(k);
+	vf2.resize(k);
+}
+void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16,int thetaSize = 16)
+{
+	//直方图共256个bin，其中根据光流强度分16个bin，每个bin根据光流方向分16个bin
+	int binSize = DistSize * thetaSize;
+	histogram.resize(binSize);
+	ids.resize(binSize);
+	for(int i=0; i<binSize; i++)
+		ids[i].clear();
+	memset(&histogram[0],0,sizeof(float)*binSize);
+	float max = -9999;
+	float min = -max;
+	std::vector<float> thetas(f1.size());
+	std::vector<float> rads(f1.size());
+	for(int i =0; i<f1.size(); i++)
+	{
+		float dx = f1[i].x - f2[i].x;
+		float dy = f1[i].y - f2[i].y;
+		float theta = atan(dy/(dx+1e-6))/M_PI*180;
+		if (theta<0)
+			theta+=90;
+		thetas[i] = theta;
+		rads[i] = sqrt(dx*dx + dy*dy);
+	
+		max = rads[i] >max? rads[i] : max;
+		min = rads[i]<min ? rads[i]: min;
+
+	}
+	float stepR = (max-min+1e-6)/DistSize;
+	float stepT = 180/thetaSize;
+	for(int i=0; i<f1.size(); i++)
+	{
+		int r = (int)((rads[i] - min)/stepR);
+		int t = (int)(thetas[i]/stepT);
+		r = r>DistSize? DistSize:r;
+		t = t>thetaSize? thetaSize:t;
+		int idx = t*DistSize+r;
+		//std::cout<<idx<<std::endl;
+		histogram[idx]++;
+		ids[idx].push_back(i);
+	
+	}
+}
+void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2)
+{
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+	OpticalFlowHistogram(features1,features2,histogram,ids);
+
+	//最大bin
+	int max =ids[0].size(); 
+	int idx(0);
+	for(int i=1; i<256; i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
+	int k=0;
+	for(int i=0; i<ids[idx].size(); i++)
+	{
+		features1[k] = features1[ids[idx][i]];
+		features2[k] = features2[ids[idx][i]];
+		k++;
+	}
+	
+	features1.resize(k);
+	features2.resize(k);
+}
 void KLTFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
 {
-		std::vector<uchar>status;
+	std::vector<uchar>status;
 	std::vector<float> err;
 	cv::Mat sGray,tGray;
 	cv::cvtColor(simg,sGray,CV_BGR2GRAY);
@@ -28,25 +125,7 @@ void KLTFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<c
 
 	vf1.resize(k);
 	vf2.resize(k);
-	std::vector<uchar> inliers(vf1.size());
-	cv::Mat homography = cv::findHomography(
-		cv::Mat(vf1), // corresponding
-		cv::Mat(vf2), // points
-		inliers, // outputted inliers matches
-		CV_RANSAC, // RANSAC method
-		0.1); // max distance to reprojection point
-	k=0;
-	for(int i=0; i<vf1.size(); i++)
-	{
-		if (inliers[i] ==1)
-		{
-			vf1[k] = vf1[i];
-			vf2[k] = vf2[i];
-			k++;
-		}
-	}
-	vf1.resize(k);
-	vf2.resize(k);
+	FeaturePointsRefineHistogram(vf1,vf2);
 }
 void FILESURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
 {
@@ -68,31 +147,66 @@ void FILESURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vec
 	fclose(f1);
 	fclose(f2);
 }
-void SURFFeaturesMatching(const cv::Mat& img_1, const cv::Mat& img_2, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
+void SURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
 {
 	using namespace cv;
-	//第一步，用SURF算子检测关键点
-    int minHessian=400;
+	Mat img_1,img_2;
+	cvtColor(simg,img_1,CV_BGR2GRAY);
+	cvtColor(timg,img_2,CV_BGR2GRAY);
 
-    SurfFeatureDetector detector(minHessian);
-    std::vector<KeyPoint> keypoints_1,keypoints_2;//构造2个专门由点组成的点向量用来存储特征点
-
-    detector.detect(img_1,keypoints_1);//将img_1图像中检测到的特征点存储起来放在keypoints_1中
-    detector.detect(img_2,keypoints_2);//同理
-
-	//计算特征向量
-    SurfDescriptorExtractor extractor;//定义描述子对象
-
-    Mat descriptors_1,descriptors_2;//存放特征向量的矩阵
-
-    extractor.compute(img_1,keypoints_1,descriptors_1);
-    extractor.compute(img_2,keypoints_2,descriptors_2);
-
-    //用burte force进行匹配特征向量
-    BruteForceMatcher<L2<float>>matcher;//定义一个burte force matcher对象
-    vector<DMatch>matches;
-    matcher.match(descriptors_1,descriptors_2,matches);
-
+	
+	//-- Step 1: Detect the keypoints using SURF Detector
+    int minHessian = 400;
+  
+    SurfFeatureDetector detector( minHessian );
+  
+    std::vector<KeyPoint> keypoints_object, keypoints_scene;
+  
+    detector.detect( img_1, keypoints_object );
+    detector.detect( img_2, keypoints_scene );
+  
+    //-- Step 2: Calculate descriptors (feature vectors)
+    SurfDescriptorExtractor extractor;
+  
+    Mat descriptors_object, descriptors_scene;
+  
+    extractor.compute( img_1, keypoints_object, descriptors_object );
+    extractor.compute( img_2, keypoints_scene, descriptors_scene );
+  
+    //-- Step 3: Matching descriptor vectors using FLANN matcher
+    FlannBasedMatcher matcher;
+    std::vector< DMatch > matches;
+    matcher.match( descriptors_object, descriptors_scene, matches );
+  
+    double max_dist = 0; double min_dist = 100;
+  
+    //-- Quick calculation of max and min distances between keypoints
+    for( int i = 0; i < descriptors_object.rows; i++ )
+    { double dist = matches[i].distance;
+      if( dist < min_dist ) min_dist = dist;
+      if( dist > max_dist ) max_dist = dist;
+    }
+  
+    printf("-- Max dist : %f \n", max_dist );
+    printf("-- Min dist : %f \n", min_dist );
+  
+    //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
+    std::vector< DMatch > good_matches;
+  
+    for( int i = 0; i < descriptors_object.rows; i++ )
+    { if( matches[i].distance < 3*min_dist )
+       { good_matches.push_back( matches[i]); }
+    }
+  
+   
+  
+    
+    for( int i = 0; i < good_matches.size(); i++ )
+    {
+      //-- Get the keypoints from the good matches
+      vf1.push_back( keypoints_object[ good_matches[i].queryIdx ].pt );
+      vf2.push_back( keypoints_scene[ good_matches[i].trainIdx ].pt );
+    }
 }
 void TestASAPWarping()
 {
@@ -102,17 +216,17 @@ void TestASAPWarping()
 	//mesh.drawMesh(img,0,nimg);
 	//cv::imshow("mesh",nimg);
 	//cv::waitKey();
-	cv::Mat simg = cv::imread(".//4//s.png");
-	cv::Mat timg = cv::imread(".//4//t.png");
+	cv::Mat simg = cv::imread(".//5//s.png");
+	cv::Mat timg = cv::imread(".//5//t.png");
 	int width = simg.cols;
 	int height = simg.rows;
-	int quadWidth = width/8;
-	int quadHeight = height/8;
-	ASAPWarping asap(height,width,quadWidth,quadHeight,1.0);
+	int quadStep = 8;
+	ASAPWarping asap(width,height,quadStep,1.0);
 	
 	std::vector<cv::Point2f>vf1,vf2;
-	//KLTFeaturesMatching(simg,timg,vf1,vf2);
-	FILESURFFeaturesMatching(simg,timg,vf1,vf2);
+	KLTFeaturesMatching(simg,timg,vf1,vf2);
+	//FILESURFFeaturesMatching(simg,timg,vf1,vf2);
+	//SURFFeaturesMatching(simg,timg,vf1,vf2);
 	asap.SetControlPts(vf1,vf2);
 	asap.Solve();
 	cv::Mat wimg;
@@ -120,11 +234,18 @@ void TestASAPWarping()
 	cv::imshow("s",simg);
 	cv::imshow("t",timg);
 	cv::imshow("warped",wimg);
-	cv::imwrite(".//4//twarped.png",wimg);
+	cv::imwrite(".//5//twarped.jpg",wimg);
 	cv::Mat diff;
 	cv::absdiff(wimg,timg,diff);
 	cv::imshow("diff",diff);
-	cv::imwrite(".//diff.jpg",diff);
+	cv::imwrite(".//5//diff.jpg",diff);
+	std::vector<cv::Mat>& homo = asap.getHomographies();
+	std::ofstream of("homographies.txt");
+	for(int i=0; i<homo.size(); i++)
+	{
+		of<<homo[i]<<std::endl;
+	}
+	of.close();
 	cv::waitKey();
 }
 void TestCVSolve()

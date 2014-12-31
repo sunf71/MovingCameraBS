@@ -264,10 +264,10 @@ public:
 class ASAPWarping
 {
 public:
-	ASAPWarping(int height, int width, int quadWidth, int quadHeight, float weight):_quadWidth(quadWidth),_quadHeight(quadHeight),_weight(weight)
+	ASAPWarping(int width, int height, int quadStep, float weight):_quadStep(quadStep),_quadWidth(width/quadStep),_quadHeight(height/quadStep),_weight(weight)
 	{
-		_source = new Mesh(height,width,quadWidth,quadHeight);
-		_destin = new Mesh(height,width,quadWidth,quadHeight);
+		_source = new Mesh(height,width,_quadWidth,_quadHeight);
+		_destin = new Mesh(height,width,_quadWidth,_quadHeight);
 		_height = _source->_meshHeight;
 		_width = _source->_meshWidth;
 
@@ -281,8 +281,8 @@ public:
 		_num_smooth_cons = (_height-2)*(_width-2)*16 + (2*(_width+_height)-8)*8+4*4;
 
 		_columns = _width*_height*2;
-		_homographies.resize(_width*_height);
-		_invHomographies.resize(_width*_height);
+		_homographies.resize((_width-1)*(_height-1));
+		_invHomographies.resize((_width-1)*(_height-1));
 		_SmoothConstraints = cv::Mat::zeros(_num_smooth_cons*5,3,CV_32F);
 		_SCc = 0;
 
@@ -301,7 +301,14 @@ public:
 	void CreateDataCons(cv::Mat& b);
 	void Solve();
 	void Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
-	
+	std::vector<cv::Mat>& getHomographies()
+	{
+		return _homographies;
+	}
+	std::vector<cv::Mat>& getInvHomographies()
+	{
+		return _invHomographies;
+	}
 protected:
 	void quadWarp(const cv::Mat& img, int row, int col, Quad& qd1, Quad& qd2);
 	void getSmoothWeight(const cv::Point2f& V1, const cv::Point2f& V2, const cv::Point2f& V3, float& u, float& v)
@@ -841,6 +848,7 @@ private:
 	int _width;
 	int _quadWidth;
 	int _quadHeight;
+	int _quadStep;
 	float _weight;
 	std::vector<float> _V00, _V01, _V10, _V11;
 	std::vector<cv::Point2f> _orgPts, _destPts;

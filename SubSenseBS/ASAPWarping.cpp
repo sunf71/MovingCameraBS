@@ -334,8 +334,8 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 	cv::Mat homography;	
 	findHomographySVD(f1,f2,homography);
 	cv::Mat invHomo = homography.inv();
-	_homographies[row*_width+col] = homography.clone();
-	_invHomographies[row*_width+col] =invHomo.clone();
+	_homographies[row*(_width-1)+col] = homography.clone();
+	_invHomographies[row*(_width-1)+col] =invHomo.clone();
 	//std::cout<<homography;
 	
              //qd = Quad(q2.V00,q2.V01,q2.V10,q2.V11);
