@@ -1,7 +1,9 @@
 #pragma once
 #include <vector>
+#define _USE_MATH_DEFINES
 #include <math.h>
 #include <opencv2\opencv.hpp>
+#include <opencv2\nonfree\features2d.hpp>
 using namespace std;
 bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2);
 
@@ -289,6 +291,9 @@ public:
 		CreateSmoothCons(weight);
 		_mapX.create(height,width,CV_32F);
 		_mapY.create(height,width,CV_32F);
+		_outMask = cv::Mat::zeros(height,width,CV_32F);
+		_invMapX = _mapX.clone();
+		_invMapY = _mapY.clone();
 		//std::cout<<_SmoothConstraints;
 	};
 	~ASAPWarping()
@@ -301,6 +306,7 @@ public:
 	void CreateDataCons(cv::Mat& b);
 	void Solve();
 	void Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
+	void InvWarp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
 	std::vector<cv::Mat>& getHomographies()
 	{
 		return _homographies;
@@ -308,6 +314,14 @@ public:
 	std::vector<cv::Mat>& getInvHomographies()
 	{
 		return _invHomographies;
+	}
+	cv::Mat& getInvMapX()
+	{
+		return _invMapX;
+	}
+	cv::Mat& getInvMapY()
+	{
+		return _invMapY;
 	}
 protected:
 	void quadWarp(const cv::Mat& img, int row, int col, Quad& qd1, Quad& qd2);
@@ -862,7 +876,8 @@ private:
 	int _SCc;
 	std::vector<cv::Mat> _homographies;
 	std::vector<cv::Mat> _invHomographies;
-	cv::Mat _mapX,_mapY;
+	cv::Mat _mapX,_mapY,_outMask;
+	cv::Mat _invMapX,_invMapY;
 	//data constraints
 	std::vector<float>    _dataterm_element_i;
 	std::vector<float>    _dataterm_element_j;
@@ -878,3 +893,12 @@ private:
 	cv::Mat _warpImg;
 	int _rowCount;
 };
+
+void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography);
+void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16,int thetaSize = 16);
+void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2);
+void KLTFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2);
+void FILESURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2);
+void SURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2);
+

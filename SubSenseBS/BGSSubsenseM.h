@@ -7,6 +7,7 @@
 #include "RandUtils.h"
 #include <iostream>
 #include <fstream>
+#include "ASAPWarping.h"
 struct EdgePoint
 {
 	EdgePoint(int _x, int _y, uchar _color,float _theta):x(_x),y(_y),theta(_theta),color(_color)
@@ -245,4 +246,5 @@ protected:
 	std::vector<cv::Mat> m_homos;
 	
 	cv::Mat m_warpedImg;
+	ASAPWarping* m_ASAP;
 };

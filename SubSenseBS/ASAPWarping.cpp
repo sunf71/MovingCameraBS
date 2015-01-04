@@ -359,11 +359,14 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 	cv::Mat map_x,map_y;*/
 	
 	double* ptr = (double*)invHomo.data;
+	double* invPtr = (double*)homography.data;
 	for(int i=0; i<_quadHeight; i++)
 	{
 		int r = row*_quadHeight+i;
 		float* ptrX = _mapX.ptr<float>(r);
 		float* ptrY = _mapY.ptr<float>(r);
+		float* invPtrX = _invMapX.ptr<float>(r);
+		float* invPtrY = _invMapY.ptr<float>(r);
 		for(int j=0; j<_quadWidth; j++)
 		{
 			int c = col*_quadWidth+j;
@@ -375,8 +378,232 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 			y/=w;
 			ptrX[c] = x;
 			ptrY[c] = y;
+
+			x = c*invPtr[0] + r*invPtr[1] + invPtr[2];
+			y = c*invPtr[3] + r*invPtr[4] + invPtr[5];
+			w = c*invPtr[6] + r*invPtr[7] + invPtr[8];
+			x /=w;
+			y/=w;
+			invPtrX[c] = x;
+			invPtrY[c] = y;
+			
 		}
 	}
 
 
+}
+
+
+void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography)
+{
+	std::vector<uchar> inliers(vf1.size());
+	homography = cv::findHomography(
+		cv::Mat(vf1), // corresponding
+		cv::Mat(vf2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+	int k=0;
+	for(int i=0; i<vf1.size(); i++)
+	{
+		if (inliers[i] ==1)
+		{
+			vf1[k] = vf1[i];
+			vf2[k] = vf2[i];
+			k++;
+		}
+	}
+	vf1.resize(k);
+	vf2.resize(k);
+}
+void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize ,int thetaSize)
+{
+	//直方图共256个bin，其中根据光流强度分16个bin，每个bin根据光流方向分16个bin
+	int binSize = DistSize * thetaSize;
+	histogram.resize(binSize);
+	ids.resize(binSize);
+	for(int i=0; i<binSize; i++)
+		ids[i].clear();
+	memset(&histogram[0],0,sizeof(float)*binSize);
+	float max = -9999;
+	float min = -max;
+	std::vector<float> thetas(f1.size());
+	std::vector<float> rads(f1.size());
+	for(int i =0; i<f1.size(); i++)
+	{
+		float dx = f1[i].x - f2[i].x;
+		float dy = f1[i].y - f2[i].y;
+		float theta = atan(dy/(dx+1e-6))/M_PI*180;
+		if (theta<0)
+			theta+=90;
+		thetas[i] = theta;
+		rads[i] = sqrt(dx*dx + dy*dy);
+	
+		max = rads[i] >max? rads[i] : max;
+		min = rads[i]<min ? rads[i]: min;
+
+	}
+	float stepR = (max-min+1e-6)/DistSize;
+	float stepT = 180/thetaSize;
+	for(int i=0; i<f1.size(); i++)
+	{
+		int r = (int)((rads[i] - min)/stepR);
+		int t = (int)(thetas[i]/stepT);
+		r = r>DistSize? DistSize:r;
+		t = t>thetaSize? thetaSize:t;
+		int idx = t*DistSize+r;
+		//std::cout<<idx<<std::endl;
+		histogram[idx]++;
+		ids[idx].push_back(i);
+	
+	}
+}
+void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2)
+{
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+	OpticalFlowHistogram(features1,features2,histogram,ids);
+
+	//最大bin
+	int max =ids[0].size(); 
+	int idx(0);
+	for(int i=1; i<256; i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
+	int k=0;
+	for(int i=0; i<ids[idx].size(); i++)
+	{
+		features1[k] = features1[ids[idx][i]];
+		features2[k] = features2[ids[idx][i]];
+		k++;
+	}
+	
+	features1.resize(k);
+	features2.resize(k);
+}
+void KLTFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
+{
+	std::vector<uchar>status;
+	std::vector<float> err;
+	cv::Mat sGray,tGray;
+	if (simg.channels() == 3)
+		cv::cvtColor(simg,sGray,CV_BGR2GRAY);
+	else
+		sGray = simg;
+	if (timg.channels() == 3)
+		cv::cvtColor(timg,tGray,CV_BGR2GRAY);
+	else
+		tGray = timg;
+	cv::goodFeaturesToTrack(sGray,vf1,5000,0.05,2);
+	cv::calcOpticalFlowPyrLK(sGray,tGray,vf1,vf2,status,err);
+	int k=0;
+	for(int i=0; i<vf1.size(); i++)
+	{
+		if(status[i] == 1)
+		{
+			vf1[k] = vf1[i];
+			vf2[k] = vf2[i];
+			k++;
+		}
+	}
+
+	vf1.resize(k);
+	vf2.resize(k);
+	//FeaturePointsRefineHistogram(vf1,vf2);
+}
+void FILESURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
+{
+	FILE* f1 = fopen("f1.txt","r");
+	FILE* f2 = fopen("f2.txt","r");	
+	float x,y;
+	while(fscanf(f1,"%f\t%f",&x,&y) > 0)
+	{
+		
+		vf1.push_back(cv::Point2f(x-1,y-1));
+		
+	}
+	while(fscanf(f2,"%f\t%f",&x,&y)>0)
+	{
+		
+		vf2.push_back(cv::Point2f(x-1,y-1));
+		
+	}
+	fclose(f1);
+	fclose(f2);
+}
+void SURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2)
+{
+	using namespace cv;
+	Mat img_1,img_2;
+	if (simg.channels() == 3)
+		cv::cvtColor(simg,img_1,CV_BGR2GRAY);
+	else
+		img_1 = simg;
+	if (timg.channels() == 3)
+		cv::cvtColor(timg,img_2,CV_BGR2GRAY);
+	else
+		img_2 = timg;
+
+	
+	//-- Step 1: Detect the keypoints using SURF Detector
+    int minHessian = 400;
+  
+    SurfFeatureDetector detector( minHessian );
+  
+    std::vector<KeyPoint> keypoints_object, keypoints_scene;
+  
+    detector.detect( img_1, keypoints_object );
+    detector.detect( img_2, keypoints_scene );
+  
+    //-- Step 2: Calculate descriptors (feature vectors)
+    SurfDescriptorExtractor extractor;
+  
+    Mat descriptors_object, descriptors_scene;
+  
+    extractor.compute( img_1, keypoints_object, descriptors_object );
+    extractor.compute( img_2, keypoints_scene, descriptors_scene );
+  
+    //-- Step 3: Matching descriptor vectors using FLANN matcher
+    FlannBasedMatcher matcher;
+    std::vector< DMatch > matches;
+    matcher.match( descriptors_object, descriptors_scene, matches );
+  
+    double max_dist = 0; double min_dist = 100;
+  
+    //-- Quick calculation of max and min distances between keypoints
+    for( int i = 0; i < descriptors_object.rows; i++ )
+    { double dist = matches[i].distance;
+      if( dist < min_dist ) min_dist = dist;
+      if( dist > max_dist ) max_dist = dist;
+    }
+  
+    printf("-- Max dist : %f \n", max_dist );
+    printf("-- Min dist : %f \n", min_dist );
+  
+    //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
+    std::vector< DMatch > good_matches;
+  
+    for( int i = 0; i < descriptors_object.rows; i++ )
+    {
+		if( matches[i].distance < 3*min_dist + 1e-2)
+       { 
+		   good_matches.push_back( matches[i]); 
+		}
+    }
+  
+   
+  
+    
+    for( int i = 0; i < good_matches.size(); i++ )
+    {
+      //-- Get the keypoints from the good matches
+      vf1.push_back( keypoints_object[ good_matches[i].queryIdx ].pt );
+      vf2.push_back( keypoints_scene[ good_matches[i].trainIdx ].pt );
+    }
 }

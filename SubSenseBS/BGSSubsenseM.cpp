@@ -127,14 +127,38 @@ void BGSSubsenseM::WarpModels()
 	
 	
 }
-void BGSSubsenseM::WarpImage(const cv::Mat img, cv::Mat& warpedImg)
+void BGSSubsenseM::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 {
-	cv::warpPerspective(img,warpedImg,m_homography,m_oImgSize);
-	cv::imwrite("warped.jpg",warpedImg);
+	/*cv::warpPerspective(img,warpedImg,m_homography,m_oImgSize);*/
+	
+	if (image.channels() ==3)
+	{
+		cv::cvtColor(image, m_gray, CV_BGR2GRAY); 
+	}
+	else
+		m_gray = image;
+	if (m_preGray.empty())
+		m_gray.copyTo(m_preGray);
+
+	KLTFeaturesMatching(m_gray,m_preGray,m_points[0],m_points[1]);
+	FeaturePointsRefineHistogram(m_points[0],m_points[1]);
+	//FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
+	m_ASAP->SetControlPts(m_points[0],m_points[1]);
+	m_ASAP->Warp(image,warpedImg);
+	//cv::imwrite("warped.jpg",warpedImg);
+	std::vector<uchar> inliers(m_points[0].size());
+	m_homography = cv::findHomography(
+		m_points[0], // corresponding
+		m_points[1], // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+	cv::swap(m_gray,m_preGray);
 }
 //! (re)initiaization method; needs to be called before starting background subtraction (note: also reinitializes the keypoints vector)
 void BGSSubsenseM::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints)
 {
+	m_ASAP = new ASAPWarping(oInitImg.cols,oInitImg.rows,8,1.0);
 	cv::Mat img;
 	//cv::GaussianBlur(oInitImg,img,cv::Size(3,3),0,0);
 	cv::Sobel(img,m_dx,CV_16S,1,0);
@@ -667,35 +691,24 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 }
 void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, size_t idx_ushrt, size_t idx_uchar, const ushort* anCurrIntraDesc, const uchar* anCurrColor)
 {
-	const size_t nLearningRate = (size_t)ceil(*pfCurrLearningRate);
-	if((rand()%nLearningRate)==0) {
-		const size_t s_rand = rand()%m_nBGSamples;
+	float fSamplesRefreshFrac = 0.5;
+	const size_t nBGSamplesToRefresh = fSamplesRefreshFrac<1.0f?(size_t)(fSamplesRefreshFrac*m_nBGSamples):m_nBGSamples;
+	const size_t nRefreshStartPos = fSamplesRefreshFrac<1.0f?rand()%m_nBGSamples:0;
+	const size_t nLearningRate = 1;
+	for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
+				int y_sample, x_sample;
+				getRandSamplePosition(x_sample,y_sample,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
+				const size_t idx_sample_color = 3*(m_oLastColorFrame.cols*y_sample + x_sample);
+				const size_t idx_sample_desc = idx_sample_color*2;
+				const size_t idx_sample = s%m_nBGSamples;
+		
 		for(size_t c=0; c<m_nImgChannels; ++c) {
-			*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt+2*c)) = anCurrIntraDesc[c];
-			*(m_voBGColorSamples[s_rand].data+idx_uchar+c) = anCurrColor[c];
+			*((ushort*)(m_voBGDescSamples[idx_sample].data+idx_sample_desc+2*c)) = anCurrIntraDesc[c];
+			*(m_voBGColorSamples[idx_sample].data+idx_sample_color+c) = anCurrColor[c];
 		}
 
 	}
-	int x_rand,y_rand;
-	const bool bCurrUsing3x3Spread = m_bUse3x3Spread && !m_oUnstableRegionMask.data[idx_uchar/3];
-	if(bCurrUsing3x3Spread)
-		getRandNeighborPosition_3x3(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
-	else
-		getRandNeighborPosition_5x5(x_rand,y_rand,x,y,LBSP::PATCH_SIZE/2,m_oImgSize);
-	const size_t n_rand = rand();
-	const size_t idx_rand_uchar = m_oImgSize.width*y_rand + x_rand;
-	const size_t idx_rand_flt32 = idx_rand_uchar*4;
-	const float fRandMeanLastDist = *((float*)(w_oMeanLastDistFrame.data+idx_rand_flt32));
-	const float fRandMeanRawSegmRes = *((float*)(w_oMeanRawSegmResFrame_ST.data+idx_rand_flt32));
-	if((n_rand%(bCurrUsing3x3Spread?nLearningRate:(nLearningRate/2+1)))==0
-		|| (fRandMeanRawSegmRes>GHOSTDET_S_MIN && fRandMeanLastDist<GHOSTDET_D_MAX && (n_rand%((size_t)m_fCurrLearningRateLowerCap))==0)) {
-			const size_t idx_rand_ushrt = idx_rand_uchar*2;
-			const size_t s_rand = rand()%m_nBGSamples;
-			for(size_t c=0; c<m_nImgChannels; ++c) {
-				*((ushort*)(m_voBGDescSamples[s_rand].data+idx_rand_ushrt+2*c)) = anCurrIntraDesc[c];
-				*(m_voBGColorSamples[s_rand].data+idx_rand_uchar+c) = anCurrColor[c];
-			}				
-	}
+	
 }
 void BGSSubsenseM::UpdateModel(const cv::Mat& curImg, const cv::Mat& curMask)
 {
@@ -842,13 +855,13 @@ void BGSSubsenseM::WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgm
 	
 	cv::Mat oInputImg;
 	cv::Mat img = _image.getMat();
-	getHomography(_image.getMat(),m_homography);
+	//getHomography(_image.getMat(),m_homography);
 	/*std::cout<<"homo \n";
 	std::cout<<m_homography<<std::endl;*/
-	
+	WarpImage(img,oInputImg);
 	m_invHomography = m_homography.inv();
 	
-	WarpImage(_image.getMat(),oInputImg);
+	
 	/*sprintf(filename,"curColor%d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,oInputImg);*/
 	_fgmask.create(m_oImgSize,CV_8UC1);
@@ -1124,8 +1137,10 @@ failedcheck3ch:
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);*/
 	
 	//warp mask to curr Frame
-	cv::warpPerspective(m_oFGMask_last,m_oFGMask_last,m_invHomography,m_oImgSize);
-	cv::warpPerspective(m_oRawFGMask_last,m_oRawFGMask_last,m_invHomography,m_oImgSize);
+	//cv::warpPerspective(m_oFGMask_last,m_oFGMask_last,m_invHomography,m_oImgSize);
+	//cv::warpPerspective(m_oRawFGMask_last,m_oRawFGMask_last,m_invHomography,m_oImgSize);
+	cv::remap(m_oFGMask_last,m_oFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),CV_INTER_CUBIC);
+	cv::remap(m_oRawFGMask_last,m_oRawFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),CV_INTER_CUBIC);
 	m_oRawFGMask_last.copyTo(oCurrFGMask);
 	//MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
@@ -1192,9 +1207,9 @@ failedcheck3ch:
 	/*sprintf(filename,"outmask%d.jpg",m_nFrameIndex-1);
 	cv::imwrite(filename,outMask);*/
 	
-	
+	cv::Mat fakeMask = cv::Mat::zeros(m_oImgSize,CV_8UC1);
 	WarpModels();
-	UpdateModel(img,oCurrFGMask);
+	UpdateModel(img,fakeMask);
 	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	{
 		refreshModel(0.1);
