@@ -6,6 +6,7 @@
 #include <thrust\device_vector.h>
 #include "GpuSuperpixel.h"
 #include "MRFOptimize.h"
+#include "ASAPWarping.h"
 #include <fstream>
 #include <curand_kernel.h>
 //! defines the default value for BackgroundSubtractorLBSP::m_fRelLBSPThreshold
@@ -46,6 +47,8 @@ public:
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
 	//! gpu Background subtraction operator
 	virtual void GpuBSOperator(cv::InputArray image, cv::OutputArray fgmask);
+	virtual void WarpInitialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
+	virtual void WarpBSOperator(cv::InputArray image, cv::OutputArray fgmask);
 	//! primary model update function; the learning param is used to override the internal learning speed (ignored when <= 0)
 	virtual void operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRate=0);
 	//! unused, always returns nullptr
@@ -57,6 +60,7 @@ public:
 	//! sets the keypoints to be used for descriptor extraction, effectively setting the BGModel ROI (note: this function will remove all border keypoints)
 	virtual void setBGKeyPoints(std::vector<cv::KeyPoint>& keypoints);
 	virtual void refreshModel(float fSamplesRefreshFrac);
+	virtual void warpRefreshModel(float fSamplesRefreshFrac);
 	//! turns automatic model reset on or off
 	void setAutomaticModelReset(bool);
 	void upload(std::vector<cv::Point2f>& vec, cv::gpu::GpuMat& d_mat)
@@ -127,6 +131,11 @@ public:
 
 		affineM = estimateRigidTransform(features1,features2,true);
 	}
+	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
+	//更新模型
+	void UpdateModel(const cv::Mat& curImg, const cv::Mat& curMask);
+	void WarpModels();
+	void WarpImage(const cv::Mat img, cv::Mat& warpedImg);
 	void getHomography(const cv::Mat& dImage, cv::Mat&  homography);
 	void MotionEstimate(const cv::Mat& dImage, cv::Mat& homography);
 	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
@@ -238,48 +247,52 @@ protected:
 
 	//! background model pixel color intensity samples (equivalent to 'B(x)' in PBAS, but also paired with BackgroundSubtractorLBSP::m_voBGDescSamples to create our complete model)
 	std::vector<cv::Mat> m_voBGColorSamples;
+	std::vector<cv::Mat> w_voBGColorSamples;
 	cv::gpu::GpuMat d_voBGColorSamples,d_wvoBGColorSamples;
 	//! background model descriptors samples (tied to m_voKeyPoints but shaped like the input frames)
 	std::vector<cv::Mat> m_voBGDescSamples;
+	std::vector<cv::Mat> w_voBGDescSamples;
 	cv::gpu::GpuMat d_voBGDescSamples,d_wvoBGDescSamples;
 	cv::gpu::GpuMat d_fModels, d_wfModels, d_bModels, d_wbModels;
 	//! per-pixel update rates ('T(x)' in PBAS, which contains pixel-level 'sigmas', as referred to in ViBe)
 	cv::Mat m_oUpdateRateFrame;
-	
+	cv::Mat w_oUpdateRateFrame;
 	//! per-pixel distance thresholds (equivalent to 'R(x)' in PBAS, but used as a relative value to determine both intensity and descriptor variation thresholds)
 	cv::Mat m_oDistThresholdFrame;
-	
+	cv::Mat w_oDistThresholdFrame;
 	//! per-pixel distance variation modulators ('v(x)', relative value used to modulate 'R(x)' and 'T(x)' variations)
 	cv::Mat m_oVariationModulatorFrame;
+	cv::Mat w_oVariationModulatorFrame;
 	//! per-pixel mean distances between consecutive frames ('D_last(x)', used to detect ghosts and high variation regions in the sequence)
 	cv::Mat m_oMeanLastDistFrame;
-	
+	cv::Mat w_oMeanLastDistFrame;
 	//! per-pixel mean minimal distances from the model ('D_min(x)' in PBAS, used to control variation magnitude and direction of 'T(x)' and 'R(x)')
 	cv::Mat m_oMeanMinDistFrame_LT, m_oMeanMinDistFrame_ST;
-	
+	cv::Mat w_oMeanMinDistFrame_LT, w_oMeanMinDistFrame_ST;
 	//! per-pixel mean downsampled distances between consecutive frames (used to analyze camera movement and control max learning rates globally)
 	cv::Mat m_oMeanDownSampledLastDistFrame_LT, m_oMeanDownSampledLastDistFrame_ST;
+	cv::Mat w_oMeanDownSampledLastDistFrame_LT, w_oMeanDownSampledLastDistFrame_ST;
 	//! per-pixel mean raw segmentation results
 	cv::Mat m_oMeanRawSegmResFrame_LT, m_oMeanRawSegmResFrame_ST;
-	
+	cv::Mat w_oMeanRawSegmResFrame_LT, w_oMeanRawSegmResFrame_ST;
 	//! per-pixel mean final segmentation results
 	cv::Mat m_oMeanFinalSegmResFrame_LT, m_oMeanFinalSegmResFrame_ST;
-	
+	cv::Mat w_oMeanFinalSegmResFrame_LT, w_oMeanFinalSegmResFrame_ST;
 	//! a lookup map used to keep track of unstable regions (based on segm. noise & local dist. thresholds)
 	cv::Mat m_oUnstableRegionMask;
-	
+	cv::Mat w_oUnstableRegionMask;
 	//! per-pixel blink detection results ('Z(x)')
 	cv::Mat m_oBlinksFrame;
-	
+	cv::Mat w_oBlinksFrame;
 	//! pre-allocated matrix used to downsample (1/8) the input frame when needed
 	cv::Mat m_oDownSampledColorFrame;
 	
 	//! copy of previously used pixel intensities used to calculate 'D_last(x)'
 	cv::Mat m_oLastColorFrame;
-	
+	cv::Mat w_oLastColorFrame;
 	//! copy of previously used descriptors used to calculate 'D_last(x)'
 	cv::Mat m_oLastDescFrame;
-	
+	cv::Mat w_oLastDescFrame;
 	//! the foreground mask generated by the method at [t-1] (without post-proc, used for blinking px detection)
 	cv::Mat m_oRawFGMask_last;
 	cv::gpu::GpuMat d_oFGMask_last;
@@ -321,7 +334,7 @@ protected:
 	cv::gpu::GpuMat d_currPts;
 	cv::gpu::GpuMat d_status;
 	cv::gpu::GpuMat d_bgMask;
-	cv::Mat m_homography;
+	cv::Mat m_homography,m_invHomography;
 	std::vector<uchar> m_status; // status of tracked features
 	std::vector<cv::Point2f> m_points[2];
 	double* d_homoPtr;
@@ -351,5 +364,9 @@ protected:
 	curandState* d_randStates;
 	std::ofstream m_ofstream;
 	float* m_distance;
+
+
+	cv::Mat m_warpedImg;
+	ASAPWarping* m_ASAP;
 };
 

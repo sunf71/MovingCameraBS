@@ -25,6 +25,8 @@ void TestGpuSubsense();
 void TestMotionEstimate();
 void TestRegionGrowing();
 
+void TestSuperpixelFlow();
+
 class DenseOpticalFlowProvier
 {
 public:

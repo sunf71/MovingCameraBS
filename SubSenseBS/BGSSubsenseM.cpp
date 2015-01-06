@@ -139,13 +139,23 @@ void BGSSubsenseM::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 		m_gray = image;
 	if (m_preGray.empty())
 		m_gray.copyTo(m_preGray);
-
+	
 	KLTFeaturesMatching(m_gray,m_preGray,m_points[0],m_points[1]);
-	FeaturePointsRefineHistogram(m_points[0],m_points[1]);
-	//FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
+	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
+	FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
 	m_ASAP->SetControlPts(m_points[0],m_points[1]);
+	m_ASAP->Solve();
 	m_ASAP->Warp(image,warpedImg);
-	//cv::imwrite("warped.jpg",warpedImg);
+	m_ASAP->Reset();
+	char fileName[50];
+	sprintf(fileName,"in%06d_warped.jpg",m_nFrameIndex+1);
+	
+	cv::imwrite(fileName,warpedImg);
+	sprintf(fileName,"in%06d_gray.jpg",m_nFrameIndex+1);
+	cv::imwrite(fileName,m_gray);	
+	sprintf(fileName,"in%06d_preGray.jpg",m_nFrameIndex+1);
+	cv::imwrite(fileName,m_preGray);
+
 	std::vector<uchar> inliers(m_points[0].size());
 	m_homography = cv::findHomography(
 		m_points[0], // corresponding
@@ -691,7 +701,7 @@ void BGSSubsenseM::getHomography(const cv::Mat& image, cv::Mat&  homography)
 }
 void BGSSubsenseM::UpdateBackground(float* pfCurrLearningRate, int x, int y, size_t idx_ushrt, size_t idx_uchar, const ushort* anCurrIntraDesc, const uchar* anCurrColor)
 {
-	float fSamplesRefreshFrac = 0.5;
+	float fSamplesRefreshFrac = 0.1;
 	const size_t nBGSamplesToRefresh = fSamplesRefreshFrac<1.0f?(size_t)(fSamplesRefreshFrac*m_nBGSamples):m_nBGSamples;
 	const size_t nRefreshStartPos = fSamplesRefreshFrac<1.0f?rand()%m_nBGSamples:0;
 	const size_t nLearningRate = 1;
@@ -875,6 +885,10 @@ void BGSSubsenseM::WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgm
 		cout<<"currently not supported!\n";		
 	}
 	else { //m_nImgChannels==3
+		float* mapXPtr = (float*)m_ASAP->getMapX().data;
+		float* mapYPtr = (float*)m_ASAP->getMapY().data;
+		float* invMapXPtr = (float*)m_ASAP->getInvMapX().data;
+		float* invMapYPtr = (float*)m_ASAP->getInvMapY().data;
 		for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
@@ -882,18 +896,26 @@ void BGSSubsenseM::WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgm
 			const size_t idx_flt32 = idx_uchar*4;
 			const size_t idx_uchar_rgb = idx_uchar*3;
 			const size_t idx_ushrt_rgb = idx_uchar_rgb*2;
-			float fx,fy,fw;
-			int wx;
-			int wy;
+			float mapX = *(mapXPtr + idx_uchar);
+			float mapY = *(mapYPtr + idx_uchar);
+			float invMapX = *(invMapXPtr + idx_uchar);
+			float invMapY = *(invMapYPtr + idx_uchar);
+		/*	std::cout<<x<<" , "<<y<<"  map: ";
+			std::cout<<mapx<<" , "<<mapy<<" invMap: ";
+			std::cout<<invMapx<<" , "<<invMapy<<std::endl;*/
+			float fx = invMapX;
+			float fy = invMapY;
+			int wx = (int)(mapX+0.5);
+			int wy = (int)(mapY+0.5);
 
-			double* ptr = (double*)m_invHomography.data;
+			/*double* ptr = (double*)m_invHomography.data;
 			fx = x*ptr[0] + y*ptr[1] + ptr[2];
 			fy = x*ptr[3] + y*ptr[4] + ptr[5];
 			fw = x*ptr[6] + y*ptr[7] + ptr[8];
 			fx /=fw;
 			fy/=fw;
 			wx = (int)(fx+0.5);
-			wy = (int)(fy+0.5);
+			wy = (int)(fy+0.5);*/
 			
 			if (wx<2 || wx>= m_oImgSize.width-2 || wy<2 || wy>=m_oImgSize.height-2)
 			{					
@@ -905,12 +927,12 @@ void BGSSubsenseM::WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgm
 			else
 			{
 				//·´±ä»»
-				double* ptr = (double*)m_homography.data;
+				/*double* ptr = (double*)m_homography.data;
 				fx = x*ptr[0] + y*ptr[1] + ptr[2];
 				fy = x*ptr[3] + y*ptr[4] + ptr[5];
 				fw = x*ptr[6] + y*ptr[7] + ptr[8];
 				fx /=fw;
-				fy/=fw;
+				fy/=fw;*/
 				//std::cout<<x<<","<<y<<std::endl;
 				if (fx<2 || fx>= m_oImgSize.width-2 || fy<2 || fy>=m_oImgSize.height-2)
 				{
@@ -1134,14 +1156,14 @@ failedcheck3ch:
 	cv::dilate(m_oFGMask_last,m_oFGMask_last_dilated,cv::Mat(),cv::Point(-1,-1),3);
 	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
 	cv::bitwise_not(m_oFGMask_last_dilated,m_oFGMask_last_dilated_inverted);
-	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);*/
-	
+	cv::bitwise_and(m_oBlinksFrame,m_oFGMask_last_dilated_inverted,m_oBlinksFrame);
+	m_oRawFGMask_last.copyTo(oCurrFGMask);*/
 	//warp mask to curr Frame
 	//cv::warpPerspective(m_oFGMask_last,m_oFGMask_last,m_invHomography,m_oImgSize);
 	//cv::warpPerspective(m_oRawFGMask_last,m_oRawFGMask_last,m_invHomography,m_oImgSize);
-	cv::remap(m_oFGMask_last,m_oFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),CV_INTER_CUBIC);
-	cv::remap(m_oRawFGMask_last,m_oRawFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),CV_INTER_CUBIC);
-	m_oRawFGMask_last.copyTo(oCurrFGMask);
+	cv::remap(m_oFGMask_last,m_oFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	
 	//MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
@@ -1209,14 +1231,14 @@ failedcheck3ch:
 	
 	cv::Mat fakeMask = cv::Mat::zeros(m_oImgSize,CV_8UC1);
 	WarpModels();
-	UpdateModel(img,fakeMask);
-	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
-	{
-		refreshModel(0.1);
-		//resetPara();
-		m_nOutPixels = 0;
-	}
-	refreshModel(outMask,0.1);
+	UpdateModel(img,oCurrFGMask);
+	//if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
+	//{
+	//	refreshModel(0.1);
+	//	//resetPara();
+	//	m_nOutPixels = 0;
+	//}
+	//refreshModel(outMask,0.1);
 	
 }
 

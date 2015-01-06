@@ -4,7 +4,7 @@
 #include "device_launch_parameters.h"
 #include "CudaSuperpixel.h"
 #include <thrust/device_vector.h>
-
+#include <opencv\cv.h>
 class GpuSuperpixel
 {
 public:
@@ -16,6 +16,7 @@ public:
 	{
 		Release();
 	}
+	void Superpixel(const cv::Mat& imgBGRA, int num, int* lables, SLICClusterCenter* centers, int itrThreshold = 10);
 	void Superpixel(uchar4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);
 	void SuperpixelLattice(uchar4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);
 	void Superpixel(uchar4* rgbaBuffer, int& num,int* labels,int iterThreshold = 10);

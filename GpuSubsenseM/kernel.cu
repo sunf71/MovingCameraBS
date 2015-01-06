@@ -2,7 +2,8 @@
 
 int main (int argc, char* argv[])
 {
-	TCMRFOptimization();
+	TestSuperpixelFlow();
+	//TCMRFOptimization();
 	//TestRegionGrowing();
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();

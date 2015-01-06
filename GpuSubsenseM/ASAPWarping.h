@@ -109,7 +109,7 @@ public:
 	float getMinX()
 	{
 
-		float  minx = std::min(_V00.x,_V01.x);
+		float  minx = min(_V00.x,_V01.x);
 		minx = min(minx, _V10.x);
 		minx = min(minx,_V11.x);
 		return minx;
@@ -326,15 +326,6 @@ public:
 	{
 		return _invMapY;
 	}
-	cv::Mat& getMapX()
-	{
-		return _mapX;
-	}
-	cv::Mat& getMapY()
-	{
-		return _mapY;
-	}
-
 protected:
 	void quadWarp(const cv::Mat& img, int row, int col, Quad& qd1, Quad& qd2);
 	void getSmoothWeight(const cv::Point2f& V1, const cv::Point2f& V2, const cv::Point2f& V3, float& u, float& v)

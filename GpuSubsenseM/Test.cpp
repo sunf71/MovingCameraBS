@@ -68,22 +68,25 @@ void TestSuperpixel()
 {
 	using namespace cv;
 	Mat img = imread("..//ptz//input0//in000090.jpg");
+	cv::cvtColor(img,img,CV_BGR2BGRA);
 	//cv::resize(img,img,cv::Size(16,16));
 	uchar4* imgData = new uchar4[img.rows*img.cols];
 	unsigned int* idata = new unsigned int[img.rows*img.cols];
+	unsigned char tmp[4];
 	for(int i=0; i< img.cols; i++)
 	{
 		
 		for(int j=0; j<img.rows; j++)
 		{
 			int idx = img.step[0]*j + img.step[1]*i;
-			imgData[i + j*img.cols].x = img.data[idx];
-			imgData[i + j*img.cols].y = img.data[idx+ img.elemSize1()];
-			imgData[i + j*img.cols].z = img.data[idx+2*img.elemSize1()];
-			imgData[i + j*img.cols].w = img.data[idx+3*img.elemSize1()];
-			unsigned char tmp[4];
 			for(int k=0; k<4; k++)
-				tmp[k] = img.data[img.step[0]*j + img.step[1]*i + img.elemSize1()*k];
+				tmp[k] = img.data[idx + img.elemSize1()*k];
+			imgData[i + j*img.cols].x = tmp[0];
+			imgData[i + j*img.cols].y = tmp[1];
+			imgData[i + j*img.cols].z = tmp[2];
+			imgData[i + j*img.cols].w = tmp[3];
+			
+			
 			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
@@ -216,12 +219,12 @@ void TestGpuSubsense()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start = 1;
-	int end = 19;
+	int start = 180;
+	int end = 1130;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\moseg\\people1\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -532,10 +535,129 @@ void TestFlow()
 	mask.convertTo(B,CV_8U,255.0/(maxD-minD),0);
 	cv::imwrite("tracked.jpg",B);
 }
-void TestKLT()
+
+void TestSuperpixelFlow()
 {
-	cv::Mat preImg = cv::imread("..//ptz//input0//in000087.jpg");
-	cv::Mat curImg = cv::imread("..//ptz//input0//in000088.jpg");
+	SLIC aslic;	
+	PictureHandler handler;
+	int cols = 704;
+	int rows = 480;
+	int step = 15;
+	int size = rows*cols;
+	int num(0);
+	GpuSuperpixel gs(cols,rows,step);
+	cv::Mat simg,timg,sgray,tgray;
+	simg = cv::imread("..//ptz//input0//in000218.jpg");
+	timg = cv::imread("..//ptz//input0//in000219.jpg");
+
+	std::vector<cv::Point2f> features0,features1;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	
+	cv::cvtColor(simg,sgray,CV_BGR2GRAY);
+	cv::cvtColor(timg,tgray,CV_BGR2GRAY);
+	cv::cvtColor(simg,simg,CV_BGR2BGRA);
+	cv::cvtColor(timg,timg,CV_BGR2BGRA);
+
+	
+	SLICClusterCenter* centers0(NULL),*centers1(NULL);
+	int * labels0(NULL), * labels1(NULL);
+	labels0 = new int[size];
+	labels1 = new int[size];
+	centers0 = new SLICClusterCenter[size];
+	centers1 = new SLICClusterCenter[size];
+
+	gs.Superpixel(simg,num,labels0,centers0);
+	gs.Superpixel(timg,num,labels1,centers1);
+
+	for(int i=0; i<size; i++)
+	{
+		features0.push_back(cv::Point2f(centers0[i].xy.x,centers0[i].xy.y));
+	}
+	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
+
+	int k=0; 
+	for(int i=0; i<size; i++)
+	{
+		if (status[i] ==1)
+		{
+			features1[k] = features1[i];
+			features0[k++] = features0[i];
+		}
+	}
+	int radius = 2*step;
+	for( int i=0; i<k; i++)
+	{
+		int label0 = labels0[int((features0[i].x) + (features0[i].y)*cols)];
+		int label1 = labels1[int((features1[i].x) + (features1[i].y)*cols)];
+		float avg0(0),avg1(0);		
+		std::vector<int> idxs0, idxs1;
+		for(int m = -radius; m<= radius; m++)
+		{
+			for(int n = -radius; n<= radius; n++)
+			{
+				int ix = features0[i].x+m;
+				int iy = features0[i].y+n;
+				
+			
+				if (ix >=0 && ix < cols && iy >=0 && iy<rows)
+				{	
+					int idx0 = ix + iy*cols;
+					if (labels0[idx0] == label0)
+					{
+						avg0 += sgray.data[idx0];
+
+						idxs0.push_back(idx0);
+					}
+				}
+				
+				ix = features1[i].x+m;
+				iy = features1[i].y+n;
+				if (ix >=0 && ix < cols && iy >=0 && iy<rows)
+				{
+					int idx1 = ix + iy*cols;
+					if (labels1[idx1] == label1)
+					{
+						avg1 += tgray.data[idx1];
+
+						idxs1.push_back(idx1);
+					}
+				}
+			}
+		}
+		uchar diff = abs(avg0/idxs0.size()-avg1/idxs1.size());
+		for(int j=0; j<idxs0.size(); j++)
+		{
+			sgray.data[idxs0[j]] = diff;
+		}
+		for(int j=0; j<idxs1.size(); j++)
+		{
+			tgray.data[idxs1[j]] = diff;
+		}
+			
+	}
+
+	unsigned int* idata = new unsigned[size];
+	memcpy(idata,simg.data,size*4);
+	aslic.DrawContoursAroundSegments(idata, labels0, simg.cols,simg.rows,0x00ff00);
+	handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp.jpg"),std::string(".\\"));
+
+	cv::imshow("s",sgray);
+	cv::imshow("t", tgray);
+	cv::waitKey(0);
+	if(labels0 != NULL)
+	{
+		delete[] labels0;
+		delete[] labels1;
+		delete[] centers0;
+		delete[] centers1;
+		delete[] idata;
+		idata = NULL;
+		centers0 = NULL;
+		centers1 = NULL;
+		labels0 = NULL;
+		labels1 = NULL;
+	}
 }
 void TCMRFOptimization()
 {

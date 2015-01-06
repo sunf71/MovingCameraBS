@@ -155,7 +155,7 @@ __device__ double distance(int x, int y, uchar4* imgBuffer,int width, int height
 	double d_rgb = sqrt(dr*dr + dg*dg + db*db);
 	double dx = (x*1.f - d_ceneters[label].xy.x);
 	double dy =  (y*1.f - d_ceneters[label].xy.y);
-	double d_xy = sqrt(dx*dx + dy*dy);
+	double d_xy = (dx*dx + dy*dy);
 	return (1-alpha)*d_rgb + alpha*d_xy/(radius);
 }
 __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
@@ -567,10 +567,10 @@ void UpdateBoundaryLattice(uchar4* imgBuffer, int nHeight, int nWidth,int* label
 {
 	//GpuTimer timer;
 	//timer.Start();
-	/*dim3 blockDim(16,16);
-	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);*/
-	dim3 blockDim(1,1);
-	dim3 gridDim(1,1);
+	dim3 blockDim(16,16);
+	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
+	/*dim3 blockDim(1,1);
+	dim3 gridDim(1,1);*/
 	UpdateBoundaryLatticeKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters,alpha,radius);
 	//timer.Stop();
 	//std::cout<<"update UpdateBoundary "<<timer.Elapsed()<<std::endl;

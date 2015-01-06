@@ -19,8 +19,8 @@ void TestASAPWarping()
 	//mesh.drawMesh(img,0,nimg);
 	//cv::imshow("mesh",nimg);
 	//cv::waitKey();
-	cv::Mat simg = cv::imread(".//5//s.png");
-	cv::Mat timg = cv::imread(".//5//t.png");
+	cv::Mat simg = cv::imread("..\\ptz\\input3\\in000181.jpg");
+	cv::Mat timg = cv::imread("..\\ptz\\input3\\in000180.jpg");
 	int width = simg.cols;
 	int height = simg.rows;
 	int quadStep = 8;
@@ -30,7 +30,12 @@ void TestASAPWarping()
 	KLTFeaturesMatching(simg,timg,vf1,vf2);
 	//FILESURFFeaturesMatching(simg,timg,vf1,vf2);
 	//SURFFeaturesMatching(simg,timg,vf1,vf2);
-	FeaturePointsRefineHistogram(vf1,vf2);
+	/*cv::Mat homography;
+	FeaturePointsRefineRANSAC(vf1,vf2,homography);*/
+	FeaturePointsRefineHistogram(simg.cols,simg.rows,vf1,vf2);
+	cv::Mat mr;
+	MatchingResult(simg,timg,vf1,vf2,mr);
+	cv::imshow("matching result", mr);
 	asap.SetControlPts(vf1,vf2);
 	asap.Solve();
 	cv::Mat wimg;

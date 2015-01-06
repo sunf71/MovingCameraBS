@@ -239,7 +239,7 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 			{
 				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
 				//file<<energy<<std::endl;
-				g->add_edge(i,m_neighbor[i][j],0,0);
+				g->add_edge(i,m_neighbor[i][j],energy,energy);
 			}
 		}
 	}

@@ -73,6 +73,12 @@
     <ClInclude Include="flowIO.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="ASAPWarping.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SparseSolver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
@@ -143,6 +149,15 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="flowIO.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ASAPWarping.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SparseSolver.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LBSP.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

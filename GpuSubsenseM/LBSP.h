@@ -91,7 +91,8 @@ public:
 		//CV_DbgAssert(_x<oInputImg.cols-(int)LBSP::PATCH_SIZE/2 && _y<oInputImg.rows-(int)LBSP::PATCH_SIZE/2);
 		const size_t _step_row = oInputImg.step.p[0];
 		const uchar* const _data = oInputImg.data;
-		#include "LBSP_16bits_dbcross_s4ch.i"
+		//#include "LBSP_16bits_dbcross_s4ch.i"
+		#include "LBSP_16bits_dbcross_s3ch.i"
 	}
 
 	//! utility function, used to reshape a descriptors matrix to its input image size via their keypoint locations
