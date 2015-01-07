@@ -537,13 +537,143 @@ void TestFlow()
 	cv::imwrite("tracked.jpg",B);
 }
 
+void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, cv::Mat& flow)
+{
+	std::vector<cv::Point2f> features0,features1;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	int spWidth = (sgray.cols+step-1)/step;
+	int spHeight = (sgray.rows+step-1)/step;
+	flow.create(spHeight,spWidth,CV_32FC2);
+	flow = cv::Scalar(0);
+	for(int i=0; i<spSize; i++)
+	{
+		features0.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
+	}
+	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
+
+	int k=0; 
+	for(int i=0; i<spHeight; i++)
+	{
+		float2 * ptr = flow.ptr<float2>(i);
+		for(int j=0; j<spWidth; j++)
+		{
+			int idx = j + i*spWidth;
+			if (status[idx] == 1)
+			{
+				ptr[j].x = features1[idx].x - features0[idx].x;
+				ptr[j].y = features1[idx].y - features0[idx].y;
+				k++;
+			}
+		}
+	}
+	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
+}
+void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* centers, const cv::Mat& sflow, int spSize, int step, int width, int height, cv::Mat& flow)
+{
+	
+	flow.create(height,width,CV_32FC2);
+	flow = cv::Scalar(0);
+	for(int i=0; i<spSize; i++)
+	{		
+		int k = centers[i].xy.x;
+		int j = centers[i].xy.y;
+		if (centers[i].nPoints >0)			
+		{
+			
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = step;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>width-1 || y<0 || y> height-1)
+						continue;
+					int idx = x+y*width;
+					
+					if (labels[idx] == i )
+					{		
+						float2* fptr = (float2*)(flow.data + idx*8);
+						*fptr = *((float2*)(sflow.data + i*8));
+					}				
+				}
+			}
+			
+		}
+	}
+}
+
+void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, const int* labels1, const SLICClusterCenter* centers1, int spSize, int spStep, int width, int height,
+	const cv::Mat& mapX, const cv::Mat& mapY,std::vector<int> mathedId, cv::Mat& diff)
+{
+	diff.create(height,width,CV_32FC3);
+	for(int i=0; i<spSize; i++)
+	{		
+		int k = centers0[i].xy.x;
+		int j = centers0[i].xy.y;
+		if (centers0[i].nPoints >0)			
+		{
+			float avgX(0),avgY(0);
+			int n(0);
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = spStep;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>width-1 || y<0 || y> height-1)
+						continue;
+					int idx = x+y*width;
+					
+					if (labels0[idx] == i )
+					{		
+						float nx = *((float*)(mapX.data + idx*4));
+						avgX += nx;
+						float ny = *((float*)(mapY.data + idx*4));
+						avgY += ny;
+						n++;
+					}				
+				}
+			}
+			avgX /= n;
+			avgY /= n;
+			int iavgX = (int)(avgX +0.5);
+			int iavgY = (int)(avgY + 0.5);
+			int label = labels1[iavgX + iavgY*width];
+			mathedId.push_back(label);
+			float cdx = abs(centers0[i].rgb.x - centers1[label].rgb.x);
+			float cdy = abs(centers0[i].rgb.y - centers1[label].rgb.y);
+			float cdz = abs(centers0[i].rgb.z - centers1[label].rgb.z);
+			float3 val = make_float3(cdx,cdy,cdz);
+			k = centers1[label].xy.x;
+			j = centers1[label].xy.y;
+			for(int y = j - radius; y<= j+radius; y++)
+			{
+				if (y<0 || y> height-1)
+					continue;
+				float3* dPtr= diff.ptr<float3>(y);
+				
+				for (int x = k- radius; x<= k+radius; x++)
+				{
+					if  (x<0 || x>width-1)
+						continue;
+					int idx = x+y*width;
+					if (labels1[idx] == label )
+					{
+						dPtr[x] = val;
+					}
+				}
+			}
+		}
+	}
+}
 void TestSuperpixelFlow()
 {
 	SLIC aslic;	
 	PictureHandler handler;
 	
-	int cols = 320;
-	int rows = 240;
+	int cols = 640;
+	int rows = 480;
 	int step = 5;
 	ASAPWarping asap(cols,rows,8,1.0);
 
@@ -552,8 +682,8 @@ void TestSuperpixelFlow()
 	GpuSuperpixel gs(cols,rows,step);
 	cv::Mat simg,timg,wimg,sgray,tgray;
 	cv::Mat img0,img1;
-	img0 = cv::imread("..//ptz//input3//in000266.jpg");
-	img1 = cv::imread("..//ptz//input3//in000265.jpg");
+	img0 = cv::imread("..//moseg//people1//in000013.jpg");
+	img1 = cv::imread("..//moseg//people1//in000012.jpg");
 	
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
@@ -576,114 +706,138 @@ void TestSuperpixelFlow()
 	gs.Superpixel(simg,num,labels0,centers0);
 	gs.Superpixel(timg,num,labels1,centers1);
 
-	for(int i=0; i<spSize; i++)
-	{
-		features0.push_back(cv::Point2f(centers0[i].xy.x,centers0[i].xy.y));
-	}
-	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
-	//跟踪成功的label
-	std::vector<int> mlabels0;
-	int k=0; 
-	for(int i=0; i<spSize; i++)
-	{
-		if (status[i] ==1)
-		{
-			mlabels0.push_back(i);
-			features0[k] = features0[i];
-			features1[k++] = features1[i];
-			
-		}
-	}
+	KLTFeaturesMatching(sgray,tgray,features0,features1);
+	cv::Mat homography;
+	FeaturePointsRefineRANSAC(features0,features1,homography);
 	asap.SetControlPts(features0,features1);
 	asap.Solve();
-	asap.Warp(img0,wimg);
-	cv::Mat mapX = asap.getMapX();
-	cv::Mat mapY = asap.getMapY();
-	int radius = 2*step;
-	cv::RNG rgn =  cv::theRNG();
-	for( int i=0; i<k; i++)
-	{
-		
-		int label0 = mlabels0[i];
-		int ix1 = (int)(features1[i].x+0.5);
-		int iy1 = (int)(features1[i].y+0.5);
-		int idx = ix1+ iy1*cols;
-		int ix0 = (int)(features0[i].x+0.5);
-		int iy0 = (int)(features0[i].y+0.5);
-		int idx0 = ix0+ iy0*cols;
+	asap.Warp(simg,wimg);
+	std::vector<int> matchedId;
+	cv::Mat diffMat;
+	SuperpixelMatching(labels0,centers0,labels1,centers1,spSize,step,cols,rows,asap.getMapX(),asap.getMapY(),matchedId,diffMat);
+	cv::imshow("matched err", diffMat);
+	cv::waitKey();
+	/*cv::Mat spFlow,flow,flowField,pflowField;
+	std::vector<cv::Mat> flows(2);
+	SuperpixelFlow(sgray,tgray,step,spSize,centers0,spFlow);
+	cv::split(spFlow,flows);
+	getFlowField(flows[0],flows[1],flowField);
+	cv::imshow("superpixel flow",flowField);
+	SuperpixelFlowToPixelFlow(labels0,centers0,spFlow,spSize,step,cols,rows,flow);
+	cv::split(flow,flows);
+	getFlowField(flows[0],flows[1],pflowField);
+	cv::imshow("pixel flow",pflowField);
+	cv::waitKey();*/
 
-		float dx = features1[i].x - mapX.at<float>(idx0);
-		float dy = features1[i].y - mapY.at<float>(idx0);
-		float dis = abs(dx) + abs(dy);
 
-		int label1 = labels1[idx];
-		float4 avg0 = centers0[label0].rgb;
-		float4 avg1 = centers1[label1].rgb;
-		uchar diff = (abs(avg0.x-avg0.y) + abs(avg0.y - avg1.y) + abs(avg0.z-avg1.z) + abs(avg0.w-avg1.w))/4;
-		cv::Scalar color = cv::Scalar(diff,diff,diff,255);
-		if (dis < 2)
-			color = cv::Scalar(255,0,0,255);
+	//for(int i=0; i<spSize; i++)
+	//{
+	//	features0.push_back(cv::Point2f(centers0[i].xy.x,centers0[i].xy.y));
+	//}
+	//cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
+	////跟踪成功的label
+	//std::vector<int> mlabels0;
+	//int k=0; 
+	//for(int i=0; i<spSize; i++)
+	//{
+	//	if (status[i] ==1)
+	//	{
+	//		mlabels0.push_back(i);
+	//		features0[k] = features0[i];
+	//		features1[k++] = features1[i];
+	//		
+	//	}
+	//}
+	//asap.SetControlPts(features0,features1);
+	//asap.Solve();
+	//asap.Warp(img0,wimg);
+	//cv::Mat mapX = asap.getMapX();
+	//cv::Mat mapY = asap.getMapY();
+	//int radius = 2*step;
+	//cv::RNG rgn =  cv::theRNG();
+	//for( int i=0; i<k; i++)
+	//{
+	//	
+	//	int label0 = mlabels0[i];
+	//	int ix1 = (int)(features1[i].x+0.5);
+	//	int iy1 = (int)(features1[i].y+0.5);
+	//	int idx = ix1+ iy1*cols;
+	//	int ix0 = (int)(features0[i].x+0.5);
+	//	int iy0 = (int)(features0[i].y+0.5);
+	//	int idx0 = ix0+ iy0*cols;
 
-		
-		for(int m = -radius; m<= radius; m++)
-		{
-			for(int n = -radius; n<= radius; n++)
-			{
-				int ix = features0[i].x+m;
-				int iy = features0[i].y+n;
-				
-			
-				if (ix >=0 && ix < cols && iy >=0 && iy<rows)
-				{	
-					int idx0 = ix + iy*cols;
-					if (labels0[idx0] == label0)
-					{						
-						simg.at<Vec4b>(iy,ix) = color;
-					}
-				}
-				
-				ix = centers1[label1].xy.x+m;
-				iy = centers1[label1].xy.y+n;
-				if (ix >=0 && ix < cols && iy >=0 && iy<rows)
-				{
-					int idx1 = ix + iy*cols;
-					if (labels1[idx1] == label1)
-					{
-						timg.at<Vec4b>(iy,ix) = color;
-					}
-				}
-			}
-		}
-		
-			
-	}
+	//	float dx = features1[i].x - mapX.at<float>(idx0);
+	//	float dy = features1[i].y - mapY.at<float>(idx0);
+	//	float dis = abs(dx) + abs(dy);
 
-	unsigned int* idata = new unsigned[size];
-	memcpy(idata,simg.data,size*4);
-	aslic.DrawContoursAroundSegments(idata, labels0, simg.cols,simg.rows,0x00ff00);
-	aslic.SaveSuperpixelLabels(labels0,cols,rows,std::string("labels0.txt"),std::string(".\\"));
-	handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp0.jpg"),std::string(".\\"));
-	memcpy(idata,timg.data,size*4);
-	aslic.DrawContoursAroundSegments(idata, labels1, simg.cols,simg.rows,0x00ff00);
-	aslic.SaveSuperpixelLabels(labels1,cols,rows,std::string("labels1.txt"),std::string(".\\"));
-	handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp1.jpg"),std::string(".\\"));
+	//	int label1 = labels1[idx];
+	//	float4 avg0 = centers0[label0].rgb;
+	//	float4 avg1 = centers1[label1].rgb;
+	//	uchar diff = (abs(avg0.x-avg0.y) + abs(avg0.y - avg1.y) + abs(avg0.z-avg1.z) + abs(avg0.w-avg1.w))/4;
+	//	cv::Scalar color = cv::Scalar(diff,diff,diff,255);
+	//	if (dis < 2)
+	//		color = cv::Scalar(255,0,0,255);
 
-	cv::imshow("s",simg);
-	cv::imshow("t", timg);
-	cv::waitKey(0);
-	if(labels0 != NULL)
-	{
-		delete[] labels0;
-		delete[] labels1;
-		delete[] centers0;
-		delete[] centers1;
-		delete[] idata;
-		idata = NULL;
-		centers0 = NULL;
-		centers1 = NULL;
-		labels0 = NULL;
-		labels1 = NULL;
-	}
+	//	
+	//	for(int m = -radius; m<= radius; m++)
+	//	{
+	//		for(int n = -radius; n<= radius; n++)
+	//		{
+	//			int ix = features0[i].x+m;
+	//			int iy = features0[i].y+n;
+	//			
+	//		
+	//			if (ix >=0 && ix < cols && iy >=0 && iy<rows)
+	//			{	
+	//				int idx0 = ix + iy*cols;
+	//				if (labels0[idx0] == label0)
+	//				{						
+	//					simg.at<Vec4b>(iy,ix) = color;
+	//				}
+	//			}
+	//			
+	//			ix = centers1[label1].xy.x+m;
+	//			iy = centers1[label1].xy.y+n;
+	//			if (ix >=0 && ix < cols && iy >=0 && iy<rows)
+	//			{
+	//				int idx1 = ix + iy*cols;
+	//				if (labels1[idx1] == label1)
+	//				{
+	//					timg.at<Vec4b>(iy,ix) = color;
+	//				}
+	//			}
+	//		}
+	//	}
+	//	
+	//		
+	//}
+
+	//unsigned int* idata = new unsigned[size];
+	//memcpy(idata,simg.data,size*4);
+	//aslic.DrawContoursAroundSegments(idata, labels0, simg.cols,simg.rows,0x00ff00);
+	//aslic.SaveSuperpixelLabels(labels0,cols,rows,std::string("labels0.txt"),std::string(".\\"));
+	//handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp0.jpg"),std::string(".\\"));
+	//memcpy(idata,timg.data,size*4);
+	//aslic.DrawContoursAroundSegments(idata, labels1, simg.cols,simg.rows,0x00ff00);
+	//aslic.SaveSuperpixelLabels(labels1,cols,rows,std::string("labels1.txt"),std::string(".\\"));
+	//handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp1.jpg"),std::string(".\\"));
+
+	//cv::imshow("s",simg);
+	//cv::imshow("t", timg);
+	//cv::waitKey(0);
+	//if(labels0 != NULL)
+	//{
+	//	delete[] labels0;
+	//	delete[] labels1;
+	//	delete[] centers0;
+	//	delete[] centers1;
+	//	delete[] idata;
+	//	idata = NULL;
+	//	centers0 = NULL;
+	//	centers1 = NULL;
+	//	labels0 = NULL;
+	//	labels1 = NULL;
+	//}
 }
 void TCMRFOptimization()
 {
