@@ -1,5 +1,6 @@
 #include "Test.h"
 #include "flowIO.h"
+#include "ASAPWarping.h"
 void testCudaGpu()
 {
 	try
@@ -540,58 +541,90 @@ void TestSuperpixelFlow()
 {
 	SLIC aslic;	
 	PictureHandler handler;
-	int cols = 704;
-	int rows = 480;
-	int step = 15;
+	
+	int cols = 320;
+	int rows = 240;
+	int step = 5;
+	ASAPWarping asap(cols,rows,8,1.0);
+
 	int size = rows*cols;
 	int num(0);
 	GpuSuperpixel gs(cols,rows,step);
-	cv::Mat simg,timg,sgray,tgray;
-	simg = cv::imread("..//ptz//input0//in000218.jpg");
-	timg = cv::imread("..//ptz//input0//in000219.jpg");
-
+	cv::Mat simg,timg,wimg,sgray,tgray;
+	cv::Mat img0,img1;
+	img0 = cv::imread("..//ptz//input3//in000266.jpg");
+	img1 = cv::imread("..//ptz//input3//in000265.jpg");
+	
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
 	std::vector<float> err;
 	
-	cv::cvtColor(simg,sgray,CV_BGR2GRAY);
-	cv::cvtColor(timg,tgray,CV_BGR2GRAY);
-	cv::cvtColor(simg,simg,CV_BGR2BGRA);
-	cv::cvtColor(timg,timg,CV_BGR2BGRA);
+	cv::cvtColor(img0,sgray,CV_BGR2GRAY);
+	cv::cvtColor(img1,tgray,CV_BGR2GRAY);
+	cv::cvtColor(img0,simg,CV_BGR2BGRA);
+	cv::cvtColor(img1,timg,CV_BGR2BGRA);
 
 	
 	SLICClusterCenter* centers0(NULL),*centers1(NULL);
 	int * labels0(NULL), * labels1(NULL);
 	labels0 = new int[size];
 	labels1 = new int[size];
-	centers0 = new SLICClusterCenter[size];
-	centers1 = new SLICClusterCenter[size];
+	int spSize = ((rows+step-1)/step) * ((cols+step-1)/step);
+	centers0 = new SLICClusterCenter[spSize];
+	centers1 = new SLICClusterCenter[spSize];
 
 	gs.Superpixel(simg,num,labels0,centers0);
 	gs.Superpixel(timg,num,labels1,centers1);
 
-	for(int i=0; i<size; i++)
+	for(int i=0; i<spSize; i++)
 	{
 		features0.push_back(cv::Point2f(centers0[i].xy.x,centers0[i].xy.y));
 	}
 	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
-
+	//¸ú×Ù³É¹¦µÄlabel
+	std::vector<int> mlabels0;
 	int k=0; 
-	for(int i=0; i<size; i++)
+	for(int i=0; i<spSize; i++)
 	{
 		if (status[i] ==1)
 		{
-			features1[k] = features1[i];
-			features0[k++] = features0[i];
+			mlabels0.push_back(i);
+			features0[k] = features0[i];
+			features1[k++] = features1[i];
+			
 		}
 	}
+	asap.SetControlPts(features0,features1);
+	asap.Solve();
+	asap.Warp(img0,wimg);
+	cv::Mat mapX = asap.getMapX();
+	cv::Mat mapY = asap.getMapY();
 	int radius = 2*step;
+	cv::RNG rgn =  cv::theRNG();
 	for( int i=0; i<k; i++)
 	{
-		int label0 = labels0[int((features0[i].x) + (features0[i].y)*cols)];
-		int label1 = labels1[int((features1[i].x) + (features1[i].y)*cols)];
-		float avg0(0),avg1(0);		
-		std::vector<int> idxs0, idxs1;
+		
+		int label0 = mlabels0[i];
+		int ix1 = (int)(features1[i].x+0.5);
+		int iy1 = (int)(features1[i].y+0.5);
+		int idx = ix1+ iy1*cols;
+		int ix0 = (int)(features0[i].x+0.5);
+		int iy0 = (int)(features0[i].y+0.5);
+		int idx0 = ix0+ iy0*cols;
+
+		float dx = features1[i].x - mapX.at<float>(idx0);
+		float dy = features1[i].y - mapY.at<float>(idx0);
+		float dis = abs(dx) + abs(dy);
+
+		int label1 = labels1[idx];
+		float4 avg0 = centers0[label0].rgb;
+		float4 avg1 = centers1[label1].rgb;
+		uchar diff = (abs(avg0.x-avg0.y) + abs(avg0.y - avg1.y) + abs(avg0.z-avg1.z) + abs(avg0.w-avg1.w))/4;
+		cv::Scalar color = cv::Scalar(diff,diff,diff,255);
+		if (dis < 2)
+			color = cv::Scalar(255,0,0,255);
+
+		
 		for(int m = -radius; m<= radius; m++)
 		{
 			for(int n = -radius; n<= radius; n++)
@@ -604,46 +637,39 @@ void TestSuperpixelFlow()
 				{	
 					int idx0 = ix + iy*cols;
 					if (labels0[idx0] == label0)
-					{
-						avg0 += sgray.data[idx0];
-
-						idxs0.push_back(idx0);
+					{						
+						simg.at<Vec4b>(iy,ix) = color;
 					}
 				}
 				
-				ix = features1[i].x+m;
-				iy = features1[i].y+n;
+				ix = centers1[label1].xy.x+m;
+				iy = centers1[label1].xy.y+n;
 				if (ix >=0 && ix < cols && iy >=0 && iy<rows)
 				{
 					int idx1 = ix + iy*cols;
 					if (labels1[idx1] == label1)
 					{
-						avg1 += tgray.data[idx1];
-
-						idxs1.push_back(idx1);
+						timg.at<Vec4b>(iy,ix) = color;
 					}
 				}
 			}
 		}
-		uchar diff = abs(avg0/idxs0.size()-avg1/idxs1.size());
-		for(int j=0; j<idxs0.size(); j++)
-		{
-			sgray.data[idxs0[j]] = diff;
-		}
-		for(int j=0; j<idxs1.size(); j++)
-		{
-			tgray.data[idxs1[j]] = diff;
-		}
+		
 			
 	}
 
 	unsigned int* idata = new unsigned[size];
 	memcpy(idata,simg.data,size*4);
 	aslic.DrawContoursAroundSegments(idata, labels0, simg.cols,simg.rows,0x00ff00);
-	handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp.jpg"),std::string(".\\"));
+	aslic.SaveSuperpixelLabels(labels0,cols,rows,std::string("labels0.txt"),std::string(".\\"));
+	handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp0.jpg"),std::string(".\\"));
+	memcpy(idata,timg.data,size*4);
+	aslic.DrawContoursAroundSegments(idata, labels1, simg.cols,simg.rows,0x00ff00);
+	aslic.SaveSuperpixelLabels(labels1,cols,rows,std::string("labels1.txt"),std::string(".\\"));
+	handler.SavePicture(idata,simg.cols,simg.rows,std::string("GpuSp1.jpg"),std::string(".\\"));
 
-	cv::imshow("s",sgray);
-	cv::imshow("t", tgray);
+	cv::imshow("s",simg);
+	cv::imshow("t", timg);
 	cv::waitKey(0);
 	if(labels0 != NULL)
 	{

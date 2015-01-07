@@ -1201,9 +1201,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			int idx = i + j*m_width;
 			int idx_flt32 = idx*4*2;
 			if (lastMaskPtr[idx] == 0xff)
-			{
-				
-			
+			{				
 				float* flowPtr = (float*)(flow.data+ idx_flt32);
 				float dx = flowPtr[0];
 				float dy = flowPtr[1];

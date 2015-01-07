@@ -60,7 +60,56 @@ static const size_t s_nColorMaxDataRange_1ch = UCHAR_MAX;
 static const size_t s_nDescMaxDataRange_1ch = LBSP::DESC_SIZE*8;
 static const size_t s_nColorMaxDataRange_3ch = s_nColorMaxDataRange_1ch*3;
 static const size_t s_nDescMaxDataRange_3ch = s_nDescMaxDataRange_1ch*3;
+void postProcessa(const Mat& img, Mat& mask)
+{
+	cv::Mat m_oFGMask_PreFlood(img.size(),CV_8U);
+	cv::Mat m_oFGMask_FloodedHoles(img.size(),CV_8U);
+	cv::morphologyEx(mask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(mask,m_oFGMask_FloodedHoles,mask);
+	cv::bitwise_or(mask,m_oFGMask_PreFlood,mask);
+	cv::medianBlur(mask,mask,3);
+	
+}
+void postProcessSegments(const Mat& img, Mat& mask)
+{
+	int niters = 3;
 
+	vector<vector<Point> > contours,imgContours;
+	vector<Vec4i> hierarchy,imgHierarchy;
+	
+	Mat temp;
+
+
+	dilate(mask, temp, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
+	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//腐蚀
+	dilate(temp, temp, Mat(), Point(-1,-1), niters);
+	
+	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
+	
+	
+	if( contours.size() == 0 )
+		return;
+
+	cv::Mat cimg(mask.size(),CV_8UC3);
+	double minArea = 15*15;
+	Scalar color( 255, 255, 255 );
+	for( int i = 0; i< contours.size(); i++ )
+	{
+		const vector<Point>& c = contours[i];
+		double area = fabs(contourArea(Mat(c)));
+		if( area > minArea )
+		{
+			drawContours( cimg, contours, i, color, 1, 8, hierarchy, 0, Point() );
+			
+		}
+		
+	}
+	cv::cvtColor(cimg,mask,CV_BGR2GRAY);
+}
 float AvgColor(const cv::Mat& img, int row, int col, int size)
 {
 	cv::Mat gray = img;
@@ -913,14 +962,14 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	m_ASAP->Solve();
 	m_ASAP->Warp(image,warpedImg);
 	m_ASAP->Reset();
-	char fileName[50];
-	sprintf(fileName,"in%06d_warped.jpg",m_nFrameIndex+1);
-	
-	cv::imwrite(fileName,warpedImg);
-	sprintf(fileName,"in%06d_gray.jpg",m_nFrameIndex+1);
-	cv::imwrite(fileName,m_gray);	
-	sprintf(fileName,"in%06d_preGray.jpg",m_nFrameIndex+1);
-	cv::imwrite(fileName,m_preGray);
+	//char fileName[50];
+	//sprintf(fileName,"in%06d_warped.jpg",m_nFrameIndex+1);
+	//
+	//cv::imwrite(fileName,warpedImg);
+	//sprintf(fileName,"in%06d_gray.jpg",m_nFrameIndex+1);
+	//cv::imwrite(fileName,m_gray);	
+	//sprintf(fileName,"in%06d_preGray.jpg",m_nFrameIndex+1);
+	//cv::imwrite(fileName,m_preGray);
 
 	//std::vector<uchar> inliers(m_points[0].size());
 	//m_homography = cv::findHomography(
@@ -963,6 +1012,10 @@ void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputAr
 		cout<<"currently not supported!\n";		
 	}
 	else { //m_nImgChannels==3
+		float* mapXPtr = (float*)m_ASAP->getMapX().data;
+		float* mapYPtr = (float*)m_ASAP->getMapY().data;
+		float* invMapXPtr = (float*)m_ASAP->getInvMapX().data;
+		float* invMapYPtr = (float*)m_ASAP->getInvMapY().data;
 		for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
@@ -970,18 +1023,22 @@ void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputAr
 			const size_t idx_flt32 = idx_uchar*4;
 			const size_t idx_uchar_rgb = idx_uchar*3;
 			const size_t idx_ushrt_rgb = idx_uchar_rgb*2;
-			float fx,fy,fw;
-			int wx;
-			int wy;
-
-			double* ptr = (double*)m_invHomography.data;
+			float mapX = *(mapXPtr + idx_uchar);
+			float mapY = *(mapYPtr + idx_uchar);
+			float invMapX = *(invMapXPtr + idx_uchar);
+			float invMapY = *(invMapYPtr + idx_uchar);
+			float fx = invMapX;
+			float fy = invMapY;
+			int wx = (int)(mapX+0.5);
+			int wy = (int)(mapY+0.5);
+		/*	double* ptr = (double*)m_invHomography.data;
 			fx = x*ptr[0] + y*ptr[1] + ptr[2];
 			fy = x*ptr[3] + y*ptr[4] + ptr[5];
 			fw = x*ptr[6] + y*ptr[7] + ptr[8];
 			fx /=fw;
 			fy/=fw;
 			wx = (int)(fx+0.5);
-			wy = (int)(fy+0.5);
+			wy = (int)(fy+0.5);*/
 			
 			if (wx<2 || wx>= m_oImgSize.width-2 || wy<2 || wy>=m_oImgSize.height-2)
 			{					
@@ -993,12 +1050,12 @@ void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputAr
 			else
 			{
 				//反变换
-				double* ptr = (double*)m_homography.data;
+			/*	double* ptr = (double*)m_homography.data;
 				fx = x*ptr[0] + y*ptr[1] + ptr[2];
 				fy = x*ptr[3] + y*ptr[4] + ptr[5];
 				fw = x*ptr[6] + y*ptr[7] + ptr[8];
 				fx /=fw;
-				fy/=fw;
+				fy/=fw;*/
 				//std::cout<<x<<","<<y<<std::endl;
 				if (fx<2 || fx>= m_oImgSize.width-2 || fy<2 || fy>=m_oImgSize.height-2)
 				{
@@ -1268,6 +1325,7 @@ failedcheck3ch:
 	cv::imwrite(filename,outMask);*/
 	
 	m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
+	postProcessa(img,oCurrFGMask);
 	WarpModels();
 	UpdateModel(img,oCurrFGMask);
 	//if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
@@ -1291,56 +1349,7 @@ void GpuBackgroundSubtractor::cloneModels()
 	d_bModels.copyTo(d_wbModels);*/
 
 }
-void postProcessa(const Mat& img, Mat& mask)
-{
-	cv::Mat m_oFGMask_PreFlood(img.size(),CV_8U);
-	cv::Mat m_oFGMask_FloodedHoles(img.size(),CV_8U);
-	cv::morphologyEx(mask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
-	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
-	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
-	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	cv::bitwise_or(mask,m_oFGMask_FloodedHoles,mask);
-	cv::bitwise_or(mask,m_oFGMask_PreFlood,mask);
-	cv::medianBlur(mask,mask,3);
-	
-}
-void postProcessSegments(const Mat& img, Mat& mask)
-{
-	int niters = 3;
 
-	vector<vector<Point> > contours,imgContours;
-	vector<Vec4i> hierarchy,imgHierarchy;
-	
-	Mat temp;
-
-
-	dilate(mask, temp, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
-	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//腐蚀
-	dilate(temp, temp, Mat(), Point(-1,-1), niters);
-	
-	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
-	
-	
-	if( contours.size() == 0 )
-		return;
-
-	cv::Mat cimg(mask.size(),CV_8UC3);
-	double minArea = 15*15;
-	Scalar color( 255, 255, 255 );
-	for( int i = 0; i< contours.size(); i++ )
-	{
-		const vector<Point>& c = contours[i];
-		double area = fabs(contourArea(Mat(c)));
-		if( area > minArea )
-		{
-			drawContours( cimg, contours, i, color, 1, 8, hierarchy, 0, Point() );
-			
-		}
-		
-	}
-	cv::cvtColor(cimg,mask,CV_BGR2GRAY);
-}
 void GpuBackgroundSubtractor::GpuBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
 	cv::Mat oInputImg = _image.getMat();
