@@ -7,6 +7,7 @@
 #include "GpuSuperpixel.h"
 #include "MRFOptimize.h"
 #include "ASAPWarping.h"
+#include "FlowComputer.h"
 #include <fstream>
 #include <curand_kernel.h>
 //! defines the default value for BackgroundSubtractorLBSP::m_fRelLBSPThreshold
@@ -368,5 +369,8 @@ protected:
 
 	cv::Mat m_warpedImg;
 	ASAPWarping* m_ASAP;
+	DenseOpticalFlowProvier* m_DOFP;
+	cv::Mat m_flow,m_wflow;
+	
 };
 

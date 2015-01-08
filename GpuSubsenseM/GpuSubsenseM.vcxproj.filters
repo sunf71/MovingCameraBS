@@ -79,6 +79,9 @@
     <ClInclude Include="SparseSolver.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="FlowComputer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
@@ -158,6 +161,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="LBSP.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="FlowComputer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

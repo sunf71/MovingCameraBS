@@ -67,6 +67,7 @@ public:
 	void Optimize(GpuSuperpixel* GS, uchar4* d_rbga,cv::Mat& maskImg, cv::Mat& featureImg, float* distance, cv::Mat& resultImg);
 	void Optimize(const cv::Mat& maskImg, const  cv::Mat& featureImg, cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg,const cv::Mat& lastMaskImg, const cv::Mat& flow, const cv::Mat& homography,cv::Mat& resultImg);
+	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& flow, const cv::Mat& wflow,cv::Mat& resultImg);
 	void ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba);
 	//mask:Ç°¾°
 	void GetSuperpixels(const unsigned char* mask);
@@ -86,12 +87,14 @@ public:
 private:
 	SuperPixel* m_spPtr;
 	SLICClusterCenter* m_centers;
+	SLICClusterCenter* m_preCenters;
 	int m_nPixel;
 	int m_width,m_gWidth;
 	int m_height,m_gHeight;
 	bool * m_visited;
 	Point2i *m_stack;
 	int* m_labels;
+	int* m_preLabels;
 	int* m_result;
 	int m_step;
 	int* m_data;

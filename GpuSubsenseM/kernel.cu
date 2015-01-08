@@ -2,13 +2,14 @@
 
 int main (int argc, char* argv[])
 {
-	TestSuperpixelFlow();
+	//TestSuperpixelMatching();
+	//TestSuperpixelFlow();
 	//TCMRFOptimization();
 	//TestRegionGrowing();
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();
 	//TestRandom();
-	//TestGpuSubsense();
+	TestGpuSubsense();
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();

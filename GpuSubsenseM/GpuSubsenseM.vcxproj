@@ -162,6 +162,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="CudaSuperpixel.h" />
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="energy.h" />
+    <ClInclude Include="FlowComputer.h" />
     <ClInclude Include="flowIO.h" />
     <ClInclude Include="GCoptimization.h" />
     <ClInclude Include="GpuBackgroundSubtractor.h" />
@@ -185,6 +186,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClCompile Include="ASAPWarping.cpp" />
     <ClCompile Include="ComSuperpixel.cpp" />
+    <ClCompile Include="FlowComputer.cpp" />
     <ClCompile Include="flowIO.cpp" />
     <ClCompile Include="GCoptimization.cpp" />
     <ClCompile Include="GpuBackgroundSubtrator.cpp" />

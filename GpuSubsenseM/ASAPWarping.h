@@ -334,7 +334,7 @@ public:
 	{
 		return _mapY;
 	}
-
+	void getFlow(cv::Mat& flow);
 protected:
 	void quadWarp(const cv::Mat& img, int row, int col, Quad& qd1, Quad& qd2);
 	void getSmoothWeight(const cv::Point2f& V1, const cv::Point2f& V2, const cv::Point2f& V3, float& u, float& v)

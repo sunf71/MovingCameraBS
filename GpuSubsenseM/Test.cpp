@@ -1,5 +1,6 @@
 #include "Test.h"
 #include "flowIO.h"
+#include "FlowComputer.h"
 #include "ASAPWarping.h"
 void testCudaGpu()
 {
@@ -293,132 +294,9 @@ void TestRegionGrowing()
 	cv::imshow("region grow",result);
 	cv::waitKey();
 }
-template <typename T> inline T clamp (T x, T a, T b)
-{
-    return ((x) > (a) ? ((x) < (b) ? (x) : (b)) : (a));
-}
-
-template <typename T> inline T mapValue(T x, T a, T b, T c, T d)
-{
-    x = clamp(x, a, b);
-    return c + (d - c) * (x - a) / (b - a);
-}
-static void getFlowField(const Mat& u, const Mat& v, Mat& flowField)
-{
-    float maxDisplacement = 1.0f;
-
-    for (int i = 0; i < u.rows; ++i)
-    {
-        const float* ptr_u = u.ptr<float>(i);
-        const float* ptr_v = v.ptr<float>(i);
-
-        for (int j = 0; j < u.cols; ++j)
-        {
-            float d = max(fabsf(ptr_u[j]), fabsf(ptr_v[j]));
-
-            if (d > maxDisplacement)
-                maxDisplacement = d;
-        }
-    }
-
-    flowField.create(u.size(), CV_8UC4);
-
-    for (int i = 0; i < flowField.rows; ++i)
-    {
-        const float* ptr_u = u.ptr<float>(i);
-        const float* ptr_v = v.ptr<float>(i);
 
 
-        Vec4b* row = flowField.ptr<Vec4b>(i);
 
-        for (int j = 0; j < flowField.cols; ++j)
-        {
-            row[j][0] = 0;
-            row[j][1] = static_cast<unsigned char> (mapValue (-ptr_v[j], -maxDisplacement, maxDisplacement, 0.0f, 255.0f));
-            row[j][2] = static_cast<unsigned char> (mapValue ( ptr_u[j], -maxDisplacement, maxDisplacement, 0.0f, 255.0f));
-            row[j][3] = 255;
-        }
-    }
-}
-void GpuDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
-{
-	cv::Mat gray1, gray2;
-	if (curImg.channels() == 3)
-		cv::cvtColor(curImg,gray1,CV_BGR2GRAY);
-	else
-		gray1 = curImg.clone();
-	if (prevImg.channels() ==3)
-		cv::cvtColor(prevImg,gray2,CV_BGR2GRAY);
-	else
-		gray2 = prevImg.clone();
-	cv::gpu::GpuMat dCurImg(gray1);
-	cv::gpu::GpuMat dPrevImg(gray2);
-	
-	cv::gpu::GpuMat du,dv;
-	cv::gpu::PyrLKOpticalFlow dPyrLK;
-
-	dPyrLK.dense(dCurImg,dPrevImg,du,dv);
-	
-	std::vector<cv::Mat> flows(2);
-	du.download(flows[0]);
-	dv.download(flows[1]);
-	/*cv::Mat flowField;
-	getFlowField(flows[0],flows[1],flowField);
-	cv::imwrite("flow.jpg",flowField);
-	*/
-	cv::merge(flows,flow);
-}
-void SFDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
-{
-	cv::Mat img0,img1;
-	cv::cvtColor(curImg,img0,CV_BGR2GRAY);
-	cv::cvtColor(prevImg,img1,CV_BGR2GRAY);
-	cv::calcOpticalFlowSF(img0,img1,flow,3,2,4);
-	cv::Mat flowField;
-	cv::Mat flows[2];
-	cv::split(flow,flows);
-	getFlowField(flows[0],flows[1],flowField);
-	cv::imwrite("flow_SF.jpg",flowField);
-}
-void FarnebackDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
-{
-	cv::Mat img0,img1;
-	if (curImg.channels() == 3)
-	{
-		cv::cvtColor(curImg,img0,CV_BGR2GRAY);
-		cv::cvtColor(prevImg,img1,CV_BGR2GRAY);
-	}
-	else
-	{
-		img0 = curImg;
-		img1 = prevImg;
-	}
-	//cv::calcOpticalFlowSF(img0,img1,flow,3,2,55);
-	cv::calcOpticalFlowFarneback(img0,img1,flow,0.5, 5, 5, 5, 5, 1.2, 0);
-	/*cv::Mat flowField;
-	cv::Mat flows[2];
-	cv::split(flow,flows);
-	getFlowField(flows[0],flows[1],flowField);
-	cv::imwrite("flow_Farnback.jpg",flowField);*/
-}
-void EPPMDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
-{
-	cv::Mat img0,img1;
-	if (curImg.channels() == 3)
-	{
-		cv::cvtColor(curImg,img0,CV_BGR2GRAY);
-		cv::cvtColor(prevImg,img1,CV_BGR2GRAY);
-	}
-	else
-	{
-		img0 = curImg;
-		img1 = prevImg;
-	}
-	cv::imwrite("img0.png",img0);
-	cv::imwrite("img1.png",img1);
-	std::system(" EPPM_flow.exe  img0.png img1.png flow.flo flow.png ");
-	ReadFlowFile(flow,"flow.flo");
-}
 void GetHomography(const cv::Mat& gray,const cv::Mat& pre_gray, cv::Mat& homography)
 {
 	int max_count = 50000;	  // maximum number of features to detect
@@ -569,6 +447,40 @@ void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spS
 	}
 	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
 }
+void SuperpixelGrowingFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, const int* labels, cv::Mat& flow)
+{
+	std::vector<cv::Point2f> features0,features1;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	int spWidth = (sgray.cols+step-1)/step;
+	int spHeight = (sgray.rows+step-1)/step;
+	int width = sgray.cols;
+	int height = sgray.rows;
+	flow.create(spHeight,spWidth,CV_32FC2);
+	flow = cv::Scalar(0);
+	cv::goodFeaturesToTrack(sgray,features0,50000,0.05,2);
+	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
+
+	int k=0; 
+	for(int i=0; i<features0.size(); i++)
+	{
+		if (status[i] == 1)
+		{
+			features0[k] = features0[i];
+			features1[k++] = features1[i];
+		}
+	}
+	for(int i=0; i<k; i++)
+	{
+		int ix = (int)(features0[i].x+0.5);
+		int iy = (int)(features0[i].y+0.5);
+		int label = labels[ix + iy*width];
+		float2* ptr = (float2*)(flow.data + label*8);
+		*ptr = make_float2(features1[i].x - features0[i].x,features1[i].y - features0[i].y);
+	}
+	
+	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
+}
 void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* centers, const cv::Mat& sflow, int spSize, int step, int width, int height, cv::Mat& flow)
 {
 	
@@ -602,15 +514,23 @@ void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* cente
 		}
 	}
 }
-
+float L1Dist(const float2& p1, const float2& p2)
+{
+	return abs(p1.x-p2.x) + abs(p1.y - p2.y);
+}
+//利用warping的mapX和mapY进行superpixel matching
+//比较matching后超像素的颜色差，理论上前景应该较大，背景较小，但是结果显示在图像边缘部分会有较大的误差
 void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, const int* labels1, const SLICClusterCenter* centers1, int spSize, int spStep, int width, int height,
 	const cv::Mat& mapX, const cv::Mat& mapY,std::vector<int> mathedId, cv::Mat& diff)
 {
-	diff.create(height,width,CV_32FC3);
+	int spWidth = (width+spStep-1)/spStep;
+	diff.create(height,width,CV_8UC3);
+	std::vector<int> ids;
 	for(int i=0; i<spSize; i++)
 	{		
 		int k = centers0[i].xy.x;
 		int j = centers0[i].xy.y;
+		ids.clear();
 		if (centers0[i].nPoints >0)			
 		{
 			float avgX(0),avgY(0);
@@ -627,6 +547,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 					
 					if (labels0[idx] == i )
 					{		
+						ids.push_back(idx);
 						float nx = *((float*)(mapX.data + idx*4));
 						avgX += nx;
 						float ny = *((float*)(mapY.data + idx*4));
@@ -637,43 +558,257 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 			}
 			avgX /= n;
 			avgY /= n;
+			float2 point = make_float2(avgX,avgY);
 			int iavgX = (int)(avgX +0.5);
 			int iavgY = (int)(avgY + 0.5);
 			int label = labels1[iavgX + iavgY*width];
-			mathedId.push_back(label);
-			float cdx = abs(centers0[i].rgb.x - centers1[label].rgb.x);
-			float cdy = abs(centers0[i].rgb.y - centers1[label].rgb.y);
-			float cdz = abs(centers0[i].rgb.z - centers1[label].rgb.z);
-			float3 val = make_float3(cdx,cdy,cdz);
-			k = centers1[label].xy.x;
-			j = centers1[label].xy.y;
-			for(int y = j - radius; y<= j+radius; y++)
+			//在8邻域内查找中心点与avgX和avgY最接近的超像素
+			float disMin = L1Dist(centers1[label].xy,point);
+			int minLabel = label;
+			//left
+			if (label-1 >=0)
 			{
-				if (y<0 || y> height-1)
-					continue;
-				float3* dPtr= diff.ptr<float3>(y);
-				
-				for (int x = k- radius; x<= k+radius; x++)
+				float dist =L1Dist(centers1[label-1].xy,point);
+				if (dist<disMin)
 				{
-					if  (x<0 || x>width-1)
-						continue;
-					int idx = x+y*width;
-					if (labels1[idx] == label )
+					minLabel = label-1;
+					disMin = dist;
+				}
+				if (label-1-spWidth >=0)
+				{
+					dist =L1Dist(centers1[label-1-spWidth-1].xy,point);
+					if (dist<disMin)
 					{
-						dPtr[x] = val;
+						minLabel = label-1-spWidth;
+						disMin = dist;
+					}
+				}
+				if(label-1+spWidth < spSize)
+				{
+					dist =L1Dist(centers1[label-1+spWidth].xy,point);
+					if (dist<disMin)
+					{
+						minLabel = label-1+spWidth;
+						disMin = dist;
 					}
 				}
 			}
+			if (label+1 <spSize)
+			{
+				float dist =L1Dist(centers1[label+1].xy,point);
+				if (dist<disMin)
+				{
+					minLabel = label+1;
+					disMin = dist;
+				}
+				if (label+1-spWidth >=0)
+				{
+					dist =L1Dist(centers1[label+1-spWidth-1].xy,point);
+					if (dist<disMin)
+					{
+						minLabel = label+1-spWidth;
+						disMin = dist;
+					}
+				}
+				if(label+1+spWidth < spSize)
+				{
+					dist =L1Dist(centers1[label+1+spWidth].xy,point);
+					if (dist<disMin)
+					{
+						minLabel = label+1+spWidth;
+						disMin = dist;
+					}
+				}
+			}
+			if (label+spWidth <spSize)
+			{
+				float dist =L1Dist(centers1[label+spWidth].xy,point);
+				if (dist<disMin)
+				{
+					minLabel = label+spWidth;
+					disMin = dist;
+				}
+			}
+			if (label-spWidth >=0)
+			{
+				float dist =L1Dist(centers1[label-spWidth].xy,point);
+				if (dist<disMin)
+				{
+					minLabel = label-spWidth;
+					disMin = dist;
+				}
+			}
+			mathedId.push_back(minLabel);
+			uchar cdx = abs(centers0[i].rgb.x - centers1[minLabel].rgb.x);
+			uchar cdy = abs(centers0[i].rgb.y - centers1[minLabel].rgb.y);
+			uchar cdz = abs(centers0[i].rgb.z - centers1[minLabel].rgb.z);
+			uchar3 val = make_uchar3(cdx,cdy,cdz);
+			for(int k=0; k<ids.size(); k++)
+			{
+				uchar3* ptr = (uchar3*)(diff.data + 3*ids[k]);
+				*ptr = val;
+			}
+
 		}
 	}
 }
-void TestSuperpixelFlow()
+//利用稠密光流进行superpixel matching,同时计算superpixel光流（超像素内像素光流平均值）
+void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, const int* labels1, const SLICClusterCenter* centers1, int spSize, int spStep, int width, int height,
+	const cv::Mat& flow,std::vector<int> mathedId, cv::Mat& spFlow, cv::Mat& diff)
+{
+	
+	int spWidth = (width+spStep-1)/spStep;
+	int spHeight = (height+spStep-1)/spStep;
+	diff.create(height,width,CV_8UC3);
+	spFlow.create(spHeight,spWidth,CV_32FC2);
+	std::vector<int> ids;
+	for(int i=0; i<spSize; i++)
+	{		
+		
+		int k = (int)(centers0[i].xy.x+0.5);
+		int j = (int)(centers0[i].xy.y+0.5);
+		ids.clear();
+		if (centers0[i].nPoints >0)			
+		{
+			float avgX(0),avgY(0);
+			int n(0);
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = spStep;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				if  (x<0 || x>width-1)
+					continue;
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (y<0 || y> height-1)
+						continue;
+					
+					int idx = x+y*width;
+					
+					if (labels0[idx] == i )
+					{		
+						/*if (x == 144 && y==96)
+							std::cout<<i<<std::endl;*/
+						ids.push_back(idx);
+						float2 dxy = *((float2*)(flow.data + idx*4*2));
+						avgX += dxy.x;						
+						avgY += dxy.y;
+						n++;
+					}				
+				}
+			}
+			avgX /= n;
+			avgY /= n;
+			* (float2*)(spFlow.data+i*8) = make_float2(avgX,avgY);
+			float2 point = make_float2(avgX+k,avgY+j);
+			int iavgX = (int)(avgX +0.5+k);
+			int iavgY = (int)(avgY + 0.5+j);
+			if (iavgX <0 || iavgX > width-1 || iavgY <0 || iavgY > height-1)
+				continue;
+			int label = labels1[iavgX + iavgY*width];
+			//在8邻域内查找中心点与avgX和avgY最接近的超像素
+			float disMin = L1Dist(centers1[label].xy,point);
+			int minLabel = label;
+			//left
+			if (label-1 >=0)
+			{
+				float dist =L1Dist(centers1[label-1].xy,point);
+				if (dist<disMin)
+				{
+					minLabel = label-1;
+					disMin = dist;
+				}
+				if (label-1-spWidth >=0)
+				{
+					dist =L1Dist(centers1[label-1-spWidth-1].xy,point);
+					if (dist<disMin)
+					{
+						minLabel = label-1-spWidth;
+						disMin = dist;
+					}
+				}
+				if(label-1+spWidth < spSize)
+				{
+					dist =L1Dist(centers1[label-1+spWidth].xy,point);
+					if (dist<disMin)
+					{
+						minLabel = label-1+spWidth;
+						disMin = dist;
+					}
+				}
+			}
+			if (label+1 <spSize)
+			{
+				float dist =L1Dist(centers1[label+1].xy,point);
+				if (dist<disMin)
+				{
+					minLabel = label+1;
+					disMin = dist;
+				}
+				if (label+1-spWidth >=0)
+				{
+					dist =L1Dist(centers1[label+1-spWidth-1].xy,point);
+					if (dist<disMin)
+					{
+						minLabel = label+1-spWidth;
+						disMin = dist;
+					}
+				}
+				if(label+1+spWidth < spSize)
+				{
+					dist =L1Dist(centers1[label+1+spWidth].xy,point);
+					if (dist<disMin)
+					{
+						minLabel = label+1+spWidth;
+						disMin = dist;
+					}
+				}
+			}
+			if (label+spWidth <spSize)
+			{
+				float dist =L1Dist(centers1[label+spWidth].xy,point);
+				if (dist<disMin)
+				{
+					minLabel = label+spWidth;
+					disMin = dist;
+				}
+			}
+			if (label-spWidth >=0)
+			{
+				float dist =L1Dist(centers1[label-spWidth].xy,point);
+				if (dist<disMin)
+				{
+					minLabel = label-spWidth;
+					disMin = dist;
+				}
+			}
+			
+			mathedId.push_back(minLabel);
+			uchar cdx = abs(centers0[i].rgb.x - centers1[minLabel].rgb.x);
+			uchar cdy = abs(centers0[i].rgb.y - centers1[minLabel].rgb.y);
+			uchar cdz = abs(centers0[i].rgb.z - centers1[minLabel].rgb.z);
+			/*float t = 30;
+			cdx = cdx < t ? 0 : cdx;
+			cdy = cdy < t ? 0 : cdy;
+			cdz = cdz < t ? 0 : cdz;*/
+			uchar3 val = make_uchar3(cdx,cdy,cdz);
+			for(int k=0; k<ids.size(); k++)
+			{
+				uchar3* ptr = (uchar3*)(diff.data + 3*ids[k]);
+				*ptr = val;
+			}
+
+		}
+	}
+
+}
+void TestSuperpixelMatching()
 {
 	SLIC aslic;	
 	PictureHandler handler;
 	
-	int cols = 640;
-	int rows = 480;
+	int cols = 320;
+	int rows = 240;
 	int step = 5;
 	ASAPWarping asap(cols,rows,8,1.0);
 
@@ -682,8 +817,92 @@ void TestSuperpixelFlow()
 	GpuSuperpixel gs(cols,rows,step);
 	cv::Mat simg,timg,wimg,sgray,tgray;
 	cv::Mat img0,img1;
-	img0 = cv::imread("..//moseg//people1//in000013.jpg");
-	img1 = cv::imread("..//moseg//people1//in000012.jpg");
+	img0 = cv::imread("..//ptz//input3//in000222.jpg");
+	img1 = cv::imread("..//ptz//input3//in000221.jpg");
+	
+	std::vector<cv::Point2f> features0,features1;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	
+	cv::cvtColor(img0,sgray,CV_BGR2GRAY);
+	cv::cvtColor(img1,tgray,CV_BGR2GRAY);
+	cv::cvtColor(img0,simg,CV_BGR2BGRA);
+	cv::cvtColor(img1,timg,CV_BGR2BGRA);
+
+	
+	SLICClusterCenter* centers0(NULL),*centers1(NULL);
+	int * labels0(NULL), * labels1(NULL);
+	labels0 = new int[size];
+	labels1 = new int[size];
+	int spSize = ((rows+step-1)/step) * ((cols+step-1)/step);
+	centers0 = new SLICClusterCenter[spSize];
+	centers1 = new SLICClusterCenter[spSize];
+
+	gs.Superpixel(simg,num,labels0,centers0);
+	gs.Superpixel(timg,num,labels1,centers1);
+	DenseOpticalFlowProvier* DOFP = new EPPMDenseOptialFlow();
+	cv::Mat flow,spFlow;
+	DOFP->DenseOpticalFlow(sgray,tgray,flow);
+	WriteFlowFile(flow,"flow.flo");
+	std::vector<int> matchedId;
+	cv::Mat diffMat;
+	SuperpixelMatching(labels0,centers0,labels1,centers1,spSize,step,cols,rows,flow,matchedId,spFlow,diffMat);
+	WriteFlowFile(spFlow,"spFlow.flo");
+	KLTFeaturesMatching(sgray,tgray,features0,features1);
+	cv::Mat homography;
+	FeaturePointsRefineRANSAC(features0,features1,homography);
+	asap.SetControlPts(features0,features1);
+	asap.Solve();
+	asap.Warp(simg,wimg);
+	cv::Mat warpFlow;
+	asap.getFlow(warpFlow);
+	cv::Mat flowDiff;
+	cv::absdiff(flow,warpFlow,flowDiff);
+	cv::Mat mask(rows,cols,CV_8U);
+	mask = cv::Scalar(0);
+	for(int i=0; i<flowDiff.rows; i++)
+	{
+		float2* ptrw = warpFlow.ptr<float2>(i);
+		float2* ptrf = flow.ptr<float2>(i);
+		uchar * mptr = mask.ptr<uchar>(i);
+		for(int j=0; j<flowDiff.cols; j++)
+		{
+			float diff = abs(ptrw[j].x - ptrf[j].x) + abs(ptrw[j].y - ptrf[j].y);
+			mptr[j] = diff;
+		}
+	}
+	cv::imshow("flow diff", mask);
+	/*std::vector<int> matchedId;
+	cv::Mat diffMat;
+	SuperpixelMatching(labels0,centers0,labels1,centers1,spSize,step,cols,rows,asap.getMapX(),asap.getMapY(),matchedId,diffMat);*/
+	cv::imshow("matched err", diffMat);	
+	cv::imshow("source image",img0);
+	cv::imshow("dest image", img1);
+	//cv::imshow("warped image", wimg);
+	cv::waitKey();
+	delete[] labels0;
+	delete[] labels1;
+	delete[] centers0;
+	delete[] centers1;
+	delete DOFP;
+}
+void TestSuperpixelFlow()
+{
+	SLIC aslic;	
+	PictureHandler handler;
+	
+	int cols = 320;
+	int rows = 240;
+	int step = 5;
+	ASAPWarping asap(cols,rows,8,1.0);
+
+	int size = rows*cols;
+	int num(0);
+	GpuSuperpixel gs(cols,rows,step);
+	cv::Mat simg,timg,wimg,sgray,tgray;
+	cv::Mat img0,img1;
+	img0 = cv::imread("..//ptz//input3//in000288.jpg");
+	img1 = cv::imread("..//ptz//input3//in000287.jpg");
 	
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
@@ -712,24 +931,29 @@ void TestSuperpixelFlow()
 	asap.SetControlPts(features0,features1);
 	asap.Solve();
 	asap.Warp(simg,wimg);
-	std::vector<int> matchedId;
-	cv::Mat diffMat;
-	SuperpixelMatching(labels0,centers0,labels1,centers1,spSize,step,cols,rows,asap.getMapX(),asap.getMapY(),matchedId,diffMat);
-	cv::imshow("matched err", diffMat);
-	cv::waitKey();
-	/*cv::Mat spFlow,flow,flowField,pflowField;
+	
+	cv::Mat spFlow,flow,flowField,pflowField;
 	std::vector<cv::Mat> flows(2);
 	SuperpixelFlow(sgray,tgray,step,spSize,centers0,spFlow);
+	//SuperpixelGrowingFlow(sgray,tgray,step,spSize,centers0,labels0,spFlow);
+	
 	cv::split(spFlow,flows);
 	getFlowField(flows[0],flows[1],flowField);
 	cv::imshow("superpixel flow",flowField);
 	SuperpixelFlowToPixelFlow(labels0,centers0,spFlow,spSize,step,cols,rows,flow);
+	WriteFlowFile(flow,"spflow.flo");
 	cv::split(flow,flows);
 	getFlowField(flows[0],flows[1],pflowField);
 	cv::imshow("pixel flow",pflowField);
-	cv::waitKey();*/
+	cv::imshow("simg",simg);
+	cv::imshow("timg",timg);
+	cv::imshow("timg",timg);
+	cv::waitKey();
 
-
+	delete[] labels0;
+	delete[] labels1;
+	delete[] centers0;
+	delete[] centers1;
 	//for(int i=0; i<spSize; i++)
 	//{
 	//	features0.push_back(cv::Point2f(centers0[i].xy.x,centers0[i].xy.y));

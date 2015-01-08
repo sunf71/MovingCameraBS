@@ -1,6 +1,7 @@
 #include "ASAPWarping.h"
 #include "SparseSolver.h"
 #include <fstream>
+#include <opencv\cv.h>
 bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2)
 {   
 	float lambda1 = ((V1.y-V2.y)*(pt.x-V2.x) + (V2.x-V1.x)*(pt.y-V2.y)) / ((V1.y-V2.y)*(V0.x-V2.x) + (V2.x-V1.x)*(V0.y-V2.y));
@@ -393,7 +394,20 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 
 
 }
-
+void ASAPWarping::getFlow(cv::Mat& flow)
+{
+	flow.create(_mapX.size(),CV_32FC2);
+	for(int i=0; i<flow.rows; i++)
+	{
+		float* ptrX = _mapX.ptr<float>(i);
+		float* ptrY = _mapY.ptr<float>(i);
+		cv::Vec2f* ptrFlow = flow.ptr<cv::Vec2f>(i);
+		for(int j=0; j<flow.cols; j++)
+		{
+			ptrFlow[j] = cv::Vec2f(j-ptrX[j],i-ptrY[j]);
+		}
+	}
+}
 
 void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography)
 {
