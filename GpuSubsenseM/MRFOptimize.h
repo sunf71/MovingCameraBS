@@ -30,6 +30,7 @@ struct SuperPixel
 	float avgColor;
 	float ps;
 	float distance;
+	int temporalNeighbor;
 	int n[8];
 };
 
@@ -96,6 +97,7 @@ private:
 	int* m_labels;
 	int* m_preLabels;
 	int* m_result;
+	int* m_preResult;
 	int m_step;
 	int* m_data;
 	int* m_smooth;

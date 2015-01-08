@@ -7,6 +7,7 @@
 #include "timer.h"
 #include "GpuTimer.h"
 
+
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -82,6 +83,7 @@ void MRFOptimize::Release()
 	delete[] m_imgData;
 	delete[] m_idata;	
 	delete[] m_result;
+	delete[] m_preResult;
 	delete[] m_labels;
 	delete[] m_preLabels;
 	delete[] m_centers;
@@ -239,6 +241,9 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		g->add_tweights(i,e1,e2);
 
 	}
+	g->add_node(2);
+	g->add_tweights(num_pixels,1e6,0);
+	g->add_tweights(num_pixels+1,0,1e6);
 	dfile.close();
 	std::ofstream sfile("senergy.txt");
 	for(int i=0; i<num_pixels; i++)
@@ -253,12 +258,22 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 				g->add_edge(i,m_neighbor[i][j],energy,energy);
 			}
 		}
+		if (m_preResult != NULL)
+		{
+			float4 avgColor = m_preCenters[spPtr[i].temporalNeighbor].rgb;
+			float se = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-(avgColor.x+avgColor.y+avgColor.z)/3)));
+			if (m_preResult[m_preLabels[spPtr[i].temporalNeighbor]])
+				g->add_edge(i,num_pixels,se,se);
+			else
+				g->add_edge(i,num_pixels+1,se,se);
+		}
 		sfile<<std::endl;
 	}
 	sfile.close();
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
 		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
+	
 }
 
 void MRFOptimize::GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
@@ -1199,8 +1214,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 	GS->Superpixel(m_imgData,numlabels,m_labels,m_centers);
 	if (m_preLabels == NULL)
 	{
-		m_preLabels = new int[m_spSize];
-		m_preCenters = new SLICClusterCenter[m_spSize];
+		m_preLabels = new int[m_nPixel];
+		m_preCenters = new SLICClusterCenter[m_nPixel];
+		m_preResult = new int[m_nPixel];
+		memcpy(m_preLabels,m_labels,sizeof(int)*m_nPixel);
+		memcpy(m_preCenters,m_centers,sizeof(SLICClusterCenter));
 		
 	}
 	const uchar* mask = maskImg.data;
@@ -1226,6 +1244,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			float n = 0;			
 			float d(0);
 			int c(0);
+			float avgX(0),avgY(0);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = m_step;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -1245,6 +1264,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 						c++;
 						float2 flowV =  *(float2*)(flow.data + flowIdx);
 						float2 wflowV = *(float2*)(wflow.data + flowIdx);
+						avgX += flowV.x;
+						avgY += flowV.y;
 						d += abs(flowV.x-wflowV.x) + abs(flowV.y - wflowV.y);
 						if ( mask[idx] == 0xff )
 						{					
@@ -1255,6 +1276,14 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			}
 			m_spPtr[i].ps  = n/c;
 			m_spPtr[i].distance = d/c;
+			avgX /= c;
+			avgY /= c;
+
+			int iavgX = (int)(avgX +0.5+k);
+			int iavgY = (int)(avgY + 0.5+j);
+			if (iavgX <0 || iavgX > m_width-1 || iavgY <0 || iavgY > m_height-1)
+				continue;
+			m_spPtr[i].temporalNeighbor = m_preLabels[iavgX + iavgY*m_width];
 		}
 
 
@@ -1305,6 +1334,13 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			}
 		}	
 	}
+	if (m_preResult == NULL)
+	{
+		m_preResult = new int[m_nPixel];
+		memcpy(m_preResult,m_result,sizeof(int)*m_nPixel);
+	}
+	else
+		std::swap(m_preResult,m_result);
 	std::swap(m_preLabels,m_labels);
 	std::swap(m_preCenters,m_centers);
 }
