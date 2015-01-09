@@ -2306,19 +2306,19 @@ void postProcess(const Mat& img, Mat& mask, Mat& imgDst, Mat& dst)
 }
 void postProcessSegments(const Mat& img, Mat& mask, Mat& imgDst, Mat& dst)
 {
-	int niters = 3;
+	int niters = 1;
 
 	vector<vector<Point> > contours,imgContours;
 	vector<Vec4i> hierarchy,imgHierarchy;
 	
 	Mat temp;
 	
-	Mat edge(img.size(),CV_8U);	
-	cv::Canny(img,edge,100,300);
-	dilate(edge, edge, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
-	erode(edge, edge, Mat(), Point(-1,-1), niters*2);//腐蚀
-	dilate(edge, edge, Mat(), Point(-1,-1), niters);
-	findContours( edge, imgContours, imgHierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
+	//Mat edge(img.size(),CV_8U);	
+	//cv::Canny(img,edge,100,300);
+	//dilate(edge, edge, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
+	//erode(edge, edge, Mat(), Point(-1,-1), niters*2);//腐蚀
+	//dilate(edge, edge, Mat(), Point(-1,-1), niters);
+	//findContours( edge, imgContours, imgHierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
 
 	dilate(mask, temp, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
 	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//腐蚀
@@ -2362,7 +2362,7 @@ void TestPostProcess()
 	char fileName[100];
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(fileName,"..//result//subsensex//PTZ//input3//bin%06d.png",i);
+		sprintf(fileName,"..//result//subsensex//PTZ//input3//warpbaseline//bin%06d.png",i);
 		Mat mask = imread(fileName);
 		if(mask.channels() ==3)
 			cv::cvtColor(mask,mask,CV_BGR2GRAY);
@@ -2373,10 +2373,10 @@ void TestPostProcess()
 		cv::Mat dst,imgDst;
 		/*(mask.size(),mask.type());
 		cv::Mat imgDst(mask.size(),mask.type());*/
-		//postProcessSegments(img,mask,imgDst,dst);
-		postProcess(img,mask,imgDst,dst);
+		postProcessSegments(img,mask,imgDst,dst);
+		//postProcess(img,mask,imgDst,dst);
 		sprintf(fileName,"%sbin%06d.png",outPathName,i);
-		imwrite(fileName,mask);
+		imwrite(fileName,dst);
 		/*sprintf(fileName,"%spi%06d.jpg",outPathName,i);
 		imwrite(fileName,imgDst);*/
 	}
@@ -2431,7 +2431,7 @@ void TestfindHomographyDLT()
 //}
 int main()
 {
-	TestRemap();
+	//TestRemap();
 	//TestVLBP();
 	//TestDynamicTexture();
 	//TestPatchStructralSimilarity();
@@ -2439,7 +2439,7 @@ int main()
 	//TestfindHomographyDLT();
 	//TestHomographyEstimate();
 	//TestPerspective();	
-	//TestPostProcess();
+	TestPostProcess();
 	//TestEdgeTracking2Img();
 	//TestListEdgeTracking();
 	//TestLBP();

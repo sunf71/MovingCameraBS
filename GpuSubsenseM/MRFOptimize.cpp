@@ -26,7 +26,7 @@ void MRFOptimize::Init()
 	m_gHeight = ((m_height + m_step -1) / m_step);
 	m_nPixel =  m_gWidth*m_gHeight;
 	m_centers = new SLICClusterCenter[m_nPixel];
-	m_preCenters = new SLICClusterCenter[m_nPixel];
+	m_preCenters = NULL;
 	m_data = new int[m_nPixel*2];
 	m_smooth = new int[4];
 	for ( int l1 = 0; l1 < 2; l1++ )
@@ -35,10 +35,11 @@ void MRFOptimize::Init()
 	/*m_gc = new GCoptimizationGeneralGraph(m_nPixel,2);*/
 	//m_gc->setSmoothCost(m_smooth);
 	m_result= new int[m_nPixel];   // stores result of optimization
+	m_preResult = NULL;
 	m_imgData = new uchar4[size];
 	m_idata = new unsigned int[size];
 	m_labels = new int[size];
-	m_preLabels = new int[size];
+	m_preLabels = NULL;
 	m_neighbor.resize(m_nPixel);
 	int xStep = ((m_width+ m_step-1) / m_step);
 	for(int i=0; i<m_nPixel; i++)
@@ -219,14 +220,13 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 	num_edges /= 2;
 
 	typedef Graph<float,float,float> GraphType;
-	GraphType *g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
+	GraphType *g;
+	g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
 	float theta = 1.2;
-	std::ofstream dfile("dtenergy.txt");
+	//std::ofstream dfile("dtenergy.txt");
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
-
-		
 		float dis = spPtr[i].distance;
 		float dd1 = exp(-dis/theta);
 		float dd2 = 1-dd1;
@@ -235,17 +235,20 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
 		float d2 =  - log(1-d);
-		dfile<<"dis = "<<dis<<" (dd1,dd2)=  , "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1<<" , "<<d2<<std::endl;
+		//dfile<<"dis = "<<dis<<" (dd1,dd2)=  , "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1<<" , "<<d2<<std::endl;
 		float e1 = d1 + k*dd1;
 		float e2 = d2 + k*dd2;
 		g->add_tweights(i,e1,e2);
 
 	}
-	g->add_node(2);
-	g->add_tweights(num_pixels,1e6,0);
-	g->add_tweights(num_pixels+1,0,1e6);
-	dfile.close();
-	std::ofstream sfile("senergy.txt");
+	if (m_preResult !=NULL)
+	{
+		g->add_node(2);
+		g->add_tweights(num_pixels,-log(1.0),-log(1e-20f));
+		g->add_tweights(num_pixels+1,-log(1e-20f),-log(1.0));
+	}
+	/*dfile.close();
+	std::ofstream sfile("senergy.txt");*/
 	for(int i=0; i<num_pixels; i++)
 	{
 
@@ -254,12 +257,13 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 			if (i>spPtr[m_neighbor[i][j]].idx)
 			{
 				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
-				sfile<<energy<<" ";
+				//sfile<<energy<<" ";
 				g->add_edge(i,m_neighbor[i][j],energy,energy);
 			}
 		}
-		if (m_preResult != NULL)
+		if (m_preResult != NULL && spPtr[i].temporalNeighbor >= 0)
 		{
+			
 			float4 avgColor = m_preCenters[spPtr[i].temporalNeighbor].rgb;
 			float se = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-(avgColor.x+avgColor.y+avgColor.z)/3)));
 			if (m_preResult[m_preLabels[spPtr[i].temporalNeighbor]])
@@ -267,13 +271,25 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 			else
 				g->add_edge(i,num_pixels+1,se,se);
 		}
-		sfile<<std::endl;
+		//sfile<<std::endl;
 	}
-	sfile.close();
+	//sfile.close();
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
 		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
-	
+	/*if (m_preResult != NULL)
+	{
+		if (g->what_segment(num_pixels) == GraphType::SINK)
+			std::cout<< "forground"<<std::endl;
+		else
+			std::cout<< "bg"<<std::endl;
+
+		if (g->what_segment(num_pixels+1) == GraphType::SINK)
+			std::cout<< "forground"<<std::endl;
+		else
+			std::cout<< "bg"<<std::endl;
+	}*/
+	delete g;
 }
 
 void MRFOptimize::GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
@@ -1202,6 +1218,13 @@ void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv
 #endif
 
 }
+template<typename T>
+void mySwap(T*& a, T*& b)
+{
+	T* tmp = b;
+	b = a;
+	a = tmp;
+}
 void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& flow, const cv::Mat& wflow,cv::Mat& resultImg)
 {
 	//superpixel		
@@ -1214,16 +1237,16 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 	GS->Superpixel(m_imgData,numlabels,m_labels,m_centers);
 	if (m_preLabels == NULL)
 	{
-		m_preLabels = new int[m_nPixel];
+		m_preLabels = new int[m_width*m_height];
 		m_preCenters = new SLICClusterCenter[m_nPixel];
-		m_preResult = new int[m_nPixel];
-		memcpy(m_preLabels,m_labels,sizeof(int)*m_nPixel);
-		memcpy(m_preCenters,m_centers,sizeof(SLICClusterCenter));
+		//m_preResult = new int[m_nPixel];
+		memcpy(m_preLabels,m_labels,sizeof(int)*m_width*m_height);
+		memcpy(m_preCenters,m_centers,sizeof(SLICClusterCenter)*m_nPixel);
 		
 	}
 	const uchar* mask = maskImg.data;
-
-	for(int i=0; i<this->m_nPixel; i++)
+	
+	for(int i=0; i<m_nPixel; i++)
 	{
 		int k = m_centers[i].xy.x;
 		int j = m_centers[i].xy.y;
@@ -1282,12 +1305,15 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			int iavgX = (int)(avgX +0.5+k);
 			int iavgY = (int)(avgY + 0.5+j);
 			if (iavgX <0 || iavgX > m_width-1 || iavgY <0 || iavgY > m_height-1)
-				continue;
-			m_spPtr[i].temporalNeighbor = m_preLabels[iavgX + iavgY*m_width];
+				m_spPtr[i].temporalNeighbor = -1;
+			else
+				m_spPtr[i].temporalNeighbor = m_preLabels[iavgX + iavgY*m_width];
+			
 		}
 
 
 	}
+	
 	float avgE = 0;
 	size_t count = 0;	
 	for(int i=0; i<m_nPixel; i++)
@@ -1340,9 +1366,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 		memcpy(m_preResult,m_result,sizeof(int)*m_nPixel);
 	}
 	else
-		std::swap(m_preResult,m_result);
-	std::swap(m_preLabels,m_labels);
-	std::swap(m_preCenters,m_centers);
+	{
+		mySwap(m_preResult,m_result);
+	}
+	mySwap(m_preLabels,m_labels);
+	mySwap(m_preCenters,m_centers);
 }
 void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg,const cv::Mat& lastMaskImg, const cv::Mat& flow, const cv::Mat& homography,cv::Mat& resultImg)
 {

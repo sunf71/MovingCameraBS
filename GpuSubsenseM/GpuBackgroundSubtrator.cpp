@@ -76,7 +76,7 @@ void postProcessa(const Mat& img, Mat& mask)
 }
 void postProcessSegments(const Mat& img, Mat& mask)
 {
-	int niters = 3;
+	int niters = 1;
 
 	vector<vector<Point> > contours,imgContours;
 	vector<Vec4i> hierarchy,imgHierarchy;
@@ -91,11 +91,10 @@ void postProcessSegments(const Mat& img, Mat& mask)
 	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//ÕÒÂÖÀª
 	
 	
-	if( contours.size() == 0 )
-		return;
 
 	cv::Mat cimg(mask.size(),CV_8UC3);
-	double minArea = 15*15;
+	cimg = cv::Scalar(0);
+	double minArea = 10*10;
 	Scalar color( 255, 255, 255 );
 	for( int i = 0; i< contours.size(); i++ )
 	{
@@ -103,7 +102,7 @@ void postProcessSegments(const Mat& img, Mat& mask)
 		double area = fabs(contourArea(Mat(c)));
 		if( area > minArea )
 		{
-			drawContours( cimg, contours, i, color, 1, 8, hierarchy, 0, Point() );
+			drawContours( cimg, contours, i, color, CV_FILLED, 8, hierarchy, 0, Point() );
 			
 		}
 		
@@ -185,7 +184,8 @@ GpuBackgroundSubtractor::~GpuBackgroundSubtractor()
 }
 void GpuBackgroundSubtractor::WarpInitialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints)
 {
-	
+	m_fgCounter.create(oInitImg.size(),CV_16U);
+	m_fgCounter = cv::Scalar(0);
 	m_DOFP = new EPPMDenseOptialFlow();
 	m_ASAP = new ASAPWarping(oInitImg.cols,oInitImg.rows,8,1.0);
 	cv::Mat img;
@@ -984,8 +984,8 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	//	0.1); // max distance to reprojection point
 
 	//calculate dense flow 
-	m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);
-	m_ASAP->getFlow(m_wflow);
+	/*m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);
+	m_ASAP->getFlow(m_wflow);*/
 	cv::swap(m_gray,m_preGray);
 }
 void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
@@ -1332,10 +1332,33 @@ failedcheck3ch:
 	/*sprintf(filename,"outmask%d.jpg",m_nFrameIndex-1);
 	cv::imwrite(filename,outMask);*/
 	
-	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
-	m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
-	//postProcessa(img,oCurrFGMask);
+	m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
+	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
+	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
+	/*cv::remap(m_fgCounter,m_fgCounter,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	int threshold = 10;
+	for(int i=0; i<m_oImgSize.height; i++)
+	{
+		ushort* cPtr = m_fgCounter.ptr<ushort>(i);
+		uchar* mPtr = oCurrFGMask.ptr<uchar>(i);
+		for(int j=0; j<m_oImgSize.width; j++)
+		{
+			if (mPtr[j] == 0xff)
+			{	
+				cPtr[j]++;
+				if (cPtr[j] > threshold)
+				{
+					mPtr[j] = 100;
+					cPtr[j] = 0;
+				}
+			}
+			else
+				cPtr[j] = 0;
+
+		}
+	}*/
+	//postProcessSegments(img,oCurrFGMask);
 	UpdateModel(img,oCurrFGMask);
 	//if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
 	//{

@@ -14,13 +14,13 @@ private:
 	//BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;
-	char fileName[50];
-	char pathName[50];
+	char fileName[150];
+	char pathName[150];
 public:
 	SubSenseBSProcessor():_initFlag(false)
 	{
 
-		sprintf(pathName,"..\\result\\subsensex\\ptz\\input3\\");
+		sprintf(pathName,"..\\result\\subsensex\\ptz\\input0\\warpBaseline\\");
 		CreateDir(pathName);
 	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)

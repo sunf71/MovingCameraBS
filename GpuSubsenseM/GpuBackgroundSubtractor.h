@@ -371,6 +371,7 @@ protected:
 	ASAPWarping* m_ASAP;
 	DenseOpticalFlowProvier* m_DOFP;
 	cv::Mat m_flow,m_wflow;
-	
+	//计算像素连续被判为前景的次数，若大于某门限可以改判为背景
+	cv::Mat m_fgCounter;
 };
 

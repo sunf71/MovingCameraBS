@@ -115,8 +115,8 @@ int main()
 {
 	//TestCVSolve();
 	//TestASAPWarping();
-	/*BGSMovieMaker::MakeMovie("..\\result\\subsense\\ptz\\input0","..\\ptz\\input0",cv::Size(704,480),1,1700,"continuousPan_s.avi");*/
-	//return 0;
+	BGSMovieMaker::MakeMovie("..\\result\\subsensex\\ptz\\input3\\warpbaseline","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout_s.avi");
+	return 0;
 	VideoProcessor processor;
 	
 	// Create feature tracker instance
