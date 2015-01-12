@@ -4,7 +4,7 @@
 #include <vector>
 #include <opencv2\opencv.hpp>
 #include <algorithm>
-
+#include <cula_lapack.h>
 
 template <typename T>
 struct MyAcsdRCComp 
@@ -26,3 +26,8 @@ struct MyAcsdRCComp
 
 //cmat 是3行n列矩阵，每一行中前两列表示数据所处的行和列，最后一列表示数据的值
 void SolveSparse(const cv::Mat& cmat, std::vector<double>& rhs, std::vector<double>& result);
+
+
+void checkStatus(culaStatus status);
+void CvLeastSquareSolve(const int m, const int n, const cv::Mat& Amat, const cv::Mat& bMat, std::vector<float>& result);
+void LeastSquareSolve(const int m, const int n, const cv::Mat& Amat, const cv::Mat& bMat, std::vector<float>& result);

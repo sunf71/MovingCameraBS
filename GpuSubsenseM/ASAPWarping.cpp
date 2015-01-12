@@ -181,17 +181,20 @@ void ASAPWarping::Solve()
 	_SmoothConstraints.copyTo(AMat(cv::Rect(0,0,3,_SmoothConstraints.rows)));
 	_DataConstraints.copyTo(AMat(cv::Rect(0,_SmoothConstraints.rows,3,_DataConstraints.rows)));
 
-	std::vector<double> bm(b.rows),x;
+	//std::vector<double> bm(b.rows),x;
 	//std::ofstream bfile("b.txt");
-	for(int i=0; i<bm.size(); i++)
-	{
-		bm[i] = b.at<float>(i,0);
-		//bfile<<bm[i]<<std::endl;
-	}
+	//for(int i=0; i<bm.size(); i++)
+	//{
+	//	bm[i] = b.at<float>(i,0);
+	//	//bfile<<bm[i]<<std::endl;
+	//}
 	/*bfile.close();*/
-	//b.col(0).copyTo(bm);
-	SolveSparse(AMat,bm,x);
-
+	/*b.col(0).copyTo(bm);
+	SolveSparse(AMat,bm,x);*/
+	
+	std::vector<float> x;
+	//CvLeastSquareSolve(b.rows,_columns,AMat,b,x);
+	LeastSquareSolve(b.rows,_columns,AMat,b,x);
 	int hwidth = _columns/2;
 	for(int i=0; i<_height; i++)
 	{
@@ -520,7 +523,7 @@ void KLTFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<c
 		cv::cvtColor(timg,tGray,CV_BGR2GRAY);
 	else
 		tGray = timg;
-	cv::goodFeaturesToTrack(sGray,vf1,5000,0.05,2);
+	cv::goodFeaturesToTrack(sGray,vf1,100,0.08,10);
 	cv::calcOpticalFlowPyrLK(sGray,tGray,vf1,vf2,status,err);
 	int k=0;
 	for(int i=0; i<vf1.size(); i++)

@@ -984,8 +984,8 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	//	0.1); // max distance to reprojection point
 
 	//calculate dense flow 
-	/*m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);
-	m_ASAP->getFlow(m_wflow);*/
+	m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);
+	m_ASAP->getFlow(m_wflow);
 	cv::swap(m_gray,m_preGray);
 }
 void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
@@ -1332,8 +1332,8 @@ failedcheck3ch:
 	/*sprintf(filename,"outmask%d.jpg",m_nFrameIndex-1);
 	cv::imwrite(filename,outMask);*/
 	
-	m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
-	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
+	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
+	m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
 	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
 	/*cv::remap(m_fgCounter,m_fgCounter,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
@@ -2229,6 +2229,13 @@ void GpuBackgroundSubtractor::UpdateModel(const cv::Mat& curImg, const cv::Mat& 
 		if (curMask.data[idx_uchar] == 0xff)
 		{
 			//update foreground
+			/*if((rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+				const size_t s_rand = rand()%m_nBGSamples;
+				for(size_t c=0; c<3; ++c) {
+					*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
+					*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
+				}
+			}*/
 		}
 		else
 		{

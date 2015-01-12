@@ -1,6 +1,7 @@
 #include "ASAPWarping.h"
 #include "SparseSolver.h"
 #include <fstream>
+#include <opencv\cv.h>
 bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2)
 {   
 	float lambda1 = ((V1.y-V2.y)*(pt.x-V2.x) + (V2.x-V1.x)*(pt.y-V2.y)) / ((V1.y-V2.y)*(V0.x-V2.x) + (V2.x-V1.x)*(V0.y-V2.y));
@@ -180,17 +181,21 @@ void ASAPWarping::Solve()
 	_SmoothConstraints.copyTo(AMat(cv::Rect(0,0,3,_SmoothConstraints.rows)));
 	_DataConstraints.copyTo(AMat(cv::Rect(0,_SmoothConstraints.rows,3,_DataConstraints.rows)));
 
-	std::vector<double> bm(b.rows),x;
+	//std::vector<double> bm(b.rows),x;
 	//std::ofstream bfile("b.txt");
-	for(int i=0; i<bm.size(); i++)
-	{
-		bm[i] = b.at<float>(i,0);
-		//bfile<<bm[i]<<std::endl;
-	}
+	//for(int i=0; i<bm.size(); i++)
+	//{
+	//	bm[i] = b.at<float>(i,0);
+	//	//bfile<<bm[i]<<std::endl;
+	//}
 	/*bfile.close();*/
-	//b.col(0).copyTo(bm);
-	SolveSparse(AMat,bm,x);
-
+	/*b.col(0).copyTo(bm);
+	SolveSparse(AMat,bm,x);*/
+	
+	std::vector<float> x;
+	//CvLeastSquareSolve(b.rows,_columns,AMat,b,x);
+	
+	LeastSquareSolve(b.rows,_columns,AMat,b,x);
 	int hwidth = _columns/2;
 	for(int i=0; i<_height; i++)
 	{
@@ -393,7 +398,20 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 
 
 }
-
+void ASAPWarping::getFlow(cv::Mat& flow)
+{
+	flow.create(_mapX.size(),CV_32FC2);
+	for(int i=0; i<flow.rows; i++)
+	{
+		float* ptrX = _mapX.ptr<float>(i);
+		float* ptrY = _mapY.ptr<float>(i);
+		cv::Vec2f* ptrFlow = flow.ptr<cv::Vec2f>(i);
+		for(int j=0; j<flow.cols; j++)
+		{
+			ptrFlow[j] = cv::Vec2f(j-ptrX[j],i-ptrY[j]);
+		}
+	}
+}
 
 void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography)
 {
@@ -506,7 +524,7 @@ void KLTFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<c
 		cv::cvtColor(timg,tGray,CV_BGR2GRAY);
 	else
 		tGray = timg;
-	cv::goodFeaturesToTrack(sGray,vf1,5000,0.05,2);
+	cv::goodFeaturesToTrack(sGray,vf1,100,0.08,10);
 	cv::calcOpticalFlowPyrLK(sGray,tGray,vf1,vf2,status,err);
 	int k=0;
 	for(int i=0; i<vf1.size(); i++)

@@ -36,10 +36,14 @@ void TestASAPWarping()
 	cv::Mat mr;
 	MatchingResult(simg,timg,vf1,vf2,mr);
 	cv::imshow("matching result", mr);
+	nih::Timer timer;
+	timer.start();
 	asap.SetControlPts(vf1,vf2);
 	asap.Solve();
 	cv::Mat wimg;
 	asap.Warp(simg,wimg);
+	timer.stop();
+	std::cout<<"ASAP Warping "<<timer.seconds()<<" s\n";
 	cv::Mat iwimg;
 	cv::remap(timg,iwimg,asap.getInvMapX(),asap.getInvMapY(),CV_INTER_CUBIC);
 	cv::imshow("inv Warped",iwimg);
@@ -103,19 +107,27 @@ void TestCVSolve()
 	ptr = mat.ptr<float>(18);
 	ptr[0] = 4, ptr[1] =4, ptr[2] = 1;
 	double b [ ] = {8., 45., -3., 3., 19.} ;
+	float fb [] = {8., 45., -3., 3., 19.} ; 
 	std::vector<double> rhs(b,b+5);
 
 	std::vector<double> result;
 	SolveSparse(mat,rhs,result);
-
+	std::vector<float> fresult;
+	cv::Mat bm(5,1,CV_32F);
+	for(int i=0; i<5; i++)
+	bm.at<float>(i,0) = fb[i];
+	LeastSquareSolve(5,5,mat,bm,fresult);
 	for(int i=0; i<result.size(); i++)
 		std::cout<<result[i]<<std::endl;
+	std::cout<<"cula result\n";
+	for(int i=0; i<fresult.size(); i++)
+		std::cout<<fresult[i]<<std::endl;
 }
 int main()
 {
 	//TestCVSolve();
-	//TestASAPWarping();
-	BGSMovieMaker::MakeMovie("..\\result\\subsensex\\ptz\\input3\\warpbaseline","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout_s.avi");
+	TestASAPWarping();
+	//BGSMovieMaker::MakeMovie("..\\result\\subsensex\\ptz\\input3\\warpbaseline","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout_s.avi");
 	return 0;
 	VideoProcessor processor;
 	

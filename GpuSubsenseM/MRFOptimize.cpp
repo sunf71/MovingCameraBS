@@ -223,32 +223,52 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 	GraphType *g;
 	g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
 	float theta = 1.2;
-	//std::ofstream dfile("dtenergy.txt");
+	std::ofstream dfile("dtenergy.txt");
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
 		float dis = spPtr[i].distance;
 		float dd1 = exp(-dis/theta);
 		float dd2 = 1-dd1;
-		float k = 5;
+		float k1 = 3;
+		float k2 = 5;
 		float d = min(1.0f,spPtr[i].ps*2);
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
-		float d2 =  - log(1-d);
-		//dfile<<"dis = "<<dis<<" (dd1,dd2)=  , "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1<<" , "<<d2<<std::endl;
-		float e1 = d1 + k*dd1;
-		float e2 = d2 + k*dd2;
+		float d2 = max(1e-20,1-d);
+		d2 =  - log(d2);
+		
+	
+		float t1(0),t2(0);
+		if (m_preResult != NULL && spPtr[i].temporalNeighbor >= 0)
+		{
+			
+			float4 avgColor = m_preCenters[spPtr[i].temporalNeighbor].rgb;
+			float se =exp(-beta*abs(spPtr[i].avgColor-(avgColor.x+avgColor.y+avgColor.z)/3));
+			if (m_preResult[spPtr[i].temporalNeighbor]==1)
+			{
+			
+				t2 = se;
+				t1 = 0;
+			}
+			else
+			{
+				
+				t1 = se;
+				t2 = 0;
+			}
+		
+		}	
+		dfile<<"dis = "<<dis<<" (dd1,dd2)= "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1<<" , "<<d2<<
+			"(t1,t2) = "<<t1<<" , "<<t2<<std::endl;
+		float e1 = d1+k2*t1;
+		float e2 = d2+k2*t2;
 		g->add_tweights(i,e1,e2);
 
 	}
-	if (m_preResult !=NULL)
-	{
-		g->add_node(2);
-		g->add_tweights(num_pixels,-log(1.0),-log(1e-20f));
-		g->add_tweights(num_pixels+1,-log(1e-20f),-log(1.0));
-	}
-	/*dfile.close();
-	std::ofstream sfile("senergy.txt");*/
+	
+	dfile.close();
+	std::ofstream sfile("senergy.txt");
 	for(int i=0; i<num_pixels; i++)
 	{
 
@@ -257,38 +277,18 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 			if (i>spPtr[m_neighbor[i][j]].idx)
 			{
 				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
-				//sfile<<energy<<" ";
+				sfile<<energy<<" ";
 				g->add_edge(i,m_neighbor[i][j],energy,energy);
 			}
 		}
-		if (m_preResult != NULL && spPtr[i].temporalNeighbor >= 0)
-		{
-			
-			float4 avgColor = m_preCenters[spPtr[i].temporalNeighbor].rgb;
-			float se = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-(avgColor.x+avgColor.y+avgColor.z)/3)));
-			if (m_preResult[m_preLabels[spPtr[i].temporalNeighbor]])
-				g->add_edge(i,num_pixels,se,se);
-			else
-				g->add_edge(i,num_pixels+1,se,se);
-		}
-		//sfile<<std::endl;
+		
+		sfile<<std::endl;
 	}
-	//sfile.close();
+	sfile.close();
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
 		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
-	/*if (m_preResult != NULL)
-	{
-		if (g->what_segment(num_pixels) == GraphType::SINK)
-			std::cout<< "forground"<<std::endl;
-		else
-			std::cout<< "bg"<<std::endl;
-
-		if (g->what_segment(num_pixels+1) == GraphType::SINK)
-			std::cout<< "forground"<<std::endl;
-		else
-			std::cout<< "bg"<<std::endl;
-	}*/
+	
 	delete g;
 }
 
@@ -1369,7 +1369,9 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 	{
 		mySwap(m_preResult,m_result);
 	}
+	
 	mySwap(m_preLabels,m_labels);
+	
 	mySwap(m_preCenters,m_centers);
 }
 void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg,const cv::Mat& lastMaskImg, const cv::Mat& flow, const cv::Mat& homography,cv::Mat& resultImg)

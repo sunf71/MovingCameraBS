@@ -1,6 +1,18 @@
 #include "SparseSolver.h"
 #include <fstream>
+void checkStatus(culaStatus status)
+{
+    char buf[256];
 
+    if(!status)
+        return;
+
+    culaGetErrorInfoString(status, culaGetErrorInfo(), buf, sizeof(buf));
+    printf("%s\n", buf);
+
+    culaShutdown();
+    exit(EXIT_FAILURE);
+}
 //cmat 是3行n列矩阵，每一行中前两列表示数据所处的行和列，最后一列表示数据的值
 void SolveSparse(const cv::Mat& cmat, std::vector<double>& rhs, std::vector<double>& result)
 {
@@ -110,4 +122,53 @@ void SolveSparse(const cv::Mat& cmat, std::vector<double>& rhs, std::vector<doub
     (void) umfpack_di_solve (UMFPACK_A, Ap, Ai, Ax, x, b, Numeric, null, null) ;
     umfpack_di_free_numeric (&Numeric) ;*/
 
+}
+
+//Amat 是x行3列矩阵，每一行中前两列表示数据所处的行和列，最后一列表示数据的值
+//Bmat 是m行1列矩阵 解线性方程组Ax = b其中 A是m行n列矩阵（m>=n), b是bMat中的m行1列向量
+void LeastSquareSolve(const int m, const int n, const cv::Mat& Amat, const cv::Mat& bMat, std::vector<float>& result)
+{
+	culaStatus status;
+	status = culaInitialize();
+	checkStatus(status);
+	float*  A = new float[m*n];
+	memset(A,0,sizeof(float)*m*n);
+	//std::vector<float> A(m*n);
+	for(int i=0; i< Amat.rows; i++)
+	{
+		const float* ptr = Amat.ptr<float>(i);
+		int row = ptr[0];
+		int col = ptr[1];
+		A[col*m+row] = ptr[2];
+	}
+	float* b = new float[m];	
+	memcpy(b,bMat.data,sizeof(float)*m);
+
+	status = culaSgels('N', m, n, 1, &A[0], m, &b[0], m);
+	checkStatus(status);
+	result.resize(n);
+	memcpy(&result[0],b,sizeof(float)*n);
+	delete[] A;
+	delete[] b;
+}
+
+
+void CvLeastSquareSolve(const int m, const int n, const cv::Mat& Amat, const cv::Mat& bMat, std::vector<float>& result)
+{
+	
+	cv::Mat fullA = cv::Mat::zeros(m,n,CV_32F);
+	for(int i=0; i< Amat.rows; i++)
+	{
+		const float* ptr = Amat.ptr<float>(i);
+		int row = ptr[0];
+		int col = ptr[1];
+		fullA.at<float>(row,col) = ptr[2];
+	}
+	
+	
+	cv::Mat xMat(n,1,CV_32F);
+	
+	cv::solve(fullA,bMat,xMat,cv::DECOMP_SVD);
+	result.resize(n);
+	xMat.col(0).copyTo(result);
 }
