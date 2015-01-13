@@ -22,6 +22,10 @@ public:
 	void Superpixel(uchar4* rgbaBuffer, int& num,int* labels,int iterThreshold = 10);
 	void SuperpixelLattice(uchar4* rgbaBuffer, int& num,int* labels,int iterThreshold = 10);
 	void DSuperpixel(uchar4* d_rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);
+	int GetSuperPixelNum()
+	{
+		return m_nPixels;
+	}
 protected:
 	void Init(unsigned width, unsigned height,unsigned step, float alpha);
 	void Release();

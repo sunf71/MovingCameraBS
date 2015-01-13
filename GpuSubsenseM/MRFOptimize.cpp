@@ -230,15 +230,13 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		float dis = spPtr[i].distance;
 		float dd1 = exp(-dis/theta);
 		float dd2 = 1-dd1;
-		float k1 = 3;
-		float k2 = 5;
+		float k1 = 0;
+		float k2 = .0;
 		float d = min(1.0f,spPtr[i].ps*2);
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
 		float d2 = max(1e-20,1-d);
 		d2 =  - log(d2);
-		
-	
 		float t1(0),t2(0);
 		if (m_preResult != NULL && spPtr[i].temporalNeighbor >= 0)
 		{
@@ -261,8 +259,8 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		}	
 		dfile<<"dis = "<<dis<<" (dd1,dd2)= "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1<<" , "<<d2<<
 			"(t1,t2) = "<<t1<<" , "<<t2<<std::endl;
-		float e1 = d1+k2*t1;
-		float e2 = d2+k2*t2;
+		float e1 = d1;
+		float e2 = d2;
 		g->add_tweights(i,e1,e2);
 
 	}
@@ -1268,6 +1266,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			float d(0);
 			int c(0);
 			float avgX(0),avgY(0);
+			float bHists(0),gHists(0),rHists(0);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = m_step;
 			for (int x = k- radius; x<= k+radius; x++)

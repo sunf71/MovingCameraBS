@@ -27,3 +27,4 @@ void TestRegionGrowing();
 
 void TestSuperpixelFlow();
 void TestSuperpixelMatching();
+void TestHistogram();

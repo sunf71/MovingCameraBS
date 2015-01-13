@@ -2,6 +2,7 @@
 
 int main (int argc, char* argv[])
 {
+	//TestHistogram();
 	//TestSuperpixelMatching();
 	//TestSuperpixelFlow();
 	//TCMRFOptimization();

@@ -30,6 +30,7 @@ struct SuperPixel
 	float avgColor;
 	float ps;
 	float distance;
+	float hist;
 	int temporalNeighbor;
 	int n[8];
 };
