@@ -230,8 +230,8 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		float dis = spPtr[i].distance;
 		float dd1 = exp(-dis/theta);
 		float dd2 = 1-dd1;
-		float k1 = 0;
-		float k2 = .0;
+		float k1 = 46*0.2;
+		float k2 = 46*0.2;
 		float d = min(1.0f,spPtr[i].ps*2);
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
@@ -259,8 +259,8 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		}	
 		dfile<<"dis = "<<dis<<" (dd1,dd2)= "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1<<" , "<<d2<<
 			"(t1,t2) = "<<t1<<" , "<<t2<<std::endl;
-		float e1 = d1;
-		float e2 = d2;
+		float e1 = 0.6*d1+k1*dd1+k2*t1;
+		float e2 = 0.6*d2+k1*dd2+k2*t2;
 		g->add_tweights(i,e1,e2);
 
 	}

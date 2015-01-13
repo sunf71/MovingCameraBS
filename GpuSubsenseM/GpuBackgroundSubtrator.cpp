@@ -1244,7 +1244,9 @@ failedcheck3ch:
 
 		}
 	}
+	cv::remap(m_oRawFGMask_last,m_oRawFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cv::bitwise_xor(oCurrFGMask,m_oRawFGMask_last,m_oRawFGBlinkMask_curr);
+	cv::remap(m_oRawFGBlinkMask_last,m_oRawFGBlinkMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cv::bitwise_or(m_oRawFGBlinkMask_curr,m_oRawFGBlinkMask_last,m_oBlinksFrame);
 	m_oRawFGBlinkMask_curr.copyTo(m_oRawFGBlinkMask_last);
 	oCurrFGMask.copyTo(m_oRawFGMask_last);
@@ -1360,12 +1362,14 @@ failedcheck3ch:
 	}*/
 	//postProcessSegments(img,oCurrFGMask);
 	UpdateModel(img,oCurrFGMask);
-	//if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
-	//{
-	//	refreshModel(0.1);
-	//	//resetPara();
-	//	m_nOutPixels = 0;
-	//}
+	if (m_nOutPixels > 0.4*m_oImgSize.height*m_oImgSize.width)
+	{
+		std::cout<<"refresh model\n";
+		cv::Mat empty(oCurrFGMask.size(),oCurrFGMask.type(),cv::Scalar(0));
+		UpdateModel(img,empty);
+		//resetPara();
+		m_nOutPixels = 0;
+	}
 	//refreshModel(outMask,0.1);
 }
 void GpuBackgroundSubtractor::cloneModels()
@@ -2229,13 +2233,13 @@ void GpuBackgroundSubtractor::UpdateModel(const cv::Mat& curImg, const cv::Mat& 
 		if (curMask.data[idx_uchar] == 0xff)
 		{
 			//update foreground
-			/*if((rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+			if((rand()%(size_t)FEEDBACK_T_LOWER)==0) {
 				const size_t s_rand = rand()%m_nBGSamples;
 				for(size_t c=0; c<3; ++c) {
 					*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
 					*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
 				}
-			}*/
+			}
 		}
 		else
 		{

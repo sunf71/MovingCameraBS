@@ -221,12 +221,12 @@ void TestGpuSubsense()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start = 0;
-	int end = 19;
+	int start = 213;
+	int end = 814;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\moseg\\cars1\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -269,14 +269,14 @@ void TestMotionEstimate()
 	cv::Mat mask;
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//cars2//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i-1);
+		sprintf(fileName,"..//moseg//cars2//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
 		//me.EstimateMotionMeanShift(curImg,prevImg,transM,mask);
 		me.EstimateMotion(curImg,prevImg,transM,mask);
 		//me.EstimateMotionHistogram(curImg,prevImg,transM,mask);
-		sprintf(fileName,".//features//people1//features%06d.jpg",i);
+		sprintf(fileName,".//features//cars2//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
 		cv::imshow("prevImg",prevImg);*/

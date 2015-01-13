@@ -1126,7 +1126,7 @@ void TestRegioinGrowingSegment()
 		color[i] = cvRandInt(&rng);
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//cars2//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
 		cv::blur(curImg,curImg,cv::Size(3,3));
 		cv::cvtColor(curImg,curImg,CV_BGR2BGRA);
@@ -1166,7 +1166,7 @@ void TestRegioinGrowingSegment()
 			}
 			cv::Mat fmask;
 			/*cv::bilateralFilter(mask,fmask,5,10,2.5);*/
-			sprintf(fileName,".//segment//people1//features%06d.jpg",i);
+			sprintf(fileName,".//segment//cars2//features%06d.jpg",i);
 			cv::imwrite(fileName,mask);
 
 	}
