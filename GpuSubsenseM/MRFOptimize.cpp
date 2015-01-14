@@ -222,16 +222,18 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 	typedef Graph<float,float,float> GraphType;
 	GraphType *g;
 	g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
-	float theta = 1.2;
+	float theta = 2.0;
 	std::ofstream dfile("dtenergy.txt");
+	float k1 = 1./2;
+	float k2 = 45./4;
+	float k3 = 45./4;
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
 		float dis = spPtr[i].distance;
 		float dd1 = exp(-dis/theta);
 		float dd2 = 1-dd1;
-		float k1 = 46*0.2;
-		float k2 = 46*0.2;
+	
 		float d = min(1.0f,spPtr[i].ps*2);
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
@@ -257,10 +259,12 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 			}
 		
 		}	
-		dfile<<"dis = "<<dis<<" (dd1,dd2)= "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1<<" , "<<d2<<
-			"(t1,t2) = "<<t1<<" , "<<t2<<std::endl;
-		float e1 = 0.6*d1+k1*dd1+k2*t1;
-		float e2 = 0.6*d2+k1*dd2+k2*t2;
+		
+		dfile<<i<<": dis = "<<dis<<" (dd1,dd2)= "<<k2*dd1<<" , "<<k2*dd2<<" (d1,d2) = "<<d1*k1<<" , "<<d2*k1<<
+			"(t1,t2) = "<<k3*t1<<" , "<<k3*t2<<std::endl;
+
+		float e1 = (d1*k1+ dd1*k2 + k3* t1);
+		float e2 = (d2*k1 + dd2*k2 + k3* t2);
 		g->add_tweights(i,e1,e2);
 
 	}

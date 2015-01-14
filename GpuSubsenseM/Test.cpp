@@ -221,12 +221,12 @@ void TestGpuSubsense()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start = 213;
-	int end = 814;
+	int start = 1;
+	int end = 40;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(name,"..\\moseg\\people1\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
