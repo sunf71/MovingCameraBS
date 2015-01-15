@@ -911,8 +911,8 @@ void TestSuperpixelFlow()
 	GpuSuperpixel gs(cols,rows,step);
 	cv::Mat simg,timg,wimg,sgray,tgray;
 	cv::Mat img0,img1;
-	img0 = cv::imread("..//moseg//cars1//in000002.jpg");
-	img1 = cv::imread("..//moseg//cars1//in000001.jpg");
+	img0 = cv::imread("..//moseg//people1//in000002.jpg");
+	img1 = cv::imread("..//moseg//people1//in000001.jpg");
 	
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
@@ -1182,16 +1182,23 @@ void TestFlowHistogram()
 	int cols = 640;
 	int rows = 480;
 	int step = 5;
+	int spWidth = (cols+step-1)/step;
+	int spHeight = (rows + step -1)/step;
+	int spSize = spWidth * spHeight;
+	int* labels = new int[rows*cols];
+	GpuSuperpixel gs(cols,rows,step);
+	SLICClusterCenter* centers = new SLICClusterCenter[spSize];
 	int start=1;
-	int end = 1;
+	int end = 18;
 	cv::Mat img0,img1,gray0,gray1;
 	DenseOpticalFlowProvier* DOFP = new EPPMDenseOptialFlow();
-	cv::Mat flow;
+	cv::Mat flow,spFlow;
 	std::vector<float> flowHist,avgDx,avgDy;
 	std::vector<std::vector<int>> ids;
 	cv::Mat idMat;
 	float minVal,maxVal;
 	int maxIdx(0),minIdx(0);
+	int num(0);
 	for(int i=start; i<=end;i++)
 	{		
 		sprintf(imgFileName,"..//moseg//cars1//in%06d.jpg",i);
@@ -1200,8 +1207,13 @@ void TestFlowHistogram()
 		img1=cv::imread(imgFileName);
 		cv::cvtColor(img0,gray0,CV_BGR2GRAY);
 		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
+		cv::cvtColor(img0,img0,CV_BGR2BGRA);
 		DOFP->DenseOpticalFlow(gray1,gray0,flow);
+		/*gs.Superpixel(img0,num,labels,centers);
+		SuperpixelFlow(gray1,gray0,5,spSize,centers,spFlow);
+		SuperpixelFlowToPixelFlow(labels,centers,spFlow,spSize,step,cols,rows,flow);*/
 		OpticalFlowHistogram(flow,flowHist,avgDx,avgDy,ids,idMat,10,36);
+		
 		for(int i=0; i<avgDx.size(); i++)
 		{
 			avgDx[i] /= ids[i].size();
@@ -1210,27 +1222,33 @@ void TestFlowHistogram()
 		minMaxLoc(flowHist,maxVal,minVal,maxIdx,minIdx);
 		float maxAvgDx = avgDx[maxIdx];
 		float maxAvgDy = avgDy[maxIdx];
-		cv::Mat histImg(rows,cols,CV_32F,cv::Scalar(0));
+		cv::Mat histImg(rows,cols,CV_8U,cv::Scalar(0));
+		float threshold = 3;
 		for(int i=0; i<rows; i++)
 		{
 			unsigned short* idPtr = idMat.ptr<unsigned short>(i);
-			float* histImgPtr = histImg.ptr<float>(i);
+			uchar* histImgPtr = histImg.ptr<uchar>(i);
 			for(int j=0; j<cols; j++)
 			{
-				float dist = abs(avgDx[idPtr[j]] - maxAvgDx) + abs(avgDy[idPtr[j]] - maxAvgDy);
-				histImgPtr[j] = 255*exp(-dist);
-				if (i == 70 && j==50)
+				float dist = abs(avgDx[idPtr[j]] - maxAvgDx)+ abs(avgDy[idPtr[j]] - maxAvgDy);
+				histImgPtr[j] = dist >threshold ? 255 : 0;
+				//histImgPtr[j] = dist;
+				/*if (i == 70 && j==50)
 				{
 					std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
-				}
+				}*/
 				
 			}
 		}
-		cv::imshow("hist img",histImg);
-		cv::waitKey(0);
+		
+		sprintf(resultFileName,".\\histogram\\cars1\\bin%06d.jpg",i);
+		cv::imwrite(resultFileName,histImg);
+		//cv::imshow("histImg",histImg);
+		//cv::waitKey();
 	}
-	
-
+	delete DOFP;
+	delete[] labels;
+	delete[] centers;
 }
 void TestColorHistogram()
 {
