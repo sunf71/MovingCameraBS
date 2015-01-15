@@ -7,6 +7,7 @@
 #include "MeanShift.h"
 #include <fstream>
 #include "ComSuperpixel.h"
+#include "ASAPWarping.h"
 void postProcessSegments(Mat& img)
 {
 	cv::bitwise_not(img,img);
@@ -986,54 +987,7 @@ void DrawHistogram(std::vector<float>& histogram, int size, const std::string na
 	cv::imshow(name,img);
 	//cv::waitKey();
 }
-void OpticalFlowHistogram(cv::Mat& flow,
-	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16,int thetaSize = 16)
-{
-	//直方图共256个bin，其中根据光流强度分16个bin，每个bin根据光流方向分16个bin
-	int binSize = DistSize * thetaSize;
-	histogram.resize(binSize);
-	ids.resize(binSize);
-	for(int i=0; i<binSize; i++)
-		ids[i].clear();
-	memset(&histogram[0],0,sizeof(float)*binSize);
-	
 
-	cv::Mat xy[2];
-	cv::split(flow, xy);
-
-	//calculate angle and magnitude
-	cv::Mat magnitude, angle;
-	cv::cartToPolar(xy[0], xy[1], magnitude, angle, true);
-
-	//translate magnitude to range [0;1]
-	double mag_max;
-	cv::minMaxLoc(magnitude, 0, &mag_max);
-	magnitude.convertTo(magnitude, -1, 1.0/mag_max);
-
-	
-	float stepR = 1.0/DistSize;
-	float stepT = 360.0/thetaSize;
-	float* magPtr = (float*)magnitude.data;
-	float* angPtr = (float*)angle.data;
-	for(int i = 0; i<magnitude.rows; i++)
-	{
-		for(int j=0; j<magnitude.cols; j++)
-		{
-			int index = i*magnitude.cols+j;
-			int r = (int)(magnitude.at<float>(i,j)/stepR);
-			int t = (int)(angle.at<float>(i,j)/stepT);
-			//std::cout<<magnitude.at<float>(i,j)<<","<<angle.at<float>(i,j)<<std::endl;
-			r = r>=DistSize? DistSize-1:r;
-			t = t>=thetaSize? thetaSize-1:t;
-			int idx = t*DistSize+r;
-			//std::cout<<idx<<std::endl;
-			histogram[idx]++;
-			ids[idx].push_back(index);
-
-		}
-	}
-	
-}
 void MotionEstimate::EstimateMotionHistogram( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
 {
 	using namespace cv;
@@ -1068,9 +1022,10 @@ void MotionEstimate::EstimateMotionHistogram( Mat& curImg,  Mat& prevImg, Mat& t
 	cv::Mat flow;
 	cv::calcOpticalFlowSF(curImg,prevImg,flow,3,2,4);
 
-	std::vector<float> histogram;
+	std::vector<float> histogram,avgX,avgY;
 	std::vector<std::vector<int>> ids;
-	OpticalFlowHistogram(flow,histogram,ids);
+	cv::Mat flowIdx;
+	OpticalFlowHistogram(flow,histogram,avgX,avgY,ids,flowIdx);
 	//DrawHistogram(histogram,256);
 	//最大bin
 	int max =ids[0].size(); 

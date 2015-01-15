@@ -453,9 +453,8 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	{
 		float dx = f1[i].x - f2[i].x;
 		float dy = f1[i].y - f2[i].y;
-		float theta = atan(dy/(dx+1e-6))/M_PI*180;
-		if (theta<0)
-			theta+=90;
+		float theta = atan2(dy,dx)/M_PI*180+180;
+	
 		thetas[i] = theta;
 		rads[i] = sqrt(dx*dx + dy*dy);
 	
@@ -464,7 +463,7 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 
 	}
 	float stepR = (max-min+1e-6)/DistSize;
-	float stepT = 180/thetaSize;
+	float stepT = 360/thetaSize;
 	for(int i=0; i<f1.size(); i++)
 	{
 		int r = (int)((rads[i] - min)/stepR);

@@ -960,8 +960,8 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 		m_gray.copyTo(m_preGray);
 	
 	KLTFeaturesMatching(m_gray,m_preGray,m_points[0],m_points[1]);
-	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
-	FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
+	FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
+	//FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
 	m_ASAP->SetControlPts(m_points[0],m_points[1]);
 	m_ASAP->Solve();
 	m_ASAP->Warp(image,warpedImg);
@@ -1004,7 +1004,7 @@ void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputAr
 	/*std::cout<<"homo \n";
 	std::cout<<m_homography<<std::endl;*/
 	WarpImage(img,oInputImg);
-	m_invHomography = m_homography.inv();
+	//m_invHomography = m_homography.inv();
 	
 	
 	/*sprintf(filename,"curColor%d.jpg",m_nFrameIndex);

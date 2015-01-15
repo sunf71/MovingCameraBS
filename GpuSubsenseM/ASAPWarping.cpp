@@ -452,9 +452,7 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	{
 		float dx = f1[i].x - f2[i].x;
 		float dy = f1[i].y - f2[i].y;
-		float theta = atan(dy/(dx+1e-6))/M_PI*180;
-		if (theta<0)
-			theta+=90;
+		float theta = atan2(dy,dx)/M_PI*180 + 180;
 		thetas[i] = theta;
 		rads[i] = sqrt(dx*dx + dy*dy);
 	
@@ -463,7 +461,7 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 
 	}
 	float stepR = (max-min+1e-6)/DistSize;
-	float stepT = 180/thetaSize;
+	float stepT = 360/thetaSize;
 	for(int i=0; i<f1.size(); i++)
 	{
 		int r = (int)((rads[i] - min)/stepR);
@@ -476,6 +474,65 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 		ids[idx].push_back(i);
 	
 	}
+}
+
+void OpticalFlowHistogram(cv::Mat& flow,
+	std::vector<float>& histogram, std::vector<float>&avgDx, std::vector<float>& avgDy,std::vector<std::vector<int>>& ids, cv::Mat& flowIdx,int DistSize,int thetaSize)
+{
+	flowIdx.create(flow.size(),CV_16U);
+	//直方图共256个bin，其中根据光流强度分16个bin，每个bin根据光流方向分16个bin
+	int binSize = DistSize * thetaSize;
+	histogram.resize(binSize);
+	avgDx.resize(binSize);
+	avgDy.resize(binSize);
+	ids.resize(binSize);
+	for(int i=0; i<binSize; i++)
+		ids[i].clear();
+	memset(&histogram[0],0,sizeof(float)*binSize);
+	memset(&avgDx[0],0,sizeof(float)*binSize);
+	memset(&avgDy[0],0,sizeof(float)*binSize);
+
+	cv::Mat xy[2];
+	cv::split(flow, xy);
+
+	//calculate angle and magnitude
+	cv::Mat magnitude, angle;
+	cv::cartToPolar(xy[0], xy[1], magnitude, angle, true);
+
+	//translate magnitude to range [0;1]
+	double mag_max;
+	cv::minMaxLoc(magnitude, 0, &mag_max);
+	magnitude.convertTo(magnitude, -1, 1.0/mag_max);
+
+	
+	float stepR = 1.0/DistSize;
+	float stepT = 360.0/thetaSize;
+	float* magPtr = (float*)magnitude.data;
+	float* angPtr = (float*)angle.data;
+	for(int i = 0; i<magnitude.rows; i++)
+	{
+		float* magPtr = magnitude.ptr<float>(i);
+		float* angPtr = angle.ptr<float>(i);
+		unsigned short* indPtr = flowIdx.ptr<unsigned short>(i);
+		for(int j=0; j<magnitude.cols; j++)
+		{
+			int index = i*magnitude.cols+j;
+			int r = (int)(magPtr[j]/stepR);
+			int t = (int)(angPtr[j]/stepT);
+			//std::cout<<magnitude.at<float>(i,j)<<","<<angle.at<float>(i,j)<<std::endl;
+			r = r>=DistSize? DistSize-1:r;
+			t = t>=thetaSize? thetaSize-1:t;
+			unsigned int idx = t*DistSize+r;
+			indPtr[j] = idx;
+			//std::cout<<idx<<std::endl;
+			histogram[idx]++;
+			avgDx[idx] +=*(float*)(xy[0].data+index*4);
+			avgDy[idx] +=*(float*)(xy[1].data+index*4);
+			ids[idx].push_back(index);
+
+		}
+	}
+	
 }
 void FeaturePointsRefineHistogram(int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2)
 {

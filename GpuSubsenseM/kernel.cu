@@ -2,7 +2,8 @@
 
 int main (int argc, char* argv[])
 {
-	//TestHistogram();
+	TestFlowHistogram();
+	//TestColorHistogram();
 	//TestSuperpixelMatching();
 	//TestSuperpixelFlow();
 	//TCMRFOptimization();
@@ -10,7 +11,7 @@ int main (int argc, char* argv[])
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();
 	//TestRandom();
-	TestGpuSubsense();
+	//TestGpuSubsense();
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();

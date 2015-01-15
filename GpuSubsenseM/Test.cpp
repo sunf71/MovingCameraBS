@@ -429,7 +429,7 @@ void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spS
 		features0.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
 	}
 	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
-
+	
 	int k=0; 
 	for(int i=0; i<spHeight; i++)
 	{
@@ -443,8 +443,17 @@ void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spS
 				ptr[j].y = features1[idx].y - features0[idx].y;
 				k++;
 			}
+			else
+			{
+				//KLTÊ§°Ü
+				ptr[j].x = 0;
+				ptr[j].y = 0;
+			}
 		}
 	}
+	
+	
+	
 	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
 }
 void SuperpixelGrowingFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, const int* labels, cv::Mat& flow)
@@ -490,6 +499,7 @@ void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* cente
 	{		
 		int k = centers[i].xy.x;
 		int j = centers[i].xy.y;
+		float2 flowValue = *((float2*)(sflow.data + i*8));
 		if (centers[i].nPoints >0)			
 		{
 			
@@ -506,7 +516,7 @@ void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* cente
 					if (labels[idx] == i )
 					{		
 						float2* fptr = (float2*)(flow.data + idx*8);
-						*fptr = *((float2*)(sflow.data + i*8));
+						*fptr = flowValue;
 					}				
 				}
 			}
@@ -891,8 +901,8 @@ void TestSuperpixelFlow()
 	SLIC aslic;	
 	PictureHandler handler;
 	
-	int cols = 320;
-	int rows = 240;
+	int cols = 640;
+	int rows = 480;
 	int step = 5;
 	ASAPWarping asap(cols,rows,8,1.0);
 
@@ -901,8 +911,8 @@ void TestSuperpixelFlow()
 	GpuSuperpixel gs(cols,rows,step);
 	cv::Mat simg,timg,wimg,sgray,tgray;
 	cv::Mat img0,img1;
-	img0 = cv::imread("..//ptz//input3//in000288.jpg");
-	img1 = cv::imread("..//ptz//input3//in000287.jpg");
+	img0 = cv::imread("..//moseg//cars1//in000002.jpg");
+	img1 = cv::imread("..//moseg//cars1//in000001.jpg");
 	
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
@@ -918,25 +928,49 @@ void TestSuperpixelFlow()
 	int * labels0(NULL), * labels1(NULL);
 	labels0 = new int[size];
 	labels1 = new int[size];
-	int spSize = ((rows+step-1)/step) * ((cols+step-1)/step);
+	int spHeight = (rows+step-1)/step;
+	int spWidth = (cols+step-1)/step;
+	int spSize = spHeight*spWidth;
 	centers0 = new SLICClusterCenter[spSize];
 	centers1 = new SLICClusterCenter[spSize];
 
 	gs.Superpixel(simg,num,labels0,centers0);
 	gs.Superpixel(timg,num,labels1,centers1);
 
-	KLTFeaturesMatching(sgray,tgray,features0,features1);
+	/*KLTFeaturesMatching(sgray,tgray,features0,features1);
 	cv::Mat homography;
 	FeaturePointsRefineRANSAC(features0,features1,homography);
 	asap.SetControlPts(features0,features1);
 	asap.Solve();
-	asap.Warp(simg,wimg);
+	asap.Warp(simg,wimg);*/
 	
 	cv::Mat spFlow,flow,flowField,pflowField;
 	std::vector<cv::Mat> flows(2);
 	SuperpixelFlow(sgray,tgray,step,spSize,centers0,spFlow);
 	//SuperpixelGrowingFlow(sgray,tgray,step,spSize,centers0,labels0,spFlow);
+	std::vector<float> flowHist,avgX,avgY;
+	std::vector<std::vector<int>> ids;
+	cv::Mat idMat;
+	OpticalFlowHistogram(spFlow,flowHist,avgX,avgY,ids,idMat,20,36);
+	double minVal,maxVal;
+	cv::minMaxLoc(flowHist,&minVal,&maxVal);
+	std::ofstream file("out.txt");
+	cv::Mat histImg(spHeight,spWidth,CV_32F,cv::Scalar(0));
+	for(int i=0; i<spHeight; i++)
+	{
+		unsigned short* idPtr = idMat.ptr<unsigned short>(i);
+		float* histImgPtr = histImg.ptr<float>(i);
+		for(int j=0; j<spWidth; j++)
+		{
+			histImgPtr[j] = flowHist[idPtr[j]]/maxVal;
+			file<<histImgPtr[j]<<"\t"; 
+		}
+		file<<std::endl;
+	}
+	file.close();
 	
+	//cv::normalize(histImg,histImg,0, 100, NORM_MINMAX, -1, Mat());
+	cv::imshow("histImg",histImg);
 	cv::split(spFlow,flows);
 	getFlowField(flows[0],flows[1],flowField);
 	cv::imshow("superpixel flow",flowField);
@@ -1118,8 +1152,87 @@ void TCMRFOptimization()
 	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";
 	delete DOFP;
 }
+template<typename T>
+void minMaxLoc(const std::vector<T>& vec,T& maxValue,T& minValue, int& maxId, int& minId)
+{
+	maxValue = vec[0];
+	minValue = vec[0];
+	maxId = 0;
+	minId = 0;
+	for(int i=1; i<vec.size(); i++)
+	{
+		if(vec[i] > maxValue)
+		{
+			maxValue = vec[i];
+			maxId = i;
+		}
+		if (vec[i] < minValue)
+		{
+			minValue = vec[i];
+			minId = i;
+		}
+	}
+}
+void TestFlowHistogram()
+{
+	using namespace std;
+	using namespace cv;
+	char imgFileName[150];
+	char resultFileName[150];
+	int cols = 640;
+	int rows = 480;
+	int step = 5;
+	int start=1;
+	int end = 1;
+	cv::Mat img0,img1,gray0,gray1;
+	DenseOpticalFlowProvier* DOFP = new EPPMDenseOptialFlow();
+	cv::Mat flow;
+	std::vector<float> flowHist,avgDx,avgDy;
+	std::vector<std::vector<int>> ids;
+	cv::Mat idMat;
+	float minVal,maxVal;
+	int maxIdx(0),minIdx(0);
+	for(int i=start; i<=end;i++)
+	{		
+		sprintf(imgFileName,"..//moseg//cars1//in%06d.jpg",i);
+		img0=cv::imread(imgFileName);
+		sprintf(imgFileName,"..//moseg//cars1//in%06d.jpg",i+1);
+		img1=cv::imread(imgFileName);
+		cv::cvtColor(img0,gray0,CV_BGR2GRAY);
+		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
+		DOFP->DenseOpticalFlow(gray1,gray0,flow);
+		OpticalFlowHistogram(flow,flowHist,avgDx,avgDy,ids,idMat,10,36);
+		for(int i=0; i<avgDx.size(); i++)
+		{
+			avgDx[i] /= ids[i].size();
+			avgDy[i] /= ids[i].size();
+		}
+		minMaxLoc(flowHist,maxVal,minVal,maxIdx,minIdx);
+		float maxAvgDx = avgDx[maxIdx];
+		float maxAvgDy = avgDy[maxIdx];
+		cv::Mat histImg(rows,cols,CV_32F,cv::Scalar(0));
+		for(int i=0; i<rows; i++)
+		{
+			unsigned short* idPtr = idMat.ptr<unsigned short>(i);
+			float* histImgPtr = histImg.ptr<float>(i);
+			for(int j=0; j<cols; j++)
+			{
+				float dist = abs(avgDx[idPtr[j]] - maxAvgDx) + abs(avgDy[idPtr[j]] - maxAvgDy);
+				histImgPtr[j] = 255*exp(-dist);
+				if (i == 70 && j==50)
+				{
+					std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
+				}
+				
+			}
+		}
+		cv::imshow("hist img",histImg);
+		cv::waitKey(0);
+	}
+	
 
-void TestHistogram()
+}
+void TestColorHistogram()
 {
 	using namespace std;
 	using namespace cv;
