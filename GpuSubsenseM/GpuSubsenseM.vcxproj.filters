@@ -82,6 +82,9 @@
     <ClInclude Include="FlowComputer.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="FeaturePointRefine.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
@@ -164,6 +167,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="FlowComputer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="FeaturePointRefine.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

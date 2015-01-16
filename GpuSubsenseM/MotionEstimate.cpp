@@ -8,6 +8,7 @@
 #include <fstream>
 #include "ComSuperpixel.h"
 #include "ASAPWarping.h"
+#include "FeaturePointRefine.h"
 void postProcessSegments(Mat& img)
 {
 	cv::bitwise_not(img,img);

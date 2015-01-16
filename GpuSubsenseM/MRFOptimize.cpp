@@ -6,8 +6,8 @@
 #include "PictureHandler.h"
 #include "timer.h"
 #include "GpuTimer.h"
-
-
+#include "ASAPWarping.h"
+#include "FeaturePointRefine.h"
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -222,11 +222,20 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 	typedef Graph<float,float,float> GraphType;
 	GraphType *g;
 	g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
-	float theta = 2.0;
+	//float theta = 2.0*m_avgD;
+	float theta = 2.0*m_avgE;
 	std::ofstream dfile("dtenergy.txt");
 	float k1 = 1./2;
-	float k2 = 45./4;
-	float k3 = 45./4;
+	float k2 = 1./4*45;
+	float k3 = 1./4*45;
+	if (m_variance < 1.0)
+	{
+		k1 = 2./3;
+		k2 = 0;
+		k3 = 1./3*45;
+	}
+	
+
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
@@ -260,7 +269,7 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		
 		}	
 		
-		dfile<<i<<": dis = "<<dis<<" (dd1,dd2)= "<<k2*dd1<<" , "<<k2*dd2<<" (d1,d2) = "<<d1*k1<<" , "<<d2*k1<<
+		dfile<<i<<": dis = "<<dis<<" (dd1,dd2)= "<<dd1<<" , "<<dd2<<" (d1,d2) = "<<d1*k1<<" , "<<d2*k1<<
 			"(t1,t2) = "<<k3*t1<<" , "<<k3*t2<<std::endl;
 
 		float e1 = (d1*k1+ dd1*k2 + k3* t1);
@@ -1246,8 +1255,24 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 		memcpy(m_preCenters,m_centers,sizeof(SLICClusterCenter)*m_nPixel);
 		
 	}
+	std::vector<float> flowHist,avgDx,avgDy;
+	std::vector<std::vector<int>> ids;
+	cv::Mat idMat;
+	float minVal,maxVal;
+	int maxIdx(0),minIdx(0);
+	OpticalFlowHistogram(flow,flowHist,avgDx,avgDy,ids,idMat,10,360);
+	for(int i=0; i<avgDx.size(); i++)
+	{
+		avgDx[i] /= ids[i].size();
+		avgDy[i] /= ids[i].size();
+	}
+	minMaxLoc(flowHist,maxVal,minVal,maxIdx,minIdx);
+	float maxAvgDx = avgDx[maxIdx];
+	float maxAvgDy = avgDy[maxIdx];
+
 	const uchar* mask = maskImg.data;
-	
+	m_avgD = 0;
+	m_avgE = 0;
 	for(int i=0; i<m_nPixel; i++)
 	{
 		int k = m_centers[i].xy.x;
@@ -1270,7 +1295,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			float d(0);
 			int c(0);
 			float avgX(0),avgY(0);
-			float bHists(0),gHists(0),rHists(0);
+			float histDist(0);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = m_step;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -1288,6 +1313,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 					if (m_labels[idx] == i )
 					{		
 						c++;
+						unsigned short idPtr = *(unsigned short*)(idMat.data + idx*2);
+						histDist += abs(avgDx[idPtr] - maxAvgDx)+ abs(avgDy[idPtr] - maxAvgDy);
 						float2 flowV =  *(float2*)(flow.data + flowIdx);
 						float2 wflowV = *(float2*)(wflow.data + flowIdx);
 						avgX += flowV.x;
@@ -1302,6 +1329,9 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 			}
 			m_spPtr[i].ps  = n/c;
 			m_spPtr[i].distance = d/c;
+			m_spPtr[i].histDist = histDist/c;
+			m_avgE += m_spPtr[i].distance;
+			m_avgD += m_spPtr[i].histDist;
 			avgX /= c;
 			avgY /= c;
 
@@ -1316,7 +1346,22 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 
 
 	}
-	
+	m_avgD /= m_nPixel;
+	m_avgE /= m_nPixel;
+	m_variance = 0;
+	float vh(0),v(0);
+	for(int i=0; i<m_nPixel; i++)
+	{
+		float tmp = (m_spPtr[i].distance - m_avgE);
+		m_variance += tmp*tmp;
+		tmp = (m_spPtr[i].histDist - m_avgD);
+		vh += tmp*tmp;
+	}
+	vh /= m_nPixel;
+	m_variance /= m_nPixel;
+	std::cout<<"squrared vairance hist dist "<<vh<<std::endl;
+	std::cout<<"squrared vairance dist "<<m_variance<<std::endl;
+	std::cout<<"avg distance "<<m_avgD<<std::endl;
 	float avgE = 0;
 	size_t count = 0;	
 	for(int i=0; i<m_nPixel; i++)

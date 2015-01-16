@@ -30,7 +30,7 @@ struct SuperPixel
 	float avgColor;
 	float ps;
 	float distance;
-	float hist;
+	float histDist;
 	int temporalNeighbor;
 	int n[8];
 };
@@ -112,5 +112,6 @@ private:
 	
 	std::vector<std::vector<int>> m_neighbor;
 	float m_avgE;
-	
+	float m_avgD;
+	float m_variance;
 };

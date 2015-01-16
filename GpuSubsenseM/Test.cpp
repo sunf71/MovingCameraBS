@@ -2,6 +2,7 @@
 #include "flowIO.h"
 #include "FlowComputer.h"
 #include "ASAPWarping.h"
+#include "FeaturePointRefine.h"
 void testCudaGpu()
 {
 	try
@@ -221,12 +222,12 @@ void TestGpuSubsense()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start = 1;
-	int end = 40;
+	int start = 180;
+	int end = 814;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\moseg\\people1\\in%06d.jpg",i);
+		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -269,14 +270,14 @@ void TestMotionEstimate()
 	cv::Mat mask;
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//moseg//cars2//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName,"..//moseg//cars2//in%06d.jpg",i-1);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i-1);
 		prevImg = cv::imread(fileName);
 		//me.EstimateMotionMeanShift(curImg,prevImg,transM,mask);
 		me.EstimateMotion(curImg,prevImg,transM,mask);
 		//me.EstimateMotionHistogram(curImg,prevImg,transM,mask);
-		sprintf(fileName,".//features//cars2//features%06d.jpg",i);
+		sprintf(fileName,".//features//people1//features%06d.jpg",i);
 		cv::imwrite(fileName,mask);
 		/*cv::imshow("curImg",curImg);
 		cv::imshow("prevImg",prevImg);*/
@@ -1152,27 +1153,7 @@ void TCMRFOptimization()
 	std::cout<<(end-start+1)/timer.seconds()<<" fps\n";
 	delete DOFP;
 }
-template<typename T>
-void minMaxLoc(const std::vector<T>& vec,T& maxValue,T& minValue, int& maxId, int& minId)
-{
-	maxValue = vec[0];
-	minValue = vec[0];
-	maxId = 0;
-	minId = 0;
-	for(int i=1; i<vec.size(); i++)
-	{
-		if(vec[i] > maxValue)
-		{
-			maxValue = vec[i];
-			maxId = i;
-		}
-		if (vec[i] < minValue)
-		{
-			minValue = vec[i];
-			minId = i;
-		}
-	}
-}
+
 void TestFlowHistogram()
 {
 	using namespace std;
@@ -1201,9 +1182,9 @@ void TestFlowHistogram()
 	int num(0);
 	for(int i=start; i<=end;i++)
 	{		
-		sprintf(imgFileName,"..//moseg//cars1//in%06d.jpg",i);
+		sprintf(imgFileName,"..//moseg//cars2//in%06d.jpg",i);
 		img0=cv::imread(imgFileName);
-		sprintf(imgFileName,"..//moseg//cars1//in%06d.jpg",i+1);
+		sprintf(imgFileName,"..//moseg//cars2//in%06d.jpg",i+1);
 		img1=cv::imread(imgFileName);
 		cv::cvtColor(img0,gray0,CV_BGR2GRAY);
 		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
@@ -1222,8 +1203,10 @@ void TestFlowHistogram()
 		minMaxLoc(flowHist,maxVal,minVal,maxIdx,minIdx);
 		float maxAvgDx = avgDx[maxIdx];
 		float maxAvgDy = avgDy[maxIdx];
-		cv::Mat histImg(rows,cols,CV_8U,cv::Scalar(0));
+		cv::Mat histImg(rows,cols,CV_32F,cv::Scalar(0));
 		float threshold = 3;
+		float avg = 0;
+		float variance(0);
 		for(int i=0; i<rows; i++)
 		{
 			unsigned short* idPtr = idMat.ptr<unsigned short>(i);
@@ -1231,20 +1214,40 @@ void TestFlowHistogram()
 			for(int j=0; j<cols; j++)
 			{
 				float dist = abs(avgDx[idPtr[j]] - maxAvgDx)+ abs(avgDy[idPtr[j]] - maxAvgDy);
-				histImgPtr[j] = dist >threshold ? 255 : 0;
+				avg+=dist;
+				//histImgPtr[j] = dist >threshold ? 255 : 0;
 				//histImgPtr[j] = dist;
 				/*if (i == 70 && j==50)
 				{
 					std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
 				}*/
-				
 			}
 		}
-		
-		sprintf(resultFileName,".\\histogram\\cars1\\bin%06d.jpg",i);
+		avg/=(rows*cols);
+		std::cout<<"avg dist "<<avg<<std::endl;
+		threshold = avg*2.0;
+		for(int i=0; i<rows; i++)
+		{
+			unsigned short* idPtr = idMat.ptr<unsigned short>(i);
+			float* histImgPtr = histImg.ptr<float>(i);
+			for(int j=0; j<cols; j++)
+			{
+				float dist = abs(avgDx[idPtr[j]] - maxAvgDx)+ abs(avgDy[idPtr[j]] - maxAvgDy);
+				variance += (dist - avg)*(dist-avg);
+				histImgPtr[j] = exp(dist/threshold);
+				//histImgPtr[j] = dist;
+				/*if (i == 70 && j==50)
+				{
+					std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
+				}*/
+			}
+		}
+		variance /= rows*cols;
+		std::cout<<"variance : "<<variance<<std::endl;
+		sprintf(resultFileName,".\\histogram\\input3\\bin%06d.jpg",i);
 		cv::imwrite(resultFileName,histImg);
-		//cv::imshow("histImg",histImg);
-		//cv::waitKey();
+	/*	cv::imshow("histImg",histImg);
+		cv::waitKey();*/
 	}
 	delete DOFP;
 	delete[] labels;
