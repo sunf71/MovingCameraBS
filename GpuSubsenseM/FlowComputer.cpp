@@ -1,4 +1,6 @@
 #include "FlowComputer.h"
+#include <opencv2/gpu/gpu.hpp>
+#include "CudaSuperpixel.h"
 #include "flowIO.h"
 using namespace cv;
 template <typename T> inline T clamp (T x, T a, T b)
@@ -126,4 +128,46 @@ void EPPMDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat&
 	cv::imwrite("img1.png",img1);
 	std::system(" EPPM_flow.exe  img0.png img1.png flow.flo flow.png ");
 	ReadFlowFile(flow,"flow.flo");
+}
+
+void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, cv::Mat& flow)
+{
+	std::vector<cv::Point2f> features0,features1;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	int spWidth = (sgray.cols+step-1)/step;
+	int spHeight = (sgray.rows+step-1)/step;
+	flow.create(spHeight,spWidth,CV_32FC2);
+	flow = cv::Scalar(0);
+	for(int i=0; i<spSize; i++)
+	{
+		features0.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
+	}
+	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
+	
+	int k=0; 
+	for(int i=0; i<spHeight; i++)
+	{
+		float2 * ptr = flow.ptr<float2>(i);
+		for(int j=0; j<spWidth; j++)
+		{
+			int idx = j + i*spWidth;
+			if (status[idx] == 1)
+			{
+				ptr[j].x = features1[idx].x - features0[idx].x;
+				ptr[j].y = features1[idx].y - features0[idx].y;
+				k++;
+			}
+			else
+			{
+				//KLTÊ§°Ü
+				ptr[j].x = UNKNOWN_FLOW;
+				ptr[j].y = UNKNOWN_FLOW;
+			}
+		}
+	}
+	
+	
+	
+	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
 }

@@ -222,12 +222,12 @@ void TestGpuSubsense()
 	// Create feature tracker instance
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
-	int start = 180;
-	int end = 814;
+	int start = 1;
+	int end = 40;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\ptz\\input3\\in%06d.jpg",i);
+		sprintf(name,"..\\moseg\\people1\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -416,47 +416,7 @@ void TestFlow()
 	cv::imwrite("tracked.jpg",B);
 }
 
-void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, cv::Mat& flow)
-{
-	std::vector<cv::Point2f> features0,features1;
-	std::vector<uchar> status;
-	std::vector<float> err;
-	int spWidth = (sgray.cols+step-1)/step;
-	int spHeight = (sgray.rows+step-1)/step;
-	flow.create(spHeight,spWidth,CV_32FC2);
-	flow = cv::Scalar(0);
-	for(int i=0; i<spSize; i++)
-	{
-		features0.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
-	}
-	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
-	
-	int k=0; 
-	for(int i=0; i<spHeight; i++)
-	{
-		float2 * ptr = flow.ptr<float2>(i);
-		for(int j=0; j<spWidth; j++)
-		{
-			int idx = j + i*spWidth;
-			if (status[idx] == 1)
-			{
-				ptr[j].x = features1[idx].x - features0[idx].x;
-				ptr[j].y = features1[idx].y - features0[idx].y;
-				k++;
-			}
-			else
-			{
-				//KLTÊ§°Ü
-				ptr[j].x = 0;
-				ptr[j].y = 0;
-			}
-		}
-	}
-	
-	
-	
-	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
-}
+
 void SuperpixelGrowingFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, const int* labels, cv::Mat& flow)
 {
 	std::vector<cv::Point2f> features0,features1;

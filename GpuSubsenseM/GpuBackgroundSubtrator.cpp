@@ -957,9 +957,12 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	}
 	else
 		m_gray = image;
+	cv::Mat rgbaImg;
+	cv::cvtColor(image,rgbaImg,CV_BGR2RGBA);
 	if (m_preGray.empty())
 		m_gray.copyTo(m_preGray);
-	
+	//¼ÆËã³¬ÏñËØ
+	m_optimizer->ComputeSuperpixel(m_gs,rgbaImg);
 	KLTFeaturesMatching(m_gray,m_preGray,m_points[0],m_points[1]);
 	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
 	FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
@@ -985,7 +988,56 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	//	0.1); // max distance to reprojection point
 
 	//calculate dense flow 
-	m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);
+	/*m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);*/
+	int * labels;
+	SLICClusterCenter* centers;
+	int nPixels(0);
+	float avgE(0);
+	m_optimizer->GetSuperpixelResult(nPixels,labels,centers,avgE);
+	std::vector<cv::Point2f> spCenters,matched;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	for(int i=0; i<nPixels; i++)
+	{
+		spCenters.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
+	}
+
+	cv::calcOpticalFlowPyrLK(m_gray,m_preGray,spCenters,matched,status,err);
+	int 	k=0;
+	
+	for( int i= 0; i < matched.size(); i++ ) {
+
+		// do we keep this point?
+		if (status[i] == 1) {
+
+			//m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
+			// keep this point in vector
+			spCenters[k] = spCenters[i];
+			matched[k++] = matched[i];
+		}
+	}
+	// eliminate unsuccesful points
+	spCenters.resize(k);
+	matched.resize(k);
+	//perspective transform
+	std::vector<uchar> inliers(spCenters.size(),0);
+	cv::findHomography(spCenters,matched,inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+	std::vector<int> resLabels;
+	for(int i=0; i<spCenters.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			cv::Point2f pt = spCenters[i];
+			resLabels.push_back(labels[(int)pt.x+(int)(pt.y)*m_oImgSize.width]);
+		}
+
+	}
+	SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
+	char filename[200];	
+	sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);
 	m_ASAP->getFlow(m_wflow);
 	cv::swap(m_gray,m_preGray);
 }
@@ -1340,7 +1392,8 @@ failedcheck3ch:
 	cv::imwrite(filename,outMask);*/
 	
 	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
-	m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
+	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
+	m_optimizer->Optimize(m_oRawFGMask_last,m_features,oCurrFGMask);
 	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
 	/*cv::remap(m_fgCounter,m_fgCounter,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);

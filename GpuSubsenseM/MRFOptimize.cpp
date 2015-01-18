@@ -8,6 +8,15 @@
 #include "GpuTimer.h"
 #include "ASAPWarping.h"
 #include "FeaturePointRefine.h"
+#include "FlowComputer.h"
+#include "flowIO.h"
+template<typename T>
+void mySwap(T*& a, T*& b)
+{
+	T* tmp = b;
+	b = a;
+	a = tmp;
+}
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -1084,6 +1093,39 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 #endif
 
 }
+void MRFOptimize::ComputeSuperpixel(GpuSuperpixel* gs, cv::Mat& rgbaImg)
+{
+	int num(0);
+	gs->Superpixel(rgbaImg,num,m_labels,m_centers);
+	if (m_preLabels == NULL)
+	{
+		m_preLabels = new int[m_width*m_height];
+		m_preCenters = new SLICClusterCenter[m_nPixel];
+		//m_preResult = new int[m_nPixel];
+		memcpy(m_preLabels,m_labels,sizeof(int)*m_width*m_height);
+		memcpy(m_preCenters,m_centers,sizeof(SLICClusterCenter)*m_nPixel);
+		
+	}
+	//计算超像素之间的平均颜色差
+	m_avgE= 0;
+	size_t count = 0;	
+	for(int i=0; i<m_nPixel; i++)
+	{
+		for (int j=0; j< m_neighbor[i].size(); j++)
+		{
+			if (m_centers[i].nPoints > 0 && m_centers[m_neighbor[i][j]].nPoints >0 )
+			{				
+				m_avgE += abs(m_spPtr[i].avgColor-m_spPtr[m_neighbor[i][j]].avgColor);
+				count++;
+			}
+		}		
+	}
+	m_avgE /= count;
+	mySwap(m_preLabels,m_labels);	
+	mySwap(m_preCenters,m_centers);
+	cv::swap(m_preGray,m_gray);
+
+}
 void MRFOptimize::ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba)
 {
 	int numlabels;
@@ -1229,12 +1271,204 @@ void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv
 #endif
 
 }
-template<typename T>
-void mySwap(T*& a, T*& b)
+
+void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& wflow,cv::Mat& resultImg)
 {
-	T* tmp = b;
-	b = a;
-	a = tmp;
+	//superpixel		
+	cv::Mat FImg(origImg.size(), CV_8UC4, m_imgData);
+	cv::Mat continuousRGBA(origImg.size(), CV_8UC4, m_idata);
+	cv::cvtColor(origImg,continuousRGBA,CV_BGR2BGRA);
+	continuousRGBA.convertTo(FImg,CV_8UC4);
+
+	int numlabels(0);
+	GS->Superpixel(m_imgData,numlabels,m_labels,m_centers);
+	if (m_preLabels == NULL)
+	{
+		m_preLabels = new int[m_width*m_height];
+		m_preCenters = new SLICClusterCenter[m_nPixel];
+		//m_preResult = new int[m_nPixel];
+		memcpy(m_preLabels,m_labels,sizeof(int)*m_width*m_height);
+		memcpy(m_preCenters,m_centers,sizeof(SLICClusterCenter)*m_nPixel);
+		
+	}
+	std::vector<float> flowHist,avgDx,avgDy;
+	std::vector<std::vector<int>> ids;
+	cv::Mat idMat;
+	float minVal,maxVal;
+	int maxIdx(0),minIdx(0);
+	//OpticalFlowHistogram(flow,flowHist,avgDx,avgDy,ids,idMat,10,360);
+	cv::cvtColor(origImg,m_gray,CV_BGR2GRAY);
+	if (m_preGray.empty())
+	{
+		m_preGray = m_gray.clone();
+	}
+	cv::Mat spFlow;
+	SuperpixelFlow(m_gray,m_preGray,m_step,m_nPixel,m_centers,spFlow);
+	/*for(int i=0; i<avgDx.size(); i++)
+	{
+		avgDx[i] /= ids[i].size();
+		avgDy[i] /= ids[i].size();
+	}
+	minMaxLoc(flowHist,maxVal,minVal,maxIdx,minIdx);
+	float maxAvgDx = avgDx[maxIdx];
+	float maxAvgDy = avgDy[maxIdx];*/
+
+	const uchar* mask = maskImg.data;
+	m_avgD = 0;
+	m_avgE = 0;
+	for(int i=0; i<m_nPixel; i++)
+	{
+
+		float2 flowV =  *(float2*)(spFlow.data + i*8);
+		int k = m_centers[i].xy.x;
+		int j = m_centers[i].xy.y;
+		if (m_centers[i].nPoints ==0)			
+		{
+			m_spPtr[i].ps = 0;
+			m_spPtr[i].avgColor = 0;
+			m_spPtr[i].idx = i;
+			m_spPtr[i].lable = i;
+			m_spPtr[i].distance = 0;
+		}
+		else
+		{
+			m_spPtr[i].avgColor = (m_centers[i].rgb.x+m_centers[i].rgb.y + m_centers[i].rgb.z)/3;
+			m_spPtr[i].idx = i;
+			m_spPtr[i].lable = i;
+
+			float n = 0;			
+			float d(0);
+			int c(0);
+			float avgX(0),avgY(0);
+			float histDist(0);
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = m_step;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				if (x<0 || x>m_width-1 )
+					continue;
+
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					int flowIdx = idx*8;
+					//std::cout<<idx<<std::endl;
+					if (m_labels[idx] == i )
+					{		
+						c++;
+						unsigned short idPtr = *(unsigned short*)(idMat.data + idx*2);
+						//histDist += abs(avgDx[idPtr] - maxAvgDx)+ abs(avgDy[idPtr] - maxAvgDy);
+						
+						float2 wflowV = *(float2*)(wflow.data + flowIdx);
+						avgX += flowV.x;
+						avgY += flowV.y;
+						if (!unknown_flow(flowV.x,flowV.y))
+						{
+							d += abs(flowV.x-wflowV.x) + abs(flowV.y - wflowV.y);
+						}
+						if ( mask[idx] == 0xff )
+						{					
+							n++;
+						}
+					}					
+				}
+			}
+			m_spPtr[i].ps  = n/c;
+			m_spPtr[i].distance = d/c;
+			m_spPtr[i].histDist = histDist/c;
+			m_avgE += m_spPtr[i].distance;
+			m_avgD += m_spPtr[i].histDist;
+			avgX /= c;
+			avgY /= c;
+
+			int iavgX = (int)(avgX +0.5+k);
+			int iavgY = (int)(avgY + 0.5+j);
+			if (iavgX <0 || iavgX > m_width-1 || iavgY <0 || iavgY > m_height-1)
+				m_spPtr[i].temporalNeighbor = -1;
+			else
+				m_spPtr[i].temporalNeighbor = m_preLabels[iavgX + iavgY*m_width];
+			
+		}
+
+
+	}
+	m_avgD /= m_nPixel;
+	m_avgE /= m_nPixel;
+	m_variance = 0;
+	float vh(0),v(0);
+	for(int i=0; i<m_nPixel; i++)
+	{
+		float tmp = (m_spPtr[i].distance - m_avgE);
+		m_variance += tmp*tmp;
+		tmp = (m_spPtr[i].histDist - m_avgD);
+		vh += tmp*tmp;
+	}
+	vh /= m_nPixel;
+	m_variance /= m_nPixel;
+	std::cout<<"squrared vairance hist dist "<<vh<<std::endl;
+	std::cout<<"squrared vairance dist "<<m_variance<<std::endl;
+	std::cout<<"avg distance "<<m_avgD<<std::endl;
+	float avgE = 0;
+	size_t count = 0;	
+	for(int i=0; i<m_nPixel; i++)
+	{
+		for (int j=0; j< m_neighbor[i].size(); j++)
+		{
+			if (m_centers[i].nPoints > 0 && m_centers[m_neighbor[i][j]].nPoints >0 )
+			{				
+				avgE += abs(m_spPtr[i].avgColor-m_spPtr[m_neighbor[i][j]].avgColor);
+				count++;
+			}
+		}
+	}
+	avgE /= count;
+	avgE = 1/(2*avgE);
+	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+
+	resultImg = cv::Scalar(0);
+	unsigned char* imgPtr = resultImg.data;
+	for(int i=0; i<m_nPixel; i++)
+	{
+		if(m_result[i] == 1)			
+		{
+			/*for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+			{
+			int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
+			imgPtr[idx] = 0xff;
+			}*/
+			int k = m_centers[i].xy.x;
+			int j = m_centers[i].xy.y;
+			int radius = m_step+5;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					if (m_labels[idx] == i)
+					{					
+						imgPtr[idx] = 0xff;
+					}					
+				}
+			}
+		}	
+	}
+	if (m_preResult == NULL)
+	{
+		m_preResult = new int[m_nPixel];
+		memcpy(m_preResult,m_result,sizeof(int)*m_nPixel);
+	}
+	else
+	{
+		mySwap(m_preResult,m_result);
+	}
+	
+	mySwap(m_preLabels,m_labels);	
+	mySwap(m_preCenters,m_centers);
+	cv::swap(m_preGray,m_gray);
 }
 void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& flow, const cv::Mat& wflow,cv::Mat& resultImg)
 {
@@ -2243,16 +2477,16 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 					if (m_labels[idx] == i )
 					{		
 
-						if ( mask[idx] == 0xff && featureMask[idx] != 0xff)
+						if ( mask[idx] == 0xff)
 							n++;
-						if (featureMask[idx] == 0xff)
+						if (featureMask[idx] == 0x00)
 						{
 							nBGEdges++;
 						}
-						else if(featureMask[idx] == 100)
+						/*else if(featureMask[idx] == )
 						{
 							nBgInliers++;
-						}
+						}*/
 					}
 					//else if(isNeighbour(i,x,y,m_width,m_height,m_labels))
 					//{
@@ -2262,7 +2496,7 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 				}
 			}
 			//m_spPtr[i].ps  = min((max(n-nBGEdges-nBgInliers,0))/m_centers[i].nPoints,1.0f);
-			m_spPtr[i].ps  = n/m_centers[i].nPoints;
+			m_spPtr[i].ps  = (n*0.8+0.2*nBGEdges)/m_centers[i].nPoints;
 			/*	if (nBGEdges > 0 )
 			m_spPtr[i].ps = 0;
 			else

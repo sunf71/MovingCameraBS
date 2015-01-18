@@ -37,3 +37,5 @@ void minMaxLoc(const std::vector<T>& vec,T& maxValue,T& minValue, int& maxId, in
 		}
 	}
 }
+
+

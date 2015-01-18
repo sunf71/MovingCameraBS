@@ -1,8 +1,8 @@
 #pragma once
-#include <opencv2/opencv.hpp>
-#include <opencv2/gpu/gpu.hpp>
-using namespace cv;
-void getFlowField(const Mat& u, const Mat& v, Mat& flowField);
+#include <opencv\cv.h>
+#include "CudaSuperpixel.h"
+
+void getFlowField(const cv::Mat& u, const cv::Mat& v, cv::Mat& flowField);
 class DenseOpticalFlowProvier
 {
 public:
@@ -28,3 +28,5 @@ class EPPMDenseOptialFlow:public DenseOpticalFlowProvier
 public:
 	virtual 	void  DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow);
 };
+
+void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, cv::Mat& flow);

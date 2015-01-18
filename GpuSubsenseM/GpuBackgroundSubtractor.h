@@ -366,7 +366,6 @@ protected:
 	std::ofstream m_ofstream;
 	float* m_distance;
 
-
 	cv::Mat m_warpedImg;
 	ASAPWarping* m_ASAP;
 	DenseOpticalFlowProvier* m_DOFP;

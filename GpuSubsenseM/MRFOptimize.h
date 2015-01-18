@@ -70,7 +70,9 @@ public:
 	void Optimize(const cv::Mat& maskImg, const  cv::Mat& featureImg, cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg,const cv::Mat& lastMaskImg, const cv::Mat& flow, const cv::Mat& homography,cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& flow, const cv::Mat& wflow,cv::Mat& resultImg);
+	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& wflow,cv::Mat& resultImg);
 	void ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba);
+	void ComputeSuperpixel(GpuSuperpixel* gs, cv::Mat& rgbaImg);
 	//mask:前景
 	void GetSuperpixels(const unsigned char* mask);
 	//mask:前景， features：特征点跟踪情况的mask
@@ -109,7 +111,7 @@ private:
 	size_t m_QSIZE;	
 	uchar4* m_imgData;
 	unsigned int* m_idata;
-	
+	cv::Mat m_gray,m_preGray;
 	std::vector<std::vector<int>> m_neighbor;
 	float m_avgE;
 	float m_avgD;

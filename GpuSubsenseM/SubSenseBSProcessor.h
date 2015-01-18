@@ -20,7 +20,7 @@ public:
 	SubSenseBSProcessor():_initFlag(false)
 	{
 
-		sprintf(pathName,"..\\result\\subsensex\\ptz\\input3\\warpTC\\");
+		sprintf(pathName,"..\\result\\subsensex\\moseg\\people1\\warpTc\\");
 		CreateDir(pathName);
 	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
@@ -35,7 +35,7 @@ public:
 		}
 		_bgs(frame,output);
 
-		sprintf(fileName,"%sbin%06d.png",pathName,179+frameNo++);
+		sprintf(fileName,"%sbin%06d.png",pathName,frameNo++);
 		imwrite(fileName,output);
 		//imshow("input",frame);
 		//output = frame;
