@@ -1029,7 +1029,7 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	}
 	SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
 	char filename[200];	
-	sprintf(filename,".\\features\\people2\\features%06d.jpg",m_nFrameIndex+1);
+	sprintf(filename,".\\features\\cars8\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 	m_ASAP->getFlow(m_wflow);
 	cv::swap(m_gray,m_preGray);

@@ -224,11 +224,11 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 30;
+	int end = 24;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\moseg\\people2\\in%06d.jpg",i);
+		sprintf(name,"..\\moseg\\cars8\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
