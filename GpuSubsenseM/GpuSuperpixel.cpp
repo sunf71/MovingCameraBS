@@ -63,7 +63,7 @@ void GpuSuperpixel::SuperpixelLattice(uchar4* rgbaBuffer, int& num,int* labels,S
 	cudaMemcpy(labels,d_labels,sizeof(int)*m_size,cudaMemcpyDeviceToHost);
 	cudaMemcpy(centers,d_centers,sizeof(SLICClusterCenter)*m_nPixels,cudaMemcpyDeviceToHost);
 }
-void GpuSuperpixel::Superpixel(const cv::Mat& imgBGRA, int num, int* labels, SLICClusterCenter* centers, int iterThreshold)
+void GpuSuperpixel::Superpixel(const cv::Mat& imgBGRA, int& num, int* labels, SLICClusterCenter* centers, int iterThreshold)
 {
 	
 	cudaMemcpy(d_rgbaBuffer,imgBGRA.data,sizeof(uchar4)*m_size,cudaMemcpyHostToDevice);
@@ -78,7 +78,7 @@ void GpuSuperpixel::Superpixel(const cv::Mat& imgBGRA, int num, int* labels, SLI
 	
 	cudaMemcpy(labels,d_labels,sizeof(int)*m_size,cudaMemcpyDeviceToHost);
 	cudaMemcpy(centers,d_centers,sizeof(SLICClusterCenter)*m_nPixels,cudaMemcpyDeviceToHost);
-
+	num = m_nPixels;
 }
 void GpuSuperpixel::SuperpixelLattice(uchar4* rgbaBuffer, int& num,int* labels,int iterThreshold)
 {

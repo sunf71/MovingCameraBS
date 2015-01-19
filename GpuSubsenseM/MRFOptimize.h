@@ -12,6 +12,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include "GpuSuperpixel.h"
 #include "GridCut/GridGraph_2D_4C.h"
+#include "SuperpixelComputer.h"
 using namespace std;
 typedef std::pair<int,int> Point2i;
 
@@ -59,8 +60,8 @@ public:
 
 	void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, const int height,  const unsigned int* imgData, const unsigned char* maskData);
 	void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
-	void GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
-	
+	void GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);	
+	void TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName,  const string& featuremaskImgName,const string& resultImgName);
@@ -71,6 +72,7 @@ public:
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg,const cv::Mat& lastMaskImg, const cv::Mat& flow, const cv::Mat& homography,cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& flow, const cv::Mat& wflow,cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& wflow,cv::Mat& resultImg);
+	void Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const cv::Mat& featureImg,const std::vector<int>& matchedId, cv::Mat& resultImg);
 	void ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba);
 	void ComputeSuperpixel(GpuSuperpixel* gs, cv::Mat& rgbaImg);
 	//mask:Ç°¾°

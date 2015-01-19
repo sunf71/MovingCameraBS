@@ -160,6 +160,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClInclude Include="ASAPWarping.h" />
     <ClInclude Include="block.h" />
+    <ClInclude Include="Common.h" />
     <ClInclude Include="ComSuperpixel.h" />
     <ClInclude Include="CudaBSOperator.h" />
     <ClInclude Include="CudaSuperpixel.h" />
@@ -183,6 +184,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="SLIC.h" />
     <ClInclude Include="SparseSolver.h" />
     <ClInclude Include="SubSenseBSProcessor.h" />
+    <ClInclude Include="SuperpixelComputer.h" />
     <ClInclude Include="Test.h" />
     <ClInclude Include="timer.h" />
     <ClInclude Include="videoprocessor.h" />
@@ -207,6 +209,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="PictureHandler.cpp" />
     <ClCompile Include="SLIC.cpp" />
     <ClCompile Include="SparseSolver.cpp" />
+    <ClCompile Include="SuperpixelComputer.cpp" />
     <ClCompile Include="Test.cpp" />
     <ClCompile Include="timer.cpp" />
   </ItemGroup>

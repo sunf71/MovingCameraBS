@@ -29,3 +29,5 @@ void TestSuperpixelFlow();
 void TestSuperpixelMatching();
 void TestFlowHistogram();
 void TestColorHistogram();
+
+void TestSuperpielxComputer();

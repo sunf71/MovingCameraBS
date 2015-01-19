@@ -8,6 +8,7 @@
 #include "MRFOptimize.h"
 #include "ASAPWarping.h"
 #include "FlowComputer.h"
+#include "SuperpixelComputer.h"
 #include <fstream>
 #include <curand_kernel.h>
 //! defines the default value for BackgroundSubtractorLBSP::m_fRelLBSPThreshold
@@ -372,5 +373,9 @@ protected:
 	cv::Mat m_flow,m_wflow;
 	//计算像素连续被判为前景的次数，若大于某门限可以改判为背景
 	cv::Mat m_fgCounter;
+	SuperpixelComputer * m_SPComputer;
+	//超像素匹配结果
+	std::vector<int> m_matchedId;
+	cv::Mat m_img,m_preImg;
 };
 

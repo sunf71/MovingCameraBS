@@ -10,13 +10,8 @@
 #include "FeaturePointRefine.h"
 #include "FlowComputer.h"
 #include "flowIO.h"
-template<typename T>
-void mySwap(T*& a, T*& b)
-{
-	T* tmp = b;
-	b = a;
-	a = tmp;
-}
+#include "Common.h"
+
 bool compare(const Point2i& p1, const Point2i& p2)
 {
 	if (p1.first==p2.first)
@@ -85,20 +80,19 @@ void MRFOptimize::Init()
 
 void MRFOptimize::Release()
 {
-	delete[] m_visited;
-	delete[] m_stack;
-
-	delete[] m_data;
-	delete[] m_smooth;
-	delete[] m_imgData;
-	delete[] m_idata;	
-	delete[] m_result;
-	delete[] m_preResult;
-	delete[] m_labels;
-	delete[] m_preLabels;
-	delete[] m_centers;
-	delete[] m_preCenters;
-	delete[] m_spPtr;
+	safe_delete_array(m_visited);
+	safe_delete_array(m_stack);
+	safe_delete_array( m_data);
+	safe_delete_array( m_smooth);
+	safe_delete_array(m_imgData);
+	safe_delete_array(m_idata);	
+	safe_delete_array(m_result);
+	safe_delete_array(m_preResult);
+	safe_delete_array(m_labels);
+	safe_delete_array(m_preLabels);
+	safe_delete_array(m_centers);
+	safe_delete_array(m_preCenters);
+	safe_delete_array(m_spPtr);
 
 }
 
@@ -220,6 +214,83 @@ void MRFOptimize::ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const 
 	}
 	/*cv::imwrite("prob.jpg",psMat);
 	cv::imwrite("avg.jpg",avgMat);*/
+}
+void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
+{
+	size_t num_edges = 0;
+	for(int i=0; i<num_pixels; i++)
+		num_edges += m_neighbor[i].size();
+	num_edges /= 2;
+
+	typedef Graph<float,float,float> GraphType;
+	GraphType *g;
+	g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
+	
+	std::ofstream dfile("dtenergy.txt");
+	float k1 = 3./4;
+	float k2 = 1./4*40;
+	for(int i=0; i<num_pixels; i++)
+	{
+		g->add_node();
+		
+		float d = min(1.0f,spPtr[i].ps*2);
+		d = max(1e-20f,d);
+		float d1 = -log(d);		
+		float d2 = max(1e-20,1-d);
+		d2 =  - log(d2);
+		float t1(0),t2(0);
+		if (m_preResult != NULL && spPtr[i].temporalNeighbor >= 0)
+		{
+			
+			float4 avgColor = m_preCenters[spPtr[i].temporalNeighbor].rgb;
+			float se =exp(-beta*abs(spPtr[i].avgColor-(avgColor.x+avgColor.y+avgColor.z)/3));
+			if (m_preResult[spPtr[i].temporalNeighbor]==1)
+			{
+			
+				t2 = se;
+				t1 = 0;
+			}
+			else
+			{
+				
+				t1 = se;
+				t2 = 0;
+			}
+		
+		}	
+		
+		dfile<<i<<" (d1,d2) = "<<d1*k1<<" , "<<d2*k1<<
+			"(t1,t2) = "<<k2*t1<<" , "<<k2*t2<<std::endl;
+
+		float e1 = (d1*k1+k2* t1);
+		float e2 = (d2*k1 + k2* t2);
+		g->add_tweights(i,e1,e2);
+
+	}
+	
+	dfile.close();
+	std::ofstream sfile("senergy.txt");
+	for(int i=0; i<num_pixels; i++)
+	{
+
+		for(int j=0; j<m_neighbor[i].size(); j++)
+		{				
+			if (i>spPtr[m_neighbor[i][j]].idx)
+			{
+				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
+				sfile<<energy<<" ";
+				g->add_edge(i,m_neighbor[i][j],energy,energy);
+			}
+		}
+		
+		sfile<<std::endl;
+	}
+	sfile.close();
+	float flow = g -> maxflow();
+	for ( int  i = 0; i < num_pixels; i++ )
+		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
+	
+	delete g;
 }
 void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result)
 {
@@ -1303,7 +1374,8 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 		m_preGray = m_gray.clone();
 	}
 	cv::Mat spFlow;
-	SuperpixelFlow(m_gray,m_preGray,m_step,m_nPixel,m_centers,spFlow);
+	std::vector<cv::Point2f> f0,f1;
+	SuperpixelFlow(m_gray,m_preGray,m_step,m_nPixel,m_centers,f0,f1,spFlow);
 	/*for(int i=0; i<avgDx.size(); i++)
 	{
 		avgDx[i] /= ids[i].size();
@@ -2440,6 +2512,131 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMas
 	}
 	cv::imwrite("maxHist.jpg",grayMask);
 }
+void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const cv::Mat& featureImg,const std::vector<int>& matchedId,cv::Mat& resultImg)
+{
+	
+	#ifdef REPORT
+	nih::Timer timer;
+	nih::Timer timer0;
+	timer0.start();
+	timer.start();
+#endif
+
+	int numlabels(0);
+	//superpixel			
+	spComputer->GetSuperpixelResult(numlabels,m_labels,m_centers);
+	spComputer->GetPreSuperpixelResult(numlabels,m_preLabels,m_preCenters);
+	const unsigned char* maskImgData = maskImg.data;
+	const unsigned char* featureMaskData = featureImg.data;
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
+#endif
+
+	
+
+#ifdef REPORT
+	GpuTimer gtimer;
+	gtimer.Start();
+#endif	
+
+
+#ifdef REPORT
+	gtimer.Stop();
+	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT
+
+	timer.start();
+#endif
+	//ComputeAvgColor(m_spPtr,spSize,m_width,m_height,m_idata,maskImgData);
+	GetSuperpixels(maskImgData,featureMaskData);
+	for(int i=0; i<numlabels; i++)
+	{
+		m_spPtr[i].temporalNeighbor = matchedId[i];
+	}
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+#ifdef REPORT
+	timer.start();
+#endif
+	float avgE = spComputer->ComputAvgColorDistance();	
+	//std::cout<<"avg e "<<avgE<<std::endl;
+	avgE = 1/(2*avgE);
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT
+
+	timer.start();
+#endif
+	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	TCMaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT	
+	timer.start();
+#endif
+
+	resultImg = cv::Scalar(0);
+	unsigned char* imgPtr = resultImg.data;
+	for(int i=0; i<m_nPixel; i++)
+	{
+		if(m_result[i] == 1)			
+		{
+			/*for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+			{
+			int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
+			imgPtr[idx] = 0xff;
+			}*/
+			int k = m_centers[i].xy.x;
+			int j = m_centers[i].xy.y;
+			int radius = m_step+5;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					if (m_labels[idx] == i)
+					{					
+						imgPtr[idx] = 0xff;
+					}					
+				}
+			}
+		}	
+	}
+
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+	//delete[] m_spPtr;
+
+#ifdef REPORT
+	timer0.stop();
+	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
+#endif
+	if (m_preResult == NULL)
+	{
+		m_preResult = new int[m_nPixel];
+		memcpy(m_preResult,m_result,sizeof(int)*m_nPixel);
+	}
+	else
+	{
+		mySwap(m_preResult,m_result);
+	}
+}
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask)
 {
 
@@ -2462,8 +2659,8 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 			m_spPtr[i].lable = i;
 
 			float n = 0;			
-			float nBGEdges(0);
-			float nBgInliers(0);
+			float nFBG(0);
+			float nFFG(0);
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = m_step;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -2479,14 +2676,14 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 
 						if ( mask[idx] == 0xff)
 							n++;
-						if (featureMask[idx] == 0x00)
+						if (featureMask[idx] == 0xff)
 						{
-							nBGEdges++;
+							nFBG++;
 						}
-						/*else if(featureMask[idx] == )
+						else if(featureMask[idx] == 0)
 						{
-							nBgInliers++;
-						}*/
+							nFFG++;
+						}
 					}
 					//else if(isNeighbour(i,x,y,m_width,m_height,m_labels))
 					//{
@@ -2496,7 +2693,7 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* feature
 				}
 			}
 			//m_spPtr[i].ps  = min((max(n-nBGEdges-nBgInliers,0))/m_centers[i].nPoints,1.0f);
-			m_spPtr[i].ps  = (n*0.8+0.2*nBGEdges)/m_centers[i].nPoints;
+			m_spPtr[i].ps  = (0.8*n + 0.2*nFFG)/m_centers[i].nPoints;
 			/*	if (nBGEdges > 0 )
 			m_spPtr[i].ps = 0;
 			else

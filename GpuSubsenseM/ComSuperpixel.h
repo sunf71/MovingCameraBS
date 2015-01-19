@@ -1,15 +1,7 @@
 #pragma once
 #include <vector>
 #include "CudaSuperpixel.h"
-template<typename T> void safe_delete_array(T*& a) 
-{
-
-	if (a!=NULL)
-	{
-		delete[] a;
-		a = NULL;
-	}
-}
+#include "Common.h"
 using namespace std;
 
 class ComSuperpixel

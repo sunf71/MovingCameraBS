@@ -130,9 +130,11 @@ void EPPMDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat&
 	ReadFlowFile(flow,"flow.flo");
 }
 
-void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, cv::Mat& flow)
+void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, 
+	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, cv::Mat& flow)
 {
-	std::vector<cv::Point2f> features0,features1;
+	features0.clear();
+	features1.clear();
 	std::vector<uchar> status;
 	std::vector<float> err;
 	int spWidth = (sgray.cols+step-1)/step;
@@ -170,4 +172,137 @@ void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spS
 	
 	
 	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
+}
+float L1Dist(const SLICClusterCenter& center, const float2& pos, const uchar* rgb)
+{
+	float dx =center.xy.x - pos.x;
+	float dy = center.xy.y - pos.y;
+	float4 crgb = center.rgb;
+	float dr = rgb[0] - crgb.x;
+	float dg = rgb[1] - crgb.y;
+	float db = rgb[2] - crgb.z;
+	float d_rgb = sqrt(dr*dr + dg*dg + db*db);
+	float d_xy = (dx*dx + dy*dy);
+	float alpha(0.9);
+	return (1-alpha)*d_rgb + alpha*d_xy/(5.f);
+}
+//用稀疏光流进行superpixel matching
+void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, const cv::Mat& img0, int* labels1, const SLICClusterCenter* centers1, const cv::Mat& img1, int spSize, int spStep, int width, int height,
+	const cv::Mat& spFlow, std::vector<int>& matchedId)
+{
+	int spWidth = spFlow.cols;
+	int spHeight = spFlow.rows;
+	matchedId.resize(spSize);
+	memset(&matchedId[0],-1,sizeof(int)*spSize);
+	for(int i=0; i<spSize; i++)
+	{		
+
+		int k = (int)(centers0[i].xy.x+0.5);
+		int j = (int)(centers0[i].xy.y+0.5);
+
+		if (centers0[i].nPoints >0)			
+		{
+			float avgX(0),avgY(0);
+			int n(0);
+			
+			float2 flow = *(float2*)(spFlow.data+i*8);
+			avgX = flow.x;
+			avgY = flow.y;
+			const float2 point = make_float2(avgX+k,avgY+j);
+			int iavgX = (int)(avgX +0.5+k);
+			int iavgY = (int)(avgY + 0.5+j);
+			if (iavgX <0 || iavgX > width-1 || iavgY <0 || iavgY > height-1)
+				continue;
+			int idx = iavgX + iavgY*width;
+			const uchar* color1 = (uchar*)(img1.data + idx*3);
+			int label = labels1[idx];
+			//在8邻域内查找中心点与avgX和avgY最接近的超像素
+			//float disMin = L1Dist(centers1[label].xy,point);
+			float disMin = L1Dist(centers1[label],point,color1);
+			int minLabel = label;
+			//left
+			if (label-1 >=0)
+			{
+				//float dist =L1Dist(centers1[label-1].xy,point);
+				float dist = L1Dist(centers1[label-1],point,color1);
+				if (dist<disMin)
+				{
+					minLabel = label-1;
+					disMin = dist;
+				}
+				if (label-1-spWidth >=0)
+				{
+					//dist =L1Dist(centers1[label-1-spWidth-1].xy,point);
+					dist = L1Dist(centers1[label-1-spWidth-1],point,color1);
+					if (dist<disMin)
+					{
+						minLabel = label-1-spWidth;
+						disMin = dist;
+					}
+				}
+				if(label-1+spWidth < spSize)
+				{
+					//dist =L1Dist(centers1[label-1+spWidth].xy,point);
+					dist = L1Dist(centers1[label-1+spWidth],point,color1);
+					if (dist<disMin)
+					{
+						minLabel = label-1+spWidth;
+						disMin = dist;
+					}
+				}
+			}
+			if (label+1 <spSize)
+			{
+				//float dist =L1Dist(centers1[label+1].xy,point);
+				float dist = L1Dist(centers1[label+1],point,color1);
+				if (dist<disMin)
+				{
+					minLabel = label+1;
+					disMin = dist;
+				}
+				if (label+1-spWidth >=0)
+				{
+					//dist =L1Dist(centers1[label+1-spWidth-1].xy,point);
+					dist = L1Dist(centers1[label+1-spWidth ],point,color1);
+					if (dist<disMin)
+					{
+						minLabel = label+1-spWidth;
+						disMin = dist;
+					}
+				}
+				if(label+1+spWidth < spSize)
+				{
+					//dist =L1Dist(centers1[label+1+spWidth].xy,point);
+					dist =L1Dist(centers1[label+1+spWidth],point,color1);
+					if (dist<disMin)
+					{
+						minLabel = label+1+spWidth;
+						disMin = dist;
+					}
+				}
+			}
+			if (label+spWidth <spSize)
+			{
+				//dist =L1Dist(centers1[label+spWidth].xy,point);
+				float dist =L1Dist(centers1[label+spWidth],point,color1);
+				if (dist<disMin)
+				{
+					minLabel = label+spWidth;
+					disMin = dist;
+				}
+			}
+			if (label-spWidth >=0)
+			{
+				//dist =L1Dist(centers1[label-spWidth].xy,point);
+				float dist =L1Dist(centers1[label-spWidth],point,color1);
+				if (dist<disMin)
+				{
+					minLabel = label-spWidth;
+					disMin = dist;
+				}
+			}
+			matchedId[i] = (minLabel);
+		}
+		
+	}
 }

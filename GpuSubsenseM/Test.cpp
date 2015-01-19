@@ -3,6 +3,7 @@
 #include "FlowComputer.h"
 #include "ASAPWarping.h"
 #include "FeaturePointRefine.h"
+#include "SuperpixelComputer.h"
 void testCudaGpu()
 {
 	try
@@ -223,11 +224,11 @@ void TestGpuSubsense()
 	SubSenseBSProcessor tracker;
 	std::vector<std::string> fileNames;
 	int start = 1;
-	int end = 40;
+	int end = 30;
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\moseg\\people1\\in%06d.jpg",i);
+		sprintf(name,"..\\moseg\\people2\\in%06d.jpg",i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}
@@ -489,10 +490,11 @@ float L1Dist(const float2& p1, const float2& p2)
 {
 	return abs(p1.x-p2.x) + abs(p1.y - p2.y);
 }
+
 //利用warping的mapX和mapY进行superpixel matching
 //比较matching后超像素的颜色差，理论上前景应该较大，背景较小，但是结果显示在图像边缘部分会有较大的误差
 void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, const int* labels1, const SLICClusterCenter* centers1, int spSize, int spStep, int width, int height,
-	const cv::Mat& mapX, const cv::Mat& mapY,std::vector<int> mathedId, cv::Mat& diff)
+	const cv::Mat& mapX, const cv::Mat& mapY,std::vector<int> matchedId, cv::Mat& diff)
 {
 	int spWidth = (width+spStep-1)/spStep;
 	diff.create(height,width,CV_8UC3);
@@ -609,7 +611,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 					disMin = dist;
 				}
 			}
-			mathedId.push_back(minLabel);
+			matchedId.push_back(minLabel);
 			uchar cdx = abs(centers0[i].rgb.x - centers1[minLabel].rgb.x);
 			uchar cdy = abs(centers0[i].rgb.y - centers1[minLabel].rgb.y);
 			uchar cdz = abs(centers0[i].rgb.z - centers1[minLabel].rgb.z);
@@ -625,7 +627,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 }
 //利用稠密光流进行superpixel matching,同时计算superpixel光流（超像素内像素光流平均值）
 void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, const int* labels1, const SLICClusterCenter* centers1, int spSize, int spStep, int width, int height,
-	const cv::Mat& flow,std::vector<int> mathedId, cv::Mat& spFlow, cv::Mat& diff)
+	const cv::Mat& flow,std::vector<int> matchedId, cv::Mat& spFlow, cv::Mat& diff)
 {
 	
 	int spWidth = (width+spStep-1)/spStep;
@@ -633,6 +635,9 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 	diff.create(height,width,CV_8UC3);
 	spFlow.create(spHeight,spWidth,CV_32FC2);
 	std::vector<int> ids;
+	matchedId.clear();
+	matchedId.resize(spSize);
+	memset(&matchedId[0],-1,sizeof(int)*spSize);
 	for(int i=0; i<spSize; i++)
 	{		
 		
@@ -754,7 +759,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 				}
 			}
 			
-			mathedId.push_back(minLabel);
+			matchedId[i] = (minLabel);
 			uchar cdx = abs(centers0[i].rgb.x - centers1[minLabel].rgb.x);
 			uchar cdy = abs(centers0[i].rgb.y - centers1[minLabel].rgb.y);
 			uchar cdz = abs(centers0[i].rgb.z - centers1[minLabel].rgb.z);
@@ -773,6 +778,8 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 	}
 
 }
+
+
 void TestSuperpixelMatching()
 {
 	SLIC aslic;	
@@ -907,7 +914,8 @@ void TestSuperpixelFlow()
 	
 	cv::Mat spFlow,flow,flowField,pflowField;
 	std::vector<cv::Mat> flows(2);
-	SuperpixelFlow(sgray,tgray,step,spSize,centers0,spFlow);
+	std::vector<cv::Point2f> f0,f1;
+	SuperpixelFlow(sgray,tgray,step,spSize,centers0,f0,f1,spFlow);
 	//SuperpixelGrowingFlow(sgray,tgray,step,spSize,centers0,labels0,spFlow);
 	std::vector<float> flowHist,avgX,avgY;
 	std::vector<std::vector<int>> ids;
@@ -1408,4 +1416,109 @@ void TestColorHistogram()
 
 	delete[] labels;
 	delete[] centers;
+}
+void TestSuperpielxComputer()
+{
+	using namespace std;
+	using namespace cv;
+	char imgFileName[150];
+	char maskFileName[150];
+	char resultFileName[150];
+	int cols = 640;
+	int rows = 480;
+	int step = 5;
+	int size = rows*cols;
+	int spWidth = (cols+step-1)/step;
+	int spHeight = (rows+step-1)/step;
+	int spSize = spWidth*spHeight;
+	cv::Mat img,preImg,gray,preGray;
+	SuperpixelComputer spComputer(cols,rows,step);
+	int * labels(NULL), *preLabels(NULL);
+	SLICClusterCenter* centers(NULL), *preCenters(NULL);
+	int num(0);
+	cv::Mat spFlow,flow;
+	int start = 1;
+	int end = 5;
+	std::vector<int> matchedId;
+	std::vector<int> revMatchedId;
+	DenseOpticalFlowProvier* DOFP = new EPPMDenseOptialFlow();
+	std::vector<cv::Point2f> f0,f1;
+	
+	for(int i=start; i<=end;i++)
+	{
+		
+		sprintf(imgFileName,"..\\moseg\\people1\\in%06d.jpg",i);		
+		sprintf(resultFileName,".\\spFlow%06d.flo",i);
+		matchedId.clear();
+		img = imread(imgFileName);
+		cv::cvtColor(img,gray,CV_BGR2GRAY);
+		if (preGray.empty())
+		{
+			preImg = img.clone();
+			preGray = gray.clone();
+		}
+		spComputer.ComputeSuperpixel(img,num,labels,centers);
+		spComputer.GetPreSuperpixelResult(num,preLabels,preCenters);
+		SuperpixelFlow(gray,preGray,step,num,centers,f0,f1,spFlow);
+		SuperpixelMatching(labels,centers,img,preLabels,preCenters,preImg,num,step,cols,rows,spFlow,matchedId);
+		SuperpixelFlow(preGray,gray,step,num,centers,f0,f1,spFlow);
+		SuperpixelMatching(preLabels,preCenters,preImg,labels,centers,img,num,step,cols,rows,spFlow,revMatchedId);
+		std::set<int> checkedId;
+		for(int i=0; i<matchedId.size(); i++)
+		{
+			int matched = matchedId[i];
+			if (matched >=0 && matched < spSize && revMatchedId[matched] == i)
+				checkedId.insert(checkedId.begin(),i);
+		}
+		cv::Mat chkMat(rows,cols,CV_8U);
+		cv::Mat diffMat(rows,cols,CV_8UC3,cv::Scalar(0));
+		for(int i=0; i<num; i++)
+		{
+			if (matchedId[i] >0)
+			{
+				float4 color0 = centers[i].rgb;
+				float4 color1 = preCenters[matchedId[i]].rgb;
+				int r = abs(color0.x - color1.x);
+				int g = abs(color0.y - color1.y);
+				int b = abs(color0.z - color1.z);
+				int x = (int)(centers[i].xy.x + 0.5);
+				int y = (int)(centers[i].xy.y + 0.5);
+				for(int k= x-step; k<= x+step; k++)
+				{
+					if (k<0 || k>cols-1)
+						continue;
+					for(int j=y-step; j<= y+step; j++)
+					{
+						if (j<0 || j>rows-1)
+							continue;
+						int idx = j*cols +k;
+						if (labels[idx] == i)
+						{
+							uchar* rgb = (uchar*)(diffMat.data+idx*3);
+							rgb[0] = r;
+							rgb[1] = g;
+							rgb[2] = b;
+						}
+						if (checkedId.find(i) != checkedId.end())
+						{
+							chkMat.data[idx] = gray.data[idx];
+						}
+					}
+				}
+			}
+		}
+		WriteFlowFile(spFlow,resultFileName);
+		sprintf(resultFileName,".\\test\\sp_matchedDiff%06d.jpg",i);
+		cv::imwrite(resultFileName,diffMat);
+		sprintf(resultFileName,".\\test\\sp_dchked%06d.jpg",i);
+		cv::imwrite(resultFileName,chkMat);
+		DOFP->DenseOpticalFlow(gray,preGray,flow);
+		cv::Mat diff;
+		SuperpixelMatching(labels,centers,preLabels,preCenters,spSize,step,cols,rows,flow,matchedId,spFlow,diff);
+		sprintf(resultFileName,".\\test\\matchedDiff%06d.jpg",i);
+		cv::imwrite(resultFileName,diff);
+		cv::swap(gray,preGray);
+		cv::swap(img,preImg);
+	}
+	delete DOFP;
 }

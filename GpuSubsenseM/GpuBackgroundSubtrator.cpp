@@ -172,6 +172,7 @@ GpuBackgroundSubtractor::~GpuBackgroundSubtractor()
 {
 	delete m_ASAP;
 	delete m_DOFP;
+	delete m_SPComputer;
 	m_ofstream.close();
 	cudaFree(d_anLBSPThreshold_8bitLUT);
 	delete m_gpuDetector;
@@ -189,6 +190,7 @@ void GpuBackgroundSubtractor::WarpInitialize(const cv::Mat& oInitImg, const std:
 	m_fgCounter = cv::Scalar(0);
 	m_DOFP = new EPPMDenseOptialFlow();
 	m_ASAP = new ASAPWarping(oInitImg.cols,oInitImg.rows,8,1.0);
+	
 	cv::Mat img;
 	// == init
 	CV_Assert(!oInitImg.empty() && oInitImg.cols>0 && oInitImg.rows>0);
@@ -400,6 +402,7 @@ void GpuBackgroundSubtractor::WarpInitialize(const cv::Mat& oInitImg, const std:
 	}
 	
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
+	m_SPComputer = new SuperpixelComputer(m_oImgSize.width,m_oImgSize.height,5);
 	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5);
 }
 void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints) {
@@ -950,7 +953,12 @@ void GpuBackgroundSubtractor::WarpModels()
 void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 {
 	/*cv::warpPerspective(img,warpedImg,m_homography,m_oImgSize);*/
-	
+	m_img = image.clone();
+	if (m_preImg.empty())
+	{
+		m_preImg = m_img.clone();
+
+	}
 	if (image.channels() ==3)
 	{
 		cv::cvtColor(image, m_gray, CV_BGR2GRAY); 
@@ -961,8 +969,7 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	cv::cvtColor(image,rgbaImg,CV_BGR2RGBA);
 	if (m_preGray.empty())
 		m_gray.copyTo(m_preGray);
-	//¼ÆËã³¬ÏñËØ
-	m_optimizer->ComputeSuperpixel(m_gs,rgbaImg);
+	
 	KLTFeaturesMatching(m_gray,m_preGray,m_points[0],m_points[1]);
 	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
 	FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
@@ -989,57 +996,44 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 
 	//calculate dense flow 
 	/*m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);*/
-	int * labels;
-	SLICClusterCenter* centers;
-	int nPixels(0);
-	float avgE(0);
-	m_optimizer->GetSuperpixelResult(nPixels,labels,centers,avgE);
-	std::vector<cv::Point2f> spCenters,matched;
-	std::vector<uchar> status;
-	std::vector<float> err;
-	for(int i=0; i<nPixels; i++)
-	{
-		spCenters.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
-	}
-
-	cv::calcOpticalFlowPyrLK(m_gray,m_preGray,spCenters,matched,status,err);
-	int 	k=0;
+	//¼ÆËã³¬ÏñËØ
 	
-	for( int i= 0; i < matched.size(); i++ ) {
-
-		// do we keep this point?
-		if (status[i] == 1) {
-
-			//m_features.data[(int)m_points[0][i].x+(int)m_points[0][i].y*m_oImgSize.width] = 0xff;
-			// keep this point in vector
-			spCenters[k] = spCenters[i];
-			matched[k++] = matched[i];
-		}
-	}
-	// eliminate unsuccesful points
-	spCenters.resize(k);
-	matched.resize(k);
+	int * labels(NULL), *preLabels(NULL);
+	SLICClusterCenter* centers(NULL), *preCenters(NULL);
+	int num(0);
+	float avgE(0);
+	int step(5);
+	cv::Mat spFlow;
+	m_SPComputer->ComputeSuperpixel(image,num,labels,centers);
+	SuperpixelFlow(m_gray,m_preGray,step,num,centers,m_points[0],m_points[1],spFlow);
+	m_SPComputer->GetPreSuperpixelResult(num,preLabels,preCenters);
+	int rows = m_oImgSize.height;
+	int cols = m_oImgSize.width;
+	SuperpixelMatching(labels,centers,m_img,preLabels,preCenters,m_preImg,num,step,cols,rows,spFlow,m_matchedId);
+	//m_optimizer->GetSuperpixelResult(nPixels,labels,centers,avgE);
+	avgE = m_SPComputer->ComputAvgColorDistance();
 	//perspective transform
-	std::vector<uchar> inliers(spCenters.size(),0);
-	cv::findHomography(spCenters,matched,inliers, // outputted inliers matches
+	std::vector<uchar> inliers(num,0);
+	cv::findHomography(m_points[0],m_points[1],inliers, // outputted inliers matches
 		CV_RANSAC, // RANSAC method
 		0.1); // max distance to reprojection point
 	std::vector<int> resLabels;
-	for(int i=0; i<spCenters.size(); i++)
+	for(int i=0; i<num; i++)
 	{
 		if (inliers[i] == 1)
 		{
-			cv::Point2f pt = spCenters[i];
+			cv::Point2f pt = m_points[0][i];
 			resLabels.push_back(labels[(int)pt.x+(int)(pt.y)*m_oImgSize.width]);
 		}
 
 	}
 	SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
 	char filename[200];	
-	sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
+	sprintf(filename,".\\features\\people2\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 	m_ASAP->getFlow(m_wflow);
 	cv::swap(m_gray,m_preGray);
+	cv::swap(m_preImg,m_img);
 }
 void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
@@ -1393,7 +1387,8 @@ failedcheck3ch:
 	
 	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
-	m_optimizer->Optimize(m_oRawFGMask_last,m_features,oCurrFGMask);
+	//m_optimizer->Optimize(m_oRawFGMask_last,m_features,oCurrFGMask);
+	m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_features,m_matchedId,oCurrFGMask);
 	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
 	/*cv::remap(m_fgCounter,m_fgCounter,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
