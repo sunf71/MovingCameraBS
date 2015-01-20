@@ -9,6 +9,7 @@
 #include <iomanip>
 #include "CudaBSOperator.h"
 #include "LBSP.h"
+#include "timer.h"
 #include "GpuTimer.h"
 #include "MotionEstimate.h"
 #include "FeaturePointRefine.h"
@@ -970,13 +971,6 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	if (m_preGray.empty())
 		m_gray.copyTo(m_preGray);
 	
-	KLTFeaturesMatching(m_gray,m_preGray,m_points[0],m_points[1]);
-	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
-	FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
-	m_ASAP->SetControlPts(m_points[0],m_points[1]);
-	m_ASAP->Solve();
-	m_ASAP->Warp(image,warpedImg);
-	m_ASAP->Reset();
 	//char fileName[50];
 	//sprintf(fileName,"in%06d_warped.jpg",m_nFrameIndex+1);
 	//
@@ -998,40 +992,78 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	/*m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);*/
 	//¼ÆËã³¬ÏñËØ
 	
+#ifndef REPORT
+	nih::Timer cpuTimer;
+	cpuTimer.start();
+#endif
+	
 	int * labels(NULL), *preLabels(NULL);
 	SLICClusterCenter* centers(NULL), *preCenters(NULL);
 	int num(0);
 	float avgE(0);
 	int step(5);
+	int spHeight = (m_oImgSize.height+step-1)/step;
+	int spWidth = (m_oImgSize.width+step-1)/step;
 	cv::Mat spFlow;
 	m_SPComputer->ComputeSuperpixel(image,num,labels,centers);
-	SuperpixelFlow(m_gray,m_preGray,step,num,centers,m_points[0],m_points[1],spFlow);
+	m_points[0].clear();
+	cv::goodFeaturesToTrack(m_gray,m_points[0],100,0.08,10);
+	int nf = m_points[0].size();
+	for(int i=0; i<num; i++)
+	{
+		m_points[0].push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
+	}
+	
+
+	std::vector<uchar>status;
+	std::vector<float> err;
+	cv::calcOpticalFlowPyrLK(m_gray,m_preGray,m_points[0],m_points[1],status,err);
+	SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],status,spFlow);
+	
+	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
+	//FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
+	FeaturePointsRefineRANSAC(nf,m_points[0],m_points[1],m_homography);
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"Superpixel Flow "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+#endif
+	
+	cpuTimer.start();
 	m_SPComputer->GetPreSuperpixelResult(num,preLabels,preCenters);
 	int rows = m_oImgSize.height;
 	int cols = m_oImgSize.width;
 	SuperpixelMatching(labels,centers,m_img,preLabels,preCenters,m_preImg,num,step,cols,rows,spFlow,m_matchedId);
-	//m_optimizer->GetSuperpixelResult(nPixels,labels,centers,avgE);
-	avgE = m_SPComputer->ComputAvgColorDistance();
-	//perspective transform
-	std::vector<uchar> inliers(num,0);
-	cv::findHomography(m_points[0],m_points[1],inliers, // outputted inliers matches
-		CV_RANSAC, // RANSAC method
-		0.1); // max distance to reprojection point
-	std::vector<int> resLabels;
-	for(int i=0; i<num; i++)
-	{
-		if (inliers[i] == 1)
-		{
-			cv::Point2f pt = m_points[0][i];
-			resLabels.push_back(labels[(int)pt.x+(int)(pt.y)*m_oImgSize.width]);
-		}
+	cpuTimer.stop();
+	std::cout<<"superpixel matching "<<cpuTimer.seconds()*1000<<std::endl;
 
+	cpuTimer.start();
+	avgE = m_SPComputer->ComputAvgColorDistance();
+	std::vector<int> resLabels;
+	for(int i=nf; i<m_points[0].size(); i++)
+	{
+		cv::Point2f pt = m_points[0][i];
+		resLabels.push_back(labels[(int)pt.x+(int)(pt.y)*m_oImgSize.width]);
 	}
-	SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
-	char filename[200];	
-	sprintf(filename,".\\features\\cars8\\features%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_features);
+	int * rgResult(NULL);
+	m_SPComputer->RegionGrowing(resLabels,2.0*avgE,rgResult);
+	//m_SPComputer->GetRegionGrowingImg(m_features);
+	//SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
+	//char filename[200];	
+	//sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
+	//cv::imwrite(filename,m_features);
+	cpuTimer.stop();
+	std::cout<<"superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
+	m_points[0].resize(nf);
+	m_points[1].resize(nf);
+	cpuTimer.start();
+	m_ASAP->SetControlPts(m_points[0],m_points[1]);
+	m_ASAP->Solve();
+	m_ASAP->Warp(image,warpedImg);
+	m_ASAP->Reset();
 	m_ASAP->getFlow(m_wflow);
+	cpuTimer.stop();
+	std::cout<<"ASAP Warping "<<cpuTimer.seconds()*1000<<std::endl;
+
 	cv::swap(m_gray,m_preGray);
 	cv::swap(m_preImg,m_img);
 }
@@ -1388,7 +1420,8 @@ failedcheck3ch:
 	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
 	//m_optimizer->Optimize(m_oRawFGMask_last,m_features,oCurrFGMask);
-	m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_features,m_matchedId,oCurrFGMask);
+	//m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_features,m_matchedId,oCurrFGMask);
+	m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
 	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
 	/*cv::remap(m_fgCounter,m_fgCounter,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);

@@ -2637,6 +2637,185 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 		mySwap(m_preResult,m_result);
 	}
 }
+void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const std::vector<int>& matchedId, cv::Mat& resultImg)
+{
+	#ifdef REPORT
+	nih::Timer timer;
+	nih::Timer timer0;
+	timer0.start();
+	timer.start();
+#endif
+
+	int numlabels(0);
+	//superpixel			
+	spComputer->GetSuperpixelResult(numlabels,m_labels,m_centers);
+	spComputer->GetPreSuperpixelResult(numlabels,m_preLabels,m_preCenters);
+	int * bgLabels;
+	spComputer->GetSuperpixelRegionGrowingResult(bgLabels);
+	const unsigned char* maskImgData = maskImg.data;
+	
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
+#endif
+
+	
+
+#ifdef REPORT
+	GpuTimer gtimer;
+	gtimer.Start();
+#endif	
+
+
+#ifdef REPORT
+	gtimer.Stop();
+	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT
+
+	timer.start();
+#endif
+	//ComputeAvgColor(m_spPtr,spSize,m_width,m_height,m_idata,maskImgData);
+	GetSuperpixels(maskImgData,bgLabels);
+	for(int i=0; i<numlabels; i++)
+	{
+		m_spPtr[i].temporalNeighbor = matchedId[i];
+	}
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+#ifdef REPORT
+	timer.start();
+#endif
+	float avgE = spComputer->ComputAvgColorDistance();	
+	//std::cout<<"avg e "<<avgE<<std::endl;
+	avgE = 1/(2*avgE);
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT
+
+	timer.start();
+#endif
+	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	TCMaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+
+#ifdef REPORT	
+	timer.start();
+#endif
+
+	resultImg = cv::Scalar(0);
+	unsigned char* imgPtr = resultImg.data;
+	for(int i=0; i<m_nPixel; i++)
+	{
+		if(m_result[i] == 1)			
+		{
+			/*for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+			{
+			int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
+			imgPtr[idx] = 0xff;
+			}*/
+			int k = m_centers[i].xy.x;
+			int j = m_centers[i].xy.y;
+			int radius = m_step+5;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					if (m_labels[idx] == i)
+					{					
+						imgPtr[idx] = 0xff;
+					}					
+				}
+			}
+		}	
+	}
+
+#ifdef REPORT
+	timer.stop();
+	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
+#endif
+	//delete[] m_spPtr;
+
+#ifdef REPORT
+	timer0.stop();
+	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
+#endif
+	if (m_preResult == NULL)
+	{
+		m_preResult = new int[m_nPixel];
+		memcpy(m_preResult,m_result,sizeof(int)*m_nPixel);
+	}
+	else
+	{
+		mySwap(m_preResult,m_result);
+	}
+}
+void MRFOptimize::GetSuperpixels(const unsigned char* mask,int* bgLabels)
+{
+	int size = m_width*m_height;
+	float nFFG(0);
+	for(int i=0; i<m_nPixel; i++)
+	{		
+		if (bgLabels[i] == 1)
+			nFFG = 0;
+		else
+			nFFG = m_centers[i].nPoints;
+
+		int k = m_centers[i].xy.x;
+		int j = m_centers[i].xy.y;
+		if (m_centers[i].nPoints ==0)			
+		{
+			m_spPtr[i].ps = 0;
+			m_spPtr[i].avgColor = 0;
+			m_spPtr[i].idx = i;
+			m_spPtr[i].lable = i;
+		}
+		else
+		{
+			m_spPtr[i].avgColor = (m_centers[i].rgb.x+m_centers[i].rgb.y + m_centers[i].rgb.z)/3;
+			m_spPtr[i].idx = i;
+			m_spPtr[i].lable = i;
+
+			float n = 0;			
+			
+			//以原来的中心点为中心，step +2　为半径进行更新
+			int radius = m_step;
+			for (int x = k- radius; x<= k+radius; x++)
+			{
+				for(int y = j - radius; y<= j+radius; y++)
+				{
+					if  (x<0 || x>m_width-1 || y<0 || y> m_height-1)
+						continue;
+					int idx = x+y*m_width;
+					//std::cout<<idx<<std::endl;
+					if (m_labels[idx] == i )
+					{		
+
+						if ( mask[idx] == 0xff)
+							n++;
+					}
+					
+				}
+			}
+			
+			m_spPtr[i].ps  = (0.8*n + 0.2*nFFG)/m_centers[i].nPoints;
+			
+		}
+	}
+}
 void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* featureMask)
 {
 

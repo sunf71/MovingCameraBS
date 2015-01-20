@@ -73,10 +73,13 @@ public:
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& flow, const cv::Mat& wflow,cv::Mat& resultImg);
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& wflow,cv::Mat& resultImg);
 	void Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const cv::Mat& featureImg,const std::vector<int>& matchedId, cv::Mat& resultImg);
+	void Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const std::vector<int>& matchedId, cv::Mat& resultImg);
 	void ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba);
 	void ComputeSuperpixel(GpuSuperpixel* gs, cv::Mat& rgbaImg);
 	//mask:前景
 	void GetSuperpixels(const unsigned char* mask);
+	//mask:前景, bgLabels:通过superpixel region growing得到的背景label
+	void GetSuperpixels(const unsigned char* mask,int* bgLabels);
 	//mask:前景， features：特征点跟踪情况的mask
 	void GetSuperpixels(const unsigned char* fgMask, const unsigned char* featuresMask);
 	//mask:前景， features：特征点跟踪情况的mask, distance: homography*pt - klttracted Position

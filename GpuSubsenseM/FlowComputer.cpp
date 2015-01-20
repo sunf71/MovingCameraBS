@@ -130,6 +130,53 @@ void EPPMDenseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat&
 	ReadFlowFile(flow,"flow.flo");
 }
 
+//features0是超像素中心以及特征点的位置（前面nF个特征点，后面spSize个中心点）
+//features1，status是KLT计算结果
+//输出时去掉计算失败的点，返回KLT计算成功的特征点对应点坐标
+void SuperpixelFlow(int spWidth, int spHeight, int spSize, const SLICClusterCenter* centers, int& nF,
+	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, std::vector<uchar>& status,cv::Mat& flow)
+{
+	flow.create(spHeight,spWidth,CV_32FC2);
+	flow = cv::Scalar(0);
+	
+	int k=0; 
+	for(int i=0; i<nF; i++)
+	{
+		if (status[i] == 1)
+		{
+			features0[k] = features0[i];
+			features1[k] = features1[i];
+			k++;
+		}
+	}
+	int tmp = k;
+	for(int i=0; i<spHeight; i++)
+	{
+		float2 * ptr = flow.ptr<float2>(i);
+		for(int j=0; j<spWidth; j++)
+		{
+			int idx = j + i*spWidth + nF;
+			if (status[idx] == 1)
+			{
+				ptr[j].x = features1[idx].x - features0[idx].x;
+				ptr[j].y = features1[idx].y - features0[idx].y;
+				features0[k] = features0[idx];
+				features1[k] = features1[idx];
+				k++;
+			}
+			else
+			{
+				//KLT失败
+				ptr[j].x = UNKNOWN_FLOW;
+				ptr[j].y = UNKNOWN_FLOW;
+			}
+		}
+	}
+	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
+	nF = tmp;
+	features0.resize(k);
+	features1.resize(k);
+}
 void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, 
 	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, cv::Mat& flow)
 {

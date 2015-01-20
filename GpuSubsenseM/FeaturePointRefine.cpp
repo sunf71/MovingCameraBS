@@ -22,6 +22,39 @@ void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Po
 	vf1.resize(k);
 	vf2.resize(k);
 }
+void FeaturePointsRefineRANSAC(int& nf, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography)
+{
+	std::vector<uchar> inliers(vf1.size());
+	homography = cv::findHomography(
+		cv::Mat(vf1), // corresponding
+		cv::Mat(vf2), // points
+		inliers, // outputted inliers matches
+		CV_RANSAC, // RANSAC method
+		0.1); // max distance to reprojection point
+	int k=0;
+	for(int i=0; i<nf; i++)
+	{
+		if (inliers[i] ==1)
+		{
+			vf1[k] = vf1[i];
+			vf2[k] = vf2[i];
+			k++;
+		}
+	}
+	int tmp = k;
+	for(int i=nf; i<vf1.size(); i++)
+	{
+		if (inliers[i] ==1)
+		{
+			vf1[k] = vf1[i];
+			vf2[k] = vf2[i];
+			k++;
+		}
+	}
+	nf = tmp;
+	vf1.resize(k);
+	vf2.resize(k);
+}
 void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
 	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize ,int thetaSize)
 {

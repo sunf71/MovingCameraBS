@@ -41,12 +41,18 @@ public:
 		  preLabels = _preLabels;
 		  preCenters = _preCenters;
 	  }
+	  void GetSuperpixelRegionGrowingResult(int*& bgLabels)
+	  {
+		  bgLabels = _bgLabels;
+	  }
 	  void GetSuperpixelResult(int& num,int*& labels, SLICClusterCenter*& centers)
 	  {
 		  num = _nPixels;
 		  labels = _labels;
 		  centers = _centers;
 	  }
+	  void RegionGrowing(const std::vector<int>& seedLabels, float threshold,int*& resultLabel);
+	  void GetRegionGrowingImg(cv::Mat& rstImg);
 	  ~SuperpixelComputer()
 	  {
 		  release();
@@ -54,6 +60,7 @@ public:
 protected:
 	void release();
 	void init();
+	
 private:
 	int _spWidth;
 	int _spHeight;
@@ -69,4 +76,10 @@ private:
 	SLICClusterCenter* _preCenters;
 	GpuSuperpixel* _gs;
 	std::vector<std::vector<int>> _neighbors;
+	
+	//用于superpixel region growing
+	//背景label数组大小为_nPixels若为1表示是背景
+	int * _bgLabels;
+	char* _visited;
+	char* _segmented;
 };
