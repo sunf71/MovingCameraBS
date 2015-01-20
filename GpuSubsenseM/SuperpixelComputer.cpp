@@ -132,11 +132,10 @@ void SuperpixelComputer::RegionGrowing(const std::vector<int>& seedLabels, float
 	memset(_bgLabels,0,sizeof(int)*_nPixels);
 	memset(_segmented,0,_nPixels);
 	std::vector<cv::Point2i> neighbors;
-	
 	float4 regMean;
 	
-	nih::Timer timer;
-	timer.start();
+	/*nih::Timer timer;
+	timer.start();*/
 	for(int i=0; i<seedLabels.size(); i++)
 	{
 		memset(_visited ,0,_nPixels);
@@ -152,6 +151,97 @@ void SuperpixelComputer::RegionGrowing(const std::vector<int>& seedLabels, float
 		regSize = 1;
 		
 		neighbors.clear();
+	
+		regMean = cc.rgb;
+		while(pixDist < regMaxDist && regSize<_nPixels)
+		{
+			for(int d=0; d<4; d++)
+			{
+				int x = ix+dx4[d];
+				int y = iy + dy4[d];
+				int idx = x+y*_spWidth;
+				if (x>=0 && x<_spWidth && y>=0 && y<_spHeight && !_visited[idx] && !_segmented[idx])
+				{
+					neighbors.push_back(cv::Point2i(x,y));
+					_visited[idx] = true;
+				}
+			}
+			int idxMin = 0;
+			pixDist = 255;
+			if (neighbors.size() == 0)
+				break;
+			for(int j=0; j<neighbors.size(); j++)
+			{
+				size_t idx = neighbors[j].x+neighbors[j].y*_spWidth;
+				float4 rgb = _centers[idx].rgb;
+				float dx = rgb.x - regMean.x;
+				float dy = rgb.y -regMean.y;
+				float dz = rgb.z - regMean.z;
+				//float dist = (abs(dx) + abs(dy)+ abs(dz))/3;
+				float dist = sqrt(dx*dx + dy*dy + dz*dz);
+				if (dist < pixDist)
+				{
+					pixDist = dist;
+					idxMin = j;
+				}				
+			}
+			
+			ix = neighbors[idxMin].x;
+			iy = neighbors[idxMin].y;
+			int minIdx =ix + iy*_spWidth;
+			float4 rgb = _centers[minIdx].rgb;
+			//std::cout<<ix<<" "<<iy<<" added ,regMean = "<< regMean<<" pixDist "<<pixDist<<std::endl;
+			regMean.x = (rgb.x + regMean.x*regSize )/(regSize+1);
+			regMean.y = (rgb.y + regMean.y*regSize )/(regSize+1);
+			regMean.z = (rgb.z + regMean.z*regSize )/(regSize+1);
+			regSize++;
+			int label = minIdx;
+			_bgLabels[label] = 1;
+			_segmented[minIdx] = 1;
+			//result.data[minIdx] = 0xff;
+			//smask.data[minIdx] = 0xff;
+			neighbors[idxMin] = neighbors[neighbors.size()-1];
+			neighbors.pop_back();
+		}
+	}
+	resultLabel = _bgLabels;
+	/*timer.stop();
+	std::cout<<"\t superpixel region growing "<<timer.seconds()*1000<<std::endl;*/
+}
+void SuperpixelComputer::RegionGrowingFast(const std::vector<int>& seedLabels, float threshold,int*& resultLabel)
+{
+	const int dx4[] = {-1,0,1,0};
+	const int dy4[] = {0,-1,0,1};
+	//const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+	//const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
+	
+	float pixDist(0);
+	float regMaxDist = threshold;
+	int regSize(0);
+	
+	memset(_bgLabels,0,sizeof(int)*_nPixels);
+	memset(_segmented,0,_nPixels);
+	
+	
+	float4 regMean;
+	
+	/*nih::Timer timer;
+	timer.start();*/
+	for(int i=0; i<seedLabels.size(); i++)
+	{
+		memset(_visited ,0,_nPixels);
+		int seedLabel = seedLabels[i];
+		_bgLabels[seedLabel] = 1;
+		SLICClusterCenter cc = _centers[seedLabel];
+		int k = cc.xy.x;
+		int j = cc.xy.y;		
+		
+		int ix = seedLabel%_spWidth;
+		int iy = seedLabel/_spWidth;
+		pixDist = 0;
+		regSize = 1;
+		
+		
 		SPInfos sps,tsps;
 	
 		regMean = cc.rgb;
@@ -176,38 +266,16 @@ void SuperpixelComputer::RegionGrowing(const std::vector<int>& seedLabels, float
 					_visited[idx] = true;
 				}
 			}
-			std::cout<<i<<": "<<sps.size()<<std::endl;
+			//std::cout<<i<<": "<<sps.size()<<std::endl;
 			if (sps.empty())
 				break;
-			//int idxMin = 0;
-			//pixDist = 255;
-			//if (neighbors.size() == 0)
-			//	break;
-			//for(int j=0; j<neighbors.size(); j++)
-			//{
-			//	size_t idx = neighbors[j].x+neighbors[j].y*_spWidth;
-			//	float4 rgb = _centers[idx].rgb;
-			//	float dx = rgb.x - regMean.x;
-			//	float dy = rgb.y -regMean.y;
-			//	float dz = rgb.z - regMean.z;
-			//	//float dist = (abs(dx) + abs(dy)+ abs(dz))/3;
-			//	float dist = sqrt(dx*dx + dy*dy + dz*dz);
-			//	if (dist < pixDist)
-			//	{
-			//		pixDist = dist;
-			//		idxMin = j;
-			//	}				
-			//}
 			
-			/*ix = neighbors[idxMin].x;
-			iy = neighbors[idxMin].y;
-			int minIdx =ix + iy*_spWidth;*/
 			SPInfo sp = sps.top();
 			pixDist = sp.dist;
 			sps.pop();
 			int minIdx = sp.label;
 			float4 rgb = _centers[minIdx].rgb;
-			std::cout<<ix<<" "<<iy<<" added ,minIdx = "<< minIdx<<" pixDist "<<pixDist<<std::endl;
+			//std::cout<<ix<<" "<<iy<<" added ,minIdx = "<< minIdx<<" pixDist "<<pixDist<<std::endl;
 			float tmpx = regMean.x;
 			float tmpy = regMean.y;
 			float tmpz = regMean.z;
@@ -218,7 +286,7 @@ void SuperpixelComputer::RegionGrowing(const std::vector<int>& seedLabels, float
 			float dx = abs(tmpx - regMean.x);
 			float dy = abs(tmpy - regMean.y);
 			float dz = abs(tmpz - regMean.z);
-			if (1)
+			if (sqrt(dx*dx +dy*dy +dz*dz) > t)
 			{
 				while(!tsps.empty())
 					tsps.pop();
@@ -242,17 +310,13 @@ void SuperpixelComputer::RegionGrowing(const std::vector<int>& seedLabels, float
 			_segmented[minIdx] = 1;
 			ix = minIdx%_spWidth;
 			iy = minIdx/_spWidth;
-			//result.data[minIdx] = 0xff;
-			//smask.data[minIdx] = 0xff;
-			/*neighbors[idxMin] = neighbors[neighbors.size()-1];
-			neighbors.pop_back();*/
+			
 		}
 	}
 	resultLabel = _bgLabels;
-	timer.stop();
-	std::cout<<"\t superpixel region growing "<<timer.seconds()*1000<<std::endl;
+	/*timer.stop();
+	std::cout<<"\t superpixel region growing "<<timer.seconds()*1000<<std::endl;*/
 }
-
 void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 {
 	if (rstImg.empty())

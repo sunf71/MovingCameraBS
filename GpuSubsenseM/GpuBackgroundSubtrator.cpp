@@ -1089,12 +1089,12 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 		
 	}
 	int * rgResult(NULL);
-	m_SPComputer->RegionGrowing(resLabels,2.0*avgE,rgResult);
-	m_SPComputer->GetRegionGrowingImg(m_features);
+	m_SPComputer->RegionGrowingFast(resLabels,2.0*avgE,rgResult);
+	//m_SPComputer->GetRegionGrowingImg(m_features);
 	//SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
-	char filename[200];	
+	/*char filename[200];	
 	sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_features);
+	cv::imwrite(filename,m_features);*/
 	cpuTimer.stop();
 	std::cout<<"superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
 	m_points[0].resize(nf);
@@ -1128,7 +1128,7 @@ void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputAr
 	/*std::cout<<"homo \n";
 	std::cout<<m_homography<<std::endl;*/
 	WarpImage(img,oInputImg);
-	//m_invHomography = m_homography.inv();
+	
 	
 	
 	/*sprintf(filename,"curColor%d.jpg",m_nFrameIndex);
@@ -1148,6 +1148,8 @@ void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputAr
 		float* mapYPtr = (float*)m_ASAP->getMapY().data;
 		float* invMapXPtr = (float*)m_ASAP->getInvMapX().data;
 		float* invMapYPtr = (float*)m_ASAP->getInvMapY().data;
+		nih::Timer timer;
+		timer.start();
 		for(size_t k=0; k<m_nKeyPoints; ++k) {
 			const int x = (int)m_voKeyPoints[k].pt.x;
 			const int y = (int)m_voKeyPoints[k].pt.y;
@@ -1163,44 +1165,29 @@ void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputAr
 			float fy = invMapY;
 			int wx = (int)(mapX+0.5);
 			int wy = (int)(mapY+0.5);
-		/*	double* ptr = (double*)m_invHomography.data;
-			fx = x*ptr[0] + y*ptr[1] + ptr[2];
-			fy = x*ptr[3] + y*ptr[4] + ptr[5];
-			fw = x*ptr[6] + y*ptr[7] + ptr[8];
-			fx /=fw;
-			fy/=fw;
-			wx = (int)(fx+0.5);
-			wy = (int)(fy+0.5);*/
+		
 			
 			if (wx<2 || wx>= m_oImgSize.width-2 || wy<2 || wy>=m_oImgSize.height-2)
 			{					
 				//m_features.data[oidx_uchar] = 0xff;
-				//outMask.data[x+y*m_oImgSize.width] = 0xff;
+				outMask.data[idx_uchar] = 0xff;
 				m_nOutPixels ++;
 				continue;
 			}
 			else
 			{
-				//·´±ä»»
-			/*	double* ptr = (double*)m_homography.data;
-				fx = x*ptr[0] + y*ptr[1] + ptr[2];
-				fy = x*ptr[3] + y*ptr[4] + ptr[5];
-				fw = x*ptr[6] + y*ptr[7] + ptr[8];
-				fx /=fw;
-				fy/=fw;*/
-				//std::cout<<x<<","<<y<<std::endl;
+				
 				if (fx<2 || fx>= m_oImgSize.width-2 || fy<2 || fy>=m_oImgSize.height-2)
 				{
 					m_nOutPixels ++;
-					outMask.data[x+y*m_oImgSize.width] = 0xff;
+					outMask.data[idx_uchar] = 0xff;
 					size_t anCurrIntraLBSPThresholds[3]; 
 					for(size_t c=0; c<3; ++c) {
 						const uchar nCurrBGInitColor = img.data[idx_uchar_rgb+c];
 						m_oLastColorFrame.data[idx_uchar_rgb+c] = nCurrBGInitColor;
 						anCurrIntraLBSPThresholds[c] = m_anLBSPThreshold_8bitLUT[nCurrBGInitColor];
 						LBSP::computeSingleRGBDescriptor(img,nCurrBGInitColor,x,y,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(w_oLastDescFrame.data+idx_ushrt_rgb))[c]);
-
-					}
+											}
 				}
 			}
 			
@@ -1367,6 +1354,8 @@ failedcheck3ch:
 			}
 
 		}
+		timer.stop();
+		std::cout<<"bs operator "<<timer.seconds()*1000<<std::endl;
 	}
 	/*cv::remap(m_oRawFGMask_last,m_oRawFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cv::bitwise_xor(oCurrFGMask,m_oRawFGMask_last,m_oRawFGBlinkMask_curr);

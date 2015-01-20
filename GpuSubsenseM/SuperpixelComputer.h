@@ -53,6 +53,7 @@ public:
 		  centers = _centers;
 	  }
 	  void RegionGrowing(const std::vector<int>& seedLabels, float threshold,int*& resultLabel);
+	  void RegionGrowingFast(const std::vector<int>& seedLabels, float threshold,int*& resultLabel);
 	  void GetRegionGrowingImg(cv::Mat& rstImg);
 	  ~SuperpixelComputer()
 	  {
