@@ -25,6 +25,7 @@ void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Po
 void FeaturePointsRefineRANSAC(int& nf, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography)
 {
 	std::vector<uchar> inliers(vf1.size());
+
 	homography = cv::findHomography(
 		cv::Mat(vf1), // corresponding
 		cv::Mat(vf2), // points

@@ -405,6 +405,9 @@ void GpuBackgroundSubtractor::WarpInitialize(const cv::Mat& oInitImg, const std:
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
 	m_SPComputer = new SuperpixelComputer(m_oImgSize.width,m_oImgSize.height,5);
 	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5);
+
+	//gpu
+	d_CurrentColorFrame = gpu::createContinuous(oInitImg.size(),CV_8UC4);
 }
 void GpuBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints) {
 	WarpInitialize(oInitImg,voKeyPoints);
@@ -968,6 +971,15 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 		m_gray = image;
 	cv::Mat rgbaImg;
 	cv::cvtColor(image,rgbaImg,CV_BGR2RGBA);
+	d_CurrentColorFrame.upload(rgbaImg);
+	cv::gpu::cvtColor(d_CurrentColorFrame,d_gray,CV_BGRA2GRAY);
+	
+	if (d_preGray.empty())
+	{
+		d_gray.copyTo(d_preGray);
+		
+	}
+	
 	if (m_preGray.empty())
 		m_gray.copyTo(m_preGray);
 	
@@ -992,10 +1004,7 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	/*m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);*/
 	//¼ÆËã³¬ÏñËØ
 	
-#ifndef REPORT
-	nih::Timer cpuTimer;
-	cpuTimer.start();
-#endif
+
 	
 	int * labels(NULL), *preLabels(NULL);
 	SLICClusterCenter* centers(NULL), *preCenters(NULL);
@@ -1005,7 +1014,12 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	int spHeight = (m_oImgSize.height+step-1)/step;
 	int spWidth = (m_oImgSize.width+step-1)/step;
 	cv::Mat spFlow;
-	m_SPComputer->ComputeSuperpixel(image,num,labels,centers);
+	m_SPComputer->ComputeSuperpixel(d_CurrentColorFrame.ptr<uchar4>(),num,labels,centers);
+
+#ifndef REPORT
+	nih::Timer cpuTimer;
+	cpuTimer.start();
+#endif
 	m_points[0].clear();
 	cv::goodFeaturesToTrack(m_gray,m_points[0],100,0.08,10);
 	int nf = m_points[0].size();
@@ -1013,19 +1027,47 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	{
 		m_points[0].push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
 	}
-	
-
+	upload(m_points[0],d_currPts);
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"goodFeaturesToTrack  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+#endif
+#ifndef REPORT
+	cpuTimer.start();
+#endif
 	std::vector<uchar>status;
 	std::vector<float> err;
-	cv::calcOpticalFlowPyrLK(m_gray,m_preGray,m_points[0],m_points[1],status,err);
-	SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],status,spFlow);
-	
-	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
-	//FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
-	FeaturePointsRefineRANSAC(nf,m_points[0],m_points[1],m_homography);
+	//cv::calcOpticalFlowPyrLK(m_gray,m_preGray,m_points[0],m_points[1],status,err);
+	d_pyrLk.sparse(d_gray,d_preGray,d_currPts,d_prevPts,d_status);
+	download(d_status,m_status);
+	download(d_currPts,m_points[0]);
+	download(d_prevPts,m_points[1]);
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"calcOpticalFlowPyrLK  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+#endif
+
+#ifndef REPORT
+	cpuTimer.start();
+#endif
+
+	SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],m_status,spFlow);
+
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"Superpixel Flow "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+#endif	
+
+
+	//FeaturePointsRefineHistogram(m_gray.cols,m_gray.rows,m_points[0],m_points[1]);
+	//FeaturePointsRefineRANSAC(m_points[0],m_points[1],m_homography);
+#ifndef REPORT
+	cpuTimer.start();
+#endif
+	FeaturePointsRefineRANSAC(nf,m_points[0],m_points[1],m_homography);
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"FeaturePointsRefineRANSAC "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
 #endif
 	
 	cpuTimer.start();
@@ -1039,18 +1081,20 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	cpuTimer.start();
 	avgE = m_SPComputer->ComputAvgColorDistance();
 	std::vector<int> resLabels;
-	for(int i=nf; i<m_points[0].size(); i++)
+	for(int i=nf,j=0; i<m_points[0].size(); i++,j++)
 	{
+		
 		cv::Point2f pt = m_points[0][i];
 		resLabels.push_back(labels[(int)pt.x+(int)(pt.y)*m_oImgSize.width]);
+		
 	}
 	int * rgResult(NULL);
 	m_SPComputer->RegionGrowing(resLabels,2.0*avgE,rgResult);
-	//m_SPComputer->GetRegionGrowingImg(m_features);
+	m_SPComputer->GetRegionGrowingImg(m_features);
 	//SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
-	//char filename[200];	
-	//sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
-	//cv::imwrite(filename,m_features);
+	char filename[200];	
+	sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);
 	cpuTimer.stop();
 	std::cout<<"superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
 	m_points[0].resize(nf);
@@ -1066,6 +1110,7 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 
 	cv::swap(m_gray,m_preGray);
 	cv::swap(m_preImg,m_img);
+	cv::gpu::swap(d_gray,d_preGray);
 }
 void GpuBackgroundSubtractor::WarpBSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {

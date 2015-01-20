@@ -172,7 +172,7 @@ void SuperpixelFlow(int spWidth, int spHeight, int spSize, const SLICClusterCent
 			}
 		}
 	}
-	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
+	//std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
 	nF = tmp;
 	features0.resize(k);
 	features1.resize(k);
