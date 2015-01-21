@@ -91,6 +91,12 @@
     <ClInclude Include="Common.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="WarpBackgroundSubtractor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FGMaskPostProcess.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
@@ -179,6 +185,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="SuperpixelComputer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="WarpBackgroundSubtractor.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

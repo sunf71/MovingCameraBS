@@ -3,6 +3,7 @@
 #include <io.h>
 #include <vector>
 #include "GpuBackgroundSubtractor.h"
+#include "WarpBackgroundSubtractor.h"
 #include "videoprocessor.h"
 #include <opencv2\opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -10,7 +11,9 @@ int CreateDir(char *pszDir);
 class SubSenseBSProcessor : public FrameProcessor
 {
 private:
-	GpuBackgroundSubtractor _bgs;
+	//GpuBackgroundSubtractor _bgs;
+	//WarpBackgroundSubtractor _bgs;
+	GpuWarpBackgroundSubtractor _bgs;
 	//BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;

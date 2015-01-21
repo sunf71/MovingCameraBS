@@ -167,6 +167,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="energy.h" />
     <ClInclude Include="FeaturePointRefine.h" />
+    <ClInclude Include="FGMaskPostProcess.h" />
     <ClInclude Include="FlowComputer.h" />
     <ClInclude Include="flowIO.h" />
     <ClInclude Include="GCoptimization.h" />
@@ -188,6 +189,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="Test.h" />
     <ClInclude Include="timer.h" />
     <ClInclude Include="videoprocessor.h" />
+    <ClInclude Include="WarpBackgroundSubtractor.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ASAPWarping.cpp" />
@@ -212,6 +214,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="SuperpixelComputer.cpp" />
     <ClCompile Include="Test.cpp" />
     <ClCompile Include="timer.cpp" />
+    <ClCompile Include="WarpBackgroundSubtractor.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

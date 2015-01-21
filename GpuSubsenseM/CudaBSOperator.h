@@ -30,7 +30,7 @@ PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
 PtrStep<uchar> bModel,PtrStep<uchar> wbModel,
 PtrStep<float> fModel,PtrStep<float> wfModel,
 PtrStep<uchar> fgMask,	PtrStep<uchar> lastFgMask, uchar* outMask,
-float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT);
+float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap);
 
 void DownloadModel(int width,int height, cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model);
 void DownloadColorModel(int width,int height, cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model);
@@ -43,3 +43,5 @@ void InitRandState(int width, int height,curandState* devStates);
 int CountOutPixel(const uchar* d_ptr, size_t size);
 
 void TestRandNeighbour(int width, int height, int* rand);
+
+void CudaUpdateModel(curandState* devStates,int width, int height, PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel);

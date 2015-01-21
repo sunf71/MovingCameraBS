@@ -40,7 +40,7 @@ __device__ inline void getRandNeighborPosition(curandState* devStates,int& x_nei
 		{-1, 0},            { 1, 0},
 		{-1,-1},  { 0,-1},  { 1,-1},
 	};
-	int ind = x_orig*width+y_orig;
+	int ind = y_orig*width+x_orig;
     curandState localState = devStates[ind];
     size_t RANDOM = curand( &localState );
     devStates[ind] = localState; 
@@ -310,7 +310,7 @@ PtrStep<uchar4> colorModel,PtrStep<uchar4> wcolorModel,
 PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
 PtrStep<uchar> bModel,PtrStep<uchar> wbModel,
 PtrStep<float> fModel,PtrStep<float> wfModel,
-PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
+PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap)
 {
 	
 	__shared__ uchar4 scolor[BLOCK_W*BLOCK_H];
@@ -327,7 +327,7 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 	srcY = max(srcY,0);
 	srcY = min(srcY,height-1);
 	//scolor[dest] = img(srcY,srcX);
-	scolor[dest] = tex1Dfetch(ImageTexture,srcY*width+srcX);
+	scolor[dest] = tex1Dfetch(WarpedImageTexture,srcY*width+srcX);
 
 	//second batch loading
 	dest = threadIdx.y * TILE_W + threadIdx.x + TILE_W * TILE_W;
@@ -343,10 +343,10 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 		srcY = max(srcY,0);
 		srcY = min(srcY,height-1);
 		//scolor[destX + destY * BLOCK_W] = img(srcY,srcX);
-		scolor[dest] = tex1Dfetch(ImageTexture,srcY*width+srcX);
+		scolor[dest] = tex1Dfetch(WarpedImageTexture,srcY*width+srcX);
 	}
 	__syncthreads();
-
+	
 	int x = threadIdx.x + blockIdx.x * blockDim.x;
 	int y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -453,9 +453,10 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 		const size_t nCurrTotColorDistThreshold = nCurrColorDistThreshold*3;
 		const size_t nCurrTotDescDistThreshold = nCurrDescDistThreshold*3;
 		const size_t nCurrSCColorDistThreshold = nCurrTotColorDistThreshold/2;
+		
 
 		ushort anCurrIntraDesc[3] = {CurrIntraDesc.x ,CurrIntraDesc.y, CurrIntraDesc.z};
-		pbUnstableRegionMask = ((*wpfCurrDistThresholdFactor)>3.0 || (*wpfCurrMeanRawSegmRes_LT-*wpfCurrMeanFinalSegmRes_LT)>0.1 || (*wpfCurrMeanRawSegmRes_ST-*wpfCurrMeanFinalSegmRes_ST)>0.1)?1:0;
+		pbUnstableRegionMask = ((*pfCurrDistThresholdFactor)>3.0 || (*pfCurrMeanRawSegmRes_LT-*pfCurrMeanFinalSegmRes_LT)>0.1 || (*pfCurrMeanRawSegmRes_ST-*pfCurrMeanFinalSegmRes_ST)>0.1)?1:0;
 		size_t nGoodSamplesCount=0, nSampleIdx=0;
 
 		
@@ -512,11 +513,11 @@ failedcheck3ch:
 			*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
 			*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
 			fgMask(y,x) = UCHAR_MAX;
-			if((getRandom(randStates,idx_uchar)%(size_t)2)==0) {
+			/*if((getRandom(randStates,idx_uchar)%(size_t)2)==0) {
 				const size_t s_rand = getRandom(randStates,idx_uchar)%50;
 				BGIntraDescPtr[s_rand] = CurrIntraDesc;
 				BGColorPtr[s_rand] = CurrColor;
-			}
+			}*/
 		}
 		else {
 			// == background
@@ -561,7 +562,9 @@ failedcheck3ch:
 		}
 		/*if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
 		++nNonZeroDescCount;*/
-		*anLastColor = CurrColor;
+		*anLastColor = tex1Dfetch(ImageTexture,idx_uchar);
+		size_t thresholds[3] = {LBSPThres[anLastColor->x],LBSPThres[anLastColor->y],LBSPThres[anLastColor->z]};
+		LBSP(img,*anLastColor,x,y,thresholds,CurrIntraDesc);
 		*anLastIntraDesc = CurrIntraDesc;
 		*wpfCurrDistThresholdFactor =  *pfCurrDistThresholdFactor;
 		*wpfCurrVariationFactor = *pfCurrVariationFactor;
@@ -1243,7 +1246,7 @@ failedcheck3ch:
 		}
 		/*if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
 		++nNonZeroDescCount;*/
-		*anLastColor = CurrColor;
+		*anLastColor = tex1Dfetch(ImageTexture,idx_uchar);
 		*anLastIntraDesc = CurrIntraDesc;
 
 	}
@@ -1427,6 +1430,56 @@ __global__ void DownloadColorKernel(int width, int height, int id, const PtrStep
 		model(y,x) = GetValueFromBigMatrix(models,width,height,id,x,y,modelSize);
 	}
 }
+
+__global__ void CudaUpdateModelKernel(curandState* devStates,int width, int height,PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+	if(x <width-2 && x>=2 && y>=2 && y < height)
+	{
+		int idx = x+y*width;
+		if (fgmask(y,x) == 0xff)
+		{
+			if (getRandom(devStates,idx) % 2 == 0)
+			{
+				const size_t s_rand = getRandom(devStates,idx)%BMSIZE;
+				//求idx处的颜色和desc
+				uchar4 value;
+				ushort4 svalue;
+				/*uchar4 value =  colorPtr[idx];
+				ushort4 svalue = descPtr[idx];*/
+				
+				SetValueToBigMatrix(colorModel,width,height,s_rand,x,y,value);
+				SetValueToBigMatrix(descModel,width,height,s_rand,x,y,svalue);
+			}
+		}
+		else
+		{
+			
+			float fSamplesRefreshFrac = 0.1;
+			const size_t nBGSamplesToRefresh = fSamplesRefreshFrac<1.0f?(size_t)(fSamplesRefreshFrac*BMSIZE):BMSIZE;
+			const size_t nRefreshStartPos = fSamplesRefreshFrac<1.0f?getRandom(devStates,idx) %BMSIZE:0;
+			const size_t nLearningRate = 1;
+			for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
+				int y_sample, x_sample;
+				getRandNeighborPosition(devStates,x_sample,y_sample,x,y,2,width,height);
+				int sidx =  y_sample*width+ x_sample;
+				//求sidx处的颜色和desc
+				uchar4 value;
+				ushort4 svalue;
+				/*uchar4 value =  colorPtr[idx];
+				ushort4 svalue = descPtr[idx];*/
+				int pos = s%BMSIZE;
+				SetValueToBigMatrix(colorModel,width,height,pos,x,y,value);
+				SetValueToBigMatrix(descModel,width,height,pos,x,y,svalue);
+				
+
+			}
+		}
+	}
+}
+
 void DownloadColorModel(int width,int height, cv::gpu::GpuMat& models, int size, int id, cv::gpu::GpuMat& model)
 {
 	dim3 block(16,16);
@@ -1461,7 +1514,7 @@ PtrStep<ushort4> descModel,PtrStep<ushort4> wdescModel,
 PtrStep<uchar> bModel,PtrStep<uchar> wbModel,
 PtrStep<float> fModel,PtrStep<float> wfModel,
 PtrStep<uchar> fgMask,	PtrStep<uchar> lastFgMask, uchar* outMask,
-float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBSPThreshold_8bitLUT)
+float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap)
 {
 	dim3 block(16,16);
 	dim3 grid((img.cols + block.x - 1)/block.x,(img.rows + block.y - 1)/block.y);
@@ -1471,10 +1524,10 @@ float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap, size_t* m_anLBS
 	cudaBindTexture(NULL,WarpedImageTexture,
 		warpedImg.ptr<uchar4>(),img.cols*img.rows*sizeof(uchar4));
 
-	CudaBSOperatorKernel<<<grid,block>>>(img,warpedImg,randStates,map,invMap,frameIdx,colorModel,
+	WarpCudaBSOperatorKernel<<<grid,block>>>(img,warpedImg,randStates,map,invMap,frameIdx,colorModel,
 		wcolorModel,descModel, wdescModel,
 		bModel,wbModel,fModel,wfModel,
-		fgMask, lastFgMask, outMask,fCurrLearningRateLowerCap, fCurrLearningRateUpperCap,  m_anLBSPThreshold_8bitLUT);
+		fgMask, lastFgMask, outMask,fCurrLearningRateLowerCap, fCurrLearningRateUpperCap);
 
 }
 void CudaBSOperator(const cv::gpu::GpuMat& img, const cv::gpu::GpuMat& mask, curandState* randStates, double* homography, int frameIdx, 
@@ -1526,6 +1579,14 @@ int CountOutPixel(const uchar* outMask,size_t size)
 	
 	return thrust::count(outMask,outMask+size,0);
 }
+
+void CudaUpdateModel(curandState* devStates,int width, int height, PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
+{
+	dim3 block(16,16);
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	CudaUpdateModelKernel<<<grid,block>>>(devStates,width,height,fgmask,colorModel,descModel);
+}
+
 //__global__ void testRandomKernel(int n, int* d_in, int* d_out)
 //{
 //	int idx = threadIdx.x + blockIdx.x * blockDim.x;
