@@ -21,7 +21,7 @@ __global__ void setup_kernel ( int size, curandState * state, unsigned long seed
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if (id<size)
 	{
-		curand_init ( seed, id, 0, &state[id] );
+		curand_init ( seed,  0, 0,&state[id] );
 	}
 } 
 
