@@ -80,6 +80,7 @@ public:
 	void WarpImage(const cv::Mat img, cv::Mat& warpedImg);
 	
 protected:
+	void saveModels();
 	//! background model keypoints used for LBSP descriptor extraction (specific to the input image size)
 	std::vector<cv::KeyPoint> m_voKeyPoints;
 	//! defines the current number of used keypoints (always tied to m_voKeyPoints)
@@ -243,6 +244,7 @@ public:
 	virtual void refreshModel(float fSamplesRefreshFrac);
 
 protected:
+	void saveModels();
 	void swapModels()
 	{
 		cv::gpu::swap(d_voBGColorSamples,d_wvoBGColorSamples);

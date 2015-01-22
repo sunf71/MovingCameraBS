@@ -277,13 +277,13 @@ void WarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::ve
 	m_bInitializedInternalStructs = true;
 	refreshModel(1.0f);
 
-	cv::imwrite("cmlastdescfram.png",m_oLastDescFrame);
+	/*cv::imwrite("cmlastdescfram.png",m_oLastDescFrame);
 	char filename[20];
 	for(int i=0; i<m_voBGDescSamples.size(); i++)
 	{	
 		sprintf(filename,"cpu%ddescmodel.png",i);		
 		cv::imwrite(filename,m_voBGDescSamples[i]);
-	}
+	}*/
 	
 	w_voBGColorSamples.resize(m_nBGSamples);
 	w_voBGDescSamples.resize(m_nBGSamples);
@@ -377,6 +377,28 @@ void WarpBackgroundSubtractor::WarpModels()
 	std::swap(w_voBGDescSamples,m_voBGDescSamples);
 	
 	
+}
+void WarpBackgroundSubtractor::saveModels()
+{
+	char filename[20];
+	
+	for(int i=0;i <1; i++)
+	{			
+		
+		sprintf(filename,"cpu%ddescmodel_%d.png",i,m_nFrameIndex);		
+		imwrite(filename, m_voBGDescSamples[i]);
+		
+		
+		
+		
+		sprintf(filename,"cpu%dmodel_%d.png",i,m_nFrameIndex);		
+		imwrite(filename, m_voBGDescSamples[i]);
+
+		/*sprintf(filename,"cpu%dmodel.jpg",i);
+		imwrite(filename, m_voBGColorSamples[i]);
+		sprintf(filename,"cpu%descmodel.jpg",i);
+		imwrite(filename, m_voBGDescSamples[i]);*/
+	}
 }
 void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 {
@@ -884,6 +906,7 @@ failedcheck3ch:
 	m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
 	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
+	saveModels();
 	/*cv::remap(m_fgCounter,m_fgCounter,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	int threshold = 10;
 	for(int i=0; i<m_oImgSize.height; i++)
@@ -1290,45 +1313,19 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	cv::gpu::GpuMat drfmask(rfmask);
 	d_CurrentColorFrame.upload(initImg);
 	CudaBindImgTexture(d_CurrentColorFrame);
+	cv::gpu::GpuMat d_refreshMask;
+	cv::Mat zeros = cv::Mat::zeros(m_oImgSize,CV_8U);
+	d_refreshMask.upload(zeros);
 	GpuTimer gtimer;
 	gtimer.Start();
-	CudaRefreshModel(d_randStates,1.f, m_oImgSize.width,m_oImgSize.height, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
+	//CudaRefreshModel(d_randStates,1.f, m_oImgSize.width,m_oImgSize.height, d_voBGColorSamples,d_voBGDescSamples,d_fModels,d_bModels);
+	CudaUpdateModel(d_randStates,m_oImgSize.width,m_oImgSize.height,d_refreshMask,d_voBGColorSamples,d_voBGDescSamples);
 	gtimer.Stop();
 	std::cout<<gtimer.Elapsed()<<" ms\n";
-	
-	cv::Mat h_tmp;	
-	h_tmp.create(m_oImgSize,CV_16UC4);
-	cv::Mat diff;
-	char filename[20];
-	cudaMemcpy(h_tmp.data, d_voBGDescSamples.data + (m_nPixels*8*50),m_nPixels*2*4,cudaMemcpyDeviceToHost);
-	cv::imwrite("lastDescFrame.png",h_tmp);
-	cv::cvtColor(h_tmp,h_tmp,CV_BGRA2BGR);
-	cv::imwrite("lastDescFrame3.png",h_tmp);
-	
-	cv::gpu::GpuMat d_tmp,d_ctmp;
-	d_tmp.create(m_oImgSize,CV_16UC4);	
-	d_ctmp.create(m_oImgSize,CV_8UC4);
-	
-	for(int i=0;i <50; i++)
-	{			
-		DownloadModel(m_oImgSize.width,m_oImgSize.height,d_voBGDescSamples,50,i,d_tmp);
-		d_tmp.download(h_tmp);
-		cv::cvtColor(h_tmp,tmp,CV_BGRA2BGR);
-		sprintf(filename,"gpu%ddescmodel.png",i);		
-		imwrite(filename, tmp);
-		
-		
-		
-		DownloadColorModel(m_oImgSize.width,m_oImgSize.height,d_voBGColorSamples,50,i,d_ctmp);
-		d_ctmp.download(h_tmp);
-		sprintf(filename,"gpu%dmodel.png",i);		
-		imwrite(filename, h_tmp);
 
-		/*sprintf(filename,"cpu%dmodel.jpg",i);
-		imwrite(filename, m_voBGColorSamples[i]);
-		sprintf(filename,"cpu%descmodel.jpg",i);
-		imwrite(filename, m_voBGDescSamples[i]);*/
-	}
+	saveModels();
+	 
+
 	m_bInitialized = true;	
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
 	m_SPComputer = new SuperpixelComputer(m_oImgSize.width,m_oImgSize.height,5);
@@ -1347,6 +1344,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	cv::Mat oInputImg;
 	cv::Mat img = _image.getMat();	
 	WarpImage(img,oInputImg);
+	
 	cv::Mat mat2[] = {m_ASAP->getMapX(),m_ASAP->getMapY()};	
 	cv::Mat map;
 	cv::merge(mat2,2,map);
@@ -1361,6 +1359,8 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	cv::cvtColor(oInputImg,wimg,CV_BGR2BGRA);
 	d_CurrWarpedColorFrame.upload(wimg);
 
+
+	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
 	memset(oCurrFGMask.data,0,oCurrFGMask.cols*oCurrFGMask.rows);
 
@@ -1368,20 +1368,62 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 
 	d_FGMask.download(m_oRawFGMask_last);
-	
+	cv::remap(m_oRawFGMask_last,m_oRawFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cudaMemcpy(m_outMask.data,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
 	cv::imshow("mask",m_oRawFGMask_last);
 	cv::imshow("out mask",m_outMask);
 	cv::waitKey();
-	/*m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
-	postProcessSegments(img,oCurrFGMask);*/
+	m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
+	postProcessSegments(img,oCurrFGMask);
+	/*cv::imshow("after optimize ",oCurrFGMask);
+	cv::waitKey();*/
 	swapModels();
-	/*cv::Mat refeshMask;
-	cv::bitwise_not(m_outMask,m_outMask);
-	cv::bitwise_and(m_outMask,oCurrFGMask,refeshMask);
-	UpdateModel(img,refeshMask);*/
-	//CudaUpdateModel(d_randStates,m_oImgSize.width,m_oImgSize.height,d_FGMask,d_voBGDescSamples,d_voBGColorSamples);
+	cv::Mat refeshMask;
+	
+	cv::bitwise_or(m_outMask,oCurrFGMask,refeshMask);
+	//cv::imshow("refresh mask", refeshMask);
+	//cv::waitKey();
+	d_FGMask.upload(refeshMask);
+	CudaUpdateModel(d_randStates,m_oImgSize.width,m_oImgSize.height,d_FGMask,d_voBGColorSamples,d_voBGDescSamples);
+	//saveModels();
+}
+void GpuWarpBackgroundSubtractor::saveModels()
+{
+	cv::Mat h_tmp,tmp;	
+	h_tmp.create(m_oImgSize,CV_16UC4);
+	cv::Mat diff;
+	char filename[20];
+	cudaMemcpy(h_tmp.data, d_voBGDescSamples.data + (m_nPixels*8*50),m_nPixels*2*4,cudaMemcpyDeviceToHost);
+	cv::imwrite("lastDescFrame.png",h_tmp);
+	cv::cvtColor(h_tmp,h_tmp,CV_BGRA2BGR);
+	cv::imwrite("lastDescFrame3.png",h_tmp);
+	
+	cv::gpu::GpuMat d_tmp,d_ctmp;
+	d_tmp.create(m_oImgSize,CV_16UC4);	
+	d_ctmp.create(m_oImgSize,CV_8UC4);
+	
+	for(int i=0;i <1; i++)
+	{			
+		DownloadModel(m_oImgSize.width,m_oImgSize.height,d_voBGDescSamples,50,i,d_tmp);
+		d_tmp.download(h_tmp);
+		cv::cvtColor(h_tmp,tmp,CV_BGRA2BGR);
+		sprintf(filename,"gpu%ddescmodel_%d.png",i,m_nFrameIndex);		
+		imwrite(filename, tmp);
+		
+		
+		
+		DownloadColorModel(m_oImgSize.width,m_oImgSize.height,d_voBGColorSamples,50,i,d_ctmp);
+		d_ctmp.download(h_tmp);
+		cv::cvtColor(h_tmp,tmp,CV_BGRA2BGR);
+		sprintf(filename,"gpu%dmodel_%d.png",i,m_nFrameIndex);		
+		imwrite(filename, tmp);
 
+		/*sprintf(filename,"cpu%dmodel.jpg",i);
+		imwrite(filename, m_voBGColorSamples[i]);
+		sprintf(filename,"cpu%descmodel.jpg",i);
+		imwrite(filename, m_voBGDescSamples[i]);*/
+	}
 }
 void GpuWarpBackgroundSubtractor::refreshModel(float fSamplesRefreshFrac)
 {

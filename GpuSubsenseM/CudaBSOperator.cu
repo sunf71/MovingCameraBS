@@ -21,7 +21,7 @@ __global__ void setup_kernel ( int size, curandState * state, unsigned long seed
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if (id<size)
 	{
-		curand_init ( seed,  id, 0,&state[id] );
+		curand_init ( seed,  0, 0,&state[id] );
 	}
 } 
 
@@ -1399,7 +1399,7 @@ __global__ void CudaRefreshModelKernel(curandState* randStates,float refreshRate
 		for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
 
 			int y_sample, x_sample;
-			getRandNeighborPosition(randStates,x_sample,y_sample,x,y,2,width,height);
+			getRandSamplePosition(s,x_sample,y_sample,x,y,2,width,height);
 			int idx =  y_sample*width+ x_sample;
 			uchar4 value =  colorPtr[idx];
 			ushort4 svalue = descPtr[idx];
@@ -1589,7 +1589,8 @@ __global__ void CudaUpdateModelKernel(curandState* devStates,int width, int heig
 			const size_t nLearningRate = 1;
 			for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
 				int y_sample, x_sample;
-				getRandNeighborPosition(devStates,x_sample,y_sample,x,y,2,width,height);
+				//getRandNeighborPosition(devStates,x_sample,y_sample,x,y,2,width,height);
+				getRandSamplePosition(s,x_sample,y_sample,x,y,2,width,height);
 				int sidx =  y_sample*width+ x_sample;
 				int dx = x_sample-x;
 				int dy = y_sample - y;
@@ -1669,6 +1670,7 @@ float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap)
 
 	cv::Mat hdesc;
 	desc.download(hdesc);
+	cv::cvtColor(hdesc,hdesc,CV_BGRA2BGR);
 	cv::imwrite("hdesc.PNG",hdesc);
 }
 void CudaBSOperator(const cv::gpu::GpuMat& img, const cv::gpu::GpuMat& mask, curandState* randStates, double* homography, int frameIdx, 
