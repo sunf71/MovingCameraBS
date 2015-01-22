@@ -4,6 +4,7 @@
 #include "ASAPWarping.h"
 #include "FeaturePointRefine.h"
 #include "SuperpixelComputer.h"
+#include "DistanceUtils.h"
 void testCudaGpu()
 {
 	try
@@ -1521,4 +1522,84 @@ void TestSuperpielxComputer()
 		cv::swap(img,preImg);
 	}
 	delete DOFP;
+}
+
+void TestDescDiff()
+{
+	char filename[20];
+	cv::Mat cmat,gmat,hmat;
+	hmat = cv::imread("hdesc.png",CV_LOAD_IMAGE_UNCHANGED);
+	
+	int width = hmat.cols;
+	int height = hmat.rows;
+	cv::Mat cr = cv::Mat::zeros(hmat.size(),CV_8U);
+	
+	std::vector<cv::Mat> cmats,gmats;
+	cv::Mat tmp;
+	for(int i=0; i<50; i++)
+	{
+		sprintf(filename,"cpu%ddescmodel.png",i);		
+		cmat = cv::imread(filename,CV_LOAD_IMAGE_UNCHANGED );
+	
+		sprintf(filename,"gpu%ddescmodel.png",i);		
+		gmat = cv::imread(filename,CV_LOAD_IMAGE_UNCHANGED );
+		cmats.push_back(cmat.clone());
+		
+		gmats.push_back(gmat.clone());
+	}
+	for(int r=2; r< height-2; r++)
+	{
+		
+		cv::Vec4w* hptr = hmat.ptr<cv::Vec4w>(r);
+		uchar* crPtr = cr.ptr<uchar>(r);
+	
+		for(int c=2; c<width-2; c++)
+		{
+			int idx = (r*width+c)*3*2;
+			int cidx = (r*width+c)*3*2;
+			int b(0);
+			int i=0;
+			while(i<50 && b<2)
+			{
+				
+				//cv::Vec4w gptr = gmats[i].at<cv::Vec4w>(r,c);
+				ushort* cptr = (ushort*)(cmats[i].data+cidx);
+				ushort* gptr = (ushort*)(gmats[i].data+idx);
+				//std::cout<<i<<" "<<r<<" , "<<c<<std::endl;
+				
+				for(int k=0; k<3; k++)
+				{					
+					size_t d = hdist_ushort_8bitLUT(hptr[c][k],gptr[k]);		
+					//size_t d = hdist_ushort_8bitLUT(hptr[c][k],gptr[k]);
+					if (d/2*15 >36)
+						goto failed;
+
+				}
+				b++;
+			
+failed:
+				i++;
+			}
+			if (b<2)
+			{
+				crPtr[c] = 0xff;
+				/*std::cout<<hptr[c][0]<<" "<<hptr[c][1]<<" "<<hptr[c][2]<<" "<<hptr[c][3]<<"\n";
+				for(int t=0; t<50; t++)
+				{
+					ushort* cptr = (ushort*)(cmats[t].data+cidx);
+					ushort* gptr = (ushort*)(gmats[t].data+idx);
+					std::cout<<t<<"--------------\n cpu:\n";
+					std::cout<<cptr[0]<<" "<<cptr[1]<<" "<<cptr[2]<<"\n gpu:";
+					std::cout<<gptr[0]<<" "<<gptr[1]<<" "<<gptr[2]<<" "<<gptr[3]<<"\n";
+					
+				}*/
+
+			}
+			
+			
+		}
+	}
+	cv::imshow("result",cr);
+	
+	cv::waitKey();
 }

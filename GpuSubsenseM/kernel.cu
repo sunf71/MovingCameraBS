@@ -16,6 +16,7 @@ int main (int argc, char* argv[])
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();
+	//TestDescDiff();
 	return 0;
 
 }

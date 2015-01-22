@@ -31,3 +31,5 @@ void TestFlowHistogram();
 void TestColorHistogram();
 
 void TestSuperpielxComputer();
+
+void TestDescDiff();
