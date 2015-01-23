@@ -1023,15 +1023,21 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	std::cout<<"FeaturePointsRefineRANSAC "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
 #endif
 	
+#ifndef REPORT
 	cpuTimer.start();
+#endif
 	m_SPComputer->GetPreSuperpixelResult(num,preLabels,preCenters);
 	int rows = m_oImgSize.height;
 	int cols = m_oImgSize.width;
 	SuperpixelMatching(labels,centers,m_img,preLabels,preCenters,m_preImg,num,step,cols,rows,spFlow,m_matchedId);
+#ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"superpixel matching "<<cpuTimer.seconds()*1000<<std::endl;
+#endif
 
+#ifndef REPORT
 	cpuTimer.start();
+#endif
 	avgE = m_SPComputer->ComputAvgColorDistance();
 	std::vector<int> resLabels;
 	for(int i=nf,j=0; i<m_points[0].size(); i++,j++)
@@ -1048,19 +1054,24 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 	/*char filename[200];	
 	sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);*/
+#ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
+#endif
 	m_points[0].resize(nf);
 	m_points[1].resize(nf);
+#ifndef REPORT
 	cpuTimer.start();
+#endif
 	m_ASAP->SetControlPts(m_points[0],m_points[1]);
 	m_ASAP->Solve();
 	m_ASAP->Warp(image,warpedImg);
 	m_ASAP->Reset();
 	m_ASAP->getFlow(m_wflow);
+#ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"ASAP Warping "<<cpuTimer.seconds()*1000<<std::endl;
-
+#endif
 	cv::swap(m_gray,m_preGray);
 	cv::swap(m_preImg,m_img);
 	cv::gpu::swap(d_gray,d_preGray);

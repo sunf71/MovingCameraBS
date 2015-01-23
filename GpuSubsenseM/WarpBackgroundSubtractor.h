@@ -80,7 +80,8 @@ public:
 	void WarpImage(const cv::Mat img, cv::Mat& warpedImg);
 	
 protected:
-	void saveModels();
+	virtual void saveModels();
+	virtual void loadModels();
 	//! background model keypoints used for LBSP descriptor extraction (specific to the input image size)
 	std::vector<cv::KeyPoint> m_voKeyPoints;
 	//! defines the current number of used keypoints (always tied to m_voKeyPoints)
@@ -193,9 +194,7 @@ protected:
 	cv::Mat m_homography,m_invHomography;
 	std::vector<uchar> m_status; // status of tracked features
 	std::vector<cv::Point2f> m_points[2];	
-	//因相机运动，新出现的像素或者消失的像素	
-	uchar* m_outMaskPtr;
-	size_t m_nOutPixels;	
+	
 	cv::Mat m_preGray,m_gray;	
 	//保存特征点跟踪情况
 	cv::Mat m_features,m_preFeatures;	
@@ -244,7 +243,8 @@ public:
 	virtual void refreshModel(float fSamplesRefreshFrac);
 
 protected:
-	void saveModels();
+	virtual void saveModels();
+	virtual void loadModels();
 	void swapModels()
 	{
 		cv::gpu::swap(d_voBGColorSamples,d_wvoBGColorSamples);
@@ -258,7 +258,7 @@ protected:
 	cv::gpu::GpuMat d_voBGDescSamples,d_wvoBGDescSamples;
 	cv::gpu::GpuMat d_fModels, d_wfModels, d_bModels, d_wbModels;
 	//! the input color frame
-	cv::gpu::GpuMat d_CurrentColorFrame;
+	//cv::gpu::GpuMat d_CurrentColorFrame;
 	cv::gpu::GpuMat d_CurrWarpedColorFrame;
 	cv::gpu::GpuMat d_Map,d_invMap;
 	//! output foreground mask

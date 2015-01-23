@@ -13,6 +13,7 @@ void OpticalFlowHistogram(const cv::Mat& flow, std::vector<float>& histogram,
 	std::vector<float>&avgDx, std::vector<float>& avgDy,
 	std::vector<std::vector<int>>& ids, cv::Mat& flowIdx,int DistSize = 16,int thetaSize = 16);
 void FeaturePointsRefineHistogram(int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2);
+void FeaturePointsRefineHistogram(int& nf, int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2);
 void KLTFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2);
 void FILESURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2);
 void SURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2);

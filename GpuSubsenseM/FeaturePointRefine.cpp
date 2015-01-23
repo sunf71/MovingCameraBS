@@ -22,6 +22,7 @@ void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Po
 	vf1.resize(k);
 	vf2.resize(k);
 }
+//nf是特征点数量，vf1中前面nf个是特征点，后面是超像素中心
 void FeaturePointsRefineRANSAC(int& nf, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography)
 {
 	std::vector<uchar> inliers(vf1.size());
@@ -184,6 +185,41 @@ void FeaturePointsRefineHistogram(int width, int height,std::vector<cv::Point2f>
 		k++;
 	}
 	
+	features1.resize(k);
+	features2.resize(k);
+}
+//nf是特征点数量，vf1中前面nf个是特征点，后面是超像素中心
+void FeaturePointsRefineHistogram(int& nf, int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2)
+{
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+	int len = sqrtf(width*width + height*height);
+	int distSize = len/50;
+	int thetaSize = 50;
+	OpticalFlowHistogram(features1,features2,histogram,ids,distSize,thetaSize);
+
+	//最大bin
+	int max =ids[0].size(); 
+	int idx(0);
+	for(int i=1; i<ids.size(); i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
+	int k=0;
+	int nnf(0);
+	for(int i=0; i<ids[idx].size(); i++)
+	{
+		features1[k] = features1[ids[idx][i]];
+		features2[k] = features2[ids[idx][i]];
+		if (ids[idx][i]<nf)
+			nnf++;
+		k++;
+	}
+	nf = nnf;
 	features1.resize(k);
 	features2.resize(k);
 }

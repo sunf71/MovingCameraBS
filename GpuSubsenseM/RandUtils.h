@@ -48,7 +48,7 @@ static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int
 		y_sample = imgsize.height-border-1;
 }
 //! returns a random init/sampling position for the specified pixel position; also guards against out-of-bounds values via image/border size check.
-__device__  static inline void getRandSamplePosition(int randomSeed, int& x_sample, int& y_sample, const int x_orig, const int y_orig, const int border, const int width, const int height) {
+__device__  static inline void getRandSamplePosition(curandState* randState, int& x_sample, int& y_sample, const int x_orig, const int y_orig, const int border, const int width, const int height) {
 	const int s_anSamplesInitPattern[s_nSamplesInitPatternHeight][s_nSamplesInitPatternWidth] = {
 	{0,     0,     4,     7,     4,     0,     0,},
 	{0,    11,    53,    88,    53,    11,     0,},
@@ -58,9 +58,11 @@ __device__  static inline void getRandSamplePosition(int randomSeed, int& x_samp
 	{0,    11,    53,    88,    53,    11,     0,},
 	{0,     0,     4,     7,     4,     0,     0,},
 };
-	curandState state;
-	curand_init(randomSeed,0,0,&state);
-	int r = 1+curand(&state)%s_nSamplesInitPatternTot;
+	int ind = y_orig*width+x_orig;
+    curandState localState = randState[ind];
+    size_t RANDOM = curand( &localState );
+    randState[ind] = localState; 
+	int r = 1+RANDOM%s_nSamplesInitPatternTot;
 	for(x_sample=0; x_sample<s_nSamplesInitPatternWidth; ++x_sample) {
 		for(y_sample=0; y_sample<s_nSamplesInitPatternHeight; ++y_sample) {
 			r -= s_anSamplesInitPattern[y_sample][x_sample];

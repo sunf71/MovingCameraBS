@@ -88,7 +88,7 @@ void MRFOptimize::Release()
 	safe_delete_array(m_idata);	
 	safe_delete_array(m_result);
 	safe_delete_array(m_preResult);
-	safe_delete_array(m_labels);
+	//safe_delete_array(m_labels);
 	safe_delete_array(m_preLabels);
 	safe_delete_array(m_centers);
 	safe_delete_array(m_preCenters);
@@ -226,7 +226,7 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 	GraphType *g;
 	g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
 	
-	std::ofstream dfile("dtenergy.txt");
+	//std::ofstream dfile("dtenergy.txt");
 	float k1 = 3./4;
 	float k2 = 1./4*40;
 	for(int i=0; i<num_pixels; i++)
@@ -259,8 +259,8 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 		
 		}	
 		
-		dfile<<i<<" (d1,d2) = "<<d1*k1<<" , "<<d2*k1<<
-			"(t1,t2) = "<<k2*t1<<" , "<<k2*t2<<std::endl;
+		/*dfile<<i<<" (d1,d2) = "<<d1*k1<<" , "<<d2*k1<<
+			"(t1,t2) = "<<k2*t1<<" , "<<k2*t2<<std::endl;*/
 
 		float e1 = (d1*k1+k2* t1);
 		float e2 = (d2*k1 + k2* t2);
@@ -268,8 +268,8 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 
 	}
 	
-	dfile.close();
-	std::ofstream sfile("senergy.txt");
+	/*dfile.close();
+	std::ofstream sfile("senergy.txt");*/
 	for(int i=0; i<num_pixels; i++)
 	{
 
@@ -278,14 +278,14 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 			if (i>spPtr[m_neighbor[i][j]].idx)
 			{
 				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
-				sfile<<energy<<" ";
+				/*sfile<<energy<<" ";*/
 				g->add_edge(i,m_neighbor[i][j],energy,energy);
 			}
 		}
 		
-		sfile<<std::endl;
+		/*sfile<<std::endl;*/
 	}
-	sfile.close();
+	/*sfile.close();*/
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
 		result[i] = g->what_segment(i) == GraphType::SINK ? 0x1 : 0;
