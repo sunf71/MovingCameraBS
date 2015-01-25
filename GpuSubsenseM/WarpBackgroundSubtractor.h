@@ -194,7 +194,7 @@ protected:
 	cv::Mat m_homography,m_invHomography;
 	std::vector<uchar> m_status; // status of tracked features
 	std::vector<cv::Point2f> m_points[2];	
-	
+	std::vector<cv::Point2f> m_goodFeatures[2];
 	cv::Mat m_preGray,m_gray;	
 	//保存特征点跟踪情况
 	cv::Mat m_features,m_preFeatures;	
@@ -220,7 +220,36 @@ protected:
 	cv::gpu::GpuMat d_status;
 };
 
+class WarpSPBackgroundSubtractor : public WarpBackgroundSubtractor
+{
+public:
+	WarpSPBackgroundSubtractor(float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
+									size_t nMinDescDistThreshold=BGSSUBSENSE_DEFAULT_DESC_DIST_THRESHOLD,
+									size_t nMinColorDistThreshold=BGSSUBSENSE_DEFAULT_COLOR_DIST_THRESHOLD,
+									size_t nBGSamples=BGSSUBSENSE_DEFAULT_NB_BG_SAMPLES,
+									size_t nRequiredBGSamples=BGSSUBSENSE_DEFAULT_REQUIRED_NB_BG_SAMPLES,
+									size_t nSamplesForMovingAvgs=BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS):WarpBackgroundSubtractor(fRelLBSPThreshold,nMinDescDistThreshold,nMinColorDistThreshold,nBGSamples,nRequiredBGSamples,nSamplesForMovingAvgs)
+	{
+		
 
+	}
+	//! default destructor
+	virtual ~WarpSPBackgroundSubtractor(){}
+	//! (re)initiaization method; needs to be called before starting background subtraction
+	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
+	//! gpu Background subtraction operator
+	virtual void BSOperator(cv::InputArray image, cv::OutputArray fgmask);
+protected:
+	int m_spWidth;
+	int m_spHeight;
+	int m_spSize;
+	int m_step;
+	cv::Mat m_spDSImg;
+	cv::Mat m_spDSMapXImg;
+	cv::Mat m_spDSMapYImg;
+	cv::Mat m_spDSIMapXImg;
+	cv::Mat m_spDSIMapYImg;
+};
 class GpuWarpBackgroundSubtractor : public WarpBackgroundSubtractor
 {
 public:

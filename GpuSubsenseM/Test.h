@@ -33,3 +33,4 @@ void TestColorHistogram();
 void TestSuperpielxComputer();
 
 void TestDescDiff();
+void TestSuperpixelDownSample();

@@ -102,6 +102,20 @@ void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img, int& num, int*& l
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
 }
+void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img)
+{
+	cv::Mat rgbaImg;
+	cv::cvtColor(img,rgbaImg,CV_BGR2BGRA);
+	int num(0);
+	_gs->Superpixel(rgbaImg,num,_labels,_centers);
+	if (_preLabels == NULL)
+	{
+		_preLabels = new int[_imgSize];
+		_preCenters = new SLICClusterCenter[_nPixels];
+		memcpy(_preLabels,_labels,sizeof(int)*_imgSize);
+		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
+	}
+}
 struct SPInfo
 {
 	SPInfo(){}
@@ -342,3 +356,200 @@ void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 		}
 	}
 }
+
+ void SuperpixelComputer::GetSuperpixelDownSampleImg(cv::Mat& rstImg)
+ {
+	 rstImg = cv::Mat::zeros(_spHeight,_spWidth,CV_8UC3);
+	 for(int i=0; i< _spHeight; i++)
+	 {
+		 cv::Vec3b* ptr = rstImg.ptr<cv::Vec3b>(i);
+		 for(int j=0; j<_spWidth; j++)
+		 {
+			 int idx = _spWidth*i+j;
+			 if (_centers[idx].nPoints > 0)
+			 {
+				 ptr[j][0] = _centers[idx].rgb.x;
+				 ptr[j][1] = _centers[idx].rgb.y;
+				 ptr[j][2] = _centers[idx].rgb.z;
+			 }
+		 }
+	 }
+ }
+ void SuperpixelComputer::GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, cv::Mat& dstColorImg)
+ {
+	 dstColorImg = cv::Mat::zeros(_spHeight,_spWidth,CV_8UC3);
+
+	  int rgb[3];
+	  for(int i=0; i<_nPixels; i++)
+	  {
+		  int k = (int)(_centers[i].xy.x+0.5);
+		  int j = (int)(_centers[i].xy.y + 0.5);
+		  memset(rgb,0,sizeof(int)*3);
+		  
+		  int count(0);
+		  for(int y=j-_step; y<=j+_step; y++)
+		  {
+			  if (y>=0 && y<_height)
+			  {
+				  const cv::Vec3b* ptr = srcColorImg.ptr<cv::Vec3b>(y);
+				  for(int x = k-_step; x<= k+_step; x++)
+				  {
+					  if (x>=0 && x<_width && labels[y*_width+x] == i)
+					  {
+						  for(int c=0; c<3; c++)
+						  {
+							  rgb[c]+=(int)ptr[x][c];
+							  
+						  }
+						  
+						  count++;
+					  }
+				  }
+			  }
+		  }
+		  uchar* dstPtr = (uchar*)(dstColorImg.data + i*3);
+		  for(int c=0; c<3; c++)
+			  dstPtr[c] = (uchar)(rgb[c]*1.0/count);
+		 
+	  }
+ }
+  void SuperpixelComputer::GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, const cv::Mat& srcInvMapXImg, const cv::Mat& srcInvMapYImg, 
+		  cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg, cv::Mat& dstInvMapXImg,  cv::Mat& dstInvMapYImg )
+  {
+	  dstColorImg = cv::Mat::zeros(_spHeight,_spWidth,CV_8UC3);
+	  dstMapXImg = cv::Mat::zeros(_spHeight,_spWidth,CV_32F);
+	  dstMapYImg = cv::Mat::zeros(_spHeight,_spWidth,CV_32F);
+	  dstInvMapXImg = dstMapXImg.clone();
+	  dstInvMapYImg = dstMapYImg.clone();
+	  int rgb[3];
+	  float map[2];
+	  float imap[2]; 
+	  int count(0);
+	  for(int i=0; i<_nPixels; i++)
+	  {
+		  int k = (int)(centers[i].xy.x+0.5);
+		  int j = (int)(centers[i].xy.y + 0.5);
+		  memset(rgb,0,sizeof(int)*3);
+		  memset(map,0,sizeof(float)*2);
+		  memset(imap,0,sizeof(float)*2);
+		 count = 0;
+		  for(int y=j-_step; y<=j+_step; y++)
+		  {
+			  if (y>=0 && y<_height)
+			  {
+				  const cv::Vec3b* ptr = srcColorImg.ptr<cv::Vec3b>(y);
+				  const float* mxPtr = srcMapXImg.ptr<float>(y);
+				  const float* myPtr = srcMapYImg.ptr<float>(y);
+				  const float* imxPtr = srcInvMapXImg.ptr<float>(y);
+				  const float* imyPtr = srcInvMapYImg.ptr<float>(y);
+		
+				  for(int x = k-_step; x<= k+_step; x++)
+				  {
+					  if (x>=0 && x<_width)
+					  {
+						  if (_labels[x+y*_width] == i)
+						  {
+							  for(int c=0; c<3; c++)
+							  {
+								  rgb[c]+=(int)ptr[x][c];
+
+							  }
+							  map[0] += (mxPtr[x] -x);
+							  map[1] += (myPtr[x] - y);
+							  imap[0]+= (imxPtr[x] - x);
+							  imap[1] += (imyPtr[x] -y);
+							  count++;
+						  }
+					  }
+				  }
+			  }
+		  }
+		  uchar* dstPtr = (uchar*)(dstColorImg.data + i*3);
+		  for(int c=0; c<3; c++)
+			  dstPtr[c] = (uchar)(rgb[c]*1.0/count);
+		  float* dstXPtr = (float*)(dstMapXImg.data+i*4);
+		  float* dstYPtr = (float*)(dstMapYImg.data+i*4);
+		  float* dstIxPtr = (float*)(dstInvMapXImg.data+i*4);
+		  float* dstIyPtr = (float*)(dstInvMapYImg.data+i*4);
+		  *dstXPtr = map[0]/count + centers[i].xy.x;
+		  *dstYPtr = map[1]/count + centers[i].xy.y;
+		  *dstIxPtr = imap[0]/count + centers[i].xy.x;
+		  *dstIyPtr = imap[1]/count + centers[i].xy.y;
+	  }
+  }
+ void SuperpixelComputer::GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg)
+ {
+	 dstColorImg = cv::Mat::zeros(_spHeight,_spWidth,CV_8UC3);
+	  dstMapXImg = cv::Mat::zeros(_spHeight,_spWidth,CV_32F);
+	  dstMapYImg = cv::Mat::zeros(_spHeight,_spWidth,CV_32F);
+
+	  int rgb[3];
+	  float map[2];
+	  for(int i=0; i<_nPixels; i++)
+	  {
+		  int k = (int)(centers[i].xy.x+0.5);
+		  int j = (int)(centers[i].xy.y + 0.5);
+		  memset(rgb,0,sizeof(int)*3);
+		  memset(map,0,sizeof(float)*2);
+		  int count(0);
+		  for(int y=j-_step; y<=j+_step; y++)
+		  {
+			  if (y>=0 && y<_height)
+			  {
+				  const cv::Vec3b* ptr = srcColorImg.ptr<cv::Vec3b>(y);
+				  const float* mxPtr = srcMapXImg.ptr<float>(y);
+				  const float* myPtr = srcMapYImg.ptr<float>(y);
+		
+				  for(int x = k-_step; x<= k+_step; x++)
+				  {
+					  if (x>=0 && x<_width && labels[y*_width+x] == i)
+					  {
+						  for(int c=0; c<3; c++)
+						  {
+							  rgb[c]+=(int)ptr[x][c];
+							  
+						  }
+						  map[0] += mxPtr[x];
+						  map[1] += myPtr[x];
+						  count++;
+					  }
+				  }
+			  }
+		  }
+		  uchar* dstPtr = (uchar*)(dstColorImg.data + i*3);
+		  for(int c=0; c<3; c++)
+			  dstPtr[c] = (uchar)(rgb[c]*1.0/count);
+		  float* dstXPtr = (float*)(dstMapXImg.data+i*4);
+		  float* dstYPtr = (float*)(dstMapYImg.data+i*4);
+		  *dstXPtr = map[0]/count;
+		  *dstYPtr = map[1]/count;
+	  }
+ }
+
+ void SuperpixelComputer::GetSuperpixelUpSampleImg(const cv::Mat& src, cv::Mat& dstImg)
+ {
+	 dstImg = cv::Mat::zeros(_height,_width,src.type());
+	 for(int i=0; i< _nPixels; i++)
+	 {
+		 uchar value = src.data[i];
+		 int k = (int)(_centers[i].xy.x+0.5);
+		  int j = (int)(_centers[i].xy.y + 0.5);
+		  
+		  for(int y=j-_step; y<=j+_step; y++)
+		  {
+			  if (y>=0 && y<_height)
+			  {			  
+				  
+				  uchar* ptr = dstImg.ptr<uchar>(y);
+		
+				  for(int x = k-_step; x<= k+_step; x++)
+				  {
+					  if (x>=0 && x<_width && _labels[y*_width+x] == i)
+					  {
+						  ptr[x] = value;
+					  }
+				  }
+			  }
+		  }
+	 }
+ }

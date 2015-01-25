@@ -12,8 +12,8 @@ class SubSenseBSProcessor : public FrameProcessor
 {
 private:
 	//GpuBackgroundSubtractor _bgs;
-	//WarpBackgroundSubtractor _bgs;
-	GpuWarpBackgroundSubtractor _bgs;
+	WarpSPBackgroundSubtractor _bgs;
+	//GpuWarpBackgroundSubtractor _bgs;
 	//BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;
@@ -23,7 +23,7 @@ public:
 	SubSenseBSProcessor():_initFlag(false)
 	{
 
-		sprintf(pathName,"..\\result\\subsensex\\ptz\\input0\\warpTc\\");
+		sprintf(pathName,"..\\result\\subsensex\\moseg\\people1\\");
 		CreateDir(pathName);
 	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
@@ -38,7 +38,7 @@ public:
 		}
 		_bgs(frame,output);
 
-		sprintf(fileName,"%sbin%06d.png",pathName,962+frameNo++);
+		sprintf(fileName,"%sbin%06d.png",pathName,frameNo++);
 		imwrite(fileName,output);
 		//imshow("input",frame);
 		//output = frame;

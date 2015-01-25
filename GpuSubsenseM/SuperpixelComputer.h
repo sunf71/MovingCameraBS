@@ -34,6 +34,7 @@ public:
 	  {
 		  return _nPixels;
 	  }
+	  void ComputeSuperpixel(const cv::Mat& img);
 	  void ComputeSuperpixel(const cv::Mat& Img, int& num, int*& labels, SLICClusterCenter*& centers);
 	  void ComputeSuperpixel(uchar4* d_rgbaBuffer, int& num, int*& labels, SLICClusterCenter*& centers);
 	  void GetPreSuperpixelResult(int& num, int*& preLabels, SLICClusterCenter*& preCenters)
@@ -55,6 +56,15 @@ public:
 	  void RegionGrowing(const std::vector<int>& seedLabels, float threshold,int*& resultLabel);
 	  void RegionGrowingFast(const std::vector<int>& seedLabels, float threshold,int*& resultLabel);
 	  void GetRegionGrowingImg(cv::Mat& rstImg);
+	  //基于超像素的降采样
+	  void GetSuperpixelDownSampleImg(cv::Mat& rstImg);
+	  //基于超像素的升采样
+	  void GetSuperpixelUpSampleImg(const cv::Mat& src, cv::Mat& dstImg);
+	  //将输入图像按照超像素划分进行降采样
+	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, cv::Mat& dstColorImg);
+	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg);
+	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, const cv::Mat& srcInvMapXImg, const cv::Mat& srcInvMapYImg, 
+		  cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg, cv::Mat& dstInvMapXImg,  cv::Mat& dstInvMapYImg );
 	  ~SuperpixelComputer()
 	  {
 		  release();
