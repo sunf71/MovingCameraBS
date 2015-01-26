@@ -1613,7 +1613,7 @@ void TestSuperpixelDownSample()
 	int rows = 480;
 	int step = 5;
 	int start =1;
-	int end = 30;
+	int end = 40;
 	cv::Mat curImg,dsImg;
 	SuperpixelComputer spComputer(cols,rows,step);
 	int num(0);
@@ -1621,11 +1621,11 @@ void TestSuperpixelDownSample()
 	SLICClusterCenter* centers;
 	for(int i=start; i<=end;i++)
 	{
-		sprintf(imgFileName,"..\\moseg\\cars2\\in%06d.jpg",i);		
+		sprintf(imgFileName,"..\\moseg\\people1\\in%06d.jpg",i);		
 		curImg = cv::imread(imgFileName);
 		spComputer.ComputeSuperpixel(curImg,num,labels,centers);
 		spComputer.GetSuperpixelDownSampleImg(dsImg);
-		sprintf(resultFileName,"..\\moseg\\cars2\\downsample\\in%06d.jpg",i);
+		sprintf(resultFileName,"..\\moseg\\people1\\downsample\\in%06d.jpg",i);
 		cv::imwrite(resultFileName,dsImg);
 	}
 }

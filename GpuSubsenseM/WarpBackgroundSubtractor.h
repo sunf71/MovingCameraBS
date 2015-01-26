@@ -234,21 +234,30 @@ public:
 
 	}
 	//! default destructor
-	virtual ~WarpSPBackgroundSubtractor(){}
+	virtual ~WarpSPBackgroundSubtractor()
+	{
+		delete m_spASAP;
+	}
 	//! (re)initiaization method; needs to be called before starting background subtraction
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
 	//! gpu Background subtraction operator
 	virtual void BSOperator(cv::InputArray image, cv::OutputArray fgmask);
+	virtual void UpdateModel(const cv::Mat& curImg, const cv::Mat& curMask);
+	void WarpSPImg();
 protected:
 	int m_spWidth;
 	int m_spHeight;
 	int m_spSize;
 	int m_step;
+	cv::Size m_spImgSize;
 	cv::Mat m_spDSImg;
+	cv::Mat m_spDSGray,m_preSPDSGray;
 	cv::Mat m_spDSMapXImg;
 	cv::Mat m_spDSMapYImg;
 	cv::Mat m_spDSIMapXImg;
 	cv::Mat m_spDSIMapYImg;
+	ASAPWarping* m_spASAP;
+	cv::Mat m_wspDSImg;
 };
 class GpuWarpBackgroundSubtractor : public WarpBackgroundSubtractor
 {

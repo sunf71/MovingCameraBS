@@ -471,10 +471,32 @@ void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 		  float* dstYPtr = (float*)(dstMapYImg.data+i*4);
 		  float* dstIxPtr = (float*)(dstInvMapXImg.data+i*4);
 		  float* dstIyPtr = (float*)(dstInvMapYImg.data+i*4);
-		  *dstXPtr = map[0]/count + centers[i].xy.x;
-		  *dstYPtr = map[1]/count + centers[i].xy.y;
-		  *dstIxPtr = imap[0]/count + centers[i].xy.x;
-		  *dstIyPtr = imap[1]/count + centers[i].xy.y;
+		  int imx = (int)(map[0]/count + centers[i].xy.x+0.5);
+		  int imy = (int)(map[1]/count + centers[i].xy.y+0.5);
+		  if (imx<0 || imx > _width)
+			  *dstXPtr = -1;
+		  else if(imy<0 || imy>_height)
+			  *dstYPtr = -1;
+		  else
+		  {
+			  int label =  labels[imx + imy*_width];
+			  *dstXPtr = label%_spWidth;
+			  *dstYPtr =  label/_spWidth;
+		  }
+		  imx = (int)(imap[0]/count + centers[i].xy.x+0.5);
+		  imy = (int)(imap[1]/count + centers[i].xy.y+0.5);
+		  if (imx<0 || imx > _width)
+			  *dstIxPtr = -1;
+		  else if(imy<0 || imy>_height)
+			  *dstIyPtr = -1;
+		  else
+		  {
+			  int label =  labels[imx + imy*_width];
+			  *dstIxPtr = label%_spWidth;
+			  *dstIyPtr =  label/_spWidth;
+		  }
+		
+		 
 	  }
   }
  void SuperpixelComputer::GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg)
@@ -526,14 +548,14 @@ void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 	  }
  }
 
- void SuperpixelComputer::GetSuperpixelUpSampleImg(const cv::Mat& src, cv::Mat& dstImg)
+ void SuperpixelComputer::GetSuperpixelUpSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& src, cv::Mat& dstImg)
  {
 	 dstImg = cv::Mat::zeros(_height,_width,src.type());
 	 for(int i=0; i< _nPixels; i++)
 	 {
 		 uchar value = src.data[i];
-		 int k = (int)(_centers[i].xy.x+0.5);
-		  int j = (int)(_centers[i].xy.y + 0.5);
+		 int k = (int)(centers[i].xy.x+0.5);
+		  int j = (int)(centers[i].xy.y + 0.5);
 		  
 		  for(int y=j-_step; y<=j+_step; y++)
 		  {
@@ -544,7 +566,7 @@ void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 		
 				  for(int x = k-_step; x<= k+_step; x++)
 				  {
-					  if (x>=0 && x<_width && _labels[y*_width+x] == i)
+					  if (x>=0 && x<_width && labels[y*_width+x] == i)
 					  {
 						  ptr[x] = value;
 					  }

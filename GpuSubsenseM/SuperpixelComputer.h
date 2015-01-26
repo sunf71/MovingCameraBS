@@ -59,7 +59,7 @@ public:
 	  //基于超像素的降采样
 	  void GetSuperpixelDownSampleImg(cv::Mat& rstImg);
 	  //基于超像素的升采样
-	  void GetSuperpixelUpSampleImg(const cv::Mat& src, cv::Mat& dstImg);
+	  void GetSuperpixelUpSampleImg(const int * labels, const SLICClusterCenter* centers, const cv::Mat& src, cv::Mat& dstImg);
 	  //将输入图像按照超像素划分进行降采样
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, cv::Mat& dstColorImg);
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg);
