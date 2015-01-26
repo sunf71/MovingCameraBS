@@ -678,13 +678,13 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 				{
 
 					outMask.data[idx_uchar] = 0xff;
-					size_t anCurrIntraLBSPThresholds[3]; 
+					/*size_t anCurrIntraLBSPThresholds[3]; 
 					for(size_t c=0; c<3; ++c) {
 						const uchar nCurrBGInitColor = img.data[idx_uchar_rgb+c];
 						m_oLastColorFrame.data[idx_uchar_rgb+c] = nCurrBGInitColor;
 						anCurrIntraLBSPThresholds[c] = m_anLBSPThreshold_8bitLUT[nCurrBGInitColor];
 						LBSP::computeSingleRGBDescriptor(img,nCurrBGInitColor,x,y,c,m_anLBSPThreshold_8bitLUT[nCurrBGInitColor],((ushort*)(w_oLastDescFrame.data+idx_ushrt_rgb))[c]);
-					}
+					}*/
 				}
 			}
 
@@ -961,8 +961,8 @@ failedcheck3ch:
 	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
 	//m_optimizer->Optimize(m_oRawFGMask_last,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_features,m_matchedId,oCurrFGMask);
-	//m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
-	//postProcessSegments(img,oCurrFGMask);
+	m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
+	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
 #ifndef REPORT
 	timer.stop();
@@ -995,10 +995,9 @@ failedcheck3ch:
 #ifndef REPORT
 	timer.start();
 #endif
-	/*cv::Mat refeshMask;
-	cv::bitwise_not(outMask,outMask);
-	cv::bitwise_and(outMask,oCurrFGMask,refeshMask);
-	UpdateModel(img,refeshMask);*/
+	cv::Mat refeshMask;	
+	cv::bitwise_or(outMask,oCurrFGMask,refeshMask);
+	UpdateModel(img,refeshMask);
 #ifndef REPORT
 	timer.stop();
 	std::cout<<"update model "<<timer.seconds()*1000<<" ms\n";
@@ -1162,13 +1161,13 @@ void WarpBackgroundSubtractor::UpdateModel(const cv::Mat& curImg, const cv::Mat&
 		if (curMask.data[idx_uchar] == 0xff)
 		{
 			//update foreground
-			/*if((rand()%(size_t)FEEDBACK_T_LOWER)==0) {
+			if((rand()%(size_t)FEEDBACK_T_LOWER)==0) {
 			const size_t s_rand = rand()%m_nBGSamples;
 			for(size_t c=0; c<3; ++c) {
 			*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
 			*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
 			}
-			}*/
+			}
 		}
 		else
 		{
@@ -1897,8 +1896,9 @@ void WarpSPBackgroundSubtractor::UpdateModel(const cv::Mat& curImg, const cv::Ma
 void WarpSPBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
 	std::cout<<m_nFrameIndex<<std::endl;
-	cv::Mat outMask(m_spImgSize,CV_8U);
-	outMask = cv::Scalar(0);
+	cv::Mat spOutMask(m_spImgSize,CV_8U);
+	spOutMask = cv::Scalar(0);
+	
 	/*w_oLastColorFrame = cv::Scalar(0);
 	char filename[30];
 	sprintf(filename,"lastColor%d.jpg",m_nFrameIndex);
@@ -1958,14 +1958,14 @@ void WarpSPBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArr
 			float invMapY = *(invMapYPtr + idx_uchar);
 			float fx = invMapX;
 			float fy = invMapY;
-			int wx = (int)(spMapX+0.5);
-			int wy = (int)(spMapY+0.5);
+			int wx = (int)(mapX+0.5);
+			int wy = (int)(mapY+0.5);
 
 
 			if (wx<0 || wx>= m_oImgSize.width-2 || wy<2 || wy>=m_oImgSize.height-2)
 			{					
 				//m_features.data[oidx_uchar] = 0xff;
-				outMask.data[idx_uchar] = 0xff;
+				spOutMask.data[idx_uchar] = 0xff;
 
 				continue;
 			}
@@ -1975,7 +1975,7 @@ void WarpSPBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArr
 				if (fx<2 || fx>= m_oImgSize.width-2 || fy<2 || fy>=m_oImgSize.height-2)
 				{
 
-					outMask.data[idx_uchar] = 0xff;
+					spOutMask.data[idx_uchar] = 0xff;
 					size_t anCurrIntraLBSPThresholds[3]; 
 					for(size_t c=0; c<3; ++c) {
 						const uchar nCurrBGInitColor = m_spDSImg.data[idx_uchar_rgb+c];
@@ -2172,6 +2172,7 @@ failedcheck3ch:
 #endif
 
 	m_SPComputer->GetSuperpixelUpSampleImg(preLabels,preCenters,spFGmask,m_oRawFGMask_last);
+	//m_SPComputer->GetSuperpixelUpSampleImg(preLabels,preCenters,spOutMask,outMask);
 	/*cv::imshow("upsample",m_oRawFGMask_last);
 	cv::waitKey();*/
 	
@@ -2249,8 +2250,8 @@ failedcheck3ch:
 	//m_optimizer->Optimize(m_gs,img,m_oRawFGMask_last,m_flow,m_wflow,oCurrFGMask);
 	//m_optimizer->Optimize(m_oRawFGMask_last,m_features,oCurrFGMask);
 	//m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_features,m_matchedId,oCurrFGMask);
-	/*m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
-	postProcessSegments(img,oCurrFGMask);*/
+	m_optimizer->Optimize(m_SPComputer,m_oRawFGMask_last,m_matchedId,oCurrFGMask);
+	postProcessSegments(img,oCurrFGMask);
 	WarpModels();
 #ifndef REPORT
 	timer.stop();
@@ -2283,11 +2284,12 @@ failedcheck3ch:
 #ifndef REPORT
 	timer.start();
 #endif
-	cv::Mat refeshMask;	
+	cv::Mat refreshMask;	
+	m_SPComputer->GetSuperpixelDownSampleGrayImg(labels,centers,oCurrFGMask,refreshMask);
 	//cv::bitwise_or(outMask,oCurrFGMask,refeshMask);
-	cv::imshow("outMask" ,outMask);
-	cv::waitKey(0);
-	UpdateModel(m_spDSImg,oCurrFGMask);
+	/*cv::imshow("outMask" ,refreshMask);
+	cv::waitKey(0);*/
+	UpdateModel(m_spDSImg,refreshMask);
 #ifndef REPORT
 	timer.stop();
 	std::cout<<"update model "<<timer.seconds()*1000<<" ms\n";

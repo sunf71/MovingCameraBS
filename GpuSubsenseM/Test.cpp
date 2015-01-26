@@ -215,21 +215,21 @@ void TestRandom()
 	cudaFree(d_rand);
 	delete[] h_rand;
 }
-void TestGpuSubsense()
+void TestGpuSubsense(int start, int end, const char* input, const char* output)
 {
 	
 	warmUpDevice();
 	VideoProcessor processor;
 	
-	// Create feature tracker instance
-	SubSenseBSProcessor tracker;
+	// Create feature tracker instance"..\\result\\subsensex\\moseg\\people1\\"
+	SubSenseBSProcessor tracker(output,start-1);
 	std::vector<std::string> fileNames;
-	int start = 1;
-	int end = 30;
+	
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
-		sprintf(name,"..\\moseg\\people1\\in%06d.jpg",i);
+		//"..\\moseg\\people1\\in%06d.jpg"
+		sprintf(name,input,i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}

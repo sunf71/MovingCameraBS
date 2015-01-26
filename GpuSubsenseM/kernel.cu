@@ -13,7 +13,7 @@ int main (int argc, char* argv[])
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();
 	//TestRandom();
-	TestGpuSubsense();
+	TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),argv[3],argv[4]);
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();

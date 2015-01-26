@@ -375,6 +375,17 @@ void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 		 }
 	 }
  }
+ void SuperpixelComputer:: GetSuperpixelDownSampleGrayImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& src, cv::Mat &dstImg)
+ {
+	 dstImg = cv::Mat::zeros(_spHeight,_spWidth,CV_8U);
+	 for(int i=0; i<_nPixels; i++)
+	  {
+		  int k = (int)(centers[i].xy.x+0.5);
+		  int j = (int)(centers[i].xy.y + 0.5);
+		  if (src.data[k+j*_width] == 0xff)
+			  dstImg.data[i] = 0xff;		 
+	  }
+ }
  void SuperpixelComputer::GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, cv::Mat& dstColorImg)
  {
 	 dstColorImg = cv::Mat::zeros(_spHeight,_spWidth,CV_8UC3);
