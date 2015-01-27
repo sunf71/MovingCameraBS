@@ -22,7 +22,7 @@ __global__ void setup_kernel ( int size, curandState * state, unsigned long seed
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if (id<size)
 	{
-		curand_init ( seed,  id, 0,&state[id] );
+		curand_init ( seed+id,  0, 0,&state[id] );
 	}
 } 
 
@@ -492,12 +492,12 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask,float fCurrLea
 			//m_nOutPixels ++;
 			fgMask(y,x) = 0;
 			outMask[idx_uchar] = 0xff;
-			/*size_t s_rand = getRandom(randStates,idx_uchar)%50;
+			size_t s_rand = getRandom(randStates,idx_uchar)%50;
 			while(s_rand<50){
 				BGIntraDescPtr[s_rand] = CurrIntraDesc;
 				BGColorPtr[s_rand] = CurrColor;
 				s_rand++;
-			}*/
+			}
 			return;
 		}
 		else
@@ -514,14 +514,14 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask,float fCurrLea
 		/**anLastColor = *wanLastColor;
 		*anLastIntraDesc = *wanLastIntraDesc;*/
 		
-		const float fRollAvgFactor_LT = 1.0f/min(frameIndex,25*4);
+		const float fRollAvgFactor_LT = 1.0f/min(frameIndex,100);
 		const float fRollAvgFactor_ST = 1.0f/min(frameIndex,25);
 		
 		
 		size_t nMinTotDescDist=48;
 		size_t nMinTotSumDist=765;
-		const size_t s_nColorMaxDataRange_3ch = 255*3;
-		const size_t s_nDescMaxDataRange_3ch = 16*3;
+		const size_t s_nColorMaxDataRange_3ch = 765;
+		const size_t s_nDescMaxDataRange_3ch = 48;
 		
 		const size_t nCurrColorDistThreshold = (size_t)(((*pfCurrDistThresholdFactor)*30)-((!pbUnstableRegionMask)*6));
 		size_t m_nDescDistThreshold = 3;
@@ -639,10 +639,10 @@ failedcheck3ch:
 		/*if(popcount_ushort_8bitsLUT(anCurrIntraDesc)>=4)
 		++nNonZeroDescCount;*/
 		
-		*anLastColor = tex1Dfetch(ImageTexture,idx_uchar);
-		size_t thresholds[3] = {LBSPThres[anLastColor->x],LBSPThres[anLastColor->y],LBSPThres[anLastColor->z]};
-		LBSP(*anLastColor,x,y,width,thresholds,CurrIntraDesc);
-		*anLastIntraDesc = CurrIntraDesc;
+		*wanLastColor = tex1Dfetch(ImageTexture,idx_uchar);
+		size_t thresholds[3] = {LBSPThres[wanLastColor->x],LBSPThres[anLastColor->y],LBSPThres[anLastColor->z]};
+		LBSP(*wanLastColor,x,y,width,thresholds,CurrIntraDesc);
+		*wanLastIntraDesc = CurrIntraDesc;
 		*wpfCurrDistThresholdFactor =  *pfCurrDistThresholdFactor;
 		*wpfCurrVariationFactor = *pfCurrVariationFactor;
 		*wpfCurrLearningRate = *pfCurrLearningRate;
@@ -1634,9 +1634,12 @@ __global__ void CudaUpdateModelKernel(curandState* devStates,const PtrStepSz<uch
 				
 				uchar4* ptr = colorModel.data + offset;
 				ushort4* descPtr = descModel.data + offset;
-				uchar4 value = ptr[idx];
-				ushort4 svalue = descPtr[idx];
-							
+				/*uchar4 value = ptr[idx];
+				ushort4 svalue = descPtr[idx];*/
+				uchar4 value = tex1Dfetch(ImageTexture,idx);
+				const size_t Thresholds[3] = {LBSPThres[value.x],LBSPThres[value.y],LBSPThres[value.z]};
+				ushort4 svalue;
+				LBSP(value,x,y,width,Thresholds,svalue);			
 				SetValueToBigMatrix(colorModel,width,height,s_rand,x,y,value);
 				SetValueToBigMatrix(descModel,width,height,s_rand,x,y,svalue);
 			}
@@ -1655,8 +1658,12 @@ __global__ void CudaUpdateModelKernel(curandState* devStates,const PtrStepSz<uch
 				int sidx =  y_sample*width+ x_sample;
 				uchar4* ptr = colorModel.data + offset;
 				ushort4* descPtr = descModel.data + offset;
-				uchar4 value = ptr[sidx];
-				ushort4 svalue = descPtr[sidx];
+				/*uchar4 value = ptr[sidx];
+				ushort4 svalue = descPtr[sidx];*/
+				uchar4 value = tex1Dfetch(ImageTexture,sidx);
+				const size_t Thresholds[3] = {LBSPThres[value.x],LBSPThres[value.y],LBSPThres[value.z]};
+				ushort4 svalue;
+				LBSP(value,x_sample,y_sample,width,Thresholds,svalue);		
 			
 				int pos = s%BMSIZE;
 				
@@ -1713,7 +1720,7 @@ float fCurrLearningRateLowerCap,float fCurrLearningRateUpperCap)
 	cudaBindTexture(NULL,WarpedImageTexture,
 		warpedImg.ptr<uchar4>(),img.cols*img.rows*sizeof(uchar4));
 	cudaBindTexture(NULL,FGMaskLastTexture,
-		warpedImg.ptr<uchar>(),img.cols*img.rows);
+		lastFgMask.data,img.cols*img.rows);
 	
 
 	WarpCudaBSOperatorKernel<<<grid,block>>>(img,warpedImg,randStates,map,invMap,frameIdx,colorModel,

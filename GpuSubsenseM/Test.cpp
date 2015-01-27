@@ -215,14 +215,21 @@ void TestRandom()
 	cudaFree(d_rand);
 	delete[] h_rand;
 }
-void TestGpuSubsense(int start, int end, const char* input, const char* output)
+void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output)
 {
 	
 	warmUpDevice();
-	VideoProcessor processor;
-	
+	VideoProcessor processor;	
+	FrameProcessor* tracker;
 	// Create feature tracker instance"..\\result\\subsensex\\moseg\\people1\\"
-	SubSenseBSProcessor tracker(output,start-1);
+	if (procId >=0)
+	{
+		tracker = new WarpBSProcessor(procId,output,start-1);
+	}
+	else
+	{
+		tracker = new BSProcesor(output,start-1);
+	}
 	std::vector<std::string> fileNames;
 	
 	for(int i=start; i<=end;i++)
@@ -237,7 +244,7 @@ void TestGpuSubsense(int start, int end, const char* input, const char* output)
 	processor.setInput(fileNames);
 	//processor.setInput("..\\ptz\\woman.avi");
 	// set frame processor
-	processor.setFrameProcessor(&tracker);
+	processor.setFrameProcessor(tracker);
 
 	processor.dontDisplay();
 	// Declare a window to display the video
@@ -258,7 +265,7 @@ void TestGpuSubsense(int start, int end, const char* input, const char* output)
 
 	cv::waitKey();
 
-
+	safe_delete(tracker);
 	
 
 }

@@ -21,7 +21,7 @@ void TestSuperpixel();
 void MRFOptimization();
 void TCMRFOptimization();
 void TestRandom();
-void TestGpuSubsense(int start, int end, const char* input, const char* output);
+void TestGpuSubsense(int procId,int start, int end, const char* input, const char* output);
 void TestMotionEstimate();
 void TestRegionGrowing();
 

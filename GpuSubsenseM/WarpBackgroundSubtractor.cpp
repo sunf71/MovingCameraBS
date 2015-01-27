@@ -597,10 +597,10 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	}
 	int * rgResult(NULL);
 	m_SPComputer->RegionGrowingFast(resLabels,2.0*avgE,rgResult);
-	/*m_SPComputer->GetRegionGrowingImg(m_features);	
+	m_SPComputer->GetRegionGrowingImg(m_features);	
 	char filename[200];	
-	sprintf(filename,".\\features\\input3\\features%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_features);*/
+	sprintf(filename,".\\features%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"	superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
@@ -1360,7 +1360,7 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	if (m_oImgSize.area() <= 320*240)
 		m_rgThreshold = 0.1;
 	else
-		m_rgThreshold = 0.8;
+		m_rgThreshold = 0.6;
 
 }
 
@@ -1412,7 +1412,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 
 	d_FGMask.download(oCurrFGMask);
 	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
-	oCurrFGMask.copyTo(m_oRawFGMask_last);
+	//oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cudaMemcpy(m_outMask.data,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
 
@@ -1447,6 +1447,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	
 #endif
 	d_FGMask_last = d_FGMask.clone();
+	d_FGMask.upload(refeshMask);
 	CudaUpdateModel(d_randStates,d_CurrentColorFrame,m_oImgSize.width,m_oImgSize.height,d_FGMask,d_voBGColorSamples,d_voBGDescSamples);
 #ifndef REPORT
 	gtimer.Stop();
