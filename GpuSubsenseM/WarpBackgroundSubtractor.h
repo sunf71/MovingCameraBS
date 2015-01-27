@@ -210,6 +210,8 @@ protected:
 	//超像素匹配结果
 	std::vector<int> m_matchedId;
 	cv::Mat m_img,m_preImg;
+	//region growing 的 门限
+	float m_rgThreshold;
 	//! the input color frame
 	cv::gpu::GpuMat d_CurrentColorFrame;
 	cv::gpu::PyrLKOpticalFlow  d_pyrLk;

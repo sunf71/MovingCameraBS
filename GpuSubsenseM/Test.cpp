@@ -229,7 +229,7 @@ void TestGpuSubsense(int start, int end, const char* input, const char* output)
 	{
 		char name[50];
 		//"..\\moseg\\people1\\in%06d.jpg"
-		sprintf(name,input,i);
+		sprintf(name,"%s\\in%06d.jpg",input,i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
 	}

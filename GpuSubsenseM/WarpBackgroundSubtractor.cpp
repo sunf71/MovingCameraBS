@@ -337,6 +337,11 @@ void WarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::ve
 
 	//gpu
 	d_CurrentColorFrame = gpu::createContinuous(oInitImg.size(),CV_8UC4);
+
+	if (m_oImgSize.area() <= 320*240)
+		m_rgThreshold = 0.40;
+	else
+		m_rgThreshold = 0.8;
 }
 
 void WarpBackgroundSubtractor::WarpModels()
@@ -500,7 +505,7 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	upload(m_points[0],d_currPts);
 #ifndef REPORT
 	cpuTimer.stop();
-	std::cout<<"goodFeaturesToTrack  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+	std::cout<<"	goodFeaturesToTrack  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
 #endif
 #ifndef REPORT
 	cpuTimer.start();
@@ -514,7 +519,7 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	download(d_prevPts,m_points[1]);
 #ifndef REPORT
 	cpuTimer.stop();
-	std::cout<<"calcOpticalFlowPyrLK  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+	std::cout<<"	calcOpticalFlowPyrLK  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
 #endif
 
 #ifndef REPORT
@@ -525,7 +530,7 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 
 #ifndef REPORT
 	cpuTimer.stop();
-	std::cout<<"Superpixel Flow "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+	std::cout<<"	Superpixel Flow "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
 #endif	
 
 #ifndef REPORT
@@ -540,7 +545,7 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	//FeaturePointsRefineHistogram(nf,m_oImgSize.width,m_oImgSize.height,m_points[0],m_points[1]);
 #ifndef REPORT
 	cpuTimer.stop();
-	std::cout<<"FeaturePointsRefineRANSAC "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+	std::cout<<"	FeaturePointsRefineRANSAC "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
 
 #endif	
 
@@ -555,11 +560,14 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	m_ASAP->getFlow(m_wflow);
 #ifndef REPORT
 	cpuTimer.stop();
-	std::cout<<"ASAP Warping "<<cpuTimer.seconds()*1000<<std::endl;
+	std::cout<<"	ASAP Warping "<<cpuTimer.seconds()*1000<<std::endl;
 #endif
 
 
+#ifndef REPORT
+	cpuTimer.start();
 
+#endif	
 	m_SPComputer->GetPreSuperpixelResult(num,preLabels,preCenters);
 	int rows = m_oImgSize.height;
 	int cols = m_oImgSize.width;
@@ -567,7 +575,7 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 
 #ifndef REPORT
 	cpuTimer.stop();
-	std::cout<<"superpixel matching "<<cpuTimer.seconds()*1000<<std::endl;
+	std::cout<<"	superpixel matching "<<cpuTimer.seconds()*1000<<std::endl;
 #endif
 
 #ifndef REPORT
@@ -575,7 +583,6 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 #endif
 	avgE = m_SPComputer->ComputAvgColorDistance();
 	std::vector<int> resLabels;
-	float threshold = 0.8;
 	for(int i=nf,j=0; i<m_points[0].size(); i++,j++)
 	{
 
@@ -584,20 +591,19 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 		int idx = (int)pt.x+(int)(pt.y)*m_oImgSize.width;
 		float2* flow = (float2*)(spFlow.data+labels[idx]*8);
 		float2* wflow = (float2*)(m_wflow.data+idx*8);
-		if (abs(flow->x-wflow->x) + abs(flow->y-wflow->y) < threshold)
+		if (abs(flow->x-wflow->x) + abs(flow->y-wflow->y) < m_rgThreshold)
 			resLabels.push_back(labels[idx]);
 
 	}
 	int * rgResult(NULL);
 	m_SPComputer->RegionGrowingFast(resLabels,2.0*avgE,rgResult);
-	m_SPComputer->GetRegionGrowingImg(m_features);
-	//SuperPixelRegionGrowing(m_oImgSize.width,m_oImgSize.height,5,resLabels,labels,centers,m_features,2.0*avgE);
+	/*m_SPComputer->GetRegionGrowingImg(m_features);	
 	char filename[200];	
-	sprintf(filename,".\\features\\people1\\features%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_features);
+	sprintf(filename,".\\features\\input3\\features%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);*/
 #ifndef REPORT
 	cpuTimer.stop();
-	std::cout<<"superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
+	std::cout<<"	superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
 #endif
 
 
@@ -857,6 +863,9 @@ failedcheck3ch:
 	timer.stop();
 	std::cout<<"bs operator "<<timer.seconds()*1000<<std::endl;
 #endif
+	/*char filename[50];
+	sprintf(filename,"bin%06d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,oCurrFGMask);*/
 	/*cv::imshow("mask",oCurrFGMask);
 	cv::waitKey();*/
 	/*cv::remap(m_oRawFGMask_last,m_oRawFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
@@ -872,7 +881,7 @@ failedcheck3ch:
 #ifndef REPORT
 	timer.start();
 #endif
-	oCurrFGMask.copyTo(m_oRawFGMask_last);
+	
 	/*cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
 	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
@@ -889,9 +898,9 @@ failedcheck3ch:
 	//warp mask to curr Frame
 	//cv::warpPerspective(m_oFGMask_last,m_oFGMask_last,m_invHomography,m_oImgSize);
 	//cv::warpPerspective(m_oRawFGMask_last,m_oRawFGMask_last,m_invHomography,m_oImgSize);
-	cv::remap(m_oFGMask_last,m_oFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	//cv::remap(m_oFGMask_last,m_oFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
-
+	oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//MaskHomographyTest(oCurrFGMask,m_preGray,m_gray,m_homography);
 	/*cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oFGMask_last,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);*/
@@ -1239,71 +1248,17 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	m_FGMask.create(m_oImgSize,CV_8U);
 	m_outMask.create(m_oImgSize,CV_8U);
 	//std::cout << m_oImgSize << " => m_nMedianBlurKernelSize=" << m_nMedianBlurKernelSize << ", with 3x3Spread=" << m_bUse3x3Spread << ", with Tscaling=" << m_bLearningRateScalingEnabled << std::endl;
-	m_oUpdateRateFrame.create(m_oImgSize,CV_32FC1);
-	m_oUpdateRateFrame = cv::Scalar(m_fCurrLearningRateLowerCap);
-	m_oDistThresholdFrame.create(m_oImgSize,CV_32FC1);
-	m_oDistThresholdFrame = cv::Scalar(1.0f);
-	m_oVariationModulatorFrame.create(m_oImgSize,CV_32FC1);
-	m_oVariationModulatorFrame = cv::Scalar(10.0f); // should always be >= FEEDBACK_V_DECR
-	m_oMeanLastDistFrame.create(m_oImgSize,CV_32FC1);
-	m_oMeanLastDistFrame = cv::Scalar(0.0f);
-	m_oMeanMinDistFrame_LT.create(m_oImgSize,CV_32FC1);
-	m_oMeanMinDistFrame_LT = cv::Scalar(0.0f);
-	m_oMeanMinDistFrame_ST.create(m_oImgSize,CV_32FC1);
-	m_oMeanMinDistFrame_ST = cv::Scalar(0.0f);
-	m_oDownSampledFrameSize = cv::Size(m_oImgSize.width/FRAMELEVEL_ANALYSIS_DOWNSAMPLE_RATIO,m_oImgSize.height/FRAMELEVEL_ANALYSIS_DOWNSAMPLE_RATIO);
-	m_oMeanDownSampledLastDistFrame_LT.create(m_oDownSampledFrameSize,CV_32FC((int)m_nImgChannels));
-	m_oMeanDownSampledLastDistFrame_LT = cv::Scalar(0.0f);
-	m_oMeanDownSampledLastDistFrame_ST.create(m_oDownSampledFrameSize,CV_32FC((int)m_nImgChannels));
-	m_oMeanDownSampledLastDistFrame_ST = cv::Scalar(0.0f);
-	m_oMeanRawSegmResFrame_LT.create(m_oImgSize,CV_32FC1);
-	m_oMeanRawSegmResFrame_LT = cv::Scalar(0.0f);
-	m_oMeanRawSegmResFrame_ST.create(m_oImgSize,CV_32FC1);
-	m_oMeanRawSegmResFrame_ST = cv::Scalar(0.0f);
-	m_oMeanFinalSegmResFrame_LT.create(m_oImgSize,CV_32FC1);
-	m_oMeanFinalSegmResFrame_LT = cv::Scalar(0.0f);
-	m_oMeanFinalSegmResFrame_ST.create(m_oImgSize,CV_32FC1);
-	m_oMeanFinalSegmResFrame_ST = cv::Scalar(0.0f);
-	m_oUnstableRegionMask.create(m_oImgSize,CV_8UC1);
-	m_oUnstableRegionMask = cv::Scalar_<uchar>(0);
-	m_oBlinksFrame.create(m_oImgSize,CV_8UC1);
-	m_oBlinksFrame = cv::Scalar_<uchar>(0);
-	m_oDownSampledColorFrame.create(m_oDownSampledFrameSize,CV_8UC((int)m_nImgChannels));
-	m_oDownSampledColorFrame = cv::Scalar_<uchar>::all(0);
+
 	m_oLastColorFrame.create(m_oImgSize,CV_8UC(4));
 	m_oLastColorFrame = cv::Scalar_<uchar>::all(0);
 	m_oLastDescFrame.create(m_oImgSize,CV_16UC(4));
 	m_oLastDescFrame = cv::Scalar_<ushort>::all(0);
-	m_oRawFGMask_last.create(m_oImgSize,CV_8UC1);
-	m_oRawFGMask_last = cv::Scalar_<uchar>(0);
+	
 	m_oFGMask_last.create(m_oImgSize,CV_8UC1);
 	m_oFGMask_last = cv::Scalar_<uchar>(0);
-	m_oFGMask_last_dilated.create(m_oImgSize,CV_8UC1);
-	m_oFGMask_last_dilated = cv::Scalar_<uchar>(0);
-	m_oFGMask_last_dilated_inverted.create(m_oImgSize,CV_8UC1);
-	m_oFGMask_last_dilated_inverted = cv::Scalar_<uchar>(0);
-	m_oFGMask_FloodedHoles.create(m_oImgSize,CV_8UC1);
-	m_oFGMask_FloodedHoles = cv::Scalar_<uchar>(0);
-	m_oFGMask_PreFlood.create(m_oImgSize,CV_8UC1);
-	m_oFGMask_PreFlood = cv::Scalar_<uchar>(0);
-	m_oRawFGBlinkMask_curr.create(m_oImgSize,CV_8UC1);
-	m_oRawFGBlinkMask_curr = cv::Scalar_<uchar>(0);
-	m_oRawFGBlinkMask_last.create(m_oImgSize,CV_8UC1);
-	m_oRawFGBlinkMask_last = cv::Scalar_<uchar>(0);
-	m_voBGColorSamples.resize(m_nBGSamples);
-	w_voBGColorSamples.resize(m_nBGSamples);
-	m_voBGDescSamples.resize(m_nBGSamples);
-	w_voBGDescSamples.resize(m_nBGSamples);
-
-	for(size_t s=0; s<m_nBGSamples; ++s) {
-		m_voBGColorSamples[s].create(m_oImgSize,CV_8UC4);
-		m_voBGColorSamples[s] = cv::Scalar_<uchar>::all(0);
-
-		m_voBGDescSamples[s].create(m_oImgSize,CV_16UC4);
-		m_voBGDescSamples[s] = cv::Scalar_<ushort>::all(0);
 
 
-	}
+
 	if(m_nImgChannels==1) {
 		for(size_t t=0; t<=UCHAR_MAX; ++t)
 			m_anLBSPThreshold_8bitLUT[t] = cv::saturate_cast<uchar>((m_nLBSPThresholdOffset+t*m_fRelLBSPThreshold)/3);
@@ -1353,7 +1308,8 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	d_CurrWarpedColorFrame = gpu::createContinuous(oInitImg.size(),CV_8UC4);
 	//d_CurrentColorFrame.create(oInitImg.size(),CV_8U);
 	d_FGMask.create(oInitImg.size(),CV_8U);
-	d_FGMask_last.create(oInitImg.size(),CV_8U);
+	d_FGMask_last = cv::gpu::GpuMat(oInitImg.size(),CV_8U,cv::Scalar(0));
+	
 	d_outMask.create(oInitImg.size(),CV_8U);
 	d_Map.create(oInitImg.size(),CV_32FC2);
 	d_invMap.create(oInitImg.size(),CV_32FC2);
@@ -1365,9 +1321,9 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 
 	dataPtr = d_voBGDescSamples.data + (m_nPixels*8*m_nBGSamples);
 	cudaMemcpy(dataPtr,m_oLastDescFrame.data,m_nPixels*8,cudaMemcpyHostToDevice);
-	cv::Mat tmp;
+	/*cv::Mat tmp;
 	cv::cvtColor(m_oLastDescFrame,tmp,CV_BGRA2BGR);
-	cv::imwrite("mLastDesc.png",tmp);
+	cv::imwrite("mLastDesc.png",tmp);*/
 
 	cudaMalloc ( &d_randStates, m_oImgSize.width*m_oImgSize.height*sizeof( curandState ) );   
 	InitRandState(m_oImgSize.width,m_oImgSize.height,d_randStates);
@@ -1375,7 +1331,7 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 
 
 	m_bInitializedInternalStructs = true;
-	refreshModel(1.0f);
+	
 
 	cv::Mat rfmask = cv::Mat::zeros(m_oImgSize,CV_8U);
 	cv::gpu::GpuMat drfmask(rfmask);
@@ -1401,14 +1357,19 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 
 	cudaMalloc(&d_outMaskPtr,m_nPixels);
 
-
+	if (m_oImgSize.area() <= 320*240)
+		m_rgThreshold = 0.1;
+	else
+		m_rgThreshold = 0.8;
 
 }
 
 
 void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
-	//std::cout<<m_nFrameIndex<<std::endl;
+#ifndef REPORT
+	std::cout<<m_nFrameIndex<<"---\n";
+#endif
 	cv::Mat oInputImg;
 	cv::Mat img = _image.getMat();	
 #ifndef REPORT
@@ -1445,12 +1406,13 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
 	memset(oCurrFGMask.data,0,oCurrFGMask.cols*oCurrFGMask.rows);
-
+	
 	WarpCudaBSOperator(d_CurrentColorFrame,d_CurrWarpedColorFrame, d_randStates,d_Map,d_invMap,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 
 	d_FGMask.download(oCurrFGMask);
 	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cudaMemcpy(m_outMask.data,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
 
@@ -1458,10 +1420,12 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	gtimer.Stop();
 	std::cout<<"gpu bs operator "<<gtimer.Elapsed()<<std::endl;
 #endif
-
-	//cv::imshow("mask",m_oRawFGMask_last);
-	//cv::imshow("out mask",m_outMask);
-	//cv::waitKey();
+	/*char filename[50];
+	sprintf(filename,"bin%06d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,oCurrFGMask);*/
+	/*cv::imshow("mask",oCurrFGMask);
+	cv::imshow("out mask",m_outMask);
+	cv::waitKey();*/
 #ifndef REPORT
 	cpuTimer.start();
 #endif
@@ -1480,8 +1444,9 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	std::cout<<" optimize "<<cpuTimer.seconds()*1000<<"ms\n";
 
 	gtimer.Start();
+	
 #endif
-	d_FGMask.upload(refeshMask);
+	d_FGMask_last = d_FGMask.clone();
 	CudaUpdateModel(d_randStates,d_CurrentColorFrame,m_oImgSize.width,m_oImgSize.height,d_FGMask,d_voBGColorSamples,d_voBGDescSamples);
 #ifndef REPORT
 	gtimer.Stop();

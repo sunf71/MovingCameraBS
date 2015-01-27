@@ -12,8 +12,8 @@ class SubSenseBSProcessor : public FrameProcessor
 {
 private:
 	//GpuBackgroundSubtractor _bgs;
-	WarpBackgroundSubtractor _bgs;
-	//GpuWarpBackgroundSubtractor _bgs;
+	//WarpBackgroundSubtractor _bgs;
+	GpuWarpBackgroundSubtractor _bgs;
 	//BGSSubsenseM _bgs;
 	std::vector<cv::KeyPoint> _voKeyPoints;
 	bool _initFlag;

@@ -511,7 +511,7 @@ void ProbImage(SuperPixel* sp, int * labels,int nPixel, int width, int height)
 //用MRF对前景结果进行优化
 void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName)
 {
-#ifdef REPORT
+#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -530,14 +530,14 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	cv::cvtColor(maskImg,maskImg,CV_BGR2GRAY);
 	maskImg.convertTo(maskImg,CV_8U);
 	const unsigned char* maskImgData = maskImg.data;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	int numlabels(0);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
@@ -560,7 +560,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	//cv::imwrite("label.jpg",labelImg);
 	//ComSuperpixel cs;
 	//cs.Superpixel(m_idata,m_width,m_height,5,0.9,numlabels,m_labels);
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
@@ -581,19 +581,19 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	//return;
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	nih::Timer timer;
 	//	timer.start();
 	//#endif
 	//	//SLIC slic;
 	//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
 	//#endif
 	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.start();
 	//#endif
 
@@ -611,12 +611,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	}	
 	cv::imwrite("sp.jpg",sp);*/
 
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"GetSegment2DArray  "<<timer.seconds()*1000<<"ms"<<std::endl;
 	//#endif
 	//
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -635,11 +635,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	//}
 	//outFile.close();
 	//NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = 0;
@@ -668,12 +668,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	avgE /= count;
 	avgE = 1/(2*avgE);
 	//std::cout<<"avg e "<<avgE<<std::endl;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -681,12 +681,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 	cv::Mat rimg(m_height,m_width,CV_8U);
@@ -720,20 +720,20 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 		}	
 	}
 	cv::imwrite(resultImgName,rimg);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	delete[] m_spPtr;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
 }
 void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg, cv::Mat& featureMaskImg, cv::Mat& resultImg)
 {
-#ifdef REPORT
+#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -748,14 +748,14 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 
 	const unsigned char* maskImgData = maskImg.data;
 	const unsigned char* featureMaskData = featureMaskImg.data;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	int numlabels(0);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
@@ -778,7 +778,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	//cv::imwrite("label.jpg",labelImg);
 	//ComSuperpixel cs;
 	//cs.Superpixel(m_idata,m_width,m_height,5,0.9,numlabels,m_labels);
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
@@ -799,19 +799,19 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	//return;
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	nih::Timer timer;
 	//	timer.start();
 	//#endif
 	//	//SLIC slic;
 	//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
 	//#endif
 	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.start();
 	//#endif
 
@@ -829,12 +829,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	}	
 	cv::imwrite("sp.jpg",sp);*/
 
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"GetSegment2DArray  "<<timer.seconds()*1000<<"ms"<<std::endl;
 	//#endif
 	//
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -853,11 +853,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	//}
 	//outFile.close();
 	//NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = 0;
@@ -886,24 +886,24 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 	avgE /= count;
 	avgE = 1/(2*avgE);
 	//std::cout<<"avg e "<<avgE<<std::endl;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 
@@ -937,13 +937,13 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 		}	
 	}
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
@@ -951,7 +951,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, cv::Mat& origImg, cv::Mat& maskImg
 }
 void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, cv::Mat& featureMaskImg, cv::Mat& resultImg)
 {
-#ifdef REPORT
+#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -962,14 +962,14 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 
 	const unsigned char* maskImgData = maskImg.data;
 	const unsigned char* featureMaskData = featureMaskImg.data;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	int numlabels(0);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
@@ -992,7 +992,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	//cv::imwrite("label.jpg",labelImg);
 	//ComSuperpixel cs;
 	//cs.Superpixel(m_idata,m_width,m_height,5,0.9,numlabels,m_labels);
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
@@ -1014,19 +1014,19 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	//return;
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	nih::Timer timer;
 	//	timer.start();
 	//#endif
 	//	//SLIC slic;
 	//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
 	//#endif
 	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.start();
 	//#endif
 
@@ -1044,12 +1044,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	}	
 	cv::imwrite("sp.jpg",sp);*/
 
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"GetSegment2DArray  "<<timer.seconds()*1000<<"ms"<<std::endl;
 	//#endif
 	//
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -1068,11 +1068,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	//}
 	//outFile.close();
 	//NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = 0;
@@ -1101,24 +1101,24 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	avgE /= count;
 	avgE = 1/(2*avgE);
 	//std::cout<<"avg e "<<avgE<<std::endl;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 
@@ -1152,13 +1152,13 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 		}	
 	}
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	//delete[] m_spPtr;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
@@ -1220,7 +1220,7 @@ void MRFOptimize::ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba)
 }
 void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv::Mat& resultImg)
 {
-#ifdef REPORT
+#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -1231,36 +1231,36 @@ void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv
 
 	const unsigned char* maskImgData = maskImg.data;
 	const unsigned char* featureMaskData = featureImg.data;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	int numlabels(0);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif	
 
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//ComputeAvgColor(m_spPtr,spSize,m_width,m_height,m_idata,maskImgData);
 	GetSuperpixels(maskImgData,featureMaskData);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = 0;
@@ -1279,24 +1279,24 @@ void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv
 	avgE /= count;
 	avgE = 1/(2*avgE);
 	//std::cout<<"avg e "<<avgE<<std::endl;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 
@@ -1330,13 +1330,13 @@ void MRFOptimize::Optimize(const cv::Mat& maskImg, const cv::Mat& featureImg, cv
 		}	
 	}
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	//delete[] m_spPtr;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
@@ -1795,26 +1795,15 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 
 
 	//std::cout<<"avg e "<<avgE<<std::endl;
-#ifdef REPORT
-	timer.stop();
-	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
-#endif
 
-#ifdef REPORT
 
-	timer.start();
-#endif
+
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
-	timer.stop();
-	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
-#endif
 
-#ifdef REPORT	
-	timer.start();
-#endif
+
+
 	resultImg = cv::Mat(m_height,m_width,CV_8U);
 	resultImg = cv::Scalar(0);
 	unsigned char* imgPtr = resultImg.data;
@@ -1848,7 +1837,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::
 }
 void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, cv::Mat& featureMaskImg, float* distance,cv::Mat& resultImg)
 {
-#ifdef REPORT
+#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -1860,14 +1849,14 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	const unsigned char* maskImgData = maskImg.data;
 	const unsigned char* featureMaskData = featureMaskImg.data;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	int numlabels(0);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
@@ -1890,7 +1879,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	//cv::imwrite("label.jpg",labelImg);
 	//ComSuperpixel cs;
 	//cs.Superpixel(m_idata,m_width,m_height,5,0.9,numlabels,m_labels);
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
@@ -1912,19 +1901,19 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	//return;
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	nih::Timer timer;
 	//	timer.start();
 	//#endif
 	//	//SLIC slic;
 	//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
 	//#endif
 	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.start();
 	//#endif
 
@@ -1942,12 +1931,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	}	
 	cv::imwrite("sp.jpg",sp);*/
 
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"GetSegment2DArray  "<<timer.seconds()*1000<<"ms"<<std::endl;
 	//#endif
 	//
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -1966,11 +1955,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	//}
 	//outFile.close();
 	//NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = 0;
@@ -1999,24 +1988,24 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 	avgE /= count;
 	avgE = 1/(2*avgE);
 	//std::cout<<"avg e "<<avgE<<std::endl;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 
@@ -2050,13 +2039,13 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 		}	
 	}
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	//delete[] m_spPtr;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
@@ -2064,7 +2053,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS,uchar4 * d_rgba,cv::Mat& maskImg, c
 }
 void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName,  const string& featuremaskImgName,const string& resultImgName)
 {
-#ifdef REPORT
+#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -2089,14 +2078,14 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 
 	const unsigned char* maskImgData = maskImg.data;
 	const unsigned char* featureMaskData = featureMaskImg.data;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	int numlabels(0);
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
@@ -2119,7 +2108,7 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	//cv::imwrite("label.jpg",labelImg);
 	//ComSuperpixel cs;
 	//cs.Superpixel(m_idata,m_width,m_height,5,0.9,numlabels,m_labels);
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
@@ -2140,19 +2129,19 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	handler.SavePicture(m_idata,m_width,m_height,std::string("mysuper.jpg"),std::string(".\\"));*/
 	//delete[] labels;
 	//return;
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	nih::Timer timer;
 	//	timer.start();
 	//#endif
 	//	//SLIC slic;
 	//	//slic.PerformSLICO_ForGivenK(idata, width, height, labels, numlabels, 2000, 20);//for a given number K of superpixels
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
 	//#endif
 	//slic.DrawContoursAroundSegmentsTwoColors(idata, labels, width, height);//for black-and-white contours around superpixels
 	//slic.SaveSuperpixelLabels(labels,width,height,savename+".dat",saveLocation);	
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.start();
 	//#endif
 
@@ -2170,12 +2159,12 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	}	
 	cv::imwrite("sp.jpg",sp);*/
 
-	//#ifdef REPORT
+	//#ifdef REPORTMRF
 	//	timer.stop();
 	//	std::cout<<"GetSegment2DArray  "<<timer.seconds()*1000<<"ms"<<std::endl;
 	//#endif
 	//
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -2194,11 +2183,11 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	//}
 	//outFile.close();
 	//NeighborsImage(m_spPtr,m_labels,m_nPixel,m_width,m_height);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = 0;
@@ -2227,24 +2216,24 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 	avgE /= count;
 	avgE = 1/(2*avgE);
 	//std::cout<<"avg e "<<avgE<<std::endl;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	MaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 	cv::Mat rimg(m_height,m_width,CV_8U);
@@ -2278,13 +2267,13 @@ void MRFOptimize::Optimize(GpuSuperpixel* GS, const string& originalImgName, con
 		}	
 	}
 	cv::imwrite(resultImgName,rimg);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	//delete[] m_spPtr;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
@@ -2515,7 +2504,7 @@ void MRFOptimize::GetSuperpixels(const unsigned char* mask, const uchar* lastMas
 void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const cv::Mat& featureImg,const std::vector<int>& matchedId,cv::Mat& resultImg)
 {
 	
-	#ifdef REPORT
+	#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -2528,25 +2517,25 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 	spComputer->GetPreSuperpixelResult(numlabels,m_preLabels,m_preCenters);
 	const unsigned char* maskImgData = maskImg.data;
 	const unsigned char* featureMaskData = featureImg.data;
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif	
 
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -2556,34 +2545,34 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 	{
 		m_spPtr[i].temporalNeighbor = matchedId[i];
 	}
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = spComputer->ComputAvgColorDistance();	
 	//std::cout<<"avg e "<<avgE<<std::endl;
 	avgE = 1/(2*avgE);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	TCMaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 
@@ -2617,13 +2606,13 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 		}	
 	}
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	//delete[] m_spPtr;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
@@ -2639,7 +2628,7 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 }
 void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const std::vector<int>& matchedId, cv::Mat& resultImg)
 {
-	#ifdef REPORT
+	#ifdef REPORTMRF
 	nih::Timer timer;
 	nih::Timer timer0;
 	timer0.start();
@@ -2654,25 +2643,25 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 	spComputer->GetSuperpixelRegionGrowingResult(bgLabels);
 	const unsigned char* maskImgData = maskImg.data;
 	
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"read image  "<<timer.seconds()*1000 <<"ms"<<std::endl;
 #endif
 
 	
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif	
 
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	gtimer.Stop();
 	std::cout<<"GPU SuperPixel "<<gtimer.Elapsed()<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
@@ -2682,34 +2671,34 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 	{
 		m_spPtr[i].temporalNeighbor = matchedId[i];
 	}
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GetSuperpixels  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.start();
 #endif
 	float avgE = spComputer->ComputAvgColorDistance();	
 	//std::cout<<"avg e "<<avgE<<std::endl;
 	avgE = 1/(2*avgE);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"ComputeAvgColor  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT
+#ifdef REPORTMRF
 
 	timer.start();
 #endif
 	//GraphCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	TCMaxFlowOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
 	//GridCutOptimize(m_spPtr,m_nPixel,avgE,2,m_width,m_height,m_result);
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"GraphCutOptimize  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 
-#ifdef REPORT	
+#ifdef REPORTMRF	
 	timer.start();
 #endif
 
@@ -2743,13 +2732,13 @@ void MRFOptimize::Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg
 		}	
 	}
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer.stop();
 	std::cout<<"imwrite  "<<timer.seconds()*1000<<"ms"<<std::endl;
 #endif
 	//delete[] m_spPtr;
 
-#ifdef REPORT
+#ifdef REPORTMRF
 	timer0.stop();
 	std::cout<<"optimize one frame  "<<timer0.seconds()*1000<<"ms"<<std::endl;
 #endif
