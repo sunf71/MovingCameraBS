@@ -67,12 +67,17 @@ static const size_t s_nColorMaxDataRange_3ch = s_nColorMaxDataRange_1ch*3;
 static const size_t s_nDescMaxDataRange_3ch = s_nDescMaxDataRange_1ch*3;
 
 
-WarpBackgroundSubtractor::WarpBackgroundSubtractor(	 float fRelLBSPThreshold
-	,size_t nMinDescDistThreshold
-	,size_t nMinColorDistThreshold
-	,size_t nBGSamples
-	,size_t nRequiredBGSamples
-	,size_t nSamplesForMovingAvgs)
+WarpBackgroundSubtractor::WarpBackgroundSubtractor(float rggThreshold,
+									float rggSeedThreshold,
+									float modelConfidence,
+									float tcConfidence,
+									float fRelLBSPThreshold,
+									size_t nMinDescDistThreshold,
+									size_t nMinColorDistThreshold,
+									size_t nBGSamples,
+									size_t nRequiredBGSamples,
+									size_t nSamplesForMovingAvgs
+									)
 	:	 //BackgroundSubtractorLBSP(fRelLBSPThreshold,nMinDescDistThreshold)
 m_bInitializedInternalStructs(false)
 	,m_nMinColorDistThreshold(nMinColorDistThreshold)
@@ -91,7 +96,12 @@ m_bInitializedInternalStructs(false)
 	,m_bUse3x3Spread(true)
 	,m_fRelLBSPThreshold(0.333)
 	,m_nDescDistThreshold(3)
-	,m_nLBSPThresholdOffset(0){
+	,m_nLBSPThresholdOffset(0)
+	,m_rggThreshold(rggThreshold)
+	,m_rggSeedThreshold(rggSeedThreshold)
+	,m_modelConfidence(modelConfidence)
+	,m_TCConfidence(tcConfidence)
+	{
 		CV_Assert(m_nBGSamples>0 && m_nRequiredBGSamples<=m_nBGSamples);
 		CV_Assert(m_nMinColorDistThreshold>=STAB_COLOR_DIST_OFFSET);
 
@@ -333,7 +343,7 @@ void WarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::ve
 
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
 	m_SPComputer = new SuperpixelComputer(m_oImgSize.width,m_oImgSize.height,5);
-	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5);
+	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5,m_modelConfidence,m_TCConfidence);
 
 	//gpu
 	d_CurrentColorFrame = gpu::createContinuous(oInitImg.size(),CV_8UC4);
@@ -591,15 +601,15 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 		int idx = (int)pt.x+(int)(pt.y)*m_oImgSize.width;
 		float2* flow = (float2*)(spFlow.data+labels[idx]*8);
 		float2* wflow = (float2*)(m_wflow.data+idx*8);
-		if (abs(flow->x-wflow->x) + abs(flow->y-wflow->y) < m_rgThreshold)
+		if (abs(flow->x-wflow->x) + abs(flow->y-wflow->y) < m_rggSeedThreshold)
 			resLabels.push_back(labels[idx]);
 
 	}
 	int * rgResult(NULL);
-	m_SPComputer->RegionGrowingFast(resLabels,2.0*avgE,rgResult);
+	m_SPComputer->RegionGrowingFast(resLabels,m_rggThreshold*avgE,rgResult);
 	m_SPComputer->GetRegionGrowingImg(m_features);	
 	char filename[200];	
-	sprintf(filename,".\\features%06d.jpg",m_nFrameIndex+1);
+	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 #ifndef REPORT
 	cpuTimer.stop();
@@ -863,9 +873,9 @@ failedcheck3ch:
 	timer.stop();
 	std::cout<<"bs operator "<<timer.seconds()*1000<<std::endl;
 #endif
-	/*char filename[50];
-	sprintf(filename,"bin%06d.jpg",m_nFrameIndex);
-	cv::imwrite(filename,oCurrFGMask);*/
+	char filename[50];
+	sprintf(filename,".\\cpu\\bin%06d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,oCurrFGMask);
 	/*cv::imshow("mask",oCurrFGMask);
 	cv::waitKey();*/
 	/*cv::remap(m_oRawFGMask_last,m_oRawFGMask_last,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
@@ -1353,7 +1363,7 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	m_bInitialized = true;	
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
 	m_SPComputer = new SuperpixelComputer(m_oImgSize.width,m_oImgSize.height,5);
-	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5);
+	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5,m_modelConfidence,m_TCConfidence);
 
 	cudaMalloc(&d_outMaskPtr,m_nPixels);
 
@@ -1411,6 +1421,9 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 
 	d_FGMask.download(oCurrFGMask);
+	char filename[50];
+	sprintf(filename,".\\gpu\\bin%06d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,oCurrFGMask);
 	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	//oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
@@ -1420,9 +1433,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	gtimer.Stop();
 	std::cout<<"gpu bs operator "<<gtimer.Elapsed()<<std::endl;
 #endif
-	/*char filename[50];
-	sprintf(filename,"bin%06d.jpg",m_nFrameIndex);
-	cv::imwrite(filename,oCurrFGMask);*/
+	
 	/*cv::imshow("mask",oCurrFGMask);
 	cv::imshow("out mask",m_outMask);
 	cv::waitKey();*/

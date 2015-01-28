@@ -58,16 +58,16 @@ private:
 	char pathName[150];
 	int _offset;
 public:
-	WarpBSProcessor(int procId,const char* str,int offset=0):_initFlag(false),_offset(offset)
+	WarpBSProcessor(int procId,const char* str,int offset=0, float rggThreshold= 2.0, float rggSeedThreshold = 0.8, float mdlConfidence = 0.8, float tcConfidence = 0.25):_initFlag(false),_offset(offset)
 	{
 		if (procId==0)
 		{
-			_bgs = new GpuWarpBackgroundSubtractor;
+			_bgs = new GpuWarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,mdlConfidence,tcConfidence);
 			
 		}
 		else if (procId == 1)
 		{
-			_bgs = new WarpBackgroundSubtractor;
+			_bgs = new WarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,mdlConfidence,tcConfidence);
 			
 		}
 		

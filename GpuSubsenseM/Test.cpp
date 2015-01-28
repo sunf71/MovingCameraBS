@@ -215,7 +215,7 @@ void TestRandom()
 	cudaFree(d_rand);
 	delete[] h_rand;
 }
-void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output)
+void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, float rggThre, float rggSeedThres, float mdlConfidence, float tcConfidence)
 {
 	
 	warmUpDevice();
@@ -224,7 +224,7 @@ void TestGpuSubsense(int procId, int start, int end, const char* input, const ch
 	// Create feature tracker instance"..\\result\\subsensex\\moseg\\people1\\"
 	if (procId >=0)
 	{
-		tracker = new WarpBSProcessor(procId,output,start-1);
+		tracker = new WarpBSProcessor(procId,output,start-1,rggThre,rggSeedThres,mdlConfidence);
 	}
 	else
 	{

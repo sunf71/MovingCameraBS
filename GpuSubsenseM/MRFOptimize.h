@@ -41,12 +41,14 @@ typedef std::hash_map<int,SuperPixel*>SuperPixelMap;
 class MRFOptimize
 {
 public:
-	MRFOptimize(int width, int height,int step):m_width(width),
+	MRFOptimize(int width, int height,int step,float mdlConfidence = 0.8, float tcConfidence = 0.25):m_width(width),
 		m_height(height),
 		m_theta(0.35),
 		m_lmd1(0.3),
 		m_lmd2(3),
-		m_step(step)
+		m_step(step),
+		m_modelConfidence(mdlConfidence),
+		m_tcConfidence(tcConfidence)
 	{
 		Init();
 	}
@@ -121,4 +123,6 @@ private:
 	float m_avgE;
 	float m_avgD;
 	float m_variance;
+	float m_modelConfidence;
+	float m_tcConfidence;
 };

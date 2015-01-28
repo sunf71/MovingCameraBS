@@ -21,7 +21,7 @@ void TestSuperpixel();
 void MRFOptimization();
 void TCMRFOptimization();
 void TestRandom();
-void TestGpuSubsense(int procId,int start, int end, const char* input, const char* output);
+void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, float rggThre = 2.0, float rggSeedThres = 0.8, float mdlConfidence = 0.8, float tcConfidence = 0.25);
 void TestMotionEstimate();
 void TestRegionGrowing();
 

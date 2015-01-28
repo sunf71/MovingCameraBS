@@ -27,12 +27,17 @@
 class WarpBackgroundSubtractor : public cv::BackgroundSubtractor {
 public:
 	//! full constructor
-	WarpBackgroundSubtractor(float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
+	WarpBackgroundSubtractor(float rggThreshold = 2.0,
+									float rggSeedThreshold = 0.8,
+									float modelConfidence = 0.8,
+									float tcConfidence = 0.25,
+									float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
 									size_t nMinDescDistThreshold=BGSSUBSENSE_DEFAULT_DESC_DIST_THRESHOLD,
 									size_t nMinColorDistThreshold=BGSSUBSENSE_DEFAULT_COLOR_DIST_THRESHOLD,
 									size_t nBGSamples=BGSSUBSENSE_DEFAULT_NB_BG_SAMPLES,
 									size_t nRequiredBGSamples=BGSSUBSENSE_DEFAULT_REQUIRED_NB_BG_SAMPLES,
-									size_t nSamplesForMovingAvgs=BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS);
+									size_t nSamplesForMovingAvgs=BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS
+									);
 	//! default destructor
 	virtual ~WarpBackgroundSubtractor();
 	//! (re)initiaization method; needs to be called before starting background subtraction
@@ -220,6 +225,15 @@ protected:
 	cv::gpu::GpuMat d_prevPts;
 	cv::gpu::GpuMat d_currPts;
 	cv::gpu::GpuMat d_status;
+
+	//region growing的门限
+	float m_rggThreshold;
+	//region growing 种子点门限
+	float m_rggSeedThreshold;
+	//模型可靠度（优化时模型的可靠性）
+	float m_modelConfidence;
+	//优化时时域连续性
+	float m_TCConfidence;
 };
 
 class WarpSPBackgroundSubtractor : public WarpBackgroundSubtractor
@@ -264,12 +278,17 @@ protected:
 class GpuWarpBackgroundSubtractor : public WarpBackgroundSubtractor
 {
 public:
-	GpuWarpBackgroundSubtractor(float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
+	GpuWarpBackgroundSubtractor(float rggThreshold = 2.0,
+									float rggSeedThreshold = 0.8,
+									float modelConfidence = 0.8,
+									float tcConfidence = 0.25,
+									float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
 									size_t nMinDescDistThreshold=BGSSUBSENSE_DEFAULT_DESC_DIST_THRESHOLD,
 									size_t nMinColorDistThreshold=BGSSUBSENSE_DEFAULT_COLOR_DIST_THRESHOLD,
 									size_t nBGSamples=BGSSUBSENSE_DEFAULT_NB_BG_SAMPLES,
 									size_t nRequiredBGSamples=BGSSUBSENSE_DEFAULT_REQUIRED_NB_BG_SAMPLES,
-									size_t nSamplesForMovingAvgs=BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS):WarpBackgroundSubtractor(fRelLBSPThreshold,nMinDescDistThreshold,nMinColorDistThreshold,nBGSamples,nRequiredBGSamples,nSamplesForMovingAvgs)
+									size_t nSamplesForMovingAvgs=BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS
+									)
 	{
 		
 
@@ -307,5 +326,6 @@ protected:
 	cv::gpu::GpuMat d_outMask;
 	uchar* d_outMaskPtr;
 	curandState* d_randStates;
+	
 };
 

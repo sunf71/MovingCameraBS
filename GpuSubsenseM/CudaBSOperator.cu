@@ -22,7 +22,7 @@ __global__ void setup_kernel ( int size, curandState * state, unsigned long seed
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if (id<size)
 	{
-		curand_init ( seed+id,  0, 0,&state[id] );
+		curand_init ( seed,  id, 0,&state[id] );
 	}
 } 
 
@@ -588,11 +588,11 @@ failedcheck3ch:
 			*pfCurrMeanRawSegmRes_LT = (*pfCurrMeanRawSegmRes_LT)*(1.0f-fRollAvgFactor_LT) + fRollAvgFactor_LT;
 			*pfCurrMeanRawSegmRes_ST = (*pfCurrMeanRawSegmRes_ST)*(1.0f-fRollAvgFactor_ST) + fRollAvgFactor_ST;
 			fgMask(y,x) = UCHAR_MAX;
-			if((getRandom(randStates,idx_uchar)%(size_t)2)==0) {
+			/*if((getRandom(randStates,idx_uchar)%(size_t)2)==0) {
 				const size_t s_rand = getRandom(randStates,idx_uchar)%50;
 				BGIntraDescPtr[s_rand] = CurrIntraDesc;
 				BGColorPtr[s_rand] = CurrColor;
-			}
+			}*/
 		}
 		else {
 			// == background
@@ -607,11 +607,11 @@ failedcheck3ch:
 		}
 		float UNSTABLE_REG_RATIO_MIN = 0.1;
 		float FEEDBACK_T_INCR = 0.5;
-		float FEEDBACK_T_DECR = 0.1;
+		float FEEDBACK_T_DECR = 0.25;
 		float FEEDBACK_V_INCR(1.f);
 		float FEEDBACK_V_DECR(0.1f);
 		float FEEDBACK_R_VAR(0.01f);
-		if(lastFgMask(y,x) || (min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && fgMask(y,x))) {
+		/*if(lastFgMask(y,x) || (min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)<UNSTABLE_REG_RATIO_MIN && fgMask(y,x))) {
 			if((*pfCurrLearningRate)<fCurrLearningRateUpperCap)
 				*pfCurrLearningRate += FEEDBACK_T_INCR/(max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)*(*pfCurrVariationFactor));
 		}
@@ -620,15 +620,15 @@ failedcheck3ch:
 		if((*pfCurrLearningRate)< fCurrLearningRateLowerCap)
 			*pfCurrLearningRate = fCurrLearningRateLowerCap;
 		else if((*pfCurrLearningRate)>fCurrLearningRateUpperCap)
-			*pfCurrLearningRate = fCurrLearningRateUpperCap;
-		if(max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)>UNSTABLE_REG_RATIO_MIN && GetValueFromBigMatrix(wbModel,width,height,1,wx,wy))
+			*pfCurrLearningRate = fCurrLearningRateUpperCap;*/
+		/*if(max(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)>UNSTABLE_REG_RATIO_MIN && GetValueFromBigMatrix(wbModel,width,height,1,wx,wy))
 			(*pfCurrVariationFactor) += FEEDBACK_V_INCR;
 		else if((*pfCurrVariationFactor)>FEEDBACK_V_DECR) {
 			uchar lastFG = tex1Dfetch(FGMaskLastTexture,idx_uchar);
 			(*pfCurrVariationFactor) -= lastFG ? FEEDBACK_V_DECR/4:pbUnstableRegionMask?FEEDBACK_V_DECR/2:FEEDBACK_V_DECR;
 			if((*pfCurrVariationFactor)<FEEDBACK_V_DECR)
 				(*pfCurrVariationFactor) = FEEDBACK_V_DECR;
-		}
+		}*/
 		if((*pfCurrDistThresholdFactor)<pow(1.0f+min(*pfCurrMeanMinDist_LT,*pfCurrMeanMinDist_ST)*2,2))
 			(*pfCurrDistThresholdFactor) += FEEDBACK_R_VAR*(*pfCurrVariationFactor-FEEDBACK_V_DECR);
 		else {
