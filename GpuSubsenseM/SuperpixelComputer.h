@@ -56,6 +56,7 @@ public:
 	  void RegionGrowing(const std::vector<int>& seedLabels, float threshold,int*& resultLabel);
 	  void RegionGrowingFast(const std::vector<int>& seedLabels, float threshold,int*& resultLabel);
 	  void GetRegionGrowingImg(cv::Mat& rstImg);
+	  void GetRegionGrowingSeedImg(const std::vector<int>& seedLabels, cv::Mat& dstImg);
 	  //基于超像素的降采样
 	  void GetSuperpixelDownSampleImg(cv::Mat& rstImg);
 	  void GetSuperpixelDownSampleGrayImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& src, cv::Mat &dstImg);

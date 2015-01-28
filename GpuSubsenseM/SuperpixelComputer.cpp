@@ -356,7 +356,30 @@ void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 		}
 	}
 }
+void SuperpixelComputer::GetRegionGrowingSeedImg(const std::vector<int>& seeds, cv::Mat& rstImg)
+{
+	if (rstImg.empty())
+	{
+		rstImg.create(_height,_width,CV_8U);
+		
+	}
+	rstImg = cv::Scalar(0);
+	std::set<int> resLabels;
+	for(int i=0; i<seeds.size(); i++)
+	{
+		resLabels.insert(seeds[i]);
+	}
 
+	for(int i=0; i<_width; i++)
+	{
+		for(int j=0; j<_height; j++)
+		{
+			int idx = i+j*_width;
+			if (resLabels.find(_labels[idx]) != resLabels.end())
+				rstImg.data[idx] = 0xff;
+		}
+	}
+}
  void SuperpixelComputer::GetSuperpixelDownSampleImg(cv::Mat& rstImg)
  {
 	 rstImg = cv::Mat::zeros(_spHeight,_spWidth,CV_8UC3);
