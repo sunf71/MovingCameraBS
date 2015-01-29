@@ -331,6 +331,27 @@ void SuperpixelComputer::RegionGrowingFast(const std::vector<int>& seedLabels, f
 	/*timer.stop();
 	std::cout<<"\t superpixel region growing "<<timer.seconds()*1000<<std::endl;*/
 }
+void SuperpixelComputer::GetRGSeedsImg(const std::vector<int>& seedLabels, cv::Mat& rstImg)
+{
+	if (rstImg.empty())
+	{
+		rstImg.create(_height,_width,CV_8U);
+		
+	}
+	rstImg = cv::Scalar(0);
+	std::set<int> resLabels;
+	for(int i=0; i<seedLabels.size(); i++)
+		resLabels.insert(seedLabels[i]);
+	for(int i=0; i<_width; i++)
+	{
+		for(int j=0; j<_height; j++)
+		{
+			int idx = i+j*_width;
+			if (resLabels.find(_labels[idx]) != resLabels.end())
+				rstImg.data[idx] = 0xff;
+		}
+	}
+}
 void SuperpixelComputer::GetRegionGrowingImg(cv::Mat& rstImg)
 {
 	if (rstImg.empty())
