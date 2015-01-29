@@ -611,10 +611,16 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	char filename[200];	
 	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
+<<<<<<< HEAD
 	cv::Mat tmp;
 	m_SPComputer->GetRegionGrowingSeedImg(resLabels,tmp);
 	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,tmp);
+=======
+	m_SPComputer->GetRGSeedsImg(resLabels,m_features);
+	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);
+>>>>>>> 0459608eb8eebb62d9e8463d33d6fd80ba03850f
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"	superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
