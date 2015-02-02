@@ -20,7 +20,7 @@ void testCudaGpu()
 		cv::gpu::cvtColor(src,src,CV_BGR2GRAY);
 
 		cv::gpu::threshold(src, dst, 128.0, 255.0, CV_THRESH_BINARY);
-		
+
 		//cv::Mat result_host = dst;
 
 		cv::Mat result_host;
@@ -80,7 +80,7 @@ void TestSuperpixel()
 	unsigned char tmp[4];
 	for(int i=0; i< img.cols; i++)
 	{
-		
+
 		for(int j=0; j<img.rows; j++)
 		{
 			int idx = img.step[0]*j + img.step[1]*i;
@@ -90,8 +90,8 @@ void TestSuperpixel()
 			imgData[i + j*img.cols].y = tmp[1];
 			imgData[i + j*img.cols].z = tmp[2];
 			imgData[i + j*img.cols].w = tmp[3];
-			
-			
+
+
 			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
@@ -108,11 +108,11 @@ void TestSuperpixel()
 	gs.Superpixel(imgData,num,labels);
 	timer.Stop();
 	std::cout<<timer.Elapsed()<<"ms"<<std::endl;
-	
+
 	aslic.DrawContoursAroundSegments(idata, labels, img.cols,img.rows,0x00ff00);
 	handler.SavePicture(idata,img.cols,img.rows,std::string("GpuSp.jpg"),std::string(".\\"));
 	aslic.SaveSuperpixelLabels(labels,img.cols,img.rows,std::string("GpuSp.txt"),std::string(".\\"));
-	
+
 	memset(labels,0,sizeof(int)*img.rows*img.cols);
 	timer.Start();
 	gs.SuperpixelLattice(imgData,num,labels);
@@ -147,7 +147,7 @@ void MRFOptimization()
 		sprintf(maskFileName,"..\\result\\subsensex\\ptz\\input0\\o\\bin%06d.png",i);
 		sprintf(featureMaskFileName,"..\\result\\subsensex\\ptz\\input0\\features\\features%06d.jpg",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\ptz\\input0\\bin%06d.png",i);
-		
+
 		/*sprintf(imgFileName,"..\\baseline\\input0\\in%06d.jpg",i);
 		sprintf(maskFileName,"..\\result\\sobs\\baseline\\input0\\bin%06d.png",i);
 		sprintf(resultFileName,"..\\result\\SubsenseMMRF\\baseline\\input0\\bin%06d.png",i);*/
@@ -217,7 +217,7 @@ void TestRandom()
 }
 void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, float rggThre, float rggSeedThres, float mdlConfidence, float tcConfidence)
 {
-	
+
 	warmUpDevice();
 	VideoProcessor processor;	
 	FrameProcessor* tracker;
@@ -231,7 +231,7 @@ void TestGpuSubsense(int procId, int start, int end, const char* input, const ch
 		tracker = new BSProcesor(output,start-1);
 	}
 	std::vector<std::string> fileNames;
-	
+
 	for(int i=start; i<=end;i++)
 	{
 		char name[50];
@@ -261,12 +261,12 @@ void TestGpuSubsense(int procId, int start, int end, const char* input, const ch
 	timer.stop();
 
 	std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
-	
+
 
 	cv::waitKey();
 
 	safe_delete(tracker);
-	
+
 
 }
 void TestMotionEstimate()
@@ -366,7 +366,7 @@ void TestFlow()
 	cv::Mat curMsk = cv::imread("..//result//subsensem//ptz//input3//warp//bin000290.png");
 	cv::cvtColor(preMsk,preMsk,CV_BGR2GRAY);
 	cv::cvtColor(curMsk,curMsk,CV_BGR2GRAY);
-	
+
 	cv::Mat homography;
 	GetHomography(curImg,preImg,homography);
 	std::vector<cv::Point2f> curPts,prevPts;
@@ -409,7 +409,7 @@ void TestFlow()
 			int py = (int)(prevPts[i].y);
 			int idx = py*width + px;
 			float d = abs(px-wx) + abs(py-wy);
-			
+
 			if (d>maxD)
 				maxD = d;
 			if (d<minD)
@@ -457,12 +457,12 @@ void SuperpixelGrowingFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, 
 		float2* ptr = (float2*)(flow.data + label*8);
 		*ptr = make_float2(features1[i].x - features0[i].x,features1[i].y - features0[i].y);
 	}
-	
+
 	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
 }
 void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* centers, const cv::Mat& sflow, int spSize, int step, int width, int height, cv::Mat& flow)
 {
-	
+
 	flow.create(height,width,CV_32FC2);
 	flow = cv::Scalar(0);
 	for(int i=0; i<spSize; i++)
@@ -472,7 +472,7 @@ void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* cente
 		float2 flowValue = *((float2*)(sflow.data + i*8));
 		if (centers[i].nPoints >0)			
 		{
-			
+
 			//以原来的中心点为中心，step +2　为半径进行更新
 			int radius = step;
 			for (int x = k- radius; x<= k+radius; x++)
@@ -482,7 +482,7 @@ void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* cente
 					if  (x<0 || x>width-1 || y<0 || y> height-1)
 						continue;
 					int idx = x+y*width;
-					
+
 					if (labels[idx] == i )
 					{		
 						float2* fptr = (float2*)(flow.data + idx*8);
@@ -490,7 +490,7 @@ void SuperpixelFlowToPixelFlow(const int* labels, const SLICClusterCenter* cente
 					}				
 				}
 			}
-			
+
 		}
 	}
 }
@@ -525,7 +525,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 					if  (x<0 || x>width-1 || y<0 || y> height-1)
 						continue;
 					int idx = x+y*width;
-					
+
 					if (labels0[idx] == i )
 					{		
 						ids.push_back(idx);
@@ -637,7 +637,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, const int* labels1, const SLICClusterCenter* centers1, int spSize, int spStep, int width, int height,
 	const cv::Mat& flow,std::vector<int> matchedId, cv::Mat& spFlow, cv::Mat& diff)
 {
-	
+
 	int spWidth = (width+spStep-1)/spStep;
 	int spHeight = (height+spStep-1)/spStep;
 	diff.create(height,width,CV_8UC3);
@@ -648,7 +648,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 	memset(&matchedId[0],-1,sizeof(int)*spSize);
 	for(int i=0; i<spSize; i++)
 	{		
-		
+
 		int k = (int)(centers0[i].xy.x+0.5);
 		int j = (int)(centers0[i].xy.y+0.5);
 		ids.clear();
@@ -666,13 +666,13 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 				{
 					if  (y<0 || y> height-1)
 						continue;
-					
+
 					int idx = x+y*width;
-					
+
 					if (labels0[idx] == i )
 					{		
 						/*if (x == 144 && y==96)
-							std::cout<<i<<std::endl;*/
+						std::cout<<i<<std::endl;*/
 						ids.push_back(idx);
 						float2 dxy = *((float2*)(flow.data + idx*4*2));
 						avgX += dxy.x;						
@@ -766,7 +766,7 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 					disMin = dist;
 				}
 			}
-			
+
 			matchedId[i] = (minLabel);
 			uchar cdx = abs(centers0[i].rgb.x - centers1[minLabel].rgb.x);
 			uchar cdy = abs(centers0[i].rgb.y - centers1[minLabel].rgb.y);
@@ -792,7 +792,7 @@ void TestSuperpixelMatching()
 {
 	SLIC aslic;	
 	PictureHandler handler;
-	
+
 	int cols = 320;
 	int rows = 240;
 	int step = 5;
@@ -805,17 +805,17 @@ void TestSuperpixelMatching()
 	cv::Mat img0,img1;
 	img0 = cv::imread("..//ptz//input3//in000222.jpg");
 	img1 = cv::imread("..//ptz//input3//in000221.jpg");
-	
+
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
 	std::vector<float> err;
-	
+
 	cv::cvtColor(img0,sgray,CV_BGR2GRAY);
 	cv::cvtColor(img1,tgray,CV_BGR2GRAY);
 	cv::cvtColor(img0,simg,CV_BGR2BGRA);
 	cv::cvtColor(img1,timg,CV_BGR2BGRA);
 
-	
+
 	SLICClusterCenter* centers0(NULL),*centers1(NULL);
 	int * labels0(NULL), * labels1(NULL);
 	labels0 = new int[size];
@@ -876,7 +876,7 @@ void TestSuperpixelFlow()
 {
 	SLIC aslic;	
 	PictureHandler handler;
-	
+
 	int cols = 640;
 	int rows = 480;
 	int step = 5;
@@ -889,17 +889,17 @@ void TestSuperpixelFlow()
 	cv::Mat img0,img1;
 	img0 = cv::imread("..//moseg//people1//in000002.jpg");
 	img1 = cv::imread("..//moseg//people1//in000001.jpg");
-	
+
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
 	std::vector<float> err;
-	
+
 	cv::cvtColor(img0,sgray,CV_BGR2GRAY);
 	cv::cvtColor(img1,tgray,CV_BGR2GRAY);
 	cv::cvtColor(img0,simg,CV_BGR2BGRA);
 	cv::cvtColor(img1,timg,CV_BGR2BGRA);
 
-	
+
 	SLICClusterCenter* centers0(NULL),*centers1(NULL);
 	int * labels0(NULL), * labels1(NULL);
 	labels0 = new int[size];
@@ -919,7 +919,7 @@ void TestSuperpixelFlow()
 	asap.SetControlPts(features0,features1);
 	asap.Solve();
 	asap.Warp(simg,wimg);*/
-	
+
 	cv::Mat spFlow,flow,flowField,pflowField;
 	std::vector<cv::Mat> flows(2);
 	std::vector<cv::Point2f> f0,f1;
@@ -945,7 +945,7 @@ void TestSuperpixelFlow()
 		file<<std::endl;
 	}
 	file.close();
-	
+
 	//cv::normalize(histImg,histImg,0, 100, NORM_MINMAX, -1, Mat());
 	cv::imshow("histImg",histImg);
 	cv::split(spFlow,flows);
@@ -1170,7 +1170,7 @@ void TestFlowHistogram()
 		SuperpixelFlow(gray1,gray0,5,spSize,centers,spFlow);
 		SuperpixelFlowToPixelFlow(labels,centers,spFlow,spSize,step,cols,rows,flow);*/
 		OpticalFlowHistogram(flow,flowHist,avgDx,avgDy,ids,idMat,10,36);
-		
+
 		for(int i=0; i<avgDx.size(); i++)
 		{
 			avgDx[i] /= ids[i].size();
@@ -1195,7 +1195,7 @@ void TestFlowHistogram()
 				//histImgPtr[j] = dist;
 				/*if (i == 70 && j==50)
 				{
-					std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
+				std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
 				}*/
 			}
 		}
@@ -1214,7 +1214,7 @@ void TestFlowHistogram()
 				//histImgPtr[j] = dist;
 				/*if (i == 70 && j==50)
 				{
-					std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
+				std::cout<<dist<<" , "<<flowHist[idPtr[j]]<<" "<<histImgPtr[j]<<"\n";
 				}*/
 			}
 		}
@@ -1222,7 +1222,7 @@ void TestFlowHistogram()
 		std::cout<<"variance : "<<variance<<std::endl;
 		sprintf(resultFileName,".\\histogram\\input3\\bin%06d.jpg",i);
 		cv::imwrite(resultFileName,histImg);
-	/*	cv::imshow("histImg",histImg);
+		/*	cv::imshow("histImg",histImg);
 		cv::waitKey();*/
 	}
 	delete DOFP;
@@ -1244,7 +1244,7 @@ void TestColorHistogram()
 	int spNum = gs.GetSuperPixelNum();
 	int * labels = new int[rows*cols];
 	SLICClusterCenter* centers = new SLICClusterCenter[spNum];
-	
+
 	cv::Mat img,mask,rst;
 	rst = Mat::zeros(rows,cols,CV_8U);
 	vector<Mat> bgr_planes;
@@ -1267,7 +1267,7 @@ void TestColorHistogram()
 		sprintf(maskFileName,"H:\\changeDetection2014\\PTZ\\PTZ\\zoomInZoomOut\\groundtruth\\gt%06d.png",i);		
 		sprintf(resultFileName,".\\hist%06d.png",i);
 		img = imread(imgFileName);
-		
+
 		mask = imread(maskFileName);
 		cvtColor(mask,mask,CV_BGR2GRAY);
 		split( img, bgr_planes );
@@ -1311,13 +1311,13 @@ void TestColorHistogram()
 		for( int i = 1; i < histSize; i++ )
 		{
 			line( histImage, cv::Point( bin_w*(i-1), hist_h - cvRound(b_hist.at<float>(i-1)) ) ,
-				 cv::Point( bin_w*(i), hist_h - cvRound(b_hist.at<float>(i)) ),
+				cv::Point( bin_w*(i), hist_h - cvRound(b_hist.at<float>(i)) ),
 				Scalar( 255, 0, 0), 2, 8, 0  );
 			line( histImage,  cv::Point( bin_w*(i-1), hist_h - cvRound(g_hist.at<float>(i-1)) ) ,
-				 cv::Point( bin_w*(i), hist_h - cvRound(g_hist.at<float>(i)) ),
+				cv::Point( bin_w*(i), hist_h - cvRound(g_hist.at<float>(i)) ),
 				Scalar( 0, 255, 0), 2, 8, 0  );
 			line( histImage,  cv::Point( bin_w*(i-1), hist_h - cvRound(r_hist.at<float>(i-1)) ) ,
-				 cv::Point( bin_w*(i), hist_h - cvRound(r_hist.at<float>(i)) ),
+				cv::Point( bin_w*(i), hist_h - cvRound(r_hist.at<float>(i)) ),
 				Scalar( 0, 0, 255), 2, 8, 0  );
 		}
 
@@ -1325,27 +1325,27 @@ void TestColorHistogram()
 		{
 			for(int j=0; j<cols; j++)
 			{
-				
+
 				int idx = i*cols +j;
 				uchar b = bgr_planes[0].data[idx];
 				uchar g =  bgr_planes[1].data[idx];
 				uchar r =  bgr_planes[2].data[idx];
-				
+
 				float bhist = b_hist.at<float>(bgr_planes[0].data[idx]/binSize);
 				float ghist = g_hist.at<float>(bgr_planes[1].data[idx]/binSize);
 				float rhist = r_hist.at<float>(bgr_planes[2].data[idx]/binSize);
 				uchar val = (bhist+ghist+rhist)/3;
 				if (j==74 && i==26)
 				{	std::cout<<"row "<<i<<" , col "<<j<<" (r,g,b) = "<<(int)r<<","<<(int)g<<","<<(int)b<<std::endl;
-					std::cout<<"bhist "<<bhist<<" ghist "<<ghist<<" rhist  "<<rhist<<std::endl;
+				std::cout<<"bhist "<<bhist<<" ghist "<<ghist<<" rhist  "<<rhist<<std::endl;
 				}
 				if (j==92 && i==117)
 				{	std::cout<<"row "<<i<<" , col "<<j<<" (r,g,b) = "<<(int)r<<","<<(int)g<<","<<(int)b<<std::endl;
-					std::cout<<"bhist "<<bhist<<" ghist "<<ghist<<" rhist  "<<rhist<<std::endl;
+				std::cout<<"bhist "<<bhist<<" ghist "<<ghist<<" rhist  "<<rhist<<std::endl;
 				}
 				if (j==93 && i==131)
 				{	std::cout<<"row "<<i<<" , col "<<j<<" (r,g,b) = "<<(int)r<<","<<(int)g<<","<<(int)b<<std::endl;
-					std::cout<<"bhist "<<bhist<<" ghist "<<ghist<<" rhist  "<<rhist<<std::endl;
+				std::cout<<"bhist "<<bhist<<" ghist "<<ghist<<" rhist  "<<rhist<<std::endl;
 				}
 				rst.data[idx] = val;
 			}
@@ -1353,7 +1353,7 @@ void TestColorHistogram()
 		/// Display
 		namedWindow("calcHist Demo", CV_WINDOW_AUTOSIZE );
 		imshow("calcHist Demo", histImage );
-	
+
 		imshow("rst", rst );
 		waitKey(0);
 		cvtColor(img,img,CV_BGR2BGRA);
@@ -1364,11 +1364,11 @@ void TestColorHistogram()
 			int k = centers[i].xy.x;
 			int j = centers[i].xy.y;
 			spIdx.clear();
-			
+
 			int c(0);
 			if (centers[i].nPoints !=0)			
 			{
-				
+
 				float bHists(0),gHists(0),rHists(0);
 				//以原来的中心点为中心，step +2　为半径进行更新
 				int radius = step;
@@ -1399,17 +1399,17 @@ void TestColorHistogram()
 						}					
 					}
 				}
-				
+
 				/*bHists/=c;
 				gHists/=c;
 				rHists/=c;
 				uchar val = (bHists+gHists+rHists)/3;
 				for(int s=0; s<spIdx.size();s++)
 				{
-					int idx = spIdx[s];
-					rst.data[idx] = val;
+				int idx = spIdx[s];
+				rst.data[idx] = val;
 				}*/
-				
+
 
 			}
 
@@ -1417,10 +1417,10 @@ void TestColorHistogram()
 		}
 		imwrite(resultFileName,rst);
 
-	
-		
+
+
 	}
-	
+
 
 	delete[] labels;
 	delete[] centers;
@@ -1439,27 +1439,32 @@ void TestSuperpielxComputer()
 	int spWidth = (cols+step-1)/step;
 	int spHeight = (rows+step-1)/step;
 	int spSize = spWidth*spHeight;
-	cv::Mat img,preImg,gray,preGray;
+	cv::Mat img,preImg,gray,preGray,mask,preMask;
 	SuperpixelComputer spComputer(cols,rows,step);
 	int * labels(NULL), *preLabels(NULL);
 	SLICClusterCenter* centers(NULL), *preCenters(NULL);
 	int num(0);
 	cv::Mat spFlow,flow;
-	int start = 1;
+	int start = 2;
 	int end = 5;
 	std::vector<int> matchedId;
 	std::vector<int> revMatchedId;
 	DenseOpticalFlowProvier* DOFP = new EPPMDenseOptialFlow();
 	std::vector<cv::Point2f> f0,f1;
-	
+
 	for(int i=start; i<=end;i++)
 	{
-		
-		sprintf(imgFileName,"..\\moseg\\people1\\in%06d.jpg",i);		
-		sprintf(resultFileName,".\\spFlow%06d.flo",i);
+
+		sprintf(imgFileName,"..\\moseg\\cars3\\in%06d.jpg",i);		
+		sprintf(maskFileName, "..\\moseg\\cars3\\groundtruth\\gt%06d.png",i-1);
+		sprintf(resultFileName,".\\test\\spFlow%06d.flo",i);
 		matchedId.clear();
 		img = imread(imgFileName);
 		cv::cvtColor(img,gray,CV_BGR2GRAY);
+		mask = imread(maskFileName);
+		if (mask.channels()==3)
+			cv::cvtColor(mask,mask,CV_BGR2GRAY);
+
 		if (preGray.empty())
 		{
 			preImg = img.clone();
@@ -1469,6 +1474,31 @@ void TestSuperpielxComputer()
 		spComputer.GetPreSuperpixelResult(num,preLabels,preCenters);
 		SuperpixelFlow(gray,preGray,step,num,centers,f0,f1,spFlow);
 		SuperpixelMatching(labels,centers,img,preLabels,preCenters,preImg,num,step,cols,rows,spFlow,matchedId);
+		//
+		preMask = cv::Mat::zeros(rows,cols,CV_8U);
+		for (int si=0; si<matchedId.size(); si++)
+		{
+			int cx = (int)(preCenters[matchedId[si]].xy.x+0.5);
+			int cy = (int)(preCenters[matchedId[si]].xy.y+0.5);
+			int idx = cx + cy*cols;
+			if (mask.data[idx] == 0xff)
+			{
+				int x = (int)(centers[si].xy.x+0.5);
+				int y = (int)(centers[si].xy.y + 0.5);
+				for(int m = x - step; m<=x+step; m++)
+				{
+					if (m<0 || m > cols-1)
+						continue;
+					for(int n = y - step; n<=y+step; n++)
+					{
+						if (n>=0 && n<rows && labels[n*cols+m] == si)
+						{
+							preMask.data[n*cols+m] =  0xff;
+						}
+					}
+				}
+			}
+		}
 		SuperpixelFlow(preGray,gray,step,num,centers,f0,f1,spFlow);
 		SuperpixelMatching(preLabels,preCenters,preImg,labels,centers,img,num,step,cols,rows,spFlow,revMatchedId);
 		std::set<int> checkedId;
@@ -1515,16 +1545,21 @@ void TestSuperpielxComputer()
 				}
 			}
 		}
-		WriteFlowFile(spFlow,resultFileName);
+
+		//WriteFlowFile(spFlow,resultFileName);
 		sprintf(resultFileName,".\\test\\sp_matchedDiff%06d.jpg",i);
 		cv::imwrite(resultFileName,diffMat);
 		sprintf(resultFileName,".\\test\\sp_dchked%06d.jpg",i);
 		cv::imwrite(resultFileName,chkMat);
-		DOFP->DenseOpticalFlow(gray,preGray,flow);
+		sprintf(resultFileName,".\\test\\preMask%06d.jpg",i);
+		cv::imwrite(resultFileName,preMask);
+
+
+		/*DOFP->DenseOpticalFlow(gray,preGray,flow);
 		cv::Mat diff;
 		SuperpixelMatching(labels,centers,preLabels,preCenters,spSize,step,cols,rows,flow,matchedId,spFlow,diff);
 		sprintf(resultFileName,".\\test\\matchedDiff%06d.jpg",i);
-		cv::imwrite(resultFileName,diff);
+		cv::imwrite(resultFileName,diff);*/
 		cv::swap(gray,preGray);
 		cv::swap(img,preImg);
 	}
@@ -1536,30 +1571,30 @@ void TestDescDiff()
 	char filename[20];
 	cv::Mat cmat,gmat,hmat;
 	hmat = cv::imread("hdesc.png",CV_LOAD_IMAGE_UNCHANGED);
-	
+
 	int width = hmat.cols;
 	int height = hmat.rows;
 	cv::Mat cr = cv::Mat::zeros(hmat.size(),CV_8U);
-	
+
 	std::vector<cv::Mat> cmats,gmats;
 	cv::Mat tmp;
 	for(int i=0; i<50; i++)
 	{
 		sprintf(filename,"cpu%ddescmodel.png",i);		
 		cmat = cv::imread(filename,CV_LOAD_IMAGE_UNCHANGED );
-	
+
 		sprintf(filename,"gpu%ddescmodel.png",i);		
 		gmat = cv::imread(filename,CV_LOAD_IMAGE_UNCHANGED );
 		cmats.push_back(cmat.clone());
-		
+
 		gmats.push_back(gmat.clone());
 	}
 	for(int r=2; r< height-2; r++)
 	{
-		
+
 		cv::Vec4w* hptr = hmat.ptr<cv::Vec4w>(r);
 		uchar* crPtr = cr.ptr<uchar>(r);
-	
+
 		for(int c=2; c<width-2; c++)
 		{
 			int idx = (r*width+c)*3*2;
@@ -1568,12 +1603,12 @@ void TestDescDiff()
 			int i=0;
 			while(i<50 && b<2)
 			{
-				
+
 				//cv::Vec4w gptr = gmats[i].at<cv::Vec4w>(r,c);
 				ushort* cptr = (ushort*)(cmats[i].data+cidx);
 				ushort* gptr = (ushort*)(gmats[i].data+idx);
 				//std::cout<<i<<" "<<r<<" , "<<c<<std::endl;
-				
+
 				for(int k=0; k<3; k++)
 				{					
 					size_t d = hdist_ushort_8bitLUT(hptr[c][k],gptr[k]);		
@@ -1583,7 +1618,7 @@ void TestDescDiff()
 
 				}
 				b++;
-			
+
 failed:
 				i++;
 			}
@@ -1593,21 +1628,21 @@ failed:
 				/*std::cout<<hptr[c][0]<<" "<<hptr[c][1]<<" "<<hptr[c][2]<<" "<<hptr[c][3]<<"\n";
 				for(int t=0; t<50; t++)
 				{
-					ushort* cptr = (ushort*)(cmats[t].data+cidx);
-					ushort* gptr = (ushort*)(gmats[t].data+idx);
-					std::cout<<t<<"--------------\n cpu:\n";
-					std::cout<<cptr[0]<<" "<<cptr[1]<<" "<<cptr[2]<<"\n gpu:";
-					std::cout<<gptr[0]<<" "<<gptr[1]<<" "<<gptr[2]<<" "<<gptr[3]<<"\n";
-					
+				ushort* cptr = (ushort*)(cmats[t].data+cidx);
+				ushort* gptr = (ushort*)(gmats[t].data+idx);
+				std::cout<<t<<"--------------\n cpu:\n";
+				std::cout<<cptr[0]<<" "<<cptr[1]<<" "<<cptr[2]<<"\n gpu:";
+				std::cout<<gptr[0]<<" "<<gptr[1]<<" "<<gptr[2]<<" "<<gptr[3]<<"\n";
+
 				}*/
 
 			}
-			
-			
+
+
 		}
 	}
 	cv::imshow("result",cr);
-	
+
 	cv::waitKey();
 }
 
@@ -1636,3 +1671,21 @@ void TestSuperpixelDownSample()
 		cv::imwrite(resultFileName,dsImg);
 	}
 }
+
+void GpuSubsenseMain(int argc, char* argv[])
+{
+	printf("gpu 0 cpu 1 %s\n",argv[1]);
+	printf("from %s\n",argv[2]);
+	printf("to %s\n",argv[3]);
+	printf("input %s\n",argv[4]);
+	printf("output %s\n",argv[5]);
+	printf("region growing threshold %s\n",argv[6]);
+	printf("region growing seed threshold %s\n",argv[7]);
+	printf("model confidence %s\n",argv[8]);
+	printf("tc confidence %s\n",argv[9]);
+	if (argc == 6)
+		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5]);
+	else
+		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],atof(argv[6]),atof(argv[7]),atof(argv[8]),atof(argv[9]));
+}
+

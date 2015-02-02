@@ -611,16 +611,12 @@ void WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	char filename[200];	
 	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
-<<<<<<< HEAD
+
 	cv::Mat tmp;
 	m_SPComputer->GetRegionGrowingSeedImg(resLabels,tmp);
 	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,tmp);
-=======
-	m_SPComputer->GetRGSeedsImg(resLabels,m_features);
-	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,m_features);
->>>>>>> 0459608eb8eebb62d9e8463d33d6fd80ba03850f
+
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"	superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
@@ -1367,7 +1363,17 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	gtimer.Stop();
 	std::cout<<gtimer.Elapsed()<<" ms\n";
 
+
 	//saveModels();
+	d_wvoBGColorSamples = d_voBGColorSamples.clone();
+	d_wvoBGDescSamples = d_voBGDescSamples.clone();
+	d_wfModels = d_fModels.clone();
+	d_wbModels = d_bModels.clone();
+
+	cv::gpu::swap(d_voBGColorSamples,d_wvoBGColorSamples);
+		cv::gpu::swap(d_voBGDescSamples,d_wvoBGDescSamples);
+		cv::gpu::swap(d_fModels,d_wfModels);
+		cv::gpu::swap(d_bModels,d_wbModels);
 
 
 	m_bInitialized = true;	
@@ -1450,6 +1456,8 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 #ifndef REPORT
 	cpuTimer.start();
 #endif
+	
+
 	m_optimizer->Optimize(m_SPComputer,oCurrFGMask,m_matchedId,oCurrFGMask);
 	postProcessSegments(img,oCurrFGMask);
 	/*cv::imshow("after optimize ",oCurrFGMask);
@@ -1460,6 +1468,8 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	cv::bitwise_or(m_outMask,oCurrFGMask,refeshMask);
 	//cv::imshow("refresh mask", refeshMask);
 	//cv::waitKey();
+	sprintf(filename,".\\outmask\\bin%06d.jpg",m_nFrameIndex);
+	cv::imwrite(filename,m_outMask);
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<" optimize "<<cpuTimer.seconds()*1000<<"ms\n";

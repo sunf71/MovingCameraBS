@@ -34,3 +34,6 @@ void TestSuperpielxComputer();
 
 void TestDescDiff();
 void TestSuperpixelDownSample();
+
+
+void GpuSubsenseMain(int argc, char* argv[]);

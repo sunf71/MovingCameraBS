@@ -104,8 +104,8 @@ void ASAPWarping::SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector
 	{
 		//std::cout<<i<<std::endl;
 		cv::Point2f pt = inputsPts[i];
-		_dataterm_element_i[i] = (int)((ceil(pt.y)+_quadHeight-1)/(_quadHeight));
-		_dataterm_element_j[i] = (int)((ceil(pt.x)+_quadWidth-1)/(_quadWidth));
+		_dataterm_element_i[i] = min(_height-1,(int)(pt.y + 0.5)/(_quadHeight) +1) ;
+		_dataterm_element_j[i] = min(_width-1,(int)(pt.x + 0.5)/(_quadWidth) + 1);
 
 		Quad qd = _source->getQuad(_dataterm_element_i[i],_dataterm_element_j[i]);
 

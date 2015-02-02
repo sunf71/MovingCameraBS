@@ -7,11 +7,11 @@ class BGSMovieMaker
 public:
 	
 
-	static void MakeMovie(const char* maskPath,const char* imgPath,cv::Size size, int from, int to, const char* outFileName)
+	static void MakeMovie(const char* maskPath,const char* imgPath,cv::Size size, int from, int to, const char* outFileName, int fps = 25)
 	{
 		char fileName[200];
 		cv::VideoWriter writer;
-		writer.open(std::string(outFileName),CV_FOURCC('X', 'V', 'I', 'D'),25,size);
+		writer.open(std::string(outFileName),CV_FOURCC('X', 'V', 'I', 'D'),fps,size);
 		
 		for(int i=from; i<=to; i++)
 		{
@@ -31,9 +31,14 @@ public:
 					int idx_uchar_rgb = idx_uchar*3;
 					uchar* mPtr = mask.data+idx_uchar;
 					uchar* imgPtr = img.data+idx_uchar_rgb;
-					if (*mPtr == 0xff)
+					if (*mPtr != 0xff)
 					{
-						imgPtr[2] = 200;
+						int gray(0);
+						for(int c=0; c<3; c++)
+							gray+=imgPtr[c];
+						gray/= 10;
+						for(int c=0; c<3; c++)
+							imgPtr[c] = gray;						
 					}
 				}
 			}

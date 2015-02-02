@@ -123,10 +123,27 @@ void TestCVSolve()
 	for(int i=0; i<fresult.size(); i++)
 		std::cout<<fresult[i]<<std::endl;
 }
-int main()
+void MovieMakeMain(int argc, char* argv[])
 {
+	if (argc == 8)
+	{
+		BGSMovieMaker::MakeMovie(argv[1],argv[2],cv::Size(atoi(argv[3]),atoi(argv[4])),atoi(argv[5]),atoi(argv[6]),argv[7]);
+	}
+	else if(argc ==9)
+	{
+		BGSMovieMaker::MakeMovie(argv[1],argv[2],cv::Size(atoi(argv[3]),atoi(argv[4])),atoi(argv[5]),atoi(argv[6]),argv[7],atoi(argv[8]));
+	}
+	else
+	{
+		printf("const char* maskPath,const char* imgPath,int width, int height, int from, int to, const char* outFileName, int fps = 25\n");
+	}
+
+}
+int main(int argc, char* argv[])
+{
+	MovieMakeMain(argc,argv);
 	//TestCVSolve();
-	TestASAPWarping();
+	//TestASAPWarping();
 	//BGSMovieMaker::MakeMovie("..\\result\\subsensex\\ptz\\input3\\warpbaseline","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout_s.avi");
 	return 0;
 	VideoProcessor processor;

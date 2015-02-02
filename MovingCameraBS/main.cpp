@@ -41,42 +41,7 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 //#include "matrix.h"
 //#include "mclcppclass.h"
 
-int CreateDir(char *pszDir)
-{
-	int i = 0;
-	int iRet;
-	int iLen = strlen(pszDir);
-	//在末尾加/
-	if (pszDir[iLen - 1] != '\\' && pszDir[iLen - 1] != '/')
-	{
-		pszDir[iLen] = '/';
-		pszDir[iLen + 1] = '\0';
-	}
 
-	// 创建目录
-	for (i = 0;i < iLen;i ++)
-	{
-		if (pszDir[i] == '\\' || pszDir[i] == '/')
-		{ 
-			pszDir[i] = '\0';
-
-			//如果不存在,创建
-			iRet = _access(pszDir,0);
-			if (iRet != 0)
-			{
-				iRet = _mkdir(pszDir);
-				if (iRet != 0)
-				{
-					return -1;
-				} 
-			}
-			//支持linux,将所有\换成/
-			pszDir[i] = '/';
-		} 
-	}
-
-	return 0;
-}
 //统计类，用于计算标准差，协方差等统计数据
 class STAT
 {
@@ -2428,7 +2393,44 @@ void TestfindHomographyDLT()
 //		
 //	}
 //}
-int main()
+void testMCD(int argc, char* argv[])
+{
+	VideoProcessor processor;
+	int start = atoi(argv[1]);
+	int end = atoi(argv[2]);
+
+	// Create feature tracker instance
+	//MotionTracker tracker;
+	MCDBSProcessor tracker(argv[4]);
+	//VibeProcessor tracker;
+	std::vector<std::string> fileNames;
+	for(int i=start; i<=end;i++)
+	{
+		char name[250];
+		sprintf(name,"%s\\in%06d.jpg",argv[3],i);
+		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
+		fileNames.push_back(name);
+	}
+	// Open video file
+	processor.setInput(fileNames);
+	//processor.setInput("..\\MCD\\pets_2005_1.avi");
+	// set frame processor
+	processor.setFrameProcessor(&tracker);
+
+	// Declare a window to display the video
+	//processor.displayOutput("Tracked Features");
+
+	// Play the video at the original frame rate
+	//processor.setDelay(1000./processor.getFrameRate());
+	processor.setDelay(0);
+
+	
+	// Start the process
+	processor.run();
+
+	cv::waitKey();
+}
+int main(int argc, char* argv[])
 {
 	//TestRemap();
 	//TestVLBP();
@@ -2438,44 +2440,15 @@ int main()
 	//TestfindHomographyDLT();
 	//TestHomographyEstimate();
 	//TestPerspective();	
-	TestPostProcess();
+	//TestPostProcess();
 	//TestEdgeTracking2Img();
 	//TestListEdgeTracking();
 	//TestLBP();
 	//TestPerspective();	
 	//TestAffine();
-	return 0;
+	//return 0;
 	// Create video procesor instance
-	VideoProcessor processor;
-
-	// Create feature tracker instance
-	MotionTracker tracker;
-	//MCDBSProcessor tracker;
-	//VibeProcessor tracker;
-	std::vector<std::string> fileNames;
-	for(int i=1; i<=1700;i++)
-	{
-		char name[50];
-		sprintf(name,"..\\PTZ\\input0\\in%06d.jpg",i);
-		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
-		fileNames.push_back(name);
-	}
-	// Open video file
-	//processor.setInput(fileNames);
-	processor.setInput("..\\MCD\\pets_2005_1.avi");
-	// set frame processor
-	processor.setFrameProcessor(&tracker);
-
-	// Declare a window to display the video
-	processor.displayOutput("Tracked Features");
-
-	// Play the video at the original frame rate
-	//processor.setDelay(1000./processor.getFrameRate());
-	processor.setDelay(1000/25);
-
-	// Start the process
-	processor.run();
-
-	cv::waitKey();
-
+	
+	testMCD(argc,argv);
+	return 0;
 }

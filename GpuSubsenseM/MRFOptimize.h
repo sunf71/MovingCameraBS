@@ -58,12 +58,20 @@ public:
 	}
 	void Init();
 	void Release();
+	void SetConfidence(float mdlConfidence, float tcConfidence)
+	{
+		m_modelConfidence = mdlConfidence;
+		m_tcConfidence = tcConfidence;
+	}
+
 	void GetSegment2DArray(SuperPixel *& superpixels, size_t & spSize, const int* lables, const int width,const int height);
+
 
 	void ComputeAvgColor(SuperPixel* superpixels, size_t spSize, const int width, const int height,  const unsigned int* imgData, const unsigned char* maskData);
 	void MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void GridCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);	
 	void TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
+	void TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result, float mdlConfidence, float tcConfidence);
 	void GraphCutOptimize(SuperPixel* spPtr, int num_pixels,float beta, int num_labels,const int width, const int height,int *result);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName, const string& resultImgName);
 	void Optimize(GpuSuperpixel* GS, const string& originalImgName, const string& maskImgName,  const string& featuremaskImgName,const string& resultImgName);
@@ -76,6 +84,7 @@ public:
 	void Optimize(GpuSuperpixel* GS, const cv::Mat& origImg, const cv::Mat& maskImg, const cv::Mat& wflow,cv::Mat& resultImg);
 	void Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const cv::Mat& featureImg,const std::vector<int>& matchedId, cv::Mat& resultImg);
 	void Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const std::vector<int>& matchedId, cv::Mat& resultImg);
+	void Optimize(SuperpixelComputer* spComputer,const cv::Mat& maskImg,const std::vector<int>& matchedId, cv::Mat& resultImg,float mdlConfidence, float tcConfidence);
 	void ComuteSuperpixel(GpuSuperpixel* GS, uchar4* d_rgba);
 	void ComputeSuperpixel(GpuSuperpixel* gs, cv::Mat& rgbaImg);
 	//mask:Ç°¾°
