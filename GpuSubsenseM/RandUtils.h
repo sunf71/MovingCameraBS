@@ -47,41 +47,7 @@ static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int
 	else if(y_sample>=imgsize.height-border)
 		y_sample = imgsize.height-border-1;
 }
-//! returns a random init/sampling position for the specified pixel position; also guards against out-of-bounds values via image/border size check.
-__device__  static inline void getRandSamplePosition(curandState* randState, int& x_sample, int& y_sample, const int x_orig, const int y_orig, const int border, const int width, const int height) {
-	const int s_anSamplesInitPattern[s_nSamplesInitPatternHeight][s_nSamplesInitPatternWidth] = {
-	{0,     0,     4,     7,     4,     0,     0,},
-	{0,    11,    53,    88,    53,    11,     0,},
-	{4,    53,   240,   399,   240,    53,     4,},
-	{7,    88,   399,   660,   399,    88,     7,},
-	{4,    53,   240,   399,   240,    53,     4,},
-	{0,    11,    53,    88,    53,    11,     0,},
-	{0,     0,     4,     7,     4,     0,     0,},
-};
-	int ind = y_orig*width+x_orig;
-    curandState localState = randState[ind];
-    size_t RANDOM = curand( &localState );
-    randState[ind] = localState; 
-	int r = 1+RANDOM%s_nSamplesInitPatternTot;
-	for(x_sample=0; x_sample<s_nSamplesInitPatternWidth; ++x_sample) {
-		for(y_sample=0; y_sample<s_nSamplesInitPatternHeight; ++y_sample) {
-			r -= s_anSamplesInitPattern[y_sample][x_sample];
-			if(r<=0)
-				goto stop;
-		}
-	}
-	stop:
-	x_sample += x_orig-s_nSamplesInitPatternWidth/2;
-	y_sample += y_orig-s_nSamplesInitPatternHeight/2;
-	if(x_sample<border)
-		x_sample = border;
-	else if(x_sample>=width-border)
-		x_sample = width-border-1;
-	if(y_sample<border)
-		y_sample = border;
-	else if(y_sample>=height-border)
-		y_sample = height-border-1;
-}
+
 // simple 8-connected (3x3) neighbors pattern
 static const int s_anNeighborPatternSize_3x3 = 8;
 static const int s_anNeighborPattern_3x3[8][2] = {

@@ -1,5 +1,4 @@
 #include "CudaSuperpixel.h"
-#include "cub/cub.cuh"
 #include <iostream>
 #include <thrust/reduce.h>
 #include <thrust/device_vector.h>
