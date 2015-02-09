@@ -5,6 +5,7 @@
     <ClCompile Include="LBSP.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VIBE.cpp" />
+    <ClCompile Include="timer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Affine2D.h" />
@@ -16,5 +17,6 @@
     <ClInclude Include="prob_model.h" />
     <ClInclude Include="VIBE.h" />
     <ClInclude Include="videoprocessor.h" />
+    <ClInclude Include="timer.h" />
   </ItemGroup>
 </Project>

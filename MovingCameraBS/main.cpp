@@ -36,6 +36,7 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 #include "opencv2/core/core.hpp"//因为在属性中已经配置了opencv等目录，所以把其当成了本地目录一样
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/highgui/highgui.hpp"
+#include "timer.h"
 //#include "libAnn.h"
 //#include "mclmcr.h"
 //#include "matrix.h"
@@ -2424,10 +2425,14 @@ void testMCD(int argc, char* argv[])
 	//processor.setDelay(1000./processor.getFrameRate());
 	processor.setDelay(0);
 
-	
+	nih::Timer timer;
+	timer.start();
 	// Start the process
 	processor.run();
+	timer.stop();
 
+	float fps = (end - start+1)/timer.seconds();
+	std::cout<<"...dond. fps "<<fps<<std::endl;
 	cv::waitKey();
 }
 int main(int argc, char* argv[])

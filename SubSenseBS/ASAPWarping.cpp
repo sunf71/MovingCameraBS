@@ -468,8 +468,8 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	{
 		int r = (int)((rads[i] - min)/stepR);
 		int t = (int)(thetas[i]/stepT);
-		r = r>DistSize? DistSize:r;
-		t = t>thetaSize? thetaSize:t;
+		r = r>DistSize-1? DistSize-1:r;
+		t = t>thetaSize-1? thetaSize-1:t;
 		int idx = t*DistSize+r;
 		//std::cout<<idx<<std::endl;
 		histogram[idx]++;

@@ -50,7 +50,7 @@ static inline int CreateDir(char *pszDir)
 	return 0;
 }
 using namespace cv;
-void refineSegments(const Mat& img, Mat& mask, Mat& dst)
+void refineSegments(const Mat& img, Mat& mask, Mat& dst ,int niter = 3)
 {
 	int niters = 3;
 
@@ -88,6 +88,41 @@ void refineSegments(const Mat& img, Mat& mask, Mat& dst)
 	Scalar color( 255, 255, 255 );
 	drawContours( dst, contours, largestComp, color, CV_FILLED, 8, hierarchy );
 	cv::cvtColor(dst, dst, CV_BGR2GRAY); 
+}
+inline void postProcessSegments(const Mat& img, Mat& mask)
+{
+	int niters = 1;
+
+	vector<vector<Point> > contours,imgContours;
+	vector<Vec4i> hierarchy,imgHierarchy;
+	
+	Mat temp;
+
+
+	dilate(mask, temp, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
+	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//腐蚀
+	dilate(temp, temp, Mat(), Point(-1,-1), niters);
+	
+	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
+	
+	
+
+	cv::Mat cimg(mask.size(),CV_8UC3);
+	cimg = cv::Scalar(0);
+	double minArea = 10*10;
+	Scalar color( 255, 255, 255 );
+	for( int i = 0; i< contours.size(); i++ )
+	{
+		const vector<Point>& c = contours[i];
+		double area = fabs(contourArea(Mat(c)));
+		if( area > minArea )
+		{
+			drawContours( cimg, contours, i, color, CV_FILLED, 8, hierarchy, 0, Point() );
+			
+		}
+		
+	}
+	cv::cvtColor(cimg,mask,CV_BGR2GRAY);
 }
 Mat InvAffineMatrix(const Mat affine)
 {
@@ -524,6 +559,7 @@ public:
 		std::cout<<*ptr<<std::endl;*/
 		_model.motionCompensate((double*)homography.data);
 		_model.update(&iplimage);
+		postProcessSegments(frame,output);
 		char fileName[50];
 		sprintf(fileName,"%s\\bin%06d.png",_outPath,frameNo++);
 		imwrite(fileName,output);

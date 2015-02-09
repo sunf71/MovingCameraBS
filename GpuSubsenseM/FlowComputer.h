@@ -35,3 +35,5 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 	const cv::Mat& spFlow, std::vector<int>& matchedId);
 void SuperpixelFlow(int spWidth, int spHeight, int spSize, const SLICClusterCenter* centers,  int& nF,
 	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, std::vector<uchar>& status,cv::Mat& flow);
+void GpuSuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, 
+	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, cv::Mat& flow);

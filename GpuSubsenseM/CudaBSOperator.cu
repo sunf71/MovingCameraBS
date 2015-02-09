@@ -27,7 +27,7 @@ __global__ void setup_kernel ( int size, curandState * state, unsigned long seed
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if (id<size)
 	{
-		curand_init ( seed,  id, 0,&state[id] );
+		curand_init ( seed+id, 0 , 0,&state[id] );
 	}
 } 
 
@@ -1716,7 +1716,54 @@ __global__ void SCudaUpdateModelKernel(curandState* devStates,const PtrStepSz<uc
 		}
 	}
 }
-__global__ void CudaUpdateModelKernel(curandState* devStates,const PtrStepSz<uchar4> img ,int width, int height,PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
+//update the whole  model with current image, 
+__global__ void CudaUpdateModelKernel(curandState* devStates,const PtrStepSz<uchar4> img ,int width, int height, PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
+{
+	__shared__ ushort s_randomPattern[7][7];
+	if (threadIdx.x < 7 && threadIdx.y < 7)
+		s_randomPattern[threadIdx.y][threadIdx.x] = c_anSamplesInitPattern[threadIdx.y][threadIdx.x];
+	__syncthreads();
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	
+	const int offset = BMSIZE*width*height;
+	if(x <width-2 && x>=2 && y>=2 && y < height)
+	{
+		int idx = x+y*width;
+
+
+		float fSamplesRefreshFrac = 1.0;
+		const size_t nBGSamplesToRefresh = fSamplesRefreshFrac<1.0f?(size_t)(fSamplesRefreshFrac*BMSIZE):BMSIZE;
+		const size_t nRefreshStartPos = fSamplesRefreshFrac<1.0f?getRandom(devStates,idx) %BMSIZE:0;
+		const size_t nLearningRate = 1;
+		for(size_t s=nRefreshStartPos; s<nRefreshStartPos+nBGSamplesToRefresh; ++s) {
+			int y_sample, x_sample;
+			//getRandNeighborPosition(devStates,x_sample,y_sample,x,y,2,width,height);
+			getRandSamplePosition(devStates,s_randomPattern,x_sample,y_sample,x,y,2,width,height);
+			int sidx =  y_sample*width+ x_sample;
+			/*uchar4 value = tex1Dfetch(LastColorTexture,sidx);
+			ushort4 svalue = tex1Dfetch(LastDescTexture,sidx);
+			uchar4* ptr = colorModel.data + offset;
+			ushort4* descPtr = descModel.data + offset;
+			uchar4 value = ptr[sidx];
+			ushort4 svalue = descPtr[sidx];*/
+			uchar4 value = tex1Dfetch(ImageTexture,sidx);
+			const size_t Thresholds[3] = {LBSPThres[value.x],LBSPThres[value.y],LBSPThres[value.z]};
+			ushort4 svalue;
+			LBSP(value,x_sample,y_sample,width,Thresholds,svalue);		
+
+			int pos = s%BMSIZE;
+
+			SetValueToBigMatrix(colorModel,width,height,pos,x,y,value);
+			SetValueToBigMatrix(descModel,width,height,pos,x,y,svalue);
+				
+
+			
+		}
+	}
+}
+//update with last frame
+__global__ void CudaUpdateModelKernel(curandState* devStates,int width, int height,PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
 {
 	__shared__ ushort s_randomPattern[7][7];
 	if (threadIdx.x < 7 && threadIdx.y < 7)
@@ -1736,14 +1783,17 @@ __global__ void CudaUpdateModelKernel(curandState* devStates,const PtrStepSz<uch
 			{
 				const size_t s_rand = getRandom(devStates,idx)%BMSIZE;
 				//求idx处的颜色和desc
-				uchar4 value = tex1Dfetch(LastColorTexture,idx);
-				ushort4 svalue = tex1Dfetch(LastDescTexture,idx);
-				/*uchar4* ptr = colorModel.data + offset;
+				/*uchar4 value = tex1Dfetch(LastColorTexture,idx);
+				ushort4 svalue = tex1Dfetch(LastDescTexture,idx);*/
+				uchar4* ptr = colorModel.data + offset;
 				ushort4* descPtr = descModel.data + offset;
-				uchar4 value = tex1Dfetch(ImageTexture,idx);
+				uchar4 value = ptr[idx];
+				ushort4 svalue = descPtr[idx];
+				/*uchar4 value = tex1Dfetch(ImageTexture,idx);
+				
 				const size_t Thresholds[3] = {LBSPThres[value.x],LBSPThres[value.y],LBSPThres[value.z]};
 				ushort4 svalue;
-				LBSP(value,x,y,width,Thresholds,svalue);	*/		
+				LBSP(value,x,y,width,Thresholds,svalue);		*/	
 				SetValueToBigMatrix(colorModel,width,height,s_rand,x,y,value);
 				SetValueToBigMatrix(descModel,width,height,s_rand,x,y,svalue);
 			}
@@ -1760,12 +1810,12 @@ __global__ void CudaUpdateModelKernel(curandState* devStates,const PtrStepSz<uch
 				//getRandNeighborPosition(devStates,x_sample,y_sample,x,y,2,width,height);
 				getRandSamplePosition(devStates,s_randomPattern,x_sample,y_sample,x,y,2,width,height);
 				int sidx =  y_sample*width+ x_sample;
-				uchar4 value = tex1Dfetch(LastColorTexture,sidx);
-				ushort4 svalue = tex1Dfetch(LastDescTexture,sidx);
-				/*uchar4* ptr = colorModel.data + offset;
+				/*uchar4 value = tex1Dfetch(LastColorTexture,sidx);
+				ushort4 svalue = tex1Dfetch(LastDescTexture,sidx);*/
+				uchar4* ptr = colorModel.data + offset;
 				ushort4* descPtr = descModel.data + offset;
 				uchar4 value = ptr[sidx];
-				ushort4 svalue = descPtr[sidx];*/
+				ushort4 svalue = descPtr[sidx];
 				/*uchar4 value = tex1Dfetch(ImageTexture,sidx);
 				const size_t Thresholds[3] = {LBSPThres[value.x],LBSPThres[value.y],LBSPThres[value.z]};
 				ushort4 svalue;
@@ -1888,8 +1938,7 @@ int CountOutPixel(const uchar* outMask,size_t size)
 	
 	return thrust::count(outMask,outMask+size,0);
 }
-
-void CudaUpdateModel(curandState* devStates,const cv::gpu::GpuMat& img ,int width, int height, PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
+void CudaUpdateModel(curandState* devStates, int width, int height, PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
 {
 	dim3 block(16,16);
 	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
@@ -1897,7 +1946,17 @@ void CudaUpdateModel(curandState* devStates,const cv::gpu::GpuMat& img ,int widt
 	int offset = BMSIZE*size;
 	cudaBindTexture(NULL,LastColorTexture,colorModel.data+offset,sizeof(uchar4)*size);
 	cudaBindTexture(NULL,LastDescTexture,descModel.data+offset,sizeof(ushort4)*size);
-	CudaUpdateModelKernel<<<grid,block>>>(devStates,img ,width,height,fgmask,colorModel,descModel);
+	CudaUpdateModelKernel<<<grid,block>>>(devStates,width,height,fgmask,colorModel,descModel);
+
+}
+void CudaUpdateModel(curandState* devStates,const cv::gpu::GpuMat& img ,int width, int height,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel)
+{
+	dim3 block(16,16);
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	int size = width*height;
+	int offset = BMSIZE*size;
+	
+	CudaUpdateModelKernel<<<grid,block>>>(devStates,img ,width,height,colorModel,descModel);
 }
 void CudaBindImgTexture(const cv::gpu::GpuMat& img)
 {

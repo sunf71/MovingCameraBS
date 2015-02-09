@@ -19,8 +19,8 @@ void TestASAPWarping()
 	//mesh.drawMesh(img,0,nimg);
 	//cv::imshow("mesh",nimg);
 	//cv::waitKey();
-	cv::Mat simg = cv::imread("..\\ptz\\input3\\in000181.jpg");
-	cv::Mat timg = cv::imread("..\\ptz\\input3\\in000180.jpg");
+	cv::Mat simg = cv::imread("..\\particle\\vperson\\in000121.jpg");
+	cv::Mat timg = cv::imread("..\\particle\\vperson\\in000120.jpg");
 	int width = simg.cols;
 	int height = simg.rows;
 	int quadStep = 8;
@@ -141,9 +141,9 @@ void MovieMakeMain(int argc, char* argv[])
 }
 int main(int argc, char* argv[])
 {
-	MovieMakeMain(argc,argv);
+	//MovieMakeMain(argc,argv);
 	//TestCVSolve();
-	//TestASAPWarping();
+	TestASAPWarping();
 	//BGSMovieMaker::MakeMovie("..\\result\\subsensex\\ptz\\input3\\warpbaseline","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout_s.avi");
 	return 0;
 	VideoProcessor processor;

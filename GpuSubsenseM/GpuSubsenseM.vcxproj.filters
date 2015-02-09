@@ -37,9 +37,6 @@
     <ClInclude Include="MRFOptimize.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="GpuBackgroundSubtractor.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="RandUtils.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -96,6 +93,9 @@
     </ClInclude>
     <ClInclude Include="FGMaskPostProcess.h">
       <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GpuBackgroundSubtractor.h">
+      <Filter>源文件</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

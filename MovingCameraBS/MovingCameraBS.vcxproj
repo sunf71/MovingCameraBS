@@ -84,6 +84,7 @@
     <ClInclude Include="MotionTracker.h" />
     <ClInclude Include="params.h" />
     <ClInclude Include="prob_model.h" />
+    <ClInclude Include="timer.h" />
     <ClInclude Include="VIBE.h" />
     <ClInclude Include="videoprocessor.h" />
   </ItemGroup>
@@ -91,6 +92,7 @@
     <ClCompile Include="Affine2D.cpp" />
     <ClCompile Include="LBSP.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="timer.cpp" />
     <ClCompile Include="VIBE.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

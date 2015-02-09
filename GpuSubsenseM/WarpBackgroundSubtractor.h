@@ -82,7 +82,7 @@ public:
 	//更新模型
 	void UpdateModel(const cv::Mat& curImg, const cv::Mat& curMask);
 	void WarpModels();
-	void WarpImage(const cv::Mat img, cv::Mat& warpedImg);
+	bool WarpImage(const cv::Mat img, cv::Mat& warpedImg);
 	
 protected:
 	virtual void saveModels();

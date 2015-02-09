@@ -44,7 +44,7 @@ int CountOutPixel(const uchar* d_ptr, size_t size);
 
 void TestRandNeighbour(int width, int height, int* rand);
 
-void CudaUpdateModel(curandState* devStates,const cv::gpu::GpuMat& img ,int width, int height, PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel);
-
+void CudaUpdateModel(curandState* devStates,const cv::gpu::GpuMat& img ,int width, int height, PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel);
+void CudaUpdateModel(curandState* devStates, int width, int height, PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel);
 void CudaBindImgTexture(const cv::gpu::GpuMat& img);
 void CudaBindWarpedImgTexture(const cv::gpu::GpuMat& img);

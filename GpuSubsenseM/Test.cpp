@@ -72,7 +72,7 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 void TestSuperpixel()
 {
 	using namespace cv;
-	Mat img = imread("..//ptz//input0//in000090.jpg");
+	Mat img = imread("..//moseg//cars4//in000041.jpg");
 	cv::cvtColor(img,img,CV_BGR2BGRA);
 	//cv::resize(img,img,cv::Size(16,16));
 	uchar4* imgData = new uchar4[img.rows*img.cols];
@@ -95,8 +95,8 @@ void TestSuperpixel()
 			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
-	CpuSuperpixel(idata,img.cols,img.rows,15);
-	GpuSuperpixel gs(img.cols,img.rows,15);
+	CpuSuperpixel(idata,img.cols,img.rows,5);
+	GpuSuperpixel gs(img.cols,img.rows,5);
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
 
@@ -877,8 +877,8 @@ void TestSuperpixelFlow()
 	SLIC aslic;	
 	PictureHandler handler;
 
-	int cols = 640;
-	int rows = 480;
+	int cols = 570;
+	int rows = 340;
 	int step = 5;
 	ASAPWarping asap(cols,rows,8,1.0);
 
@@ -887,8 +887,8 @@ void TestSuperpixelFlow()
 	GpuSuperpixel gs(cols,rows,step);
 	cv::Mat simg,timg,wimg,sgray,tgray;
 	cv::Mat img0,img1;
-	img0 = cv::imread("..//moseg//people1//in000002.jpg");
-	img1 = cv::imread("..//moseg//people1//in000001.jpg");
+	img0 = cv::imread("..//ptz//input2//in000002.jpg");
+	img1 = cv::imread("..//ptz//input2//in000001.jpg");
 
 	std::vector<cv::Point2f> features0,features1;
 	std::vector<uchar> status;
@@ -923,7 +923,8 @@ void TestSuperpixelFlow()
 	cv::Mat spFlow,flow,flowField,pflowField;
 	std::vector<cv::Mat> flows(2);
 	std::vector<cv::Point2f> f0,f1;
-	SuperpixelFlow(sgray,tgray,step,spSize,centers0,f0,f1,spFlow);
+	//SuperpixelFlow(sgray,tgray,step,spSize,centers0,f0,f1,spFlow);
+	GpuSuperpixelFlow(sgray,tgray,step,spSize,centers0,f0,f1,spFlow);
 	//SuperpixelGrowingFlow(sgray,tgray,step,spSize,centers0,labels0,spFlow);
 	std::vector<float> flowHist,avgX,avgY;
 	std::vector<std::vector<int>> ids;
@@ -1679,13 +1680,16 @@ void GpuSubsenseMain(int argc, char* argv[])
 	printf("to %s\n",argv[3]);
 	printf("input %s\n",argv[4]);
 	printf("output %s\n",argv[5]);
-	printf("region growing threshold %s\n",argv[6]);
-	printf("region growing seed threshold %s\n",argv[7]);
-	printf("model confidence %s\n",argv[8]);
-	printf("tc confidence %s\n",argv[9]);
+	
 	if (argc == 6)
 		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5]);
 	else
+	{
+		printf("region growing threshold %s\n",argv[6]);
+		printf("region growing seed threshold %s\n",argv[7]);
+		printf("model confidence %s\n",argv[8]);
+		printf("tc confidence %s\n",argv[9]);
 		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],atof(argv[6]),atof(argv[7]),atof(argv[8]),atof(argv[9]));
+	}
 }
 

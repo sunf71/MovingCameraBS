@@ -177,6 +177,77 @@ void SuperpixelFlow(int spWidth, int spHeight, int spSize, const SLICClusterCent
 	features0.resize(k);
 	features1.resize(k);
 }
+void upload(std::vector<cv::Point2f>& vec, cv::gpu::GpuMat& d_mat)
+{
+	cv::Mat mat(1, vec.size(), CV_32FC2, (void*)&vec[0]);
+	d_mat.upload(mat);
+}
+void download(const cv::gpu::GpuMat& d_mat, std::vector<cv::Point2f>& vec)
+{
+	vec.resize(d_mat.cols);
+	cv::Mat mat(1, d_mat.cols, CV_32FC2, (void*)&vec[0]);
+	d_mat.download(mat);
+}
+void download(const cv::gpu::GpuMat& d_mat, std::vector<uchar>& vec)
+{
+	vec.resize(d_mat.cols);
+	cv::Mat mat(1, d_mat.cols, CV_8UC1, (void*)&vec[0]);
+	d_mat.download(mat);
+}
+void GpuSuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, 
+	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, cv::Mat& flow)
+{
+	cv::gpu::GpuMat d_sgray,d_tgray,d_features0,d_features1,d_status,d_err;
+	features0.clear();
+	features1.clear();
+	std::vector<uchar> status;
+	std::vector<float> err;
+	int spWidth = (sgray.cols+step-1)/step;
+	int spHeight = (sgray.rows+step-1)/step;
+	flow.create(spHeight,spWidth,CV_32FC2);
+	flow = cv::Scalar(0);
+	cv::goodFeaturesToTrack(sgray,features0,5000,0.05,5);
+	for(int i=0; i<spSize; i++)
+	{
+		features0.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
+	}
+	d_sgray.upload(sgray);
+	d_tgray.upload(tgray);
+	upload(features0,d_features0);
+	cv::gpu::PyrLKOpticalFlow  d_pyrLk;
+	d_pyrLk.sparse(d_sgray,d_tgray,d_features0,d_features1,d_status);
+	download(d_features1,features1);
+	download(d_status,status);
+	//cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
+	
+
+	
+	int k=0; 
+	for(int i=0; i<spHeight; i++)
+	{
+		float2 * ptr = flow.ptr<float2>(i);
+		for(int j=0; j<spWidth; j++)
+		{
+			int idx = j + i*spWidth;
+			if (status[idx] == 1)
+			{
+				ptr[j].x = features1[idx].x - features0[idx].x;
+				ptr[j].y = features1[idx].y - features0[idx].y;
+				k++;
+			}
+			else
+			{
+				//KLTÊ§°Ü
+				ptr[j].x = UNKNOWN_FLOW;
+				ptr[j].y = UNKNOWN_FLOW;
+			}
+		}
+	}
+	
+	
+	
+	std::cout<<"tracking succeeded "<<k<<" total "<<spSize<<std::endl;
+}
 void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, 
 	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, cv::Mat& flow)
 {
@@ -193,6 +264,8 @@ void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spS
 		features0.push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
 	}
 	cv::calcOpticalFlowPyrLK(sgray,tgray,features0,features1,status,err);
+	
+
 	
 	int k=0; 
 	for(int i=0; i<spHeight; i++)
