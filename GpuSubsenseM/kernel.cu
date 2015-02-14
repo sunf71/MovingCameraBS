@@ -2,6 +2,8 @@
 
 int main (int argc, char* argv[])
 {
+	//TestBlockHomography();
+	//TestFeaturesRefineHistogram(argc,argv);
 	//TestSuperpixelDownSample();
 	//TestSuperpielxComputer();
 	//TestFlowHistogram();

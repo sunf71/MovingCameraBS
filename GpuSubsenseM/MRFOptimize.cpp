@@ -227,7 +227,7 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 	g = new GraphType(/*estimated # of nodes*/ num_pixels, /*estimated # of edges*/ num_edges); 
 	
 	//std::ofstream dfile("dtenergy.txt");
-	float k1 = (1-m_tcConfidence);
+	float k1 = (1-m_tcConfidence-m_lmd2);
 	float k2 = m_tcConfidence*40;
 	for(int i=0; i<num_pixels; i++)
 	{
@@ -277,7 +277,7 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 		{				
 			if (i>spPtr[m_neighbor[i][j]].idx)
 			{
-				float energy = (m_lmd1+m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
+				float energy = (m_lmd1+40*m_lmd2*exp(-beta*abs(spPtr[i].avgColor-spPtr[m_neighbor[i][j]].avgColor)));
 				/*sfile<<energy<<" ";*/
 				g->add_edge(i,m_neighbor[i][j],energy,energy);
 			}

@@ -71,6 +71,7 @@ WarpBackgroundSubtractor::WarpBackgroundSubtractor(float rggThreshold,
 									float rggSeedThreshold,
 									float modelConfidence,
 									float tcConfidence,
+									float scConfidence,
 									float fRelLBSPThreshold,
 									size_t nMinDescDistThreshold,
 									size_t nMinColorDistThreshold,
@@ -101,6 +102,7 @@ m_bInitializedInternalStructs(false)
 	,m_rggSeedThreshold(rggSeedThreshold)
 	,m_modelConfidence(modelConfidence)
 	,m_TCConfidence(tcConfidence)
+	,m_SCConfidence(scConfidence)
 	{
 		CV_Assert(m_nBGSamples>0 && m_nRequiredBGSamples<=m_nBGSamples);
 		CV_Assert(m_nMinColorDistThreshold>=STAB_COLOR_DIST_OFFSET);
@@ -343,7 +345,7 @@ void WarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::ve
 
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
 	m_SPComputer = new SuperpixelComputer(m_oImgSize.width,m_oImgSize.height,5);
-	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5,m_modelConfidence,m_TCConfidence);
+	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5,m_modelConfidence,m_TCConfidence,m_SCConfidence);
 
 	//gpu
 	d_CurrentColorFrame = gpu::createContinuous(oInitImg.size(),CV_8UC4);
@@ -551,8 +553,19 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	size_t size = sizeof(cv::Point2f)*nf;
 	memcpy(&m_goodFeatures[0][0],&m_points[0][0],size);
 	memcpy(&m_goodFeatures[1][0],&m_points[1][0],size);
-	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography);
-	//FeaturePointsRefineHistogram(nf,m_oImgSize.width,m_oImgSize.height,m_points[0],m_points[1]);
+	
+	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
+	vector<float> blkWeights;
+	vector<cv::Mat> homographies;
+	/*int radSize1 = 10;
+	int thetaSize1 = 90;
+	int radSize2 = 2;
+	int thetaSize2 = 2;*/
+	//BC2FFeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],blkWeights,8,thetaSize1,radSize2,thetaSize2);
+	//C2FFeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],radSize1,thetaSize1,radSize2,thetaSize2);
+	//FeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],5,36);
+	std::vector<cv::Point2f> sf1,sf0;
+	int numH = BlockDltHomography(m_oImgSize.width,m_oImgSize.height,8,m_goodFeatures[0],m_goodFeatures[1],homographies,blkWeights,sf0,sf1);
 	//若匹配的特征点数小于20，重新初始化模型
 	if (nf < 20)
 	{
@@ -570,9 +583,17 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 #ifndef REPORT
 	cpuTimer.start();
 
-#endif		
-	m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);
-	m_ASAP->Solve();
+#endif	
+	/*m_ASAP->CreateSmoothCons(1.0);	
+	m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
+	m_ASAP->Solve();*/
+	cv::Mat b;
+	m_ASAP->CreateSmoothCons(blkWeights);
+	if (sf1.size() > 0)
+		m_ASAP->SetControlPts(sf0,sf1);	
+	m_ASAP->CreateMyDataConsB(numH,homographies,b);
+	//m_ASAP->CreateMyDataCons(numH,homographies,b);
+	m_ASAP->MySolve(b);
 	m_ASAP->Warp(image,warpedImg);
 	m_ASAP->Reset();
 	m_ASAP->getFlow(m_wflow);
@@ -616,7 +637,7 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	int * rgResult(NULL);
 	m_SPComputer->RegionGrowingFast(resLabels,m_rggThreshold*avgE,rgResult);
 #ifndef REPORT
-	m_SPComputer->GetRegionGrowingImg(m_features);	
+	/*m_SPComputer->GetRegionGrowingImg(m_features);	
 	char filename[200];	
 	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
@@ -624,7 +645,7 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	cv::Mat tmp;
 	m_SPComputer->GetRegionGrowingSeedImg(resLabels,tmp);
 	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,tmp);
+	cv::imwrite(filename,tmp);*/
 #endif
 #ifndef REPORT
 	cpuTimer.stop();
@@ -1412,7 +1433,7 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	m_bInitialized = true;	
 	m_gs = new GpuSuperpixel(m_oImgSize.width,m_oImgSize.height,5);
 	m_SPComputer = new SuperpixelComputer(m_oImgSize.width,m_oImgSize.height,5);
-	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5,m_modelConfidence,m_TCConfidence);
+	m_optimizer = new MRFOptimize(m_oImgSize.width,m_oImgSize.height,5,m_modelConfidence,m_TCConfidence,m_SCConfidence);
 
 	cudaMalloc(&d_outMaskPtr,m_nPixels);
 
@@ -1476,9 +1497,12 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 
 	d_FGMask.download(oCurrFGMask);
+
+#ifndef REPORT
 	char filename[50];
 	sprintf(filename,".\\gpu\\bin%06d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,oCurrFGMask);
+#endif
 	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	//oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);

@@ -97,6 +97,9 @@
     <ClInclude Include="GpuBackgroundSubtractor.h">
       <Filter>源文件</Filter>
     </ClInclude>
+    <ClInclude Include="findHomography.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">

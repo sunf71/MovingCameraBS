@@ -5,6 +5,8 @@
 #include "FeaturePointRefine.h"
 #include "SuperpixelComputer.h"
 #include "DistanceUtils.h"
+#include "Common.h"
+#include "findHomography.h"
 void testCudaGpu()
 {
 	try
@@ -215,7 +217,7 @@ void TestRandom()
 	cudaFree(d_rand);
 	delete[] h_rand;
 }
-void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, float rggThre, float rggSeedThres, float mdlConfidence, float tcConfidence)
+void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, float rggThre, float rggSeedThres, float mdlConfidence, float tcConfidence, float scConfidence)
 {
 
 	warmUpDevice();
@@ -1683,7 +1685,7 @@ void GpuSubsenseMain(int argc, char* argv[])
 	
 	if (argc == 6)
 		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5]);
-	else
+	else if (argc == 10)
 	{
 		printf("region growing threshold %s\n",argv[6]);
 		printf("region growing seed threshold %s\n",argv[7]);
@@ -1691,5 +1693,210 @@ void GpuSubsenseMain(int argc, char* argv[])
 		printf("tc confidence %s\n",argv[9]);
 		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],atof(argv[6]),atof(argv[7]),atof(argv[8]),atof(argv[9]));
 	}
+	else if (argc == 11)
+	{
+		printf("region growing threshold %s\n",argv[6]);
+		printf("region growing seed threshold %s\n",argv[7]);
+		printf("model confidence %s\n",argv[8]);
+		printf("tc confidence %s\n",argv[9]);
+		printf("sc confidence %s\n",argv[10]);
+		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],atof(argv[6]),atof(argv[7]),atof(argv[8]),atof(argv[9]),atof(argv[10]));
+	}
 }
 
+void TestBlockHomography()
+{
+	/*std::vector<cv::Point2f> f1,f2;
+	f1.push_back(cv::Point2f(139,23));
+	f1.push_back(cv::Point2f(434,326));
+	f1.push_back(cv::Point2f(599,185));
+	f1.push_back(cv::Point2f(332,400));
+	f1.push_back(cv::Point2f(22,25));
+
+	f2.push_back(cv::Point2f(282,240));
+	f2.push_back(cv::Point2f(357,223));
+	f2.push_back(cv::Point2f(607,458));
+	f2.push_back(cv::Point2f(272,146));
+	f2.push_back(cv::Point2f(33,23));
+	cv::Mat homography;
+	findHomographyNormalizedDLT(f1,f2,homography);
+	std::cout<<homography<<std::endl;
+	findHomographyEqa(f1,f2,homography);
+	std::cout<<homography<<std::endl;*/
+	int start = 1;
+	int end = 200;
+	int width = 720;
+	int height = 480;
+	int quadWidth = 4;
+	cv::Size size2(width*2,height);
+	std::vector<cv::Mat> homographies;
+	std::vector<float> blkWeights(quadWidth*quadWidth,0);
+	const char path[] = "..//particle//vcar";
+	char dstPath[200];
+	sprintf(dstPath,"..//warpRst//mywarp");
+	CreateDir(dstPath);
+	char fileName[200];
+	cv::Mat img1,img0,gray1,gray0,wimg,gtImg;
+	std::vector<cv::Point2f> features1,features0;
+	std::vector<cv::Point2f> sf1,sf0;
+
+	ASAPWarping asap(width,height,quadWidth,1.0);
+	for (int i=start; i<=end; i++)
+	{
+		printf("%d------------\n",i);
+		sprintf(fileName,"%s//in%06d.jpg",path,i);
+		img1 = imread(fileName);
+		sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
+		gtImg = imread(fileName);
+		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);
+		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
+		if (gray0.empty())
+		{
+			gray0 = gray1.clone();
+			img0 = img1.clone();
+		}
+		/*nih::Timer timer;
+		timer.start();*/
+		KLTFeaturesMatching(gray1,gray0,features1,features0,5000,0.05,5);
+		/*timer.stop();
+		std::cout<<"klt tracking "<<timer.seconds()*1000<<"ms\n";
+		timer.start();*/
+		//BC2FFeaturePointsRefineHistogram(width,height,features1,features0,blkWeights,4,radSize1,thetaSize1,radSize2,thetaSize2);
+		//C2FFeaturePointsRefineHistogram(width,height,features1,features0,5,36,2,2);
+		FeaturePointsRefineHistogram(width,height,features1,features0);
+		/*cv::Mat homo;
+		FeaturePointsRefineRANSAC(features1,features0,homo,0.1);*/
+		if (i>1)
+		{
+			bool save = false;
+			int ec(0);
+			cv::Mat rstImg(size2,CV_8UC3);
+			img0.copyTo(rstImg(cv::Rect(0,0,width,height)));
+			img1.copyTo(rstImg(cv::Rect(width,0,width,height)));
+			for(int j=0; j< features1.size(); j++)
+			{
+				int x = (int)(features1[j].x+0.5);
+				int y = (int)(features1[j].y+0.5);
+				if (gtImg.data[x+y*width] == 0xff)
+				{
+					cv::line(rstImg,cv::Point(features0[j].x,features0[j].y),cv::Point(features1[j].x+width,features1[j].y),cv::Scalar(255,0,0));
+					ec++;
+					save = true;
+				}
+			}
+			if (save)
+			{
+				sprintf(fileName,"..//warpRst//mywarp//error//%d_error_%d.jpg",i,ec);
+				cv::imwrite(fileName,rstImg);
+			}
+		}
+		std::cout<<"features remians "<<features1.size()<<std::endl;
+		int num = BlockDltHomography(width,height,quadWidth,features1,features0,homographies,blkWeights,sf1,sf0);
+		
+		
+
+		asap.Reset();
+		/*asap.CreateSmoothCons(1.0);
+		asap.SetControlPts(features1,features0);
+		asap.Solve();*/
+		
+		cv::Mat b;
+		asap.CreateSmoothCons(blkWeights);		
+		asap.CreateMyDataCons(num,homographies,b);
+		asap.MySolve(b);
+		asap.Warp(img1,wimg);
+		/*cv::imshow("warped image",wimg);
+		cv::waitKey();*/
+		sprintf(fileName,"%swin%06d.jpg",dstPath,i);
+		cv::imwrite(fileName,wimg);
+		cv::Mat diff;
+		cv::absdiff(wimg,img0,diff);
+		sprintf(fileName,"%sdiff%06d.jpg",dstPath,i);
+		
+		cv::imwrite(fileName,diff);
+		
+		homographies.clear();
+		cv::swap(img0,img1);
+		cv::swap(gray0,gray1);
+	}
+
+}
+//测试直方图投票的方式选取背景特征点
+void TestFeaturesRefineHistogram(int argc, char* argv[])
+{
+	int start = atoi(argv[1]);
+	int end = atoi(argv[2]);
+	int width = atoi(argv[3]);
+	int height = atoi(argv[4]);
+	int radSize1 = atoi(argv[5]);
+	int thetaSize1 = atoi(argv[6]);
+	int radSize2 = atoi(argv[7]);
+	int thetaSize2 = atoi(argv[8]);
+	char* path = argv[9];
+	cv::Size size2(width*2,height);
+	char fileName[200];
+	cv::Mat img0,gray0,img1,gray1,gtImg;
+	std::vector<cv::Point2f> features0,features1;
+	std::vector<uchar>status;
+	std::vector<float>err;
+	std::vector<float> blkWeights;
+	for (int i=start; i<=end; i++)
+	{
+		sprintf(fileName,"%s//in%06d.jpg",path,i);
+		img1 = imread(fileName);
+		sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
+		gtImg = imread(fileName);
+		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);
+		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
+		if (gray0.empty())
+		{
+			gray0 = gray1.clone();
+			img0 = img1.clone();
+		}
+		/*nih::Timer timer;
+		timer.start();*/
+		KLTFeaturesMatching(gray1,gray0,features1,features0,5000,0.05,5);
+		/*timer.stop();
+		std::cout<<"klt tracking "<<timer.seconds()*1000<<"ms\n";
+		timer.start();*/
+		//BC2FFeaturePointsRefineHistogram(width,height,features1,features0,blkWeights,4,radSize1,thetaSize1,radSize2,thetaSize2);
+		C2FFeaturePointsRefineHistogram(width,height,features1,features0,radSize1,thetaSize1,radSize2,thetaSize2);
+		/*cv::Mat homo;
+		FeaturePointsRefineRANSAC(features1,features0,homo);*/
+		std::cout<<"features remians "<<features1.size()<<std::endl;
+	/*	timer.stop();
+		std::cout<<"refine "<<timer.seconds()*1000<<"ms\n";*/
+		//cv::Mat homography;
+		//FeaturePointsRefineRANSAC(features1,features0,homography);
+		if (i>1)
+		{
+			bool save = false;
+			int ec(0);
+			cv::Mat rstImg(size2,CV_8UC3);
+			img0.copyTo(rstImg(cv::Rect(0,0,width,height)));
+			img1.copyTo(rstImg(cv::Rect(width,0,width,height)));
+			for(int j=0; j< features1.size(); j++)
+			{
+				int x = (int)(features1[j].x+0.5);
+				int y = (int)(features1[j].y+0.5);
+				if (gtImg.data[x+y*width] == 0xff)
+				{
+					cv::line(rstImg,cv::Point(features0[j].x,features0[j].y),cv::Point(features1[j].x+width,features1[j].y),cv::Scalar(255,0,0));
+					ec++;
+					save = true;
+				}
+			}
+			if (save)
+			{
+				sprintf(fileName,".//error//%d_error_%d.jpg",i,ec);
+				cv::imwrite(fileName,rstImg);
+			}
+		}
+		cv::swap(img0,img1);
+		cv::swap(gray0,gray1);
+
+	}
+	
+
+
+}

@@ -58,7 +58,7 @@ private:
 	char pathName[150];
 	int _offset;
 public:
-	WarpBSProcessor(int procId,const char* str,int offset=0, float rggThreshold= 2.0, float rggSeedThreshold = 0.8, float mdlConfidence = 0.8, float tcConfidence = 0.25):_initFlag(false),_offset(offset)
+	WarpBSProcessor(int procId,const char* str,int offset=0, float rggThreshold= 2.0, float rggSeedThreshold = 0.8, float mdlConfidence = 0.8, float tcConfidence = 0.25, float scConfidence = 0.35):_initFlag(false),_offset(offset)
 	{
 		if (procId==0)
 		{

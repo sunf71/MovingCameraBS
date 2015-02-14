@@ -288,7 +288,7 @@ public:
 		_SmoothConstraints = cv::Mat::zeros(_num_smooth_cons*5,3,CV_32F);
 		_SCc = 0;
 
-		CreateSmoothCons(weight);
+		//CreateSmoothCons(weight);
 		_mapX.create(height,width,CV_32F);
 		_mapY.create(height,width,CV_32F);
 		_outMask = cv::Mat::zeros(height,width,CV_32F);
@@ -296,6 +296,8 @@ public:
 		_invMapY = _mapY.clone();
 		//std::cout<<_SmoothConstraints;
 	};
+	void CreateSmoothCons(float weight);
+	void CreateSmoothCons(std::vector<float> weights);
 	~ASAPWarping()
 	{
 		delete _source;
@@ -304,9 +306,17 @@ public:
 	void SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts);
 	void Reset()
 	{
-		_rowCount = _sRowCount;
+		//_rowCount = _sRowCount;
+		_rowCount = 0;
+		_sRowCount = 0;
+		_SCc = 0;
 	}
+	void AddDataCons(int i, int j, double* hPtr, cv::Mat& b);
+	//添加双线性差值dataterm
+	void CreateMyDataConsB(int num, std::vector<cv::Mat>& homographies, cv::Mat& b);
+	void CreateMyDataCons(int num, std::vector<cv::Mat>& homographies, cv::Mat& b);
 	void CreateDataCons(cv::Mat& b);
+	void MySolve(cv::Mat& b);
 	void Solve();
 	void Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
 	void InvWarp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
@@ -867,7 +877,7 @@ protected:
 
 
 	}
-	void CreateSmoothCons(float weight);
+	
 	
 private:
 	int  _height;

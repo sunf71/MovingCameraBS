@@ -2443,7 +2443,7 @@ int main(int argc, char* argv[])
 	//TestPatchStructralSimilarity();
 	//TestOpticalFlowHistogram();
 	//TestfindHomographyDLT();
-	//TestHomographyEstimate();
+	TestHomographyEstimate();
 	//TestPerspective();	
 	//TestPostProcess();
 	//TestEdgeTracking2Img();
@@ -2454,6 +2454,6 @@ int main(int argc, char* argv[])
 	//return 0;
 	// Create video procesor instance
 	
-	testMCD(argc,argv);
+	//testMCD(argc,argv);
 	return 0;
 }

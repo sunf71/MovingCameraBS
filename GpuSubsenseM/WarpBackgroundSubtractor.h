@@ -31,6 +31,7 @@ public:
 									float rggSeedThreshold = 0.8,
 									float modelConfidence = 0.8,
 									float tcConfidence = 0.25,
+									float scConfidence = 0.35,
 									float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
 									size_t nMinDescDistThreshold=BGSSUBSENSE_DEFAULT_DESC_DIST_THRESHOLD,
 									size_t nMinColorDistThreshold=BGSSUBSENSE_DEFAULT_COLOR_DIST_THRESHOLD,
@@ -234,6 +235,8 @@ protected:
 	float m_modelConfidence;
 	//优化时时域连续性
 	float m_TCConfidence;
+	//空域连续性
+	float m_SCConfidence;
 };
 
 class WarpSPBackgroundSubtractor : public WarpBackgroundSubtractor
@@ -282,6 +285,7 @@ public:
 									float rggSeedThreshold = 0.8,
 									float modelConfidence = 0.8,
 									float tcConfidence = 0.25,
+									float scConfidence = 0.35,
 									float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
 									size_t nMinDescDistThreshold=BGSSUBSENSE_DEFAULT_DESC_DIST_THRESHOLD,
 									size_t nMinColorDistThreshold=BGSSUBSENSE_DEFAULT_COLOR_DIST_THRESHOLD,

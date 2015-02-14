@@ -168,6 +168,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="energy.h" />
     <ClInclude Include="FeaturePointRefine.h" />
     <ClInclude Include="FGMaskPostProcess.h" />
+    <ClInclude Include="findHomography.h" />
     <ClInclude Include="FlowComputer.h" />
     <ClInclude Include="flowIO.h" />
     <ClInclude Include="GCoptimization.h" />
