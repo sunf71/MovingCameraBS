@@ -7,6 +7,8 @@
 #include "DistanceUtils.h"
 #include "Common.h"
 #include "findHomography.h"
+#include "BlockWarping.h"
+#include "GpuTimer.h"
 void testCudaGpu()
 {
 	try
@@ -1899,4 +1901,157 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 	
 
 
+}
+
+void TestBlockWarping()
+{
+	int start = 1;
+	int end = 30;
+	int width = 640;
+	int height = 480;
+	float warpErr = 0;
+	int quadWidth = 8;
+	cv::Size size2(width*2,height);
+	std::vector<cv::Mat> homographies;
+	std::vector<float> blkWeights(quadWidth*quadWidth,0);
+	const char path[] = "..//moseg//cars2";
+	char dstPath[200];
+	sprintf(dstPath,"..//warpRst//mywarp//");
+	CreateDir(dstPath);
+	char fileName[200];
+	cv::Mat img1,img0,gray1,gray0,wimg,gtImg;
+	std::vector<cv::Point2f> features1,features0;
+	std::vector<cv::Point2f> sf1,sf0;
+
+	BlockWarping blkWarping(width,height,quadWidth);
+	ASAPWarping asapWarping(width,height,quadWidth,1.0);
+	for (int i=start; i<=end; i++)
+	{
+		printf("%d------------\n",i);
+		sprintf(fileName,"%s//in%06d.jpg",path,i);
+		img1 = imread(fileName);
+		sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
+		gtImg = imread(fileName);
+		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);
+		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
+		if (gray0.empty())
+		{
+			gray0 = gray1.clone();
+			img0 = img1.clone();
+		}
+		/*nih::Timer timer;
+		timer.start();*/
+		KLTFeaturesMatching(gray1,gray0,features1,features0,5000,0.05,5);
+		//SURFFeaturesMatching(gray1,gray0,features1,features0);
+		/*timer.stop();
+		std::cout<<"klt tracking "<<timer.seconds()*1000<<"ms\n";*/
+		nih::Timer timer;
+		timer.start();
+		//BC2FFeaturePointsRefineHistogram(width,height,features1,features0,blkWeights,4,radSize1,thetaSize1,radSize2,thetaSize2);
+		//C2FFeaturePointsRefineHistogram(width,height,features1,features0,3,1,1,3);
+		
+		//FeaturePointsRefineHistogram(width,height,features1,features0,10,36);
+		cv::Mat homo;
+		FeaturePointsRefineRANSAC(features1,features0,homo,0.1);
+		if (i>1)
+		{
+			bool save = false;
+			int ec(0);
+			cv::Mat rstImg(size2,CV_8UC3);
+			img0.copyTo(rstImg(cv::Rect(0,0,width,height)));
+			img1.copyTo(rstImg(cv::Rect(width,0,width,height)));
+			for(int j=0; j< features1.size(); j++)
+			{
+				int x = (int)(features1[j].x+0.5);
+				int y = (int)(features1[j].y+0.5);
+				if (gtImg.data[x+y*width] == 0xff)
+				{
+					cv::line(rstImg,cv::Point(features0[j].x,features0[j].y),cv::Point(features1[j].x+width,features1[j].y),cv::Scalar(255,0,0));
+					ec++;
+					save = true;
+				}
+			}
+			if (save)
+			{
+				sprintf(fileName,"..//warpRst//mywarp//error//%d_error_%d.jpg",i,ec);
+				cv::imwrite(fileName,rstImg);
+			}
+		}
+		timer.stop();
+		std::cout<<"featues refine "<<timer.seconds()*1000<<std::endl;
+		std::cout<<"features remians "<<features1.size()<<std::endl;
+
+		//nih::Timer timer;
+		//timer.start();
+		//asapWarping.CreateSmoothCons(1.0);	
+		///*timer.stop();
+		//std::cout<<"create smooth cons "<<timer.seconds()*1000<<std::endl;
+		//timer.start();*/
+		//asapWarping.SetControlPts(features1,features0);
+		///*timer.stop();
+		//std::cout<<"SetControlPts "<<timer.seconds()*1000<<std::endl;
+		//timer.start();*/
+		//asapWarping.Solve();
+		///*timer.stop();
+		//std::cout<<"solve "<<timer.seconds()*1000<<std::endl;
+		//timer.start();*/
+		//asapWarping.Warp(img1,wimg);
+		///*timer.stop();
+		//std::cout<<"warp "<<timer.seconds()*1000<<std::endl;*/
+		//asapWarping.Reset();
+		//timer.stop();
+		//std::cout<<"asap warping "<<timer.seconds()*1000<<std::endl;
+
+		
+		
+		timer.start();
+		blkWarping.SetFeaturePoints(features1,features0);
+
+		timer.stop();
+		std::cout<<"set featurepoints "<<timer.seconds()*1000<<std::endl;
+		timer.start();
+		blkWarping.CalcBlkHomography();
+		timer.stop();
+		std::cout<<"calc homo "<<timer.seconds()*1000<<std::endl;
+		//timer.start();
+		//blkWarping.Warp(img1,wimg);
+		GpuTimer gtimer;
+		gtimer.Start();
+		cv::gpu::GpuMat dimg,dwimg;
+		dimg.upload(img1);
+		blkWarping.GpuWarp(dimg,dwimg);
+		dwimg.download(wimg);
+		gtimer.Stop();
+
+		//timer.stop();
+		std::cout<<"blk warp "<<gtimer.Elapsed()<<std::endl;
+		cv::Mat flow;
+		blkWarping.getFlow(flow);
+		timer.start();
+		blkWarping.Reset();
+		timer.stop();
+		std::cout<<"reset "<<timer.seconds()*1000<<std::endl;
+		
+		timer.start();
+		/*cv::Mat homo;
+		findHomographyEqa(features1,features0,homo);*/
+		/*cv::warpPerspective(img1,wimg,homo,img1.size());
+		timer.stop();
+		std::cout<<"warpPerspective "<<timer.seconds()*1000<<std::endl;*/
+		/*cv::imshow("warped image",wimg);
+		cv::waitKey();*/
+		sprintf(fileName,"%swin%06d.jpg",dstPath,i);
+		cv::imwrite(fileName,wimg);
+		cv::Mat diff;
+		cv::absdiff(wimg,img0,diff);
+		sprintf(fileName,"%sdiff%06d.jpg",dstPath,i);
+		cv::Scalar sum= cv::sum(diff);
+		std::cout<<sum[0]<<std::endl;
+		warpErr += sum[0];
+		cv::imwrite(fileName,diff);
+		
+		cv::swap(img0,img1);
+		cv::swap(gray0,gray1);
+	}
+	std::cout<<"avg err "<<warpErr/(end-start+1);
 }

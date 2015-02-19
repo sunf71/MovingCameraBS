@@ -1259,7 +1259,7 @@ void WarpBackgroundSubtractor::UpdateModel(const cv::Mat& curImg, const cv::Mat&
 
 void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints)
 {
-
+	m_blkWarping = new BlockWarping(oInitImg.cols,oInitImg.rows,8);
 	//m_DOFP = new EPPMDenseOptialFlow();
 	m_ASAP = new ASAPWarping(oInitImg.cols,oInitImg.rows,8,1.0);
 
@@ -1444,7 +1444,242 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 
 }
 
+bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
+{
 
+
+	/*cv::warpPerspective(img,warpedImg,m_homography,m_oImgSize);*/
+	m_img = image.clone();
+	if (m_preImg.empty())
+	{
+		m_preImg = m_img.clone();
+
+	}
+	if (image.channels() ==3)
+	{
+		cv::cvtColor(image, m_gray, CV_BGR2GRAY); 
+	}
+	else
+		m_gray = image;
+	cv::Mat rgbaImg;
+	cv::cvtColor(image,rgbaImg,CV_BGR2BGRA);
+	d_CurrentColorFrame.upload(rgbaImg);
+	d_gray.upload(m_gray);
+
+	if (d_preGray.empty())
+	{
+		d_gray.copyTo(d_preGray);
+
+	}
+
+	if (m_preGray.empty())
+		m_gray.copyTo(m_preGray);
+
+	//char fileName[50];
+	//sprintf(fileName,"in%06d_warped.jpg",m_nFrameIndex+1);
+	//
+	//cv::imwrite(fileName,warpedImg);
+	//sprintf(fileName,"in%06d_gray.jpg",m_nFrameIndex+1);
+	//cv::imwrite(fileName,m_gray);	
+	//sprintf(fileName,"in%06d_preGray.jpg",m_nFrameIndex+1);
+	//cv::imwrite(fileName,m_preGray);
+
+	//std::vector<uchar> inliers(m_points[0].size());
+	//m_homography = cv::findHomography(
+	//	m_points[0], // corresponding
+	//	m_points[1], // points
+	//	inliers, // outputted inliers matches
+	//	CV_RANSAC, // RANSAC method
+	//	0.1); // max distance to reprojection point
+
+	//calculate dense flow 
+	/*m_DOFP->DenseOpticalFlow(m_gray,m_preGray,m_flow);*/
+	//计算超像素
+
+
+
+	int * labels(NULL), *preLabels(NULL);
+	SLICClusterCenter* centers(NULL), *preCenters(NULL);
+	int num(0);
+	float avgE(0);
+	int step(5);
+	int spHeight = (m_oImgSize.height+step-1)/step;
+	int spWidth = (m_oImgSize.width+step-1)/step;
+	cv::Mat spFlow;
+	m_SPComputer->ComputeSuperpixel(d_CurrentColorFrame.ptr<uchar4>(),num,labels,centers);
+
+#ifndef REPORT
+	nih::Timer cpuTimer;
+	cpuTimer.start();
+#endif
+	m_points[0].clear();
+	cv::goodFeaturesToTrack(m_gray,m_points[0],5000,0.05,5);
+	int nf = m_points[0].size();
+	for(int i=0; i<num; i++)
+	{
+		m_points[0].push_back(cv::Point2f(centers[i].xy.x,centers[i].xy.y));
+	}
+	upload(m_points[0],d_currPts);
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"	goodFeaturesToTrack  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+#endif
+#ifndef REPORT
+	cpuTimer.start();
+#endif
+	
+	//std::vector<float> err;
+	//cv::calcOpticalFlowPyrLK(m_gray,m_preGray,m_points[0],m_points[1],status,err);
+	d_pyrLk.sparse(d_gray,d_preGray,d_currPts,d_prevPts,d_status);
+	download(d_status,m_status);
+	//download(d_currPts,m_points[0]);
+	download(d_prevPts,m_points[1]);
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"	calcOpticalFlowPyrLK  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+#endif
+
+#ifndef REPORT
+	cpuTimer.start();
+#endif
+
+	SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],m_status,spFlow);
+
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"	Superpixel Flow "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+#endif
+	
+#ifndef REPORT
+	cpuTimer.start();
+#endif
+	m_goodFeatures[0].resize(nf);
+	m_goodFeatures[1].resize(nf);
+	size_t size = sizeof(cv::Point2f)*nf;
+	memcpy(&m_goodFeatures[0][0],&m_points[0][0],size);
+	memcpy(&m_goodFeatures[1][0],&m_points[1][0],size);
+	
+	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
+	vector<float> blkWeights;
+	vector<cv::Mat> homographies;
+	/*int radSize1 = 10;
+	int thetaSize1 = 90;
+	int radSize2 = 2;
+	int thetaSize2 = 2;*/
+	//BC2FFeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],blkWeights,8,thetaSize1,radSize2,thetaSize2);
+	//C2FFeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],10,1,1,36);
+	//FeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],10,36);
+	
+	//若匹配的特征点数小于20，重新初始化模型
+	if (nf < 20)
+	{
+		cv::swap(m_gray,m_preGray);
+		cv::swap(m_preImg,m_img);
+		cv::gpu::swap(d_gray,d_preGray);
+		return false;
+	}
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"	FeaturePointsRefineRANSAC "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
+
+#endif	
+
+#ifndef REPORT
+	cpuTimer.start();
+
+#endif	
+	/*m_ASAP->CreateSmoothCons(1.0);	
+	m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
+	m_ASAP->Solve();*/
+	//cv::Mat b;
+	//m_ASAP->CreateSmoothCons(blkWeights);
+	//if (sf1.size() > 0)
+	//	m_ASAP->SetControlPts(sf0,sf1);	
+	//m_ASAP->CreateMyDataConsB(numH,homographies,b);
+	////m_ASAP->CreateMyDataCons(numH,homographies,b);
+	//m_ASAP->MySolve(b);
+	//m_ASAP->Warp(image,warpedImg);
+	//m_ASAP->Reset();
+	//m_ASAP->getFlow(m_wflow);
+
+	
+
+	m_blkWarping->SetFeaturePoints(m_goodFeatures[0],m_goodFeatures[1]);
+	//std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
+	m_blkWarping->CalcBlkHomography();
+	//std::cout<<"CalcBlkHomography"<<std::endl;
+	//m_blkWarping->Warp(image,warpedImg);
+	m_blkWarping->GpuWarp(d_CurrentColorFrame,d_CurrWarpedColorFrame);	
+	//std::cout<<"GpuWarp"<<std::endl;
+	m_blkWarping->getFlow(m_wflow);
+	m_blkWarping->Reset();
+
+#ifndef REPORT
+	cpuTimer.stop();
+	char filename[200];	
+	sprintf(filename,".\\warpedImg\\win%06d.jpg",m_nFrameIndex+1);
+	cv::Mat wimg;
+	d_CurrWarpedColorFrame.download(wimg);
+	cv::cvtColor(wimg,wimg,CV_BGRA2BGR);
+	cv::imwrite(filename,wimg);
+	std::cout<<"	 Warping "<<cpuTimer.seconds()*1000<<std::endl;
+#endif
+
+
+#ifndef REPORT
+	cpuTimer.start();
+
+#endif	
+	m_SPComputer->GetPreSuperpixelResult(num,preLabels,preCenters);
+	int rows = m_oImgSize.height;
+	int cols = m_oImgSize.width;
+	SuperpixelMatching(labels,centers,m_img,preLabels,preCenters,m_preImg,num,step,cols,rows,spFlow,m_matchedId);
+
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"	superpixel matching "<<cpuTimer.seconds()*1000<<std::endl;
+#endif
+
+#ifndef REPORT
+	cpuTimer.start();
+#endif
+	avgE = m_SPComputer->ComputAvgColorDistance();
+	std::vector<int> resLabels;
+	for(int i=nf,j=0; i<m_points[0].size(); i++,j++)
+	{
+
+		cv::Point2f pt = m_points[0][i];
+		//比较superpixel flow 与 warping的结果，若一致则认为是背景超像素
+		int idx = (int)pt.x+(int)(pt.y)*m_oImgSize.width;
+		float2* flow = (float2*)(spFlow.data+labels[idx]*8);
+		float2* wflow = (float2*)(m_wflow.data+idx*8);
+		if (abs(flow->x-wflow->x) + abs(flow->y-wflow->y) < m_rggSeedThreshold)
+			resLabels.push_back(labels[idx]);
+
+	}
+	int * rgResult(NULL);
+	m_SPComputer->RegionGrowingFast(resLabels,m_rggThreshold*avgE,rgResult);
+#ifndef REPORT
+	m_SPComputer->GetRegionGrowingImg(m_features);	
+	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,m_features);
+
+	cv::Mat tmp;
+	m_SPComputer->GetRegionGrowingSeedImg(resLabels,tmp);
+	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
+	cv::imwrite(filename,tmp);
+#endif
+#ifndef REPORT
+	cpuTimer.stop();
+	std::cout<<"	superpixel Regiongrowing "<<cpuTimer.seconds()*1000<<std::endl;
+#endif
+
+	
+	cv::swap(m_gray,m_preGray);
+	cv::swap(m_preImg,m_img);
+	cv::gpu::swap(d_gray,d_preGray);
+	return true;
+}
 void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
 #ifndef REPORT
@@ -1475,35 +1710,41 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
-	cv::Mat mat2[] = {m_ASAP->getMapX(),m_ASAP->getMapY()};	
+	/*cv::Mat mat2[] = {m_ASAP->getMapX(),m_ASAP->getMapY()};	
 	cv::Mat map;
-	cv::merge(mat2,2,map);
-
-
-	cv::Mat invMat2[] = {m_ASAP->getInvMapX(),m_ASAP->getInvMapY()};
+	cv::merge(mat2,2,map);*/
+	/*d_Map.upload(m_blkWarping->getMapXY());
+	d_invMap.upload(m_blkWarping->getInvMapXY());*/
+	/*cv::Mat invMat2[] = {m_ASAP->getInvMapX(),m_ASAP->getInvMapY()};
 	cv::Mat invMap;
 	cv::merge(invMat2,2,invMap);
-	d_Map.upload(map);
-	d_invMap.upload(invMap);
-	cv::Mat wimg;
+	*d_Map.upload(map);
+	d_invMap.upload(invMap);*/
+	/*cv::Mat wimg;
 	cv::cvtColor(oInputImg,wimg,CV_BGR2BGRA);
-	d_CurrWarpedColorFrame.upload(wimg);
+	d_CurrWarpedColorFrame.upload(wimg);*/
 	/*cv::imshow("warped img",oInputImg);
 	cv::waitKey();*/
 
 	
 	
-	WarpCudaBSOperator(d_CurrentColorFrame,d_CurrWarpedColorFrame, d_randStates,d_Map,d_invMap,++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
+	WarpCudaBSOperator(d_CurrentColorFrame,d_CurrWarpedColorFrame, d_randStates,m_blkWarping->getDMapXY(),m_blkWarping->getDIMapXY(),++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 
-	d_FGMask.download(oCurrFGMask);
+	
 
 #ifndef REPORT
+	d_FGMask.download(oCurrFGMask);
 	char filename[50];
 	sprintf(filename,".\\gpu\\bin%06d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,oCurrFGMask);
 #endif
-	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	/*cv::Mat maps[2];
+	cv::split(m_blkWarping->getInvMapXY(),maps);*/
+	cv::gpu::remap(d_FGMask,d_FGMask,m_blkWarping->getDInvMapX(),m_blkWarping->getDInvMapY(),0);
+	
+	d_FGMask.download(oCurrFGMask);
+	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	//oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cudaMemcpy(m_outMask.data,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
@@ -1531,9 +1772,10 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	cv::bitwise_or(m_outMask,oCurrFGMask,refeshMask);
 	//cv::imshow("refresh mask", refeshMask);
 	//cv::waitKey();
+	
+#ifndef REPORT
 	sprintf(filename,".\\outmask\\bin%06d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,m_outMask);
-#ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<" optimize "<<cpuTimer.seconds()*1000<<"ms\n";
 

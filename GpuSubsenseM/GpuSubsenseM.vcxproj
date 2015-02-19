@@ -160,6 +160,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClInclude Include="ASAPWarping.h" />
     <ClInclude Include="block.h" />
+    <ClInclude Include="BlockWarping.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="ComSuperpixel.h" />
     <ClInclude Include="CudaBSOperator.h" />
@@ -194,6 +195,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ASAPWarping.cpp" />
+    <ClCompile Include="BlockWarping.cpp" />
     <ClCompile Include="ComSuperpixel.cpp" />
     <ClCompile Include="FeaturePointRefine.cpp" />
     <ClCompile Include="FlowComputer.cpp" />

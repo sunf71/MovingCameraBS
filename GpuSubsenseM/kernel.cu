@@ -2,6 +2,7 @@
 
 int main (int argc, char* argv[])
 {
+	//TestBlockWarping();
 	//TestBlockHomography();
 	//TestFeaturesRefineHistogram(argc,argv);
 	//TestSuperpixelDownSample();

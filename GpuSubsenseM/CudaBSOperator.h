@@ -48,3 +48,13 @@ void CudaUpdateModel(curandState* devStates,const cv::gpu::GpuMat& img ,int widt
 void CudaUpdateModel(curandState* devStates, int width, int height, PtrStep<uchar> fgmask,PtrStep<uchar4> colorModel,PtrStep<ushort4> descModel);
 void CudaBindImgTexture(const cv::gpu::GpuMat& img);
 void CudaBindWarpedImgTexture(const cv::gpu::GpuMat& img);
+
+void CudaWarp(const cv::gpu::GpuMat& img, int blkWidth, double* homo, double* invHomo,
+	cv::gpu::GpuMat& mapX, cv::gpu::GpuMat& mapY, 
+	cv::gpu::GpuMat& imapX, cv::gpu::GpuMat& imapY,
+	cv::Mat& warped);
+
+void CudaWarp(const cv::gpu::GpuMat& img, int blkWidth, double* homo, double* invHomo,
+	cv::gpu::GpuMat& mapX, cv::gpu::GpuMat& mapY, 
+	cv::gpu::GpuMat& imapX, cv::gpu::GpuMat& imapY,
+	cv::gpu::GpuMat& warped);

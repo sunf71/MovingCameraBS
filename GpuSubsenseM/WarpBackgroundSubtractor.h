@@ -11,6 +11,7 @@
 #include "SuperpixelComputer.h"
 #include <fstream>
 #include <curand_kernel.h>
+#include "BlockWarping.h"
 //! defines the default value for BackgroundSubtractorLBSP::m_fRelLBSPThreshold
 #define BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD (0.333f)
 //! defines the default value for BackgroundSubtractorLBSP::m_nDescDistThreshold
@@ -207,7 +208,8 @@ protected:
 	GpuSuperpixel* m_gs;
 	MRFOptimize* m_optimizer;	
 	cv::Mat m_warpedImg;
-	ASAPWarping* m_ASAP;
+	ASAPWarping* m_ASAP;	
+	BlockWarping* m_blkWarping;
 	//DenseOpticalFlowProvier* m_DOFP;
 	cv::Mat m_flow,m_wflow;
 	//计算像素连续被判为前景的次数，若大于某门限可以改判为背景
@@ -304,7 +306,7 @@ public:
 	//! gpu Background subtraction operator
 	virtual void BSOperator(cv::InputArray image, cv::OutputArray fgmask);
 	virtual void refreshModel(float fSamplesRefreshFrac);
-
+	virtual bool WarpImage(const cv::Mat image, cv::Mat& warpedImg);
 protected:
 	virtual void saveModels();
 	virtual void loadModels();
@@ -330,6 +332,5 @@ protected:
 	cv::gpu::GpuMat d_outMask;
 	uchar* d_outMaskPtr;
 	curandState* d_randStates;
-	
 };
 

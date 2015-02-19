@@ -16,6 +16,7 @@ texture<uchar4> ColorModelTexture;
 texture<ushort4> DescModelTexture;
 texture<uchar4> LastColorTexture;
 texture<ushort4> LastDescTexture;
+
 #define TILE_W 16
 #define TILE_H 16
 #define R 2
@@ -2011,3 +2012,68 @@ void CudaBindWarpedImgTexture(const cv::gpu::GpuMat& img)
 //	for(int i=0; i<n; i+=2)
 //		std::cout<<h_out[i]<<","<<h_out[i+1]<<std::endl;
 //}
+__global__ void CudaWarpKernel(int width, int height, int blkStep, double* homos, double*  invHomo,
+	PtrStep<float> mapX, PtrStep<float> mapY, 
+	PtrStep<float> imapX, PtrStep<float> imapY)
+{
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+	if (x<width && y<height)
+	{
+		int blkWidth = width / blkStep;
+		int blkHeight = height/ blkStep;
+		int idx = x/ blkWidth;
+		int idy = y/ blkHeight;
+		int bidx = idx + idy*blkStep;
+		int hidx = bidx*blkStep;
+		double* ptr = homos + hidx;
+		double* iptr = invHomo + hidx;
+		float wx = ptr[0]*x + ptr[1]*y + ptr[2];
+		float wy = ptr[3]*x + ptr[4]*y + ptr[5];
+		float w = ptr[6]*x + ptr[7]*y + 1;
+		wx/=w;
+		wy/=w;
+		mapX(y,x) = wx;
+		mapY(y,x) = wy;
+
+		wx = iptr[0]*x + iptr[1]*y + iptr[2];
+		wy = iptr[3]*x + iptr[4]*y + iptr[5];
+		w = iptr[6]*x + iptr[7]*y + 1;
+		wx /=w;
+		wy/=w;
+		imapX(y,x) = wx;
+		imapY(y,x) = wy;
+
+
+		 
+	}
+}
+void CudaWarp(const cv::gpu::GpuMat& img, int blkWidth, double* homo, double*  invHomo,
+	cv::gpu::GpuMat& mapX, cv::gpu::GpuMat& mapY, 
+	cv::gpu::GpuMat& imapX, cv::gpu::GpuMat& imapY,
+	cv::Mat& warped)
+{
+	dim3 block(16,16);
+	int width = img.cols;
+	int height = img.rows;
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	CudaWarpKernel<<<grid,block>>>(width,height,blkWidth,homo,invHomo,mapX,mapY,imapX,imapY);
+	cv::gpu::GpuMat dwarp;
+	cv::gpu::remap(img,dwarp,mapX,mapY,CV_INTER_CUBIC);
+	dwarp.download(warped);
+}
+
+void CudaWarp(const cv::gpu::GpuMat& img, int blkWidth, double* homo, double*  invHomo,
+	cv::gpu::GpuMat& mapX, cv::gpu::GpuMat& mapY, 
+	cv::gpu::GpuMat& imapX, cv::gpu::GpuMat& imapY,
+	cv::gpu::GpuMat& wimg)
+{
+	dim3 block(16,16);
+	int width = img.cols;
+	int height = img.rows;
+	dim3 grid((width + block.x - 1)/block.x,(height + block.y - 1)/block.y);
+	CudaWarpKernel<<<grid,block>>>(width,height,blkWidth,homo,invHomo,mapX,mapY,imapX,imapY);
+	
+	cv::gpu::remap(img,wimg,mapX,mapY,CV_INTER_CUBIC);
+	
+}

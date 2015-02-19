@@ -1,6 +1,15 @@
 #pragma once
 #include <opencv\cv.h>
 #include "SparseSolver.h"
+inline void MatrixTimesPoint(const double* ptr, cv::Point2f& point)
+{
+	float x = ptr[0]*point.x + ptr[1]*point.y + ptr[2];
+	float y = ptr[3]*point.x + ptr[4]*point.y + ptr[5];
+	float z = ptr[6]*point.x + ptr[7]*point.y + 1 + 1e-6;
+	point.x = x/z;
+	point.y = y/z;
+}
+
 inline void MatrixTimesPoint(const cv::Mat& mat, cv::Point2f& point)
 {
 	const double * ptr = mat.ptr<double>(0);
@@ -10,6 +19,24 @@ inline void MatrixTimesPoint(const cv::Mat& mat, cv::Point2f& point)
 	point.x = x/z;
 	point.y = y/z;
 }
+//inPts, float2 矩阵
+inline void MatrixTimesMatPoints(const cv::Mat& homo, const cv::Mat& inPts, cv::Mat& outPts)
+{
+	const double * hptr = homo.ptr<double>(0);
+	for(int i=0; i<inPts.rows; i++)
+	{
+		const float* ptr = inPts.ptr<float>(i);
+		float* dstPtr = outPts.ptr<float>(i);
+		for(int j=0; j<inPts.cols; j++)
+		{
+			float x = hptr[0]*ptr[2*j] + hptr[1]*ptr[2*j+1] + hptr[2];
+			float y = hptr[3]*ptr[2*j] + hptr[4]*ptr[2*j+1] + hptr[5];
+			float z = hptr[6]*ptr[2*j] + hptr[7]*ptr[2*j+1] + hptr[8] + 1e-6;
+			dstPtr[2*j] = x/z;
+			dstPtr[2*j+1] = y/z;			
+		}
+	}
+}
 inline void MatrixTimesPoints(const cv::Mat& mat, std::vector<cv::Point2f>& points)
 {
 	for(int i=0; i<points.size(); i++)
@@ -17,7 +44,26 @@ inline void MatrixTimesPoints(const cv::Mat& mat, std::vector<cv::Point2f>& poin
 		MatrixTimesPoint(mat,points[i]);
 	}
 }
-
+inline void MatrixTimesPoints(const double* ptr, std::vector<cv::Point2f>& points)
+{
+	for(int i=0; i<points.size(); i++)
+	{
+		
+		MatrixTimesPoint(ptr,points[i]);
+	}
+}
+inline void MatrixTimesPoints(const std::vector<double>& ptr, std::vector<cv::Point2f>& points)
+{
+	for(int i=0; i<points.size(); i++)
+	{
+		cv::Point2f point = points[i];
+		float x = ptr[0]*point.x + ptr[1]*point.y + ptr[2];
+		float y = ptr[3]*point.x + ptr[4]*point.y + ptr[5];
+		float z = ptr[6]*point.x + ptr[7]*point.y +  1;
+		point.x = x/z;
+		point.y = y/z;
+	}
+}
 //normalize points to the center of the points
 inline void NormalizePoints(const std::vector<cv::Point2f >& points, cv::Mat& trans, std::vector<cv::Point2f >& normalizedPoints)
 {
@@ -256,4 +302,45 @@ inline void findHomographyEqa(std::vector<cv::Point2f>& f1, std::vector<cv::Poin
 		((double*)homography.data)[i] = *result.ptr<float>(i);
 	}
 	((double*)homography.data)[8] = 1;
+}
+
+//直接通过解方程求解
+inline void findHomographyEqa(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2, std::vector<double>& homoVec)
+{
+	cv::Mat Amat = cv::Mat::zeros(3*f1.size(),8,CV_32F);
+	cv::Mat bmat = cv::Mat(3*f1.size(),1,CV_32F);
+	for(int i=0; i<f1.size(); i++)
+	{
+		float* ptr = Amat.ptr<float>(3*i);
+		ptr[0] = f1[i].x;
+		ptr[1] = f1[i].y;
+		ptr[2] = 1;
+		ptr = bmat.ptr<float>(3*i);
+		ptr[0] = f2[i].x;
+
+		ptr = Amat.ptr<float>(i*3+1);
+		ptr[3] = f1[i].x;
+		ptr[4] = f1[i].y;
+		ptr[5] = 1;
+		ptr = bmat.ptr<float>(3*i+1);
+		ptr[0] = f2[i].y;
+
+		ptr = Amat.ptr<float>(i*3+2);
+		ptr[6] = f1[i].x;
+		ptr[7] = f1[i].y;
+		ptr = bmat.ptr<float>(3*i+2);
+		ptr[0] = 0;
+
+	}
+	//std::cout<<"A \n"<<Amat<<std::endl;
+	//std::cout<<"bmat "<<bmat<<std::endl;
+	//std::vector<float> result;
+	/*cv::Mat result(8,1,CV_32F);*/
+	cv::solve(Amat,bmat,homoVec,cv::DECOMP_SVD);
+	/*homography.create(3,3,CV_64F);
+	for(int i=0; i<result.rows; i++)
+	{
+		((double*)homography.data)[i] = *result.ptr<float>(i);
+	}
+	((double*)homography.data)[8] = 1;*/
 }

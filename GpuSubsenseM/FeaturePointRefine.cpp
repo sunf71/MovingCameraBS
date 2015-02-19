@@ -792,7 +792,8 @@ void SURFFeaturesMatching(const cv::Mat& simg, const cv::Mat& timg, std::vector<
   
    
   
-    
+	vf1.clear();
+	vf2.clear();
     for( int i = 0; i < good_matches.size(); i++ )
     {
       //-- Get the keypoints from the good matches

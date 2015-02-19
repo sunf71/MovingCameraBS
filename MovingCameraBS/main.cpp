@@ -2435,15 +2435,37 @@ void testMCD(int argc, char* argv[])
 	std::cout<<"...dond. fps "<<fps<<std::endl;
 	cv::waitKey();
 }
+void TestMaskExtractor()
+{
+	cv::Mat img,gray;
+	img = cv::imread("in000001.jpg");
+	int height = 445,width = 593;
+	img = img(cv::Rect(0,0,width,height));
+	cv::cvtColor(img,gray,CV_BGR2Lab);
+	cv::Mat channels[3];
+	cv::split(gray,channels);
+	cv::imshow("segmentation",gray);
+	cv::waitKey(0);
+	cv::Mat dst;
+	for(int i=0; i<3; i++)
+	{
+		cv::threshold(channels[i], dst, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
+		imshow("dst",dst);
+		cv::waitKey();
+	}
+
+	
+}
 int main(int argc, char* argv[])
 {
+	TestMaskExtractor();
 	//TestRemap();
 	//TestVLBP();
 	//TestDynamicTexture();
 	//TestPatchStructralSimilarity();
 	//TestOpticalFlowHistogram();
 	//TestfindHomographyDLT();
-	TestHomographyEstimate();
+	//TestHomographyEstimate();
 	//TestPerspective();	
 	//TestPostProcess();
 	//TestEdgeTracking2Img();
