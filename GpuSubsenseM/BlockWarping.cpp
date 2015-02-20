@@ -326,3 +326,42 @@ void BlockWarping::getFlow(cv::Mat& flow)
 		}
 	}
 }
+
+void GlobalWarping::getFlow(cv::Mat& flow)
+{
+	flow.create(_mapXY.size(),CV_32FC2);
+	for(int i=0; i<flow.rows; i++)
+	{
+		cv::Vec2f* ptr = _mapXY.ptr<cv::Vec2f>(i);
+		
+		cv::Vec2f* ptrFlow = flow.ptr<cv::Vec2f>(i);
+		for(int j=0; j<flow.cols; j++)
+		{
+			ptrFlow[j] = cv::Vec2f(j-ptr[j][0],i-ptr[j][1]);
+		}
+	}
+}
+void GlobalWarping::Warp(const cv::Mat& img, cv::Mat& warpedImg)
+{
+	_mapXY.create(img.rows,img.cols,CV_32FC2);
+	_invMapXY.create(img.rows,img.cols,CV_32FC2);
+	for(int i=0; i<img.rows; i++)
+	{
+		cv::Vec2f* dstPtr = _mapXY.ptr<cv::Vec2f>(i);
+		cv::Vec2f* idstPtr = _invMapXY.ptr<cv::Vec2f>(i);
+		for(int j=0; j<img.cols; j++)
+		{
+			cv::Point2f pt(j,i);
+			MatrixTimesPoint(_homography,pt);
+			dstPtr[j][0] = pt.x;
+			dstPtr[j][1] = pt.y;
+			pt.x = j, pt.y = i;
+			MatrixTimesPoint(_invHomograpy,pt);
+			idstPtr[j][0] = pt.x;
+			idstPtr[j][1] = pt.y;
+		}
+	}
+	cv::Mat mapXY[2];
+	cv::split(_mapXY,&mapXY[0]);
+	cv::remap(img,warpedImg,mapXY[0],mapXY[1],CV_INTER_CUBIC);
+}

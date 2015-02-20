@@ -1260,8 +1260,9 @@ void WarpBackgroundSubtractor::UpdateModel(const cv::Mat& curImg, const cv::Mat&
 void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints)
 {
 	m_blkWarping = new BlockWarping(oInitImg.cols,oInitImg.rows,8);
+	//m_gWarping = new GlobalWarping();
 	//m_DOFP = new EPPMDenseOptialFlow();
-	m_ASAP = new ASAPWarping(oInitImg.cols,oInitImg.rows,8,1.0);
+	//m_ASAP = new ASAPWarping(oInitImg.cols,oInitImg.rows,8,1.0);
 
 
 	// == init
@@ -1559,7 +1560,7 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	memcpy(&m_goodFeatures[0][0],&m_points[0][0],size);
 	memcpy(&m_goodFeatures[1][0],&m_points[1][0],size);
 	
-	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
+	FeaturePointsRefineRANSAC(nf,m_goodFeatures[1],m_goodFeatures[0],m_homography,0.1);
 	vector<float> blkWeights;
 	vector<cv::Mat> homographies;
 	/*int radSize1 = 10;
@@ -1602,15 +1603,17 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	//m_ASAP->Reset();
 	//m_ASAP->getFlow(m_wflow);
 
-	
-
+	//m_gWarping->SetHomography(m_homography);	
+	//m_gWarping->Warp(image,warpedImg);
+	//m_gWarping->getFlow(m_wflow);
+	//cv::warpPerspective(image,warpedImg,m_homography,image.size());
 	m_blkWarping->SetFeaturePoints(m_goodFeatures[0],m_goodFeatures[1]);
-	//std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
+	////std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
 	m_blkWarping->CalcBlkHomography();
-	//std::cout<<"CalcBlkHomography"<<std::endl;
-	//m_blkWarping->Warp(image,warpedImg);
+	////std::cout<<"CalcBlkHomography"<<std::endl;
+	////m_blkWarping->Warp(image,warpedImg);
 	m_blkWarping->GpuWarp(d_CurrentColorFrame,d_CurrWarpedColorFrame);	
-	//std::cout<<"GpuWarp"<<std::endl;
+	////std::cout<<"GpuWarp"<<std::endl;
 	m_blkWarping->getFlow(m_wflow);
 	m_blkWarping->Reset();
 
@@ -1713,8 +1716,8 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	/*cv::Mat mat2[] = {m_ASAP->getMapX(),m_ASAP->getMapY()};	
 	cv::Mat map;
 	cv::merge(mat2,2,map);*/
-	/*d_Map.upload(m_blkWarping->getMapXY());
-	d_invMap.upload(m_blkWarping->getInvMapXY());*/
+	//d_Map.upload(m_gWarping->getMapXY());
+	//d_invMap.upload(m_gWarping->getInvMapXY());
 	/*cv::Mat invMat2[] = {m_ASAP->getInvMapX(),m_ASAP->getInvMapY()};
 	cv::Mat invMap;
 	cv::merge(invMat2,2,invMap);
@@ -1740,11 +1743,11 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	cv::imwrite(filename,oCurrFGMask);
 #endif
 	/*cv::Mat maps[2];
-	cv::split(m_blkWarping->getInvMapXY(),maps);*/
+	cv::split(m_gWarping->getInvMapXY(),maps);*/
 	cv::gpu::remap(d_FGMask,d_FGMask,m_blkWarping->getDInvMapX(),m_blkWarping->getDInvMapY(),0);
 	
 	d_FGMask.download(oCurrFGMask);
-	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	//cv::remap(oCurrFGMask,oCurrFGMask,maps[0],maps[1],0);
 	//oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cudaMemcpy(m_outMask.data,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
@@ -1893,7 +1896,8 @@ GpuWarpBackgroundSubtractor::~GpuWarpBackgroundSubtractor()
 	cudaFree(d_outMaskPtr);	
 	cudaFree(d_randStates);
 
-
+	delete m_blkWarping;
+	delete m_gWarping;
 }
 
 void WarpSPBackgroundSubtractor::WarpSPImg()

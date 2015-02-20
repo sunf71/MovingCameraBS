@@ -2025,7 +2025,7 @@ __global__ void CudaWarpKernel(int width, int height, int blkStep, double* homos
 		int idx = x/ blkWidth;
 		int idy = y/ blkHeight;
 		int bidx = idx + idy*blkStep;
-		int hidx = bidx*blkStep;
+		int hidx = bidx*8;
 		double* ptr = homos + hidx;
 		double* iptr = invHomo + hidx;
 		float wx = ptr[0]*x + ptr[1]*y + ptr[2];

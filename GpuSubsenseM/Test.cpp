@@ -1906,15 +1906,15 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 void TestBlockWarping()
 {
 	int start = 1;
-	int end = 30;
+	int end = 19;
 	int width = 640;
 	int height = 480;
 	float warpErr = 0;
-	int quadWidth = 8;
+	int quadWidth = 4;
 	cv::Size size2(width*2,height);
 	std::vector<cv::Mat> homographies;
 	std::vector<float> blkWeights(quadWidth*quadWidth,0);
-	const char path[] = "..//moseg//cars2";
+	const char path[] = "..//moseg//cars1";
 	char dstPath[200];
 	sprintf(dstPath,"..//warpRst//mywarp//");
 	CreateDir(dstPath);

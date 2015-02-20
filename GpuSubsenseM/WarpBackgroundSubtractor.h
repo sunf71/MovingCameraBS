@@ -210,6 +210,7 @@ protected:
 	cv::Mat m_warpedImg;
 	ASAPWarping* m_ASAP;	
 	BlockWarping* m_blkWarping;
+	GlobalWarping* m_gWarping;
 	//DenseOpticalFlowProvier* m_DOFP;
 	cv::Mat m_flow,m_wflow;
 	//计算像素连续被判为前景的次数，若大于某门限可以改判为背景

@@ -10,6 +10,31 @@ struct Cell
 	Points points0,points1;
 	int idx;
 };
+class GlobalWarping
+{
+public:
+	void SetHomography(const cv::Mat& homo)
+	{
+		_homography = homo.clone();
+		_invHomograpy = _homography.inv();
+	}
+	void Warp(const cv::Mat& img, cv::Mat& warpedImg);
+	void getFlow(cv::Mat& flow);
+	cv::Mat& getMapXY()
+	{
+		return _mapXY;
+	}
+	cv::Mat& getInvMapXY()
+	{
+		return _invMapXY;
+	}
+
+private:
+	cv::Mat _homography;
+	cv::Mat _invHomograpy;
+	cv::Mat _mapXY;
+	cv::Mat _invMapXY;
+};
 class BlockWarping
 {
 public:
