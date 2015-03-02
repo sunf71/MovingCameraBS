@@ -1,9 +1,13 @@
 #pragma once
+
 #include <vector>
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <opencv2\opencv.hpp>
 #include <opencv2\nonfree\features2d.hpp>
+#include <opencv2\gpu\gpumat.hpp>
+#include "cuda.h"
+#include "cuda_runtime.h"
 using namespace std;
 bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2);
 
@@ -289,12 +293,21 @@ public:
 		_SCc = 0;
 
 		//CreateSmoothCons(weight);
-		_mapX.create(height,width,CV_32F);
-		_mapY.create(height,width,CV_32F);
+		_maps[0].create(height,width,CV_32F);
+		_maps[1].create(height,width,CV_32F);
 		_outMask = cv::Mat::zeros(height,width,CV_32F);
-		_invMapX = _mapX.clone();
-		_invMapY = _mapY.clone();
+		_invMaps[0] = _maps[0].clone();
+		_invMaps[1] = _maps[1].clone();
 		//std::cout<<_SmoothConstraints;
+		_blkSize = _quadStep*_quadStep;
+		cudaMalloc(&_dBlkHomoVec,sizeof(double)*_blkSize*8);
+		cudaMalloc(&_dBlkInvHomoVec,sizeof(double)*_blkSize*8);
+		_dMapXY[0].create(height,width,CV_32F);
+		_dMapXY[1].create(height,width,CV_32F);
+		_dIMapXY[0].create(height,width,CV_32F);
+		_dIMapXY[1].create(height,width,CV_32F);
+		_blkHomoVec.resize(_blkSize*8);
+		_blkInvHomoVec.resize(_blkSize*8);
 	};
 	void CreateSmoothCons(float weight);
 	void CreateSmoothCons(std::vector<float> weights);
@@ -302,6 +315,8 @@ public:
 	{
 		delete _source;
 		delete _destin;
+		cudaFree(_dBlkHomoVec);
+		cudaFree(_dBlkInvHomoVec);
 	}
 	void SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts);
 	void Reset()
@@ -319,6 +334,7 @@ public:
 	void MySolve(cv::Mat& b);
 	void Solve();
 	void Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
+	void GpuWarp(const cv::gpu::GpuMat& img1, cv::gpu::GpuMat& warpImg, int gap = 0);
 	void InvWarp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
 	std::vector<cv::Mat>& getHomographies()
 	{
@@ -330,23 +346,58 @@ public:
 	}
 	cv::Mat& getInvMapX()
 	{
-		return _invMapX;
+		return _invMaps[0];
 	}
 	cv::Mat& getInvMapY()
 	{
-		return _invMapY;
+		return _invMaps[1];
 	}
 	cv::Mat& getMapX()
 	{
-		return _mapX;
+		return _maps[0];
 	}
 	cv::Mat& getMapY()
 	{
-		return _mapY;
+		return _maps[1];
+	}
+	cv::gpu::GpuMat& getDInvMapX()
+	{
+		return _dIMapXY[0];
+	}
+	cv::gpu::GpuMat& getDInvMapY()
+	{
+		return _dIMapXY[1];
+	}
+	cv::gpu::GpuMat& getDMapX()
+	{
+		return _dMapXY[0];
+
+	}
+	cv::gpu::GpuMat& getDMapY()
+	{
+		return _dMapXY[1];
+	}
+	cv::gpu::GpuMat& getDMapXY()
+	{
+		return _dMap;
+	}
+	cv::gpu::GpuMat& getDIMapXY()
+	{
+		return _dIMap;
+	}
+	cv::Mat& getInvMapXY()
+	{
+		return _invMapXY;
+	}
+	
+	cv::Mat& getMapXY()
+	{
+		return _mapXY;
 	}
 	void getFlow(cv::Mat& flow);
 protected:
 	void quadWarp(const cv::Mat& img, int row, int col, Quad& qd1, Quad& qd2);
+	void calcQuadHomography(int row, int col, Quad& qd1, Quad& qd2);
 	void getSmoothWeight(const cv::Point2f& V1, const cv::Point2f& V2, const cv::Point2f& V3, float& u, float& v)
 	{
 		float d1 = sqrt((V1.x - V2.x)*(V1.x - V2.x) + (V1.y - V2.y)*(V1.y - V2.y));
@@ -885,6 +936,7 @@ private:
 	int _quadWidth;
 	int _quadHeight;
 	int _quadStep;
+	int _blkSize;
 	float _weight;
 	std::vector<float> _V00, _V01, _V10, _V11;
 	std::vector<cv::Point2f> _orgPts, _destPts;
@@ -898,8 +950,9 @@ private:
 	int _SCc;
 	std::vector<cv::Mat> _homographies;
 	std::vector<cv::Mat> _invHomographies;
-	cv::Mat _mapX,_mapY,_outMask;
-	cv::Mat _invMapX,_invMapY;
+	cv::Mat _maps[2], _invMaps[2];
+	cv::Mat _outMask, _mapXY;
+	cv::Mat _invMapXY;
 	//data constraints
 	std::vector<float>    _dataterm_element_i;
 	std::vector<float>    _dataterm_element_j;
@@ -915,4 +968,9 @@ private:
 	cv::Mat _warpImg;
 	int _rowCount;
 	int _sRowCount;
+	double* _dBlkHomoVec,*_dBlkInvHomoVec;
+	std::vector<double> _blkHomoVec,_blkInvHomoVec;
+	cv::gpu::GpuMat _dMapXY[2];
+	cv::gpu::GpuMat _dIMapXY[2];
+	cv::gpu::GpuMat _dMap,_dIMap;
 };

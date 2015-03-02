@@ -3,6 +3,7 @@
 #include <fstream>
 #include <opencv\cv.h>
 #include "findHomography.h"
+#include "CudaBSOperator.h"
 bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2)
 {   
 	float lambda1 = ((V1.y-V2.y)*(pt.x-V2.x) + (V2.x-V1.x)*(pt.y-V2.y)) / ((V1.y-V2.y)*(V0.x-V2.x) + (V2.x-V1.x)*(V0.y-V2.y));
@@ -436,6 +437,31 @@ void ASAPWarping::MySolve(cv::Mat& b)
 		}
 	}
 }
+void ASAPWarping::GpuWarp(const cv::gpu::GpuMat& img, cv::gpu::GpuMat& warpImg, int gap)
+{
+	
+	for(int i=1; i<_height; i++)
+	{
+		for(int j=1; j<_width; j++)
+		{
+			
+			Quad qd1 = _source->getQuad(i,j);
+			Quad qd2 = _destin->getQuad(i,j);
+			calcQuadHomography(i-1,j-1,qd1,qd2);
+		}
+	}
+	cudaMemcpy(_dBlkInvHomoVec,&_blkInvHomoVec[0],sizeof(double)*8*_blkSize,cudaMemcpyHostToDevice);
+	cudaMemcpy(_dBlkHomoVec,&_blkHomoVec[0],sizeof(double)*8*_blkSize,cudaMemcpyHostToDevice);
+
+	CudaWarp(img, _quadStep,_dBlkHomoVec,_dBlkInvHomoVec,_dMapXY[0],_dMapXY[1], _dIMapXY[0],_dIMapXY[1],warpImg);
+
+	cv::gpu::merge(_dMapXY,2,_dMap);
+	cv::gpu::merge(_dIMapXY,2,_dIMap);
+	_dMap.download(_mapXY);
+	_dMapXY[0].download(_maps[0]);
+	_dMapXY[1].download(_maps[1]);
+	//_dIMap.download(_invMapXY);
+}
 void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap)
 {
 	_warpImg = cv::Mat::zeros(img1.rows+2*gap,img1.cols+2*gap,CV_8UC3);
@@ -450,9 +476,45 @@ void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap)
 		}
 	}
 	//warpImg = _warpImg.clone();
-	cv::remap(img1,warpImg,_mapX,_mapY,CV_INTER_CUBIC);
-}
+	cv::remap(img1,warpImg,_maps[0],_maps[1],CV_INTER_CUBIC);
+	
 
+	cv::merge(_maps,2,_mapXY);
+	//std::cout<<_mapXY;
+	_dMap.upload(_mapXY);
+	
+	cv::merge(_invMaps,2,_invMapXY);
+	_dIMap.upload(_invMapXY);
+	_dIMapXY[0].upload(_invMaps[0]);
+	_dIMapXY[1].upload(_invMaps[1]);
+
+}
+void ASAPWarping::calcQuadHomography(int row, int col, Quad& q1, Quad& q2)
+{
+	float minx = q2.getMinX();
+    float maxx = q2.getMaxX();
+    float  miny = q2.getMinY();
+    float  maxy = q2.getMaxY();
+             
+    std::vector<cv::Point2f> f1,f2;
+	f1.push_back(q1.getV00());
+	f1.push_back(q1.getV01());
+	f1.push_back(q1.getV10());
+	f1.push_back(q1.getV11());
+             
+	f2.push_back(q2.getV00());
+	f2.push_back(q2.getV01());
+	f2.push_back(q2.getV10());
+	f2.push_back(q2.getV11());
+	
+	cv::Mat homography;	
+	findHomographySVD(f2,f1,homography);
+	cv::Mat invHomo = homography.inv();
+	int idx = row*(_width-1)+col;
+	memcpy(&_blkHomoVec[idx*8],homography.data,64);
+	memcpy(&_blkInvHomoVec[idx*8],invHomo.data,64);
+	
+}
 void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad& q2)
 {
 	float minx = q2.getMinX();
@@ -503,10 +565,10 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 	for(int i=0; i<_quadHeight; i++)
 	{
 		int r = row*_quadHeight+i;
-		float* ptrX = _mapX.ptr<float>(r);
-		float* ptrY = _mapY.ptr<float>(r);
-		float* invPtrX = _invMapX.ptr<float>(r);
-		float* invPtrY = _invMapY.ptr<float>(r);
+		float* ptrX = _maps[0].ptr<float>(r);
+		float* ptrY = _maps[1].ptr<float>(r);
+		float* invPtrX = _invMaps[0].ptr<float>(r);
+		float* invPtrY = _invMaps[1].ptr<float>(r);
 		for(int j=0; j<_quadWidth; j++)
 		{
 			int c = col*_quadWidth+j;
@@ -534,11 +596,11 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 }
 void ASAPWarping::getFlow(cv::Mat& flow)
 {
-	flow.create(_mapX.size(),CV_32FC2);
+	flow.create(_maps[0].size(),CV_32FC2);
 	for(int i=0; i<flow.rows; i++)
 	{
-		float* ptrX = _mapX.ptr<float>(i);
-		float* ptrY = _mapY.ptr<float>(i);
+		float* ptrX = _maps[0].ptr<float>(i);
+		float* ptrY = _maps[1].ptr<float>(i);
 		cv::Vec2f* ptrFlow = flow.ptr<cv::Vec2f>(i);
 		for(int j=0; j<flow.cols; j++)
 		{

@@ -1513,6 +1513,9 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	cpuTimer.start();
 #endif
 	m_points[0].clear();
+	/*cv::gpu::GoodFeaturesToTrackDetector_GPU GTracker(5000,0.05,5);
+	GTracker(d_gray,d_currPts);
+	download(d_currPts,m_points[0]);*/
 	cv::goodFeaturesToTrack(m_gray,m_points[0],5000,0.05,5);
 	int nf = m_points[0].size();
 	for(int i=0; i<num; i++)
@@ -1560,8 +1563,7 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	memcpy(&m_goodFeatures[1][0],&m_points[1][0],size);
 	
 	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
-	vector<float> blkWeights;
-	vector<cv::Mat> homographies;
+	
 	/*int radSize1 = 10;
 	int thetaSize1 = 90;
 	int radSize2 = 2;
@@ -1588,31 +1590,52 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	cpuTimer.start();
 
 #endif	
-	/*m_ASAP->CreateSmoothCons(1.0);	
-	m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
-	m_ASAP->Solve();*/
-	//cv::Mat b;
-	//m_ASAP->CreateSmoothCons(blkWeights);
-	//if (sf1.size() > 0)
-	//	m_ASAP->SetControlPts(sf0,sf1);	
-	//m_ASAP->CreateMyDataConsB(numH,homographies,b);
-	////m_ASAP->CreateMyDataCons(numH,homographies,b);
-	//m_ASAP->MySolve(b);
-	//m_ASAP->Warp(image,warpedImg);
-	//m_ASAP->Reset();
-	//m_ASAP->getFlow(m_wflow);
-
+	
+	{
+		//ASAP warping
+		m_ASAP->CreateSmoothCons(1.0);	
+		m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
+		m_ASAP->Solve();
+		m_ASAP->Warp(rgbaImg,warpedImg);
+		d_CurrWarpedColorFrame.upload(warpedImg);
+		m_ASAP->Reset();
+		m_ASAP->getFlow(m_wflow);
+	}
 	
 
-	m_blkWarping->SetFeaturePoints(m_goodFeatures[0],m_goodFeatures[1]);
-	//std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
-	m_blkWarping->CalcBlkHomography();
-	//std::cout<<"CalcBlkHomography"<<std::endl;
-	//m_blkWarping->Warp(image,warpedImg);
-	m_blkWarping->GpuWarp(d_CurrentColorFrame,d_CurrWarpedColorFrame);	
-	//std::cout<<"GpuWarp"<<std::endl;
-	m_blkWarping->getFlow(m_wflow);
-	m_blkWarping->Reset();
+	
+	//{ 
+	//    //My ASAP warping
+	//	vector<float> blkWeights;
+	//	vector<cv::Mat> homographies;
+	//	std::vector<cv::Point2f> sf1,sf0;
+	//	int numH = BlockDltHomography(m_oImgSize.width,m_oImgSize.height,8,m_goodFeatures[0],m_goodFeatures[1],homographies,blkWeights,sf0,sf1);
+	//	cv::Mat b;
+	//	m_ASAP->CreateSmoothCons(blkWeights);
+	//	if (sf1.size() > 0)
+	//		m_ASAP->SetControlPts(sf0,sf1);	
+	//	m_ASAP->CreateMyDataConsB(numH,homographies,b);	
+	//	m_ASAP->MySolve(b);
+	//	//m_ASAP->Warp(image,warpedImg);
+	//	m_ASAP->GpuWarp(d_CurrentColorFrame,d_CurrWarpedColorFrame);	
+	//	m_ASAP->getFlow(m_wflow);
+	//	m_ASAP->Reset();
+	//	
+	//}
+	
+	
+	//{
+	//	//Block warping
+	//	m_blkWarping->SetFeaturePoints(m_goodFeatures[0],m_goodFeatures[1]);
+	//	//std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
+	//	m_blkWarping->CalcBlkHomography();
+	//	//std::cout<<"CalcBlkHomography"<<std::endl;
+	//	//m_blkWarping->Warp(image,warpedImg);
+	//	m_blkWarping->GpuWarp(d_CurrentColorFrame,d_CurrWarpedColorFrame);	
+	//	//std::cout<<"GpuWarp"<<std::endl;
+	//	m_blkWarping->getFlow(m_wflow);
+	//	m_blkWarping->Reset();
+	//}
 
 #ifndef REPORT
 	cpuTimer.stop();
@@ -1660,14 +1683,14 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	int * rgResult(NULL);
 	m_SPComputer->RegionGrowingFast(resLabels,m_rggThreshold*avgE,rgResult);
 #ifndef REPORT
-	m_SPComputer->GetRegionGrowingImg(m_features);	
+	/*m_SPComputer->GetRegionGrowingImg(m_features);	
 	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 
 	cv::Mat tmp;
 	m_SPComputer->GetRegionGrowingSeedImg(resLabels,tmp);
 	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,tmp);
+	cv::imwrite(filename,tmp);*/
 #endif
 #ifndef REPORT
 	cpuTimer.stop();
@@ -1728,7 +1751,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 
 	
 	
-	WarpCudaBSOperator(d_CurrentColorFrame,d_CurrWarpedColorFrame, d_randStates,m_blkWarping->getDMapXY(),m_blkWarping->getDIMapXY(),++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
+	WarpCudaBSOperator(d_CurrentColorFrame,d_CurrWarpedColorFrame, d_randStates,m_ASAP->getDMapXY(),m_ASAP->getDIMapXY(),++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 
 	
@@ -1741,7 +1764,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 #endif
 	/*cv::Mat maps[2];
 	cv::split(m_blkWarping->getInvMapXY(),maps);*/
-	cv::gpu::remap(d_FGMask,d_FGMask,m_blkWarping->getDInvMapX(),m_blkWarping->getDInvMapY(),0);
+	cv::gpu::remap(d_FGMask,d_FGMask,m_ASAP->getDInvMapX(),m_ASAP->getDInvMapY(),0);
 	
 	d_FGMask.download(oCurrFGMask);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
