@@ -38,4 +38,9 @@ void TestSuperpixelDownSample();
 void TestFeaturesRefineHistogram(int argc, char* argv[]);
 void TestBlockHomography();
 void TestBlockWarping();
+void TestSaliency(int argc, char* argv[]);
 void GpuSubsenseMain(int argc, char* argv[]);
+
+void TestQuantize();
+
+void TestLBP();

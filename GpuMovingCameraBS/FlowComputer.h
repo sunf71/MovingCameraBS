@@ -37,3 +37,5 @@ void SuperpixelFlow(int spWidth, int spHeight, int spSize, const SLICClusterCent
 	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, std::vector<uchar>& status,cv::Mat& flow);
 void GpuSuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, 
 	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, cv::Mat& flow);
+
+void FileSuperpixelFlow(const char* fileName, int imgWidth, int imgHeight, int spWidth, int spHeight, int spSize, const SLICClusterCenter* centers, cv::Mat& flow);

@@ -1,6 +1,8 @@
 #pragma once
 #include <io.h>
 #include <direct.h>
+#include <vector>
+#include <string>
 static inline int CreateDir(char *pszDir)
 {
 	int i = 0;
@@ -63,3 +65,5 @@ template<typename T> void safe_delete(T*& a)
 		a = NULL;
 	}
 }
+
+void DrawHistogram(std::vector<float>& histogram, int size, const std::string name = "histogram");

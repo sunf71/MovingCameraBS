@@ -179,7 +179,7 @@ void ComSuperpixel::Superpixel(unsigned int * rgbBuffer,unsigned width, unsigned
 
 	vector<double> edgemag(0);
 	DetectRGBEdges(m_rvec, m_gvec, m_bvec, m_width, m_height, edgemag);
-	GetRGBXYSeeds_ForGivenStep(kseedsr,kseedsg,kseedsb,kseedsx,kseedsy,step,false,edgemag);
+	GetRGBXYSeeds_ForGivenStep(kseedsr,kseedsg,kseedsb,kseedsx,kseedsy,step,true,edgemag);
 	num = m_nSuperpixels;
 	//iteration
 	vector<double> sigmal(m_nSuperpixels, 0);

@@ -61,6 +61,7 @@
     <ClInclude Include="GpuSuperpixel.h" />
     <ClInclude Include="GpuTimer.h" />
     <ClInclude Include="graph.h" />
+    <ClInclude Include="LBP.h" />
     <ClInclude Include="LBSP.h" />
     <ClInclude Include="LinkedBlockList.h" />
     <ClInclude Include="MeanShift.h" />

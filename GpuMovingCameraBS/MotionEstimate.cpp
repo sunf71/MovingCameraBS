@@ -1,3 +1,4 @@
+#include "Common.h"
 #include "MotionEstimate.h"
 #include "GpuSuperpixel.h"
 #include <algorithm>
@@ -524,7 +525,7 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 			
 		}
 	}
-	SPRGPostProcess(width,height,step,spWidth,spHeight,0,curLabel,newLabels);
+	//SPRGPostProcess(width,height,step,spWidth,spHeight,0,curLabel,newLabels);
 	for(int i=0; i<newLabels.size(); i++)
 	{
 		int x = centers[i].xy.x;
@@ -551,6 +552,7 @@ void SuperPixelRGSegment(int width, int height, int step,const int*  labels, con
 	//delete[] segmented;
 
 }
+
 void RegionGrowing(std::vector<cv::Point2f>& seeds,const cv::Mat& img, cv::Mat& result)
 {	
 	const int nx[] = {-1,0,1,0};
@@ -959,7 +961,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//cv::imwrite("mask.jpg",mask);
 	
 }
-void DrawHistogram(std::vector<float>& histogram, int size, const std::string name = "histogram")
+void DrawHistogram(std::vector<float>& histogram, int size, const std::string name)
 {
 	float max = histogram[0];
 	int idx = 0;
@@ -972,9 +974,9 @@ void DrawHistogram(std::vector<float>& histogram, int size, const std::string na
 		}
 
 	}
-	cv::Mat img(400,300,CV_8UC3);
+	cv::Mat img(400,600,CV_8UC3);
 	img = cv::Scalar(0);
-	int step = (img.cols+size-1)/size;
+	int step = (img.cols-100+size-1)/size;
 	cv::Scalar color(255,255,0);
 	for(int i=0; i<size; i++)
 	{
@@ -1065,7 +1067,7 @@ void TestRegioinGrowingSegment()
 	cv::Mat curImg,mask;
 	int _width = 640;
 	int _height = 480;
-	int _step = 5;
+	int _step = 50;
 	GpuSuperpixel gs(_width,_height,_step);
 	int spWidth = (_width+_step-1)/_step;
 	int spHeight = (_height+_step-1)/_step;
@@ -1082,7 +1084,7 @@ void TestRegioinGrowingSegment()
 		color[i] = cvRandInt(&rng);
 	for(int i=start; i<=end; i++)
 	{
-		sprintf(fileName,"..//moseg//cars2//in%06d.jpg",i);
+		sprintf(fileName,"..//moseg//people1//in%06d.jpg",i);
 		curImg = cv::imread(fileName);
 		cv::blur(curImg,curImg,cv::Size(3,3));
 		cv::cvtColor(curImg,curImg,CV_BGR2BGRA);
@@ -1099,7 +1101,7 @@ void TestRegioinGrowingSegment()
 			}
 		}
 		int num(0);		
-		gs.SuperpixelLattice(_imgData0,num,labels,centers);
+		gs.Superpixel(_imgData0,num,labels,centers);
 		/*std::ofstream file("label.txt");
 		for(int j=0; j<_height; j++)
 		{
@@ -1122,7 +1124,7 @@ void TestRegioinGrowingSegment()
 			}
 			cv::Mat fmask;
 			/*cv::bilateralFilter(mask,fmask,5,10,2.5);*/
-			sprintf(fileName,".//segment//cars2//features%06d.jpg",i);
+			sprintf(fileName,".//segment//people1//features%06d.jpg",i);
 			cv::imwrite(fileName,mask);
 
 	}

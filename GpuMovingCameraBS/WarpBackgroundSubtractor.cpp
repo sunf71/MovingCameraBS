@@ -1546,8 +1546,11 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	cpuTimer.start();
 #endif
 
-	SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],m_status,spFlow);
-
+	//SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],m_status,spFlow);
+	char fileName[50];
+	//cv::Mat fspFlow;
+	sprintf(fileName,"flow%06d.txt",m_nFrameIndex+1);
+	FileSuperpixelFlow(fileName,m_oImgSize.width,m_oImgSize.height,spWidth,spHeight,num,centers,spFlow);
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"	Superpixel Flow "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
@@ -1683,14 +1686,14 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	int * rgResult(NULL);
 	m_SPComputer->RegionGrowingFast(resLabels,m_rggThreshold*avgE,rgResult);
 #ifndef REPORT
-	/*m_SPComputer->GetRegionGrowingImg(m_features);	
+	m_SPComputer->GetRegionGrowingImg(m_features);	
 	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
 
 	cv::Mat tmp;
 	m_SPComputer->GetRegionGrowingSeedImg(resLabels,tmp);
 	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,tmp);*/
+	cv::imwrite(filename,tmp);
 #endif
 #ifndef REPORT
 	cpuTimer.stop();

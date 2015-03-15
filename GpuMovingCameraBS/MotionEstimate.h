@@ -3,6 +3,7 @@
 #include "GpuSuperpixel.h"
 #include <vector>
 using namespace cv;
+
 void RegionGrowing(std::vector<cv::Point2f>& seeds,const cv::Mat& img, cv::Mat& result);
 void SuperPixelRGSegment(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,int threshold, int*& segmented);
 void TestRegioinGrowingSegment();

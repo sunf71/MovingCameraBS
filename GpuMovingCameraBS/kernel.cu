@@ -2,6 +2,9 @@
 
 int main (int argc, char* argv[])
 {
+	//TestLBP();
+	//TestQuantize();
+	TestSaliency(argc,argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
 	//TestFeaturesRefineHistogram(argc,argv);
@@ -16,7 +19,7 @@ int main (int argc, char* argv[])
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();
 	//TestRandom();
-	GpuSubsenseMain( argc, argv);
+	//GpuSubsenseMain( argc, argv);
 	//MRFOptimization();
 	//TestSuperpixel();
 	//testCudaGpu();

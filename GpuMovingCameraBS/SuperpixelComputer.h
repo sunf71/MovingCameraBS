@@ -62,7 +62,8 @@ public:
 	  void GetSuperpixelDownSampleGrayImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& src, cv::Mat &dstImg);
 	  //基于超像素的升采样
 	  void GetSuperpixelUpSampleImg(const int * labels, const SLICClusterCenter* centers, const cv::Mat& src, cv::Mat& dstImg);
-	  
+	  //超像素划分示意图
+	  void GetVisualResult(const cv::Mat& img, cv::Mat& rstMat);
 	  //将输入图像按照超像素划分进行降采样
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, cv::Mat& dstColorImg);
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg);
@@ -71,6 +72,14 @@ public:
 	  ~SuperpixelComputer()
 	  {
 		  release();
+	  }
+	  int GetSPWidth()
+	  {
+		  return _spWidth;
+	  }
+	  int GetSPHeight()
+	  {
+		  return _spHeight;
 	  }
 protected:
 	void release();

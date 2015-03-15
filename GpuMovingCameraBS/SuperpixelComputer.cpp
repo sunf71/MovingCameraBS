@@ -1,4 +1,6 @@
 #include "SuperpixelComputer.h"
+#include "SLIC.h"
+#include "PictureHandler.h"
 #include "Common.h"
 #include "timer.h"
 #include <queue>
@@ -609,4 +611,15 @@ void SuperpixelComputer::GetRegionGrowingSeedImg(const std::vector<int>& seeds, 
 			  }
 		  }
 	 }
+ }
+
+ void SuperpixelComputer::GetVisualResult(const cv::Mat& img, cv::Mat& rstMat)
+ {
+	cv::Mat rgbaImg;
+	cv::cvtColor(img,rgbaImg,CV_BGR2BGRA);
+	SLIC aslic;	
+	PictureHandler handler;
+	unsigned int* idata = (unsigned int*) rgbaImg.data;
+	aslic.DrawContoursAroundSegments(idata, _labels, _width,_height,0x00ff00);
+	cv::cvtColor(rgbaImg,rstMat,CV_BGRA2BGR);
  }

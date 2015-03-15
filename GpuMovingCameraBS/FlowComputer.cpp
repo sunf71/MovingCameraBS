@@ -2,6 +2,8 @@
 #include <opencv2/gpu/gpu.hpp>
 #include "CudaSuperpixel.h"
 #include "flowIO.h"
+#include <stdio.h>
+#include <stdlib.h>
 using namespace cv;
 template <typename T> inline T clamp (T x, T a, T b)
 {
@@ -425,4 +427,50 @@ void SuperpixelMatching(const int* labels0, const SLICClusterCenter* centers0, c
 		}
 		
 	}
+}
+
+
+void FileSuperpixelFlow(const char* fileName, int imgWidth, int imgHeight, int spWidth, int spHeight, int spSize, const SLICClusterCenter* centers, cv::Mat& spFlow)
+{
+	spFlow.create(spHeight,spWidth,CV_32FC2);
+	spFlow = cv::Scalar(0);
+	FILE*file = NULL;//ÐèÒª×¢Òâ
+	file = fopen(fileName,"r");
+	if (file == NULL)
+		return;
+	unsigned short* flow = new unsigned short[imgWidth*imgHeight*2];
+	int idx = 0;
+	for(int y=0; y<imgHeight; y++)
+	{
+		int wx,wy;
+
+		for(int x=0; x<imgWidth-1; x++)
+		{
+			
+			//fscanf(file,"%d,%d,",&flow[idx++],&flow[idx++]);
+			fscanf(file,"%d,%d,",&wx,&wy);
+			flow[idx++] = wx-1;
+			flow[idx++] = wy-1;
+			//printf("%d,%d\n",flow[idx-2],flow[idx-1]);
+		}
+		fscanf(file,"%d,%d\n",&wx,&wy);
+		flow[idx++] = wx-1;
+		flow[idx++] = wy-1;
+	}
+	
+	for(int i=0; i<spHeight; i++)
+	{
+		float2 * ptr = spFlow.ptr<float2>(i);
+		for(int j=0; j<spWidth; j++)
+		{
+			float2 center = centers[j+i*spWidth].xy;
+			int idx = (int)(center.x+0.5)+(int)(center.y+0.5)*imgWidth;
+			/*int idx = j+i*imgWidth;*/
+			ptr[j].x = flow[idx*2] - center.x;
+			ptr[j].y = flow[idx*2+1] - center.y;
+		}
+	}
+	delete[] flow;
+	fclose(file);
+	//WriteFlowFile(spFlow,"tmp.flo");
 }
