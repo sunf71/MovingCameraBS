@@ -104,6 +104,20 @@ void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img, int& num, int*& l
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
 }
+void SuperpixelComputer::ComputeBigSuperpixel(const cv::Mat& img)
+{
+	cv::Mat rgbaImg;
+	cv::cvtColor(img,rgbaImg,CV_BGR2BGRA);
+	int num(0);
+	_gs->SuperpixelB(rgbaImg,num,_labels,_centers);
+	if (_preLabels == NULL)
+	{
+		_preLabels = new int[_imgSize];
+		_preCenters = new SLICClusterCenter[_nPixels];
+		memcpy(_preLabels,_labels,sizeof(int)*_imgSize);
+		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
+	}
+}
 void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img)
 {
 	cv::Mat rgbaImg;

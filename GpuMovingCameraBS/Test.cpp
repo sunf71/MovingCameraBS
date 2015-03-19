@@ -8,6 +8,8 @@
 #include "Common.h"
 #include "findHomography.h"
 #include "BlockWarping.h"
+#include "RTBackgroundSubtractor.h"
+#include "RegionMerging.h"
 #include "GpuTimer.h"
 #include "LBP.h"
 #include <fstream>
@@ -59,15 +61,15 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 	int numlabels(0);
 	ComSuperpixel CS;
 	//CS.Superpixel(idata,width,height,7000,0.9,labels);
-#ifdef REPORT
+#ifndef REPORT
 	nih::Timer timer;
 	timer.start();
 #endif
 	//CS.SuperpixelLattice(idata,width,height,step,alpha,numlabels,labels);
 	CS.Superpixel(idata,width,height,step,alpha,numlabels,labels);
-#ifdef REPORT
+#ifndef REPORT
 	timer.stop();
-	std::cout<<"SLIC SuperPixel "<<timer.seconds()<<std::endl;
+	std::cout<<"CPU SuperPixel "<<timer.seconds()<<std::endl;
 #endif
 	SLIC aslic;
 	aslic.DrawContoursAroundSegments(idata, labels, width, height,0x00ff00);
@@ -106,8 +108,8 @@ void TestSuperpixel()
 			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
 		}
 	}
-	for(int i =0; i<10; i++)
-		CpuSuperpixel(idata,img.cols,img.rows,40,i*0.1);
+	
+	CpuSuperpixel(idata,img.cols,img.rows,40,0.9);
 	GpuSuperpixel gs(img.cols,img.rows,40);
 	int num(0);
 	int* labels = new int[img.rows*img.cols];
@@ -175,6 +177,12 @@ void warmUpDevice()
 	cv::gpu::GpuMat gmat;
 	gmat.upload(cpuMat);
 	gmat.download(cpuMat);
+}
+void warmCuda()
+{
+	int* tmp(NULL);
+	cudaMalloc(&tmp,800);
+	cudaFree(tmp);
 }
 void TestRandom()
 {
@@ -2071,6 +2079,114 @@ float L2Dist(const float4& a, const float4& b)
 	double dw = a.w - b.w;
 	return sqrt(dx*dx + dy*dy + dz*dz + dw*dw);
 }
+template<class T, int D> inline T vecSqrDist(const Vec<T, D> &v1, const Vec<T, D> &v2) {T s = 0; for (int i=0; i<D; i++) s += sqrt((v1[i] - v2[i])*1.0f); return s;} // out of range risk for T = byte, ...
+int Quantize(cv::Mat& img3f, Mat &idx1i, Mat &_color3f, Mat &_colorNum, double ratio, const int clrNums[3])
+{
+	float clrTmp[3] = {clrNums[0] - 0.0001f, clrNums[1] - 0.0001f, clrNums[2] - 0.0001f};
+	int w[3] = {clrNums[1] * clrNums[2], clrNums[2], 1};
+
+	CV_Assert(img3f.data != NULL);
+	idx1i = Mat::zeros(img3f.size(), CV_32S);
+	int rows = img3f.rows, cols = img3f.cols;
+	if (img3f.isContinuous() && idx1i.isContinuous()){
+		cols *= rows;
+		rows = 1;
+	}
+
+	// Build color pallet
+	map<int, int> pallet;
+	for (int y = 0; y < rows; y++)
+	{
+		const float* imgData = img3f.ptr<float>(y);
+		int* idx = idx1i.ptr<int>(y);
+		for (int x = 0; x < cols; x++, imgData += 3)
+		{
+			idx[x] = (int)(imgData[0]*clrTmp[0])*w[0] + (int)(imgData[1]*clrTmp[1])*w[1] + (int)(imgData[2]*clrTmp[2]);
+			pallet[idx[x]] ++;
+		}
+	}
+
+	// Find significant colors
+	int maxNum = 0;
+	{
+		int count = 0;
+		vector<pair<int, int>> num; // (num, color) pairs in num
+		num.reserve(pallet.size());
+		for (map<int, int>::iterator it = pallet.begin(); it != pallet.end(); it++)
+			num.push_back(pair<int, int>(it->second, it->first)); // (color, num) pairs in pallet
+		sort(num.begin(), num.end(), std::greater<pair<int, int>>());
+
+		maxNum = (int)num.size();
+		int maxDropNum = cvRound(rows * cols * (1-ratio));
+		for (int crnt = num[maxNum-1].first; crnt < maxDropNum && maxNum > 1; maxNum--)
+			crnt += num[maxNum - 2].first;
+		maxNum = min(maxNum, 256); // To avoid very rarely case
+		if (maxNum <= 10)
+			maxNum = min(10, (int)num.size());
+
+		pallet.clear();
+		for (int i = 0; i < maxNum; i++)
+			pallet[num[i].second] = i; 
+
+		vector<Vec3i> color3i(num.size());
+		for (unsigned int i = 0; i < num.size(); i++)
+		{
+			color3i[i][0] = num[i].second / w[0];
+			color3i[i][1] = num[i].second % w[0] / w[1];
+			color3i[i][2] = num[i].second % w[1];
+		}
+
+		for (unsigned int i = maxNum; i < num.size(); i++)
+		{
+			int simIdx = 0, simVal = INT_MAX;
+			for (int j = 0; j < maxNum; j++)
+			{
+				int d_ij = vecSqrDist<int, 3>(color3i[i], color3i[j]);
+				if (d_ij < simVal)
+					simVal = d_ij, simIdx = j;
+			}
+			pallet[num[i].second] = pallet[num[simIdx].second];
+		}
+	}
+
+	_color3f = Mat::zeros(1, maxNum, CV_32FC3);
+	_colorNum = Mat::zeros(_color3f.size(), CV_32S);
+
+	Vec3f* color = (Vec3f*)(_color3f.data);
+	int* colorNum = (int*)(_colorNum.data);
+	for (int y = 0; y < rows; y++) 
+	{
+		const Vec3f* imgData = img3f.ptr<Vec3f>(y);
+		int* idx = idx1i.ptr<int>(y);
+		for (int x = 0; x < cols; x++)
+		{
+			idx[x] = pallet[idx[x]];
+			color[idx[x]] += imgData[x];
+			colorNum[idx[x]] ++;
+		}
+	}
+	for (int i = 0; i < _color3f.cols; i++)
+		color[i] /= (float)colorNum[i];
+
+	return _color3f.cols;
+}
+//量化后的稀疏直方图，index是量化后的颜色id，一共有colorNum种颜色
+void SparseHistogram(cv::Mat& indexImg, int colorNum, std::vector<uint2>& poses,std::vector<float>& histogram)
+{
+	int width = indexImg.cols;
+	int height = indexImg.rows;
+	int typeLen = 4;//4 for int 
+	
+	histogram.resize(colorNum);
+	memset(&histogram[0],0,sizeof(float)*histogram.size());
+	for(int i=0; i< poses.size(); i++)
+	{
+		int idx = poses[i].x + poses[i].y*width;
+		int*ptr = (int*)(indexImg.data + idx*4);
+		int id = 
+		histogram[*ptr]++;
+	}
+}
 void LBPHistogram(cv::Mat& LbpImg, std::vector<uint2>& poses,std::vector<float>& histogram)
 {
 	int width = LbpImg.cols;
@@ -2111,6 +2227,38 @@ void RGBHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, float min,
 	}
 	//cv::normalize(histogram,histogram,1.0,0.0,NORM_MINMAX);
 }
+void LABHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, std::vector<float>& histogram)
+{
+	int width = fImg.cols;
+	int height = fImg.rows;
+	int typeLen = 4;//4 for float 
+	float step[3] = {100.0/bins,255.0/bins,255.0/bins};
+	float minV[3] = {0,-127,-127};
+	histogram.resize(bins*bins*bins);
+	memset(&histogram[0],0,sizeof(float)*histogram.size());
+	/*cv::Mat lab[3];
+	cv::split(fImg,lab);
+	double minV(0),maxV(0);
+	cv::minMaxLoc(lab[0],&minV,&maxV);
+	cv::minMaxLoc(lab[1],&minV,&maxV);
+	cv::minMaxLoc(lab[2],&minV,&maxV);*/
+	for(int i=0; i< poses.size(); i++)
+	{
+		int idx = poses[i].x + poses[i].y*width;
+		float*ptr = (float*)(fImg.data + idx*12);
+		int id = 0;
+		int s = 1;
+		for(int c=0; c<3; c++)
+		{
+			id += s*min(ceil((ptr[c]-minV[c]) /step[c]),bins-1);
+			s*=bins;
+		}
+		histogram[id]++;
+
+		
+	}
+	//cv::normalize(histogram,histogram,1.0,0.0,NORM_MINMAX);
+}
 void HOG(cv::Mat&mag, cv::Mat& ang, std::vector<uint2>& poses, int bins, std::vector<float>& histogram)
 {
 	int width = mag.cols;
@@ -2127,516 +2275,22 @@ void HOG(cv::Mat&mag, cv::Mat& ang, std::vector<uint2>& poses, int bins, std::ve
 		histogram[id] += m;
 	}
 }
-void SuperPixelRegionMerging(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,
-	std::vector<std::vector<uint2>>& pos,
-	std::vector<std::vector<float>>& histograms,
-	std::vector<std::vector<float>>& lhistograms,
-	std::vector<std::vector<uint2>>& newPos,
-	std::vector<std::vector<float>>& newHistograms,
-	float threshold, int*& segmented, 
-	std::vector<int>& regSizes, std::vector<float4>& regAvgColors,float confidence = 0.6)
-{
-	//std::ofstream file("mergeOut.txt");
-	const int dx4[] = {-1,0,1,0};
-	const int dy4[] = {0,-1,0,1};
-	//const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
-	//const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
-	int spWidth = (width+step-1)/step;
-	int spHeight = (height+step-1)/step;
-	float pixDist(0);
-	float regMaxDist = threshold;
-	regSizes.clear();
-	int regSize(0);
-	//当前新标签
-	int curLabel(0);
-	int imgSize = spWidth*spHeight;
-	char* visited = new char[imgSize];
-	memset(visited ,0,imgSize);
-	memset(segmented,0,sizeof(int)*width*height);
-	std::vector<cv::Point2i> neighbors;
-	float4 regMean;
-	std::vector<int> singleLabels;
-	//region growing 后的新label
-	std::vector<int> newLabels;
-	
-	newLabels.resize(imgSize);
-	//nih::Timer timer;
-	//timer.start();
-	std::set<int> boundarySet;
-	boundarySet.insert(rand()%imgSize);
-	//boundarySet.insert(3);
-	//boundarySet.insert(190);
-	std::vector<int> labelGroup;
-	
-	while(!boundarySet.empty())
-	{
-		//std::cout<<boundarySet.size()<<std::endl;
-		labelGroup.clear();
-		std::set<int>::iterator itr = boundarySet.begin();
-		int label = *itr;
-		//file<<"seed: "<<label<<"\n";
-		visited[label] = true;
 
-		labelGroup.push_back(label);
-		
-		//newLabels[label] = curLabel;
-		boundarySet.erase(itr);
-		SLICClusterCenter cc = centers[label];
-		int k = cc.xy.x;
-		int j = cc.xy.y;		
-		float4 regColor = cc.rgb;
-		int ix = label%spWidth;
-		int iy = label/spWidth;
-		pixDist = 0;
-		regSize = 1;
-		//segmented[ix+iy*spWidth] = curLabel;
-		/*for(int j=0; j<neighbors.size(); j++)
-		{
-			size_t idx = neighbors[j].x+neighbors[j].y*spWidth;
-			visited[idx] = false;
-		}*/
-		neighbors.clear();
-		regMean = cc.rgb;
-		
-		
-		while(pixDist < regMaxDist && regSize<imgSize)
-		{
-			//file<<"iy:"<<iy<<"ix:"<<ix<<"\n";
-			
-			for(int d=0; d<4; d++)
-			{
-				int x = ix+dx4[d];
-				int y = iy + dy4[d];
-				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[x+y*spWidth])
-				{
-					neighbors.push_back(cv::Point2i(x,y));
-					visited[x+y*spWidth] = true;
-					
-				}
-			}
-			//file<<"	neighbors: ";
-			for (int i=0; i<neighbors.size(); i++)
-			{
-				int x = neighbors[i].x;
-				int y = neighbors[i].y;
-				//file<<x+y*spWidth<<"("<<y<<","<<x<<"),";
-			}
-			//file<<"\n";
-			int idxMin = 0;
-			pixDist = 255;
-			if (neighbors.size() == 0)
-				break;
-
-			for(int j=0; j<neighbors.size(); j++)
-			{
-				size_t idx = neighbors[j].x+neighbors[j].y*spWidth;
-				float rd = cv::compareHist(histograms[idx],histograms[label],CV_COMP_BHATTACHARYYA);
-				float hd = cv::compareHist(lhistograms[idx],lhistograms[label],CV_COMP_BHATTACHARYYA);
-				float dist = confidence*rd + 	hd*(1-confidence);
-				/*float4 acolor = centers[idx].rgb;
-				float cd = L2Dist(acolor,regColor)/255;
-				float hd = cv::compareHist(lhistograms[idx],lhistograms[label],CV_COMP_BHATTACHARYYA);		
-				float dist = confidence*cd + (1-confidence)*hd;*/
-				//float dist = (abs(dx) + abs(dy)+ abs(dz))/3;
-				
-				if (dist < pixDist)
-				{
-					pixDist = dist;
-					idxMin = j;
-				}				
-			}
-			if (pixDist < regMaxDist)
-			{
-				ix = neighbors[idxMin].x;
-				iy = neighbors[idxMin].y;
-				int minIdx =ix + iy*spWidth;			
-				//file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"\n";
-				/*regColor.x = (regColor.x*regSize + centers[minIdx].rgb.x)/(regSize+1);
-				regColor.y = (regColor.y*regSize + centers[minIdx].rgb.y)/(regSize+1);
-				regColor.z = (regColor.z*regSize + centers[minIdx].rgb.z)/(regSize+1);*/
-				regColor.x += centers[minIdx].rgb.x;
-				regColor.y += centers[minIdx].rgb.y;
-				regColor.z += centers[minIdx].rgb.z;
-				regSize++;
-				labelGroup.push_back(minIdx);
-				for(int i=0; i<histograms[label].size(); i++)
-				{
-					histograms[label][i] += histograms[minIdx][i];
-
-				}
-				//cv::normalize(histogram,histogram,1,0,NORM_L1 );
-				for(int i=0; i<lhistograms[label].size(); i++)
-				{
-					lhistograms[label][i] += lhistograms[minIdx][i];
-				}
-				//cv::normalize(lhistogram,lhistogram,1,0,NORM_L1 );
-				visited[minIdx] = true;
-				/*segmented[minIdx] = k;*/
-				//result.data[minIdx] = 0xff;
-				//smask.data[minIdx] = 0xff;
-				neighbors[idxMin] = neighbors[neighbors.size()-1];
-				neighbors.pop_back();
-				std::set<int>::iterator itr =boundarySet.find(minIdx);
-				if ( itr!= boundarySet.end())
-				{
-					boundarySet.erase(itr);
-				}
-			}
-			else
-			{
-				ix = neighbors[idxMin].x;
-				iy = neighbors[idxMin].y;
-				int minIdx =ix + iy*spWidth;			
-				//file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"overpass threshold "<<regMaxDist<<"\n";
-			}
-		}
-		newHistograms.push_back(histograms[label]);		
-		for(int i=0; i<labelGroup.size(); i++)
-		{
-			newLabels[labelGroup[i]] = curLabel;
-		}
-		regColor.x/=regSize;
-		regColor.y/=regSize;
-		regColor.z/=regSize;
-		regAvgColors.push_back(regColor);
-		regSizes.push_back(regSize);
-		curLabel++;		
-		for(int i=0; i<neighbors.size(); i++)
-		{
-			int label = neighbors[i].x + neighbors[i].y*spWidth;
-			visited[label] = false;
-			if (boundarySet.find(label) == boundarySet.end())
-				boundarySet.insert(label);
-			
-		}
-		if (regSize <2)
-			singleLabels.push_back(label);
-	}
-	
-	for(int i=0; i<newLabels.size(); i++)
-	{
-		int x = centers[i].xy.x;
-		int y = centers[i].xy.y;
-		for(int dx= -step; dx<=step; dx++)
-		{
-			int sx = x+dx;
-			if (sx<0 || sx>=width)
-				continue;
-			for(int dy = -step; dy<=step; dy++)
-			{
-				
-				int sy = y + dy;
-				if(  sy>=0 && sy<height)
-				{
-					int idx = sx+sy*width;
-					if (labels[idx] == i)
-						segmented[idx] = newLabels[i];
-				}
-			}
-		}
-
-	}
-	//for (int i=0; i<singleLabels.size(); i++)
-	//{
-	//	int label = singleLabels[i];
-	//	int ix = label%spWidth;
-	//	int iy = label/spWidth;
-	//	std::vector<int> ulabel;
-	//	//对单个超像素，检查其周围是还有单个超像素
-	//	for(int d=0; d<4; d++)
-	//	{
-	//		int x = ix+dx4[d];
-	//		int y = iy + dy4[d];
-	//		if (x>=0 && x<spWidth && y>=0 && y<spHeight)
-	//		{
-	//			int nlabel = x+y*spWidth;		
-	//			if (std::find(ulabel.begin(),ulabel.end(),newLabels[nlabel]) == ulabel.end())
-	//				ulabel.push_back(newLabels[nlabel]);
-	//		}
-	//		
-	//	}
-	//	if (ulabel.size()<=2)
-	//			newLabels[label] = ulabel[0];
-	//}
-	delete[] visited;
-	//delete[] segmented;
-	//file.close();
-}
-struct RegInfo
-{
-	RegInfo(){}
-	RegInfo(int l, int _x, int _y, float d):dist(d),label(l),x(_x),y(_y){} 
-	float dist;
-	int label;
-	int x,y;
-};
-//结构体的比较方法 改写operator()  
-struct RegInfoCmp  
-{  
-    bool operator()(const RegInfo &na, const RegInfo &nb)  
-    {  
-		return na.dist > nb.dist;
-    }  
-};
-typedef std::priority_queue<RegInfo,std::vector<RegInfo>,RegInfoCmp> RegInfos;
-void SuperPixelRegionMergingFast(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,
-	std::vector<std::vector<uint2>>& pos,
-	std::vector<std::vector<float>>& histograms,
-	std::vector<std::vector<float>>& lhistograms,
-	std::vector<std::vector<uint2>>& newPos,
-	std::vector<std::vector<float>>& newHistograms,
-	float threshold, int*& segmented, 
-	std::vector<int>& regSizes, std::vector<float4>& regAvgColors,float confidence = 0.6)
-{
-	//std::ofstream file("mergeOut.txt");
-	const int dx4[] = {-1,0,1,0};
-	const int dy4[] = {0,-1,0,1};
-	//const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
-	//const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
-	int spWidth = (width+step-1)/step;
-	int spHeight = (height+step-1)/step;
-	float pixDist(0);
-	float regMaxDist = threshold;
-	regSizes.clear();
-	int regSize(0);
-	//当前新标签
-	int curLabel(0);
-	int imgSize = spWidth*spHeight;
-	char* visited = new char[imgSize];
-	memset(visited ,0,imgSize);
-	memset(segmented,0,sizeof(int)*width*height);
-	//std::vector<cv::Point2i> neighbors;
-	
-	float4 regMean;
-	std::vector<int> singleLabels;
-	//region growing 后的新label
-	std::vector<int> newLabels;
-	
-	newLabels.resize(imgSize);
-	//nih::Timer timer;
-	//timer.start();
-	std::set<int> boundarySet;
-	boundarySet.insert(rand()%imgSize);
-	//boundarySet.insert(3);
-	//boundarySet.insert(190);
-	std::vector<int> labelGroup;
-	
-	while(!boundarySet.empty())
-	{
-		//std::cout<<boundarySet.size()<<std::endl;
-		labelGroup.clear();
-		std::set<int>::iterator itr = boundarySet.begin();
-		int label = *itr;
-		//file<<"seed: "<<label<<"\n";
-		visited[label] = true;
-
-		labelGroup.push_back(label);
-		
-		//newLabels[label] = curLabel;
-		boundarySet.erase(itr);
-		SLICClusterCenter cc = centers[label];
-		int k = cc.xy.x;
-		int j = cc.xy.y;		
-		float4 regColor = cc.rgb;
-		int ix = label%spWidth;
-		int iy = label/spWidth;
-		pixDist = 0;
-		regSize = 1;
-		//segmented[ix+iy*spWidth] = curLabel;
-		/*for(int j=0; j<neighbors.size(); j++)
-		{
-			size_t idx = neighbors[j].x+neighbors[j].y*spWidth;
-			visited[idx] = false;
-		}*/
-		RegInfos neighbors, tneighbors;
-		regMean = cc.rgb;
-		
-		
-		while(pixDist < regMaxDist && regSize<imgSize)
-		{
-			//file<<"iy:"<<iy<<"ix:"<<ix<<"\n";
-			
-			for(int d=0; d<4; d++)
-			{
-				int x = ix+dx4[d];
-				int y = iy + dy4[d];
-				size_t idx = x+y*spWidth;
-				if (x>=0 && x<spWidth && y>=0 && y<spHeight && !visited[idx])
-				{
-					
-					visited[idx] = true;
-					float rd = cv::compareHist(histograms[idx],histograms[label],CV_COMP_BHATTACHARYYA);
-					float hd = cv::compareHist(lhistograms[idx],lhistograms[label],CV_COMP_BHATTACHARYYA);
-					float dist = confidence*rd + 	hd*(1-confidence);
-					neighbors.push(RegInfo(idx,x,y,dist));
-				}
-			}
-			//file<<"neighbors: ";
-			/*vector<RegInfo> *vtor = (vector<RegInfo> *)&neighbors;
-			for(int i=0; i<vtor->size(); i++)
-			{
-				int label = ((RegInfo)vtor->operator [](i)).label;
-				int x = ((RegInfo)vtor->operator [](i)).x;
-				int y=  ((RegInfo)vtor->operator [](i)).y;
-				file<<label<<"("<<y<<","<<x<<"),";
-			}*/
-			//file<<"\n";
-			if (neighbors.empty())
-				break;
-			RegInfo sp = neighbors.top();
-			pixDist = sp.dist;
-			
-			int minIdx = sp.label;
-			ix = sp.x;
-			iy = sp.y;
-			if (pixDist < regMaxDist)
-			{
-				neighbors.pop();
-				//file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"\n";
-				float tmpx = regColor.x;
-				float tmpy = regColor.y;
-				float tmpz = regColor.z;
-				regColor.x = (regColor.x*regSize + centers[minIdx].rgb.x)/(regSize+1);
-				regColor.y = (regColor.y*regSize + centers[minIdx].rgb.y)/(regSize+1);
-				regColor.z = (regColor.z*regSize + centers[minIdx].rgb.z)/(regSize+1);
-				float t = 2.0;
-				float dx = abs(tmpx - regColor.x);
-				float dy = abs(tmpy - regColor.y);
-				float dz = abs(tmpz - regColor.z);
-			
-				/*regColor.x += centers[minIdx].rgb.x;
-				regColor.y += centers[minIdx].rgb.y;
-				regColor.z += centers[minIdx].rgb.z;*/
-				regSize++;
-				labelGroup.push_back(minIdx);
-				
-				for(int i=0; i<histograms[label].size(); i++)
-				{
-					histograms[label][i] += histograms[minIdx][i];
-
-				}
-				//cv::normalize(histogram,histogram,1,0,NORM_L1 );
-				for(int i=0; i<lhistograms[label].size(); i++)
-				{
-					lhistograms[label][i] += lhistograms[minIdx][i];
-				}
-				//cv::normalize(lhistogram,lhistogram,1,0,NORM_L1 );
-				visited[minIdx] = true;
-				if (sqrt(dx*dx +dy*dy +dz*dz) > t)
-				{
-					while(!tneighbors.empty())
-						tneighbors.pop();
-					while(!neighbors.empty())
-					{
-						RegInfo sp = neighbors.top();
-						neighbors.pop();
-						float rd = cv::compareHist(histograms[sp.label],histograms[label],CV_COMP_BHATTACHARYYA);
-						float hd = cv::compareHist(lhistograms[sp.label],lhistograms[label],CV_COMP_BHATTACHARYYA);
-						sp.dist =  confidence*rd + 	hd*(1-confidence);
-						tneighbors.push(sp);
-					}
-					std::swap(neighbors,tneighbors);
-				}
-				/*segmented[minIdx] = k;*/
-				//result.data[minIdx] = 0xff;
-				//smask.data[minIdx] = 0xff;
-				
-				std::set<int>::iterator itr =boundarySet.find(minIdx);
-				if ( itr!= boundarySet.end())
-				{
-					boundarySet.erase(itr);
-				}
-			}
-			else
-			{			
-				//file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"overpass threshold "<<regMaxDist<<"\n";
-			}
-		}
-		newHistograms.push_back(histograms[label]);		
-		for(int i=0; i<labelGroup.size(); i++)
-		{
-			newLabels[labelGroup[i]] = curLabel;
-		}
-	/*	regColor.x/=regSize;
-		regColor.y/=regSize;
-		regColor.z/=regSize;*/
-		regAvgColors.push_back(regColor);
-		regSizes.push_back(regSize);
-		curLabel++;		
-		vector<RegInfo> *vtor = (vector<RegInfo> *)&neighbors;
-		for(int i=0; i<vtor->size(); i++)
-		{
-			int label = ((RegInfo)vtor->operator [](i)).label;
-			visited[label] = false;
-			if (boundarySet.find(label) == boundarySet.end())
-				boundarySet.insert(label);
-			
-		}
-		if (regSize <2)
-			singleLabels.push_back(label);
-	}
-	
-	for(int i=0; i<newLabels.size(); i++)
-	{
-		int x = centers[i].xy.x;
-		int y = centers[i].xy.y;
-		for(int dx= -step; dx<=step; dx++)
-		{
-			int sx = x+dx;
-			if (sx<0 || sx>=width)
-				continue;
-			for(int dy = -step; dy<=step; dy++)
-			{
-				
-				int sy = y + dy;
-				if(  sy>=0 && sy<height)
-				{
-					int idx = sx+sy*width;
-					if (labels[idx] == i)
-						segmented[idx] = newLabels[i];
-				}
-			}
-		}
-
-	}
-	//对单个超像素，检查其是否在大区域之中（周边三个以上label一样）
-	for (int i=0; i<singleLabels.size(); i++)
-	{
-		int label = singleLabels[i];
-		int ix = label%spWidth;
-		int iy = label/spWidth;
-		std::vector<int> ulabel;
-		
-		for(int d=0; d<4; d++)
-		{
-			int x = ix+dx4[d];
-			int y = iy + dy4[d];
-			if (x>=0 && x<spWidth && y>=0 && y<spHeight)
-			{
-				int nlabel = x+y*spWidth;		
-				if (std::find(ulabel.begin(),ulabel.end(),newLabels[nlabel]) == ulabel.end())
-					ulabel.push_back(newLabels[nlabel]);
-			}
-			
-		}
-		if (ulabel.size()<=2)
-				newLabels[label] = ulabel[0];
-	}
-	delete[] visited;
-	//delete[] segmented;
-	//file.close();
-}
 void histogram()
 {
 	cv::Mat fimg1,fimg2,fimg3;
+	cv::Mat labImg1,labImg2,labImg3;
 	cv::Mat img1 = cv::imread("p1.png");
 	img1.convertTo(fimg1,CV_32FC3,1/255.0);
+	cv::cvtColor(fimg1,labImg1,CV_BGR2Lab);
 	cv::cvtColor(img1,img1,CV_BGR2GRAY);
 	cv::Mat img2 = cv::imread("p2.png");
 	img2.convertTo(fimg2,CV_32FC3,1/255.0);
+	cv::cvtColor(fimg2,labImg2,CV_BGR2Lab);
 	cv::cvtColor(img2,img2,CV_BGR2GRAY);
 	cv::Mat img3 = cv::imread("p3.png");
 	img3.convertTo(fimg3,CV_32FC3,1/255.0);
+	cv::cvtColor(fimg3,labImg3,CV_BGR2Lab);
 	cv::cvtColor(img3,img3,CV_BGR2GRAY);
 	cv::Mat lbp1,lbp2,lbp3;
 	LBPGRAY(img1,lbp1);
@@ -2672,6 +2326,11 @@ void histogram()
 	HOG(mag1,ang1,poses,36,hog1);
 	HOG(mag2,ang2,poses,36,hog2);
 	HOG(mag3,ang3,poses,36,hog3);
+	std::vector<float> labHist1,labHist2,labHist3;
+	LABHistogram(labImg1,poses,12,labHist1);
+	LABHistogram(labImg2,poses,12,labHist2);
+	LABHistogram(labImg3,poses,12,labHist3);
+
 	/*cv::normalize(hist1,hist1,1,0,NORM_L1 );
 	cv::normalize(hist2,hist2,1,0,NORM_L1 );
 	cv::normalize(hist3,hist3,1,0,NORM_L1 );*/
@@ -2683,8 +2342,14 @@ void histogram()
 	float hd1 = cv::compareHist(hog1,hog2,CV_COMP_BHATTACHARYYA);
 	float hd2 = cv::compareHist(hog1,hog3,CV_COMP_BHATTACHARYYA);
 	float hd3 = cv::compareHist(hog2,hog3,CV_COMP_BHATTACHARYYA);
+
+	float ld1 = cv::compareHist(labHist1,labHist2,CV_COMP_BHATTACHARYYA);
+	float ld2 = cv::compareHist(labHist1,labHist3,CV_COMP_BHATTACHARYYA);
+	float ld3 = cv::compareHist(labHist2,labHist3,CV_COMP_BHATTACHARYYA);
+
 	std::cout<<cd1<<" "<<cd2<<" "<<cd3<<std::endl;
 	std::cout<<hd1<<" "<<hd2<<" "<<hd3<<std::endl;
+	std::cout<<ld1<<" "<<ld2<<" "<<ld3<<std::endl;
 	DrawHistogram(hist1,hist1.size(),"hist1");
 	DrawHistogram(hist2,hist2.size(),"hist2");
 	DrawHistogram(hist3,hist3.size(),"hist3");
@@ -2698,19 +2363,22 @@ void histogram()
 	DrawHistogram(hog1,hog1.size(),"ghist1");
 	DrawHistogram(hog2,hog2.size(),"ghist2");
 	DrawHistogram(hog3,hog3.size(),"ghist3");
+
+	DrawHistogram(labHist1,labHist1.size(),"lab hist1");
+	DrawHistogram(labHist2,labHist2.size(),"lab hist2");
+	DrawHistogram(labHist3,labHist3.size(),"lab hist3");
 	cv::waitKey();
 }
 
 void SaliencyTest(const char* path,int pid, int width, int height, int step)
 {
-	/*histogram();*/
-	
-	
+	nih::Timer timer;
 	char imgName[200];
 	sprintf(imgName,"%s\\in%06d.jpg",path,pid);
 	cv::Mat img = cv::imread(imgName);
-	cv::Mat fimg,gray,lbpImg;
+	cv::Mat fimg,gray,labImg,lbpImg;
 	img.convertTo(fimg,CV_32FC3,1.0/255);
+	cv::cvtColor(fimg,labImg,CV_BGR2Lab);
 	cv::cvtColor(img,gray,CV_BGR2GRAY);
 	cv::GaussianBlur(gray,gray,cv::Size(3,3),0);
 	cv::Mat dx,dy,ang,mag;
@@ -2718,12 +2386,23 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	cv::Scharr(gray,dy,CV_32F,0,1);
 	cv::cartToPolar(dx,dy,mag,ang,true);
 
+	/*cv::Mat idx1i, color3f,  colorNum;
+	double ratio = 0.95;
+	const int clrNums[3] = {12,12,12};
+	timer.start();
+	int nColor = Quantize(fimg,idx1i,color3f,colorNum,ratio,clrNums);
+	timer.stop();
+	std::cout<<"Quantize "<<timer.seconds()*1000<<"ms\n";*/
+
  	/*LBPGRAY(gray,lbpImg);*/
 	cv::Mat simg;
 	cv::Mat diff(height,width,CV_8U);
 	diff = cv::Scalar(0);
 	SuperpixelComputer computer(width,height,step);
-	computer.ComputeSuperpixel(img);
+	timer.start();	
+	computer.ComputeBigSuperpixel(img);
+	timer.stop();
+	std::cout<<"superpixel "<<timer.seconds()*1000<<"ms\n";
 
 	computer.GetVisualResult(img,simg);
 	sprintf(imgName,"%s//superpixel_%d.jpg",path,pid);
@@ -2776,19 +2455,26 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 		}
 	}
 	cv::imwrite("avgImg.jpg",avgImg);
+
+	timer.start();
+	#pragma omp parallel for
 	//计算每个超像素的直方图
 	for(int i=0; i<pos.size(); i++)
 	{
-
-		RGBHistogram(fimg,pos[i],12,0,1,histogram[i]);
+		LABHistogram(labImg,pos[i],12,histogram[i]);
 		//cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );
-
+		/*RGBHistogram(fimg,pos[i],12,0,1,histogram[i]);
+		cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );*/
+		/*SparseHistogram(idx1i,nColor,pos[i],histogram[i]);
+		cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );*/
 		HOG(mag,ang,pos[i],36,lhistogram[i]);
 		//cv::normalize(lhistogram[i],lhistogram[i],1,0,NORM_L1 );
 		//LBPHistogram(lbpImg,pos[i],lhistogram[i]);
 		//DrawHistogram(histogram,histogram.size());
 		//cv::waitKey();
 	}
+	timer.stop();
+	std::cout<<"build histogram "<<timer.seconds()*1000<<"ms\n";
 	/*int minX = width;
 	int maxX = 0;
 	int minY = height;
@@ -2922,17 +2608,17 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	int* segmented = new int[width*height];
 	rgbHConfidence = (avgGDist)/(avgCDist+avgGDist);
 	//rgbHConfidence = (avgGDist)/(avgDist+avgGDist);
-	float threshold = ((avgCDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist))*1.2;	
+	float threshold = ((avgCDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist));	
 	std::cout<<"threshold: "<<threshold<<std::endl;
 	//float threshold = (avgDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist);
 	std::vector<float4> avgColors;
-	nih::Timer timer;
+
 	timer.start();
 	//SuperPixelRegionMerging(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
 	SuperPixelRegionMergingFast(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
 	
 	timer.stop();
-	std::cout<<"merging time: "<<timer.seconds()<<"s\n";
+	std::cout<<"merging time: "<<timer.seconds()*1000<<"ms\n";
 	std::cout<<regSizes.size()<<std::endl;
 	//求大区域的颜色
 	//假定背景占大部分，大区域门限为n个超像素
@@ -2986,6 +2672,20 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	SalMask.create(height,width,CV_8U);
 	int spSize = spHeight*spWidth;
 	std::vector<int> color(spSize);
+	//region saliency
+	std::vector<float> RegSaliency(regSizes.size());
+	for(int i=0; i<regSizes.size();i++)
+	{
+		float regSal(0);
+		for(int j=0; j<regSizes.size(); j++)
+		{
+			if (j!=i)
+				regSal += cv::compareHist(newHistograms[i],newHistograms[j],CV_COMP_BHATTACHARYYA);
+		}
+		//regSal /= sqrt(regSizes[i]*1.0f);
+		RegSaliency[i] = regSal;
+	}
+	cv::normalize(RegSaliency,RegSaliency,1.0,0.0,NORM_MINMAX);
 	CvRNG rng= cvRNG(cvGetTickCount());
 	color[0] = 0;
 	for(int i=1;i<spSize;i++)
@@ -3001,7 +2701,7 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 0] = (color[cl])&255;
 			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 1] = (color[cl]>>8)&255;
 			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 2] = (color[cl]>>16)&255;
-			//((uchar *)(SalMask.data + i*SalMask.step.p[0]))[j*SalMask.step.p[1]] = 255* (1-1.0*regSizes[cl]/spSize);
+			((uchar *)(SalMask.data + i*SalMask.step.p[0]))[j*SalMask.step.p[1]] = 255* (RegSaliency[cl]);
 			if (std::find(backReg.begin(),backReg.end(),cl) == backReg.end())
 			{
 				//float sal(0);
@@ -3040,6 +2740,8 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 }
 void TestSaliency(int argC, char** argv)
 {
+	//histogram();
+	//return;
 	int start = atoi(argv[1]);
 	int end = atoi(argv[2]);
 	char* path = argv[3];
@@ -3072,97 +2774,7 @@ void TestLBP()
 	cv::waitKey();
 }
 
-template<class T, int D> inline T vecSqrDist(const Vec<T, D> &v1, const Vec<T, D> &v2) {T s = 0; for (int i=0; i<D; i++) s += sqrt((v1[i] - v2[i])*1.0f); return s;} // out of range risk for T = byte, ...
-int Quantize(cv::Mat& img3f, Mat &idx1i, Mat &_color3f, Mat &_colorNum, double ratio, const int clrNums[3])
-{
-	float clrTmp[3] = {clrNums[0] - 0.0001f, clrNums[1] - 0.0001f, clrNums[2] - 0.0001f};
-	int w[3] = {clrNums[1] * clrNums[2], clrNums[2], 1};
 
-	CV_Assert(img3f.data != NULL);
-	idx1i = Mat::zeros(img3f.size(), CV_32S);
-	int rows = img3f.rows, cols = img3f.cols;
-	if (img3f.isContinuous() && idx1i.isContinuous()){
-		cols *= rows;
-		rows = 1;
-	}
-
-	// Build color pallet
-	map<int, int> pallet;
-	for (int y = 0; y < rows; y++)
-	{
-		const float* imgData = img3f.ptr<float>(y);
-		int* idx = idx1i.ptr<int>(y);
-		for (int x = 0; x < cols; x++, imgData += 3)
-		{
-			idx[x] = (int)(imgData[0]*clrTmp[0])*w[0] + (int)(imgData[1]*clrTmp[1])*w[1] + (int)(imgData[2]*clrTmp[2]);
-			pallet[idx[x]] ++;
-		}
-	}
-
-	// Find significant colors
-	int maxNum = 0;
-	{
-		int count = 0;
-		vector<pair<int, int>> num; // (num, color) pairs in num
-		num.reserve(pallet.size());
-		for (map<int, int>::iterator it = pallet.begin(); it != pallet.end(); it++)
-			num.push_back(pair<int, int>(it->second, it->first)); // (color, num) pairs in pallet
-		sort(num.begin(), num.end(), std::greater<pair<int, int>>());
-
-		maxNum = (int)num.size();
-		int maxDropNum = cvRound(rows * cols * (1-ratio));
-		for (int crnt = num[maxNum-1].first; crnt < maxDropNum && maxNum > 1; maxNum--)
-			crnt += num[maxNum - 2].first;
-		maxNum = min(maxNum, 256); // To avoid very rarely case
-		if (maxNum <= 10)
-			maxNum = min(10, (int)num.size());
-
-		pallet.clear();
-		for (int i = 0; i < maxNum; i++)
-			pallet[num[i].second] = i; 
-
-		vector<Vec3i> color3i(num.size());
-		for (unsigned int i = 0; i < num.size(); i++)
-		{
-			color3i[i][0] = num[i].second / w[0];
-			color3i[i][1] = num[i].second % w[0] / w[1];
-			color3i[i][2] = num[i].second % w[1];
-		}
-
-		for (unsigned int i = maxNum; i < num.size(); i++)
-		{
-			int simIdx = 0, simVal = INT_MAX;
-			for (int j = 0; j < maxNum; j++)
-			{
-				int d_ij = vecSqrDist<int, 3>(color3i[i], color3i[j]);
-				if (d_ij < simVal)
-					simVal = d_ij, simIdx = j;
-			}
-			pallet[num[i].second] = pallet[num[simIdx].second];
-		}
-	}
-
-	_color3f = Mat::zeros(1, maxNum, CV_32FC3);
-	_colorNum = Mat::zeros(_color3f.size(), CV_32S);
-
-	Vec3f* color = (Vec3f*)(_color3f.data);
-	int* colorNum = (int*)(_colorNum.data);
-	for (int y = 0; y < rows; y++) 
-	{
-		const Vec3f* imgData = img3f.ptr<Vec3f>(y);
-		int* idx = idx1i.ptr<int>(y);
-		for (int x = 0; x < cols; x++)
-		{
-			idx[x] = pallet[idx[x]];
-			color[idx[x]] += imgData[x];
-			colorNum[idx[x]] ++;
-		}
-	}
-	for (int i = 0; i < _color3f.cols; i++)
-		color[i] /= (float)colorNum[i];
-
-	return _color3f.cols;
-}
 
 void TestQuantize()
 {
@@ -3174,6 +2786,16 @@ void TestQuantize()
 
 	int num = Quantize(img,idx1i,_color3f,_colorNum,ratio,clrNums);
 	std::cout<<_colorNum;
+	int sum(0);
+	for(int i=0; i<_colorNum.rows; i++)
+	{
+		int* ptr = _colorNum.ptr<int>(i);
+		for(int j=0; j<_colorNum.cols; j++)
+		{
+			sum += ptr[j];
+		}
+	}
+	std::cout<<"\n total pixels "<<sum<<"\n";
 	cv::Mat qImg(img.size(),CV_8UC3);
 	for(int i=0; i<qImg.rows; i++)
 	{
@@ -3190,8 +2812,87 @@ void TestQuantize()
 		}
 
 	}
-	
+	printf("%d colors",num);
 	cv::imshow("qimg",qImg);
 	cv::waitKey();
-	printf("%d colors",num);
+	
+
+
 }
+
+void TestRTBS(int argc, char** argv)
+{
+	//warmUpDevice();
+	//warmCuda();
+	int start = atoi(argv[1]);
+	int end = atoi(argv[2]);
+	char* input = argv[3];
+	char* output = argv[4];
+	
+	//VideoProcessor processor;	
+	RTBackgroundSubtractor* bs;
+	if (argc ==6)
+	{
+		float mthreshold = atof(argv[5]);
+		bs = new RTBackgroundSubtractor(mthreshold);
+	}
+	else
+	{
+		bs = new RTBackgroundSubtractor();
+	}
+	CreateDir(output);
+	std::vector<std::string> fileNames;
+	std::vector<std::string> oFileNames;
+	std::vector<cv::Mat> frames;
+	for(int i=start; i<=end;i++)
+	{
+		char name[50];
+		sprintf(name,"%s\\in%06d.jpg",input,i);
+		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
+		fileNames.push_back(name);
+		sprintf(name,"%s\\bin%06d.png",output,i);
+		oFileNames.push_back(name);
+	}
+	cv::Mat frame = cv::imread(fileNames[0]);
+	bs->Initialize(frame);
+	cv::Mat result;
+	for(int i=0; i<fileNames.size(); i++)
+	{
+		frame = cv::imread(fileNames[i]);
+		frames.push_back(frame);
+		bs->operator()(frame,result);
+		cv::imwrite(oFileNames[i],result);
+	}
+	//nih::Timer timer;
+	//timer.start();
+	//
+	//for(int i=0; i<frames.size(); i++)
+	//{
+	//	tracker->process(frames[i],result);
+	//	//cv::imwrite(oFileNames[i],result);
+	//}
+
+	//
+	//timer.stop();
+	//std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
+
+
+	cv::waitKey();
+
+	safe_delete(bs);
+	
+	/*char fileName[200];
+	cv::Mat fgmask,mask;
+	cv::Mat img = cv::imread("..\\moseg\\cars2\\in000002.jpg");
+	RTBackgroundSubtractor rtbs;
+	rtbs.Initialize(img);
+	rtbs.operator()(img,fgmask);
+	rtbs.GetRegionMap(mask);
+	
+	cv::imshow("regions",mask);
+	cv::waitKey(0);*/
+
+
+
+}
+	

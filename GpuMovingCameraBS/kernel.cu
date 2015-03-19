@@ -2,9 +2,10 @@
 
 int main (int argc, char* argv[])
 {
+	TestRTBS(argc,argv);
 	//TestLBP();
 	//TestQuantize();
-	TestSaliency(argc,argv);
+	//TestSaliency(argc,argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
 	//TestFeaturesRefineHistogram(argc,argv);

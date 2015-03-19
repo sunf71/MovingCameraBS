@@ -30,6 +30,7 @@
 class FrameProcessor {
 
   public:
+	  virtual void initialize(cv::Mat& frame0){};
 	// processing method
 	virtual void process(cv:: Mat &input, cv:: Mat &output)= 0;
 };

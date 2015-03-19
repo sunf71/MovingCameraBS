@@ -40,7 +40,7 @@ void TestBlockHomography();
 void TestBlockWarping();
 void TestSaliency(int argc, char* argv[]);
 void GpuSubsenseMain(int argc, char* argv[]);
-
+void TestRTBS(int argc, char** argv);
 void TestQuantize();
 
 void TestLBP();

@@ -137,6 +137,12 @@
     <ClInclude Include="LBP.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="RTBackgroundSubtractor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RegionMerging.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WarpBackgroundSubtractor.cpp">
@@ -209,6 +215,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="ASAPWarping.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RTBackgroundSubtractor.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RegionMerging.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -10,6 +10,7 @@
 #include <thrust/copy.h>
 #include <thrust/sort.h>
 #include "GpuTimer.h"
+
 #define TILE_W 16
 #define TILE_H 16
 #define R 1
@@ -83,6 +84,65 @@ __global__ void UpdateClusterCenterKernel(int heigth,int width, int step, int* d
 	int cx = d_inCenters[clusterIdx].xy.x;
 	int cy = d_inCenters[clusterIdx].xy.y;
 }
+__global__ void UpdateBigCusterCenterKernel(int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters,int nClusters)
+{
+	__shared__ float4 s_rgba[BIG_CLUSTER_SIZE];
+	__shared__ int s_n[BIG_CLUSTER_SIZE];
+	__shared__ float2 s_xy[BIG_CLUSTER_SIZE];
+	//每个超像素一个block，超像素分为seg*seg个方块，每个方块一个线程
+	int clusterIdx = blockIdx.x;
+	if (clusterIdx >= nClusters)
+		return;
+	int threadId = threadIdx.x;
+	int tx = threadId%BIG_CLUSTER_SETP;
+	int ty = threadId/BIG_CLUSTER_SETP;
+	int k = d_inCenters[clusterIdx].xy.x + (-BIG_CLUSTER_SETP +1 +2*tx)*step;
+	int j = d_inCenters[clusterIdx].xy.y + (-BIG_CLUSTER_SETP +1+2*ty)*step;
+	int radius = step;
+	float4 crgb = make_float4(0,0,0,0);
+	float2 cxy = make_float2(0,0);
+	int n = 0;
+	for (int x = k- radius; x<= k+radius; x++)
+	{
+		if  (x<0 || x>width-1)
+			continue;
+		for(int y = j - radius; y<= j+radius; y++)
+		{
+			if (y<0 || y> height-1)
+				continue;
+			int idx = x+y*width;
+			if (d_labels[idx] == clusterIdx)
+			{
+				uchar4 pixel = tex1Dfetch(ImageTexture,idx);
+				crgb.x += pixel.x;
+				crgb.y += pixel.y;
+				crgb.z += pixel.z;
+				cxy.x += x;
+				cxy.y += y;
+				n++;
+			}
+		}
+	}
+	s_rgba[threadId] = crgb;
+	s_n[threadId] = n;
+	s_xy[threadId] = cxy;
+	__syncthreads();
+	int fn(0);
+	float4 frgba = make_float4(0,0,0,0);
+	float2 fxy = make_float2(0,0);
+	for(int i=0; i<BIG_CLUSTER_SIZE; i++)
+	{
+		fn+= s_n[i];
+		frgba.x += s_rgba[i].x;
+		frgba.y += s_rgba[i].y;
+		frgba.z += s_rgba[i].z;
+		fxy.x += s_xy[i].x;
+		fxy.y += s_xy[i].y;
+	}
+	d_inCenters[clusterIdx].nPoints = fn;
+	d_inCenters[clusterIdx].rgb = make_float4(frgba.x/fn,frgba.y/fn,frgba.z/fn,0);
+	d_inCenters[clusterIdx].xy = make_float2(fxy.x/fn,fxy.y/fn);
+}
 __global__ void UpdateClusterCenterKernel(uchar4* imgBuffer, int height, int width, int step,int * d_labels, SLICClusterCenter* d_inCenters,int nClusters)
 {
 	//每个超像素一个线程
@@ -98,9 +158,11 @@ __global__ void UpdateClusterCenterKernel(uchar4* imgBuffer, int height, int wid
 	int radius = step;
 	for (int x = k- radius; x<= k+radius; x++)
 	{
+		if  (x<0 || x>width-1)
+			continue;
 		for(int y = j - radius; y<= j+radius; y++)
 		{
-			if  (x<0 || x>width-1 || y<0 || y> height-1)
+			if (y<0 || y> height-1)
 				continue;
 			int idx = x+y*width;
 			if (d_labels[idx] == clusterIdx)
@@ -496,13 +558,23 @@ __global__  void SUpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidt
 }
 void UpdateClusterCenter(uchar4* imgBuffer, int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters)
 {
-	//GpuTimer timer;
-	//timer.Start();
+	/*GpuTimer timer;
+	timer.Start();*/
 	dim3 blockDim(128);
 	dim3 gridDim((nClusters+127)/128);
-	UpdateClusterCenterKernel<<<gridDim,blockDim>>>(imgBuffer, height,width,step,d_labels, d_inCenters,nClusters);
-	//timer.Stop();
-	//std::cout<<"UpdateClusterCenter "<<timer.Elapsed()<<std::endl;
+	UpdateClusterCenterKernel<<<gridDim,blockDim>>>(imgBuffer, height,width,step,d_labels, d_inCenters,nClusters);	
+	/*timer.Stop();
+	std::cout<<"UpdateClusterCenter "<<timer.Elapsed()<<std::endl;*/
+}
+void UpdateBigClusterCenter(int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters)
+{
+	/*GpuTimer timer;
+	timer.Start();*/
+	dim3 blockDim(BIG_CLUSTER_SIZE);
+	dim3 gridDim(nClusters);
+	UpdateBigCusterCenterKernel<<<gridDim,blockDim>>>(height,width,step,d_labels, d_inCenters,nClusters);
+	/*timer.Stop();
+	std::cout<<"UpdateBigClusterCenter "<<timer.Elapsed()<<std::endl;*/
 }
 void InitClusterCenters(uchar4* d_rgbaBuffer, int* d_labels,int width, int height, int step, int &nSeg, SLICClusterCenter* d_centers)
 {
@@ -554,13 +626,13 @@ void AvgClusterCenter(SLICClusterCenter* d_cenetersIn, int nClusters)
 }
 void UpdateBoundary(uchar4* imgBuffer, int nHeight, int nWidth,int * labels,SLICClusterCenter* d_centers, int nClusters,float alpha, float radius)
 {
-	//GpuTimer timer;
-	//timer.Start();
+	/*GpuTimer timer;
+	timer.Start();*/
 	dim3 blockDim(16,16);
 	dim3 gridDim((nWidth+15)/16,(nHeight+15)/16);
 	UpdateBoundaryKernel<<<gridDim,blockDim>>>(imgBuffer,nHeight,nWidth,labels,d_centers,nClusters,alpha,radius);
-	//timer.Stop();
-	//std::cout<<"update UpdateBoundary "<<timer.Elapsed()<<std::endl;
+	/*timer.Stop();
+	std::cout<<"update UpdateBoundary "<<timer.Elapsed()<<std::endl;*/
 }
 void UpdateBoundaryLattice(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_centers, int nClusters,float alpha, float radius)
 {

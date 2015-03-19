@@ -976,7 +976,8 @@ void DrawHistogram(std::vector<float>& histogram, int size, const std::string na
 	}
 	cv::Mat img(400,600,CV_8UC3);
 	img = cv::Scalar(0);
-	int step = (img.cols-100+size-1)/size;
+	float step = (img.cols-100+size-1)/size;
+	
 	cv::Scalar color(255,255,0);
 	for(int i=0; i<size; i++)
 	{

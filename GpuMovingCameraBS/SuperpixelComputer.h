@@ -35,6 +35,7 @@ public:
 		  return _nPixels;
 	  }
 	  void ComputeSuperpixel(const cv::Mat& img);
+	  void ComputeBigSuperpixel(const cv::Mat& img);
 	  void ComputeSuperpixel(const cv::Mat& Img, int& num, int*& labels, SLICClusterCenter*& centers);
 	  void ComputeSuperpixel(uchar4* d_rgbaBuffer, int& num, int*& labels, SLICClusterCenter*& centers);
 	  void GetPreSuperpixelResult(int& num, int*& preLabels, SLICClusterCenter*& preCenters)

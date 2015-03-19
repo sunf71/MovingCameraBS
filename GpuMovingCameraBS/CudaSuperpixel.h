@@ -1,4 +1,6 @@
 #pragma once
+#define BIG_CLUSTER_SIZE 64
+#define BIG_CLUSTER_SETP 8
 #include <ostream>
 #include "cuda.h"
 #include "cuda_runtime.h"
@@ -51,6 +53,7 @@ __global__ void UpdateClusterCenterKernel(uchar4* imgBuffer, int height, int wid
 void InitClusterCenters(uchar4* d_imgBuffer,int* d_labels, int nWidth, int nHeight, int step, int& nSeg, SLICClusterCenter* d_center);
 void InitClusterCenters(int* d_labels, int nWidth, int nHeight, int step, int& nSeg, SLICClusterCenter* d_center);
 void UpdateClusterCenter(uchar4* imgBuffer, int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters);
+void UpdateBigClusterCenter(int height, int width, int step, int * d_labels, SLICClusterCenter* d_inCenters, int nClusters);
 void UpdateBoundary(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius);
 void UpdateBoundaryLattice(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius);
 void UpdateBoundary(uchar4* imgBuffer, int nHeight, int nWidth,int* labels, SLICClusterCenter* d_cenetersIn, SLICClusterCenter* d_centersOut, int nClusters,float alpha, float radius);
