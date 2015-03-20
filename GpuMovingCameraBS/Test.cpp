@@ -2843,6 +2843,8 @@ void TestRTBS(int argc, char** argv)
 	CreateDir(output);
 	std::vector<std::string> fileNames;
 	std::vector<std::string> oFileNames;
+	std::vector<std::string> tfileNames;
+	std::vector<std::string> sfileNames;
 	std::vector<cv::Mat> frames;
 	for(int i=start; i<=end;i++)
 	{
@@ -2850,10 +2852,16 @@ void TestRTBS(int argc, char** argv)
 		sprintf(name,"%s\\in%06d.jpg",input,i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
-		sprintf(name,"%s\\bin%06d.png",output,i);
+		sprintf(name,"%sbin%06d.png",output,i);
 		oFileNames.push_back(name);
+		sprintf(name,"%sregion%06d.jpg",output,i);
+		tfileNames.push_back(name);
+		sprintf(name,"%ssuperpixel%06d.jpg",output,i);
+		sfileNames.push_back(name);
 	}
 	cv::Mat frame = cv::imread(fileNames[0]);
+	cv::Mat gray;
+	cv::cvtColor(frame,gray,CV_BGR2GRAY);
 	bs->Initialize(frame);
 	cv::Mat result;
 	for(int i=0; i<fileNames.size(); i++)
@@ -2862,19 +2870,26 @@ void TestRTBS(int argc, char** argv)
 		frames.push_back(frame);
 		bs->operator()(frame,result);
 		cv::imwrite(oFileNames[i],result);
+		bs->GetRegionMap(result);
+		cv::imwrite(tfileNames[i],result);
+		bs->GetSuperpixelMap(result);
+		cv::imwrite(sfileNames[i],result);
+		/*cv::imshow("regions",result);
+		cv::waitKey();*/
 	}
-	//nih::Timer timer;
-	//timer.start();
-	//
-	//for(int i=0; i<frames.size(); i++)
-	//{
-	//	tracker->process(frames[i],result);
-	//	//cv::imwrite(oFileNames[i],result);
-	//}
+	bs->SetPreGray(gray);
+	nih::Timer timer;
+	timer.start();
+	
+	for(int i=0; i<frames.size(); i++)
+	{
+		bs->operator()(frames[i],result);
+		//cv::imwrite(oFileNames[i],result);
+	}
 
 	//
-	//timer.stop();
-	//std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
+	timer.stop();
+	std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
 
 
 	cv::waitKey();

@@ -6,7 +6,7 @@
 #include "ASAPWarping.h"
 #include "videoprocessor.h"
 #include "timer.h"
-
+#include <opencv2\gpu\gpu.hpp>
 
 class RTBackgroundSubtractor: public cv::BackgroundSubtractor 
 {
@@ -34,7 +34,12 @@ public:
 		safe_delete(_SPComputer);
 		safe_delete_array(_segment);
 		safe_delete_array(_visited);
+		safe_delete(_dFeatureDetector);
 	}
+	void SetPreGray(cv::Mat& img)
+	{
+		_preGray = img.clone();
+	};
 	void Initialize(cv::InputArray image);
 	//! primary model update function; the learning param is used to override the internal learning speed (ignored when <= 0)
 	virtual void operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRate=0);
@@ -46,7 +51,7 @@ public:
 	}
 	//! returns a copy of the latest reconstructed background descriptors image
 	virtual void getBackgroundImage(cv::OutputArray backgroundDescImage) const{};
-
+	void GetSuperpixelMap(cv::Mat& sp);
 	void GetRegionMap(cv::Mat& regions); 
 protected:
 	void EstimateCameraMotion(){};
@@ -54,6 +59,23 @@ protected:
 	void BuildHistogram(const int* labels, const SLICClusterCenter* centers);
 	void RegionMergingFast(const int*  labels, const SLICClusterCenter* centers);
 	void SaliencyMap();
+	void upload(std::vector<cv::Point2f>& vec, cv::gpu::GpuMat& d_mat)
+	{
+		cv::Mat mat(1, vec.size(), CV_32FC2, (void*)&vec[0]);
+		d_mat.upload(mat);
+	}
+	void download(const cv::gpu::GpuMat& d_mat, std::vector<cv::Point2f>& vec)
+ 	{
+ 	    vec.resize(d_mat.cols);
+ 	    cv::Mat mat(1, d_mat.cols, CV_32FC2, (void*)&vec[0]);
+ 	    d_mat.download(mat);
+ 	}
+	void download(const cv::gpu::GpuMat& d_mat, std::vector<uchar>& vec)
+ 	{
+ 	    vec.resize(d_mat.cols);
+ 	    cv::Mat mat(1, d_mat.cols, CV_8UC1, (void*)&vec[0]);
+ 	    d_mat.download(mat);
+ 	}
 private:
 	int _spStep;
 	bool _initialized;
@@ -79,5 +101,10 @@ private:
 	float _mThreshold;
 	//Ã¿¸ö³¬ÏñËØµÄmask
 	std::vector<cv::Mat> _spMasks;
+	cv::gpu::GpuMat _dGray,_dPreGray;
+	cv::gpu::GpuMat _dCurrFrame;
+	cv::gpu::GpuMat _dFeatures,_dSPCenters,_dCurrPts,_dPrevPts,d_Status;
+	cv::gpu::PyrLKOpticalFlow  d_pyrLk;
+	cv::gpu::GoodFeaturesToTrackDetector_GPU* _dFeatureDetector;
 };
 

@@ -18,6 +18,7 @@ public:
 	}
 	//用于计算较大的超像素
 	void SuperpixelB(const cv::Mat& imgBGRA, int& num, int* lables, SLICClusterCenter* centers, int itrThreshold = 10);
+	void DSuperpixelB(uchar4* d_rgbaBuffer, int& num, int* lables, SLICClusterCenter* centers, int itrThreshold = 10);
 	void Superpixel(const cv::Mat& imgBGRA, int& num, int* lables, SLICClusterCenter* centers, int itrThreshold = 10);
 	void Superpixel(uchar4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);
 	void SuperpixelLattice(uchar4* rgbaBuffer,int& num,int* lables,SLICClusterCenter* centers,int iterThreshold = 10);

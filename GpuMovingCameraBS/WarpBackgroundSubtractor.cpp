@@ -1,4 +1,4 @@
-#include "WarpBackgroundSubtractor.h"
+
 #define _USE_MATH_DEFINES
 #include "WarpBackgroundSubtractor.h"
 #include "DistanceUtils.h"

@@ -39,6 +39,8 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 		memset(&_HOGs[i][0],0,sizeof(float)*_hogBins);
 		memset(&_colorHists[i][0],0,sizeof(float)*_totalColorBins);
 	}
+
+	_dFeatureDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(100,0.01,_spStep);
 }
 
 void RTBackgroundSubtractor::operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRate)
@@ -51,6 +53,7 @@ void RTBackgroundSubtractor::operator()(cv::InputArray image, cv::OutputArray fg
 	fgmask.create(image.size(),CV_8UC1);
 	MovingSaliency(fgmask.getMat());
 	cv::swap(_preGray,_gray);
+	cv::gpu::swap(_dGray,_dPreGray);
 }
 void RTBackgroundSubtractor::BuildHistogram(const int* labels, const SLICClusterCenter* centers)
 {
@@ -340,6 +343,11 @@ void RTBackgroundSubtractor::SaliencyMap()
 	std::cout<<"----------\n";
 #endif
 	cv::cvtColor(_img, _rgbaImg, CV_BGR2BGRA);
+	_dCurrFrame.upload(_rgbaImg);
+	cv::gpu::cvtColor(_dCurrFrame,_dGray,CV_BGRA2GRAY);
+	if (_dPreGray.empty())
+		_dPreGray = _dGray.clone();
+
 	_img.convertTo(_fImg,CV_32FC3,1.0/255);
 	//cv::cvtColor(_fImg,_labImg,CV_BGR2Lab);
 #ifndef REPORT
@@ -353,7 +361,7 @@ void RTBackgroundSubtractor::SaliencyMap()
 	timer.start();
 #endif
 	//superpixel
-	_SPComputer->ComputeBigSuperpixel(_rgbaImg);
+	_SPComputer->ComputeBigSuperpixel(_dCurrFrame.ptr<uchar4>());
 #ifndef REPORT
 	timer.stop();
 	std::cout<<"	Superpixel "<<timer.seconds()*1000<<" ms\n";
@@ -399,16 +407,16 @@ void RTBackgroundSubtractor::SaliencyMap()
 
 void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 {
-	int *labels(NULL), num(0);
-	SLICClusterCenter* centers(NULL);
-	_SPComputer->GetSuperpixelResult(num,labels,centers);
-	fgMask = cv::Scalar(0);
 #ifndef REPORT
 	nih::Timer timer;
 	timer.start();
 #endif	
-	//对区域面积小于threashold 的区域中的超像素进行klt跟踪
-	
+	int *labels(NULL), num(0);
+	SLICClusterCenter* centers(NULL);
+	_SPComputer->GetSuperpixelResult(num,labels,centers);
+	fgMask = cv::Scalar(0);
+
+	//对区域面积小于threashold 的区域中的超像素进行klt跟踪	
 	int regThreshold = 15;
 	std::vector<cv::Point2f> pt0,pt1;
 	////对每个超像素进行特征提取，每个超像素提取1个特征点
@@ -442,39 +450,83 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 			
 		}
 	}
+	//将小区域中的超像素中心点添加到pt0
 	for(int i=0; i<spfeatures.size(); i++)
 	{
 		for(int j=0; j<spfeatures[i].size(); j++)
 			pt0.push_back(spfeatures[i][j]);
 	}
+	upload(pt0,_dSPCenters);
 	std::vector<float> dists(pt0.size());
-	std::vector<uchar> status;
-	std::vector<float> err;
-	cv::calcOpticalFlowPyrLK(_gray,_preGray,pt0,pt1,status,err);
-#ifndef REPORT
-	timer.stop();
-	std::cout<<"	KLT small regions "<<timer.seconds()*1000<<" ms\n";
-#endif
+	
+	
+
 	
 #ifndef REPORT
 	//显示跟踪情况
-	cv::Mat mask;
+	/*cv::Mat mask;
 	MatchingResult(_gray,_preGray,pt0,pt1,mask);
 	cv::imshow("klt tracking", mask);
-	cv::waitKey();
+	cv::waitKey();*/
 #endif
+
+
+	//与相机运动进行比较
+	int nf(0);
+	cv::Mat homography;
+	//good features
+	std::vector<cv::Point2f> vf1,vf2;
+	std::vector<cv::Point2f> tf1,tf2;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	std::vector<uchar> inliers;
+	//cv::goodFeaturesToTrack(_gray, vf1, 100, 0.01, _spStep);	
+	/*_dCurrPts.create(1,_dFeatures.cols+_dSPCenters.cols,CV_32FC2);
+	_dFeatures.copyTo(*/
+
+
+	_dFeatureDetector->operator()(_dGray,_dFeatures);
+
+#ifndef REPORT
+	timer.stop();
+	std::cout<<"	gpu good features to track "<<timer.seconds()*1000<<" ms\n";
+#endif	
 
 #ifndef REPORT
 	timer.start();
 #endif	
-	//与相机运动进行比较
-	int nf(0);
-	cv::Mat homography;
-	std::vector<cv::Point2f> vf1,vf2;
-	KLTFeaturesMatching(_gray,_preGray,vf1,vf2,_spSize,0.01,_spStep);
-	MatchingResult(_gray,_preGray,vf1,vf2,mask);
-	cv::imshow("good features to tracking", mask);
-	FeaturePointsRefineRANSAC(nf,vf1,vf2,homography);
+	
+	download(_dFeatures,vf1);
+	nf = vf1.size();
+	vf2.resize(nf);
+	tf1.resize(vf1.size() + pt0.size());
+	memcpy(&tf1[0],&vf1[0],sizeof(cv::Point2f)*nf);
+	memcpy(&tf1[vf1.size()],&pt0[0],sizeof(cv::Point2f)*pt0.size());
+	upload(tf1,_dCurrPts);
+	d_pyrLk.sparse(_dGray,_dPreGray,_dCurrPts,_dPrevPts,d_Status);
+	download(d_Status,status);
+	download(_dPrevPts,tf2);
+#ifndef REPORT
+	timer.stop();
+	std::cout<<"	gpu optical flow "<<timer.seconds()*1000<<" ms\n";
+#endif	
+#ifndef REPORT
+	timer.start();
+#endif	
+	int k(0);
+	for(int i=0; i<nf; i++)
+	{
+		if (status[i] == 1)
+		{
+			vf1[k] = vf1[i];
+			vf2[k] = tf2[i];
+			k++;
+		}
+		
+	}
+	vf1.resize(k);
+	vf2.resize(k);
+	homography = cv::findHomography(vf1,vf2,inliers,CV_RANSAC,1.0);
 
 #ifndef REPORT
 	timer.stop();
@@ -488,26 +540,22 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 
 	std::vector<int> fgRegs;
 	float avgDist(0);
-	for(int i=0; i<pt0.size(); i++)
+	for(int i=nf; i<tf1.size(); i++)
 	{
 		if (status[i] == 1)
 		{
-			float wx = homoPtr[0]*pt0[i].x + homoPtr[1]*pt0[i].y + homoPtr[2];
-			float wy = homoPtr[3]*pt0[i].x + homoPtr[4]*pt0[i].y + homoPtr[5];
-			float w = homoPtr[6]*pt0[i].x + homoPtr[7]*pt0[i].y + homoPtr[8];
+			float wx = homoPtr[0]*tf1[i].x + homoPtr[1]*tf1[i].y + homoPtr[2];
+			float wy = homoPtr[3]*tf1[i].x + homoPtr[4]*tf1[i].y + homoPtr[5];
+			float w = homoPtr[6]*tf1[i].x + homoPtr[7]*tf1[i].y + homoPtr[8];
 			wx /= w;
 			wy /= w;
-			float dx = pt1[i].x - wx;
-			float dy = pt1[i].y - wy;
+			float dx = tf2[i].x - wx;
+			float dy = tf2[i].y - wy;
 			float dist = sqrt(dx*dx + dy*dy);	
-			dists[i] = dist;
-			avgDist += dist;
-			
+			dists[i-nf] = dist;			
 		}
-		
 	}
-	avgDist /= pt0.size();
-	std::cout<<"avg dist "<<avgDist<<"\n";
+	
 	
 	for(int i=0; i<pt0.size(); i++)
 	{
@@ -538,12 +586,31 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 #ifndef REPORT
 	timer.start();
 #endif
+	cv::Mat spFGMask(_spHeight,_spWidth,CV_8U);
+	spFGMask = cv::Scalar(0);
 	for (int i=0; i<sps.size(); i++)
 	{
-		for(int j=0; j<_spPoses[sps[i]].size(); j++)
+		spFGMask.data[sps[i]] =  dists[i];
+		/*for(int j=0; j<_spPoses[sps[i]].size(); j++)
 		{
 			int idx = _spPoses[sps[i]][j].x + _spPoses[sps[i]][j].y * _width;
 			fgMask.data[idx] = dists[i];
+		}*/
+	}
+	//std::cout<<"before blur \n"<<spFGMask<<"\nafter blur\n";
+	cv::blur(spFGMask,spFGMask,cv::Size(3,3),cv::Point(-1,-1),cv::BORDER_CONSTANT);
+	//std::cout<<spFGMask<<"\n";
+	cv::threshold(spFGMask,spFGMask,57,255,cv::THRESH_BINARY);
+	//std::cout<<"after threshold \n"<<spFGMask<<"\n";
+	for (int i=0; i<sps.size(); i++)
+	{
+		if (spFGMask.data[sps[i]] ==255)
+		{
+			for(int j=0; j<_spPoses[sps[i]].size(); j++)
+			{
+				int idx = _spPoses[sps[i]][j].x + _spPoses[sps[i]][j].y * _width;
+				fgMask.data[idx] = dists[i];
+			}
 		}
 	}
 #ifndef REPORT
@@ -584,7 +651,10 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 	//cv::imshow("saliency map",fgMask);
 	//cv::imshow("dist map", distMask);
 }
-
+void RTBackgroundSubtractor::GetSuperpixelMap(cv::Mat& sp)
+{
+	_SPComputer->GetVisualResult(_img,sp);
+}
 
 void RTBackgroundSubtractor::GetRegionMap(cv::Mat& mask)
 {
