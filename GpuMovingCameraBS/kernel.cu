@@ -22,7 +22,7 @@ int main (int argc, char* argv[])
 	//TestRandom();
 	//GpuSubsenseMain( argc, argv);
 	//MRFOptimization();
-	//TestSuperpixel();
+	//TestSuperpixel(argc, argv);
 	//testCudaGpu();
 	//TestDescDiff();
 	return 0;

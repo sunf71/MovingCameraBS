@@ -17,7 +17,7 @@
 
 void testCudaGpu();
 void CpuSuperpixel();
-void TestSuperpixel();
+void TestSuperpixel(int argc, char* argv[]);
 void MRFOptimization();
 void TCMRFOptimization();
 void TestRandom();

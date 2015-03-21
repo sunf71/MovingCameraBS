@@ -82,62 +82,36 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 	delete[] idata;
 }
 
-void TestSuperpixel()
+void TestSuperpixel(int argc, char* argv[])
 {
+	printf("arg1:1 for gpu,0 for cpu,arg2:alpha(0-1), arg3:Step, arg4: img fileName");
+	int flag = atoi(argv[1]);
+	float alpha = atof(argv[2]);
+	int step = atoi(argv[3]);
+	char* fileName = argv[4];
 	using namespace cv;
-	Mat img = imread("..//moseg//people1//in000001.jpg");
-	cv::cvtColor(img,img,CV_BGR2BGRA);
-	//cv::resize(img,img,cv::Size(16,16));
-	uchar4* imgData = new uchar4[img.rows*img.cols];
-	unsigned int* idata = new unsigned int[img.rows*img.cols];
-	unsigned char tmp[4];
-	for(int i=0; i< img.cols; i++)
+	
+	Mat img = imread(fileName);
+	if (flag)
 	{
-
-		for(int j=0; j<img.rows; j++)
-		{
-			int idx = img.step[0]*j + img.step[1]*i;
-			for(int k=0; k<4; k++)
-				tmp[k] = img.data[idx + img.elemSize1()*k];
-			imgData[i + j*img.cols].x = tmp[0];
-			imgData[i + j*img.cols].y = tmp[1];
-			imgData[i + j*img.cols].z = tmp[2];
-			imgData[i + j*img.cols].w = tmp[3];
-
-
-			idata[i + j*img.cols] = tmp[3]<<24 | tmp[2]<<16| tmp[1]<<8 | tmp[0];
-		}
+		int num(0);
+		
+		cv::Mat rst;
+	
+		SuperpixelComputer computer(img.cols,img.rows,step,alpha);
+		computer.ComputeSuperpixel(img);
+		computer.GetVisualResult(img,rst);
+		cv::imwrite("superpixel.jpg",rst);
+	}
+	else
+	{
+		cv::cvtColor(img,img,CV_BGR2BGRA);
+		CpuSuperpixel((unsigned int*)img.data,img.cols,img.rows,step,alpha);
 	}
 	
-	CpuSuperpixel(idata,img.cols,img.rows,40,0.9);
-	GpuSuperpixel gs(img.cols,img.rows,40);
-	int num(0);
-	int* labels = new int[img.rows*img.cols];
+	
 
-	GpuTimer timer;
-	SLIC aslic;	
-	PictureHandler handler;
-
-	timer.Start();
-	gs.Superpixel(imgData,num,labels);
-	timer.Stop();
-	std::cout<<timer.Elapsed()<<"ms"<<std::endl;
-
-	aslic.DrawContoursAroundSegments(idata, labels, img.cols,img.rows,0x00ff00);
-	handler.SavePicture(idata,img.cols,img.rows,std::string("GpuSp.jpg"),std::string(".\\"));
-	aslic.SaveSuperpixelLabels(labels,img.cols,img.rows,std::string("GpuSp.txt"),std::string(".\\"));
-
-	memset(labels,0,sizeof(int)*img.rows*img.cols);
-	timer.Start();
-	gs.SuperpixelLattice(imgData,num,labels);
-	timer.Stop();
-	std::cout<<timer.Elapsed()<<"ms"<<std::endl;
-	aslic.DrawContoursAroundSegments(idata, labels, img.cols,img.rows,0x00ff00);
-	handler.SavePicture(idata,img.cols,img.rows,std::string("GpuSpLatttice.jpg"),std::string(".\\"));
-	aslic.SaveSuperpixelLabels(labels,img.cols,img.rows,std::string("GpuSpLatttice.txt"),std::string(".\\"));
-	delete[] labels;
-	delete[] idata;
-	delete[] imgData;
+	
 }
 
 void MRFOptimization()
@@ -2835,6 +2809,12 @@ void TestRTBS(int argc, char** argv)
 	{
 		float mthreshold = atof(argv[5]);
 		bs = new RTBackgroundSubtractor(mthreshold);
+	}
+	else if(argc == 7)
+	{
+		float mthreshold = atof(argv[5]);
+		float alpha = atof(argv[6]);
+		bs = new RTBackgroundSubtractor(mthreshold,alpha);
 	}
 	else
 	{

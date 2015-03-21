@@ -19,7 +19,7 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 	/*cv::Mat tmp = cv::imread("..\\moseg\\cars2\\in000001.jpg");
 	cv::cvtColor(tmp,_preGray,CV_BGR2GRAY);*/
 	
-	_SPComputer = new SuperpixelComputer(_img.cols,_img.rows,_spStep);
+	_SPComputer = new SuperpixelComputer(_img.cols,_img.rows,_spStep,_spAlpha);
 	_spWidth = _SPComputer->GetSPWidth();
 	_spHeight = _SPComputer->GetSPHeight();
 	_spSize = _spWidth*_spHeight;

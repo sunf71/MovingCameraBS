@@ -11,7 +11,7 @@
 class RTBackgroundSubtractor: public cv::BackgroundSubtractor 
 {
 public:
-	RTBackgroundSubtractor(float mthreshold = 1.0):_mThreshold(mthreshold),_frameIdx(0),_spStep(40),_hogBins(36),_colorBins(12)
+	RTBackgroundSubtractor(float mthreshold = 1.0, float spAlpha = 0.9):_mThreshold(mthreshold),_frameIdx(0),_spStep(40),_spAlpha(spAlpha),_hogBins(36),_colorBins(12)
 	{
 		_totalColorBins = _colorBins*_colorBins*_colorBins;
 		_hogStep = 360.0/_hogBins;
@@ -77,6 +77,7 @@ protected:
  	    d_mat.download(mat);
  	}
 private:
+	float _spAlpha;
 	int _spStep;
 	bool _initialized;
 	cv::Mat _img, _labImg, _rgbaImg,  _fImg, _dxImg, _dyImg, _magImg, _angImg;
