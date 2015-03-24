@@ -912,7 +912,7 @@ void TestPatchStructralSimilarity()
 					ushort p1[3],p2[3];
 					computeRGBDescriptor(grad1x,grad1y,j,i,hist1,p1);
 					computeRGBDescriptor(grad2x,grad2y,wx,wy,hist2,p2);
-					double dist = STAT::BinDistance(hist1,hist2);
+					double dist = cv::compareHist(hist1, hist2, CV_COMP_BHATTACHARYYA);
 					size_t pdist = hdist_ushort_8bitLUT(p1,p2);
 					if ( dist < 0.5/*pdist < 12*/ )
 					{

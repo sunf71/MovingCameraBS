@@ -657,7 +657,7 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask,float fCurrLea
 				size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 				size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 				const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
-				const size_t nSumDist = min((nDescDist/2)*15+nColorDist,255);
+				const size_t nSumDist = min((int)((nDescDist/2)*15+nColorDist),255);
 				if(nSumDist>nCurrSCColorDistThreshold)
 					goto failedcheck3ch;
 				nTotDescDist += nDescDist;
@@ -971,7 +971,7 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 				size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 				size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 				const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
-				const size_t nSumDist = min((nDescDist/2)*15+nColorDist,255);
+				const size_t nSumDist = min((int)((nDescDist/2)*15+nColorDist),255);
 				if(nSumDist>nCurrSCColorDistThreshold)
 					goto failedcheck3ch;
 				nTotDescDist += nDescDist;
@@ -1290,7 +1290,7 @@ PtrStep<uchar> fgMask,	 PtrStep<uchar> lastFgMask, uchar* outMask, float fCurrLe
 				size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 				size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
 				const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
-				const size_t nSumDist = min((nDescDist/2)*15+nColorDist,255);
+				const size_t nSumDist = min((int)((nDescDist/2)*15+nColorDist),255);
 				if(nSumDist>nCurrSCColorDistThreshold)
 					goto failedcheck3ch;
 				nTotDescDist += nDescDist;

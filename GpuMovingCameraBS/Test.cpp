@@ -2828,7 +2828,7 @@ void TestRTBS(int argc, char** argv)
 	std::vector<cv::Mat> frames;
 	for(int i=start; i<=end;i++)
 	{
-		char name[50];
+		char name[150];
 		sprintf(name,"%s\\in%06d.jpg",input,i);
 		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
 		fileNames.push_back(name);
