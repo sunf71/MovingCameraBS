@@ -342,9 +342,8 @@ void RTBackgroundSubtractor::SaliencyMap()
 	timer.start();
 	std::cout<<"----------\n";
 #endif
-	cv::cvtColor(_img, _rgbaImg, CV_BGR2BGRA);
-	_dCurrFrame.upload(_rgbaImg);
-	cv::gpu::cvtColor(_dCurrFrame,_dGray,CV_BGRA2GRAY);
+	_dCurrFrame.upload(_img);
+	cv::gpu::cvtColor(_dCurrFrame,_dGray,CV_BGR2GRAY);
 	if (_dPreGray.empty())
 		_dPreGray = _dGray.clone();
 
@@ -361,7 +360,7 @@ void RTBackgroundSubtractor::SaliencyMap()
 	timer.start();
 #endif
 	//superpixel
-	_SPComputer->ComputeBigSuperpixel(_dCurrFrame.ptr<uchar4>());
+	_SPComputer->ComputeBigSuperpixel(_img);
 #ifndef REPORT
 	timer.stop();
 	std::cout<<"	Superpixel "<<timer.seconds()*1000<<" ms\n";

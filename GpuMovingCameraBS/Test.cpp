@@ -84,7 +84,7 @@ void CpuSuperpixel(unsigned int* data, int width, int height, int step, float al
 
 void TestSuperpixel(int argc, char* argv[])
 {
-	printf("arg1:1 for gpu,0 for cpu,arg2:alpha(0-1), arg3:Step, arg4: img fileName");
+	printf("arg1:1 for gpu,0 for cpu,arg2:alpha(0-1), arg3:Step, arg4: img fileName\n");
 	int flag = atoi(argv[1]);
 	float alpha = atof(argv[2]);
 	int step = atoi(argv[3]);
@@ -99,9 +99,16 @@ void TestSuperpixel(int argc, char* argv[])
 		cv::Mat rst;
 	
 		SuperpixelComputer computer(img.cols,img.rows,step,alpha);
-		computer.ComputeSuperpixel(img);
+		cv::gpu::GpuMat dImg;
+		//cv::gpu::cvtColor(dImg, dImg, CV_BGR2BGRA);		
+		cv::Mat imgBGRA;
+		cv::cvtColor(img, imgBGRA, CV_BGR2BGRA);
+		dImg.upload(imgBGRA);
+		computer.ComputeBigSuperpixel(dImg.ptr<uchar4>());
 		computer.GetVisualResult(img,rst);
-		cv::imwrite("superpixel.jpg",rst);
+		char name[50];
+		sprintf(name, "%f_gpusuper.jpg", alpha);
+		cv::imwrite(name, rst);
 	}
 	else
 	{

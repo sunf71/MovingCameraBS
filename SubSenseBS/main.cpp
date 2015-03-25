@@ -141,9 +141,9 @@ void MovieMakeMain(int argc, char* argv[])
 }
 int main(int argc, char* argv[])
 {
-	//MovieMakeMain(argc,argv);
+	MovieMakeMain(argc,argv);
 	//TestCVSolve();
-	TestASAPWarping();
+	//TestASAPWarping();
 	//BGSMovieMaker::MakeMovie("..\\result\\subsensex\\ptz\\input3\\warpbaseline","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout_s.avi");
 	return 0;
 	VideoProcessor processor;

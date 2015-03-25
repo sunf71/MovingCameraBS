@@ -461,6 +461,8 @@ void ASAPWarping::GpuWarp(const cv::gpu::GpuMat& img, cv::gpu::GpuMat& warpImg, 
 	_dMapXY[0].download(_maps[0]);
 	_dMapXY[1].download(_maps[1]);
 	//_dIMap.download(_invMapXY);
+	_dIMapXY[0].download(_invMaps[0]);
+	_dIMapXY[1].download(_invMaps[1]);
 }
 void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap)
 {

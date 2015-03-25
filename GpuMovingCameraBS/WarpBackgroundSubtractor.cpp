@@ -1546,11 +1546,11 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	cpuTimer.start();
 #endif
 
-	//SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],m_status,spFlow);
-	char fileName[50];
-	//cv::Mat fspFlow;
-	sprintf(fileName,"flow%06d.txt",m_nFrameIndex+1);
-	FileSuperpixelFlow(fileName,m_oImgSize.width,m_oImgSize.height,spWidth,spHeight,num,centers,spFlow);
+	SuperpixelFlow(spWidth,spHeight,num,centers,nf,m_points[0],m_points[1],m_status,spFlow);
+	//char fileName[50];
+	////cv::Mat fspFlow;
+	//sprintf(fileName,"flow%06d.txt",m_nFrameIndex+1);
+	//FileSuperpixelFlow(fileName,m_oImgSize.width,m_oImgSize.height,spWidth,spHeight,num,centers,spFlow);
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"	Superpixel Flow "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
@@ -1594,37 +1594,37 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 
 #endif	
 	
-	{
-		//ASAP warping
-		m_ASAP->CreateSmoothCons(1.0);	
-		m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
-		m_ASAP->Solve();
-		m_ASAP->Warp(rgbaImg,warpedImg);
-		d_CurrWarpedColorFrame.upload(warpedImg);
-		m_ASAP->Reset();
-		m_ASAP->getFlow(m_wflow);
-	}
+	//{
+	//	//ASAP warping
+	//	m_ASAP->CreateSmoothCons(1.0);	
+	//	m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
+	//	m_ASAP->Solve();
+	//	m_ASAP->Warp(rgbaImg,warpedImg);
+	//	d_CurrWarpedColorFrame.upload(warpedImg);
+	//	m_ASAP->Reset();
+	//	m_ASAP->getFlow(m_wflow);
+	//}
 	
 
 	
-	//{ 
-	//    //My ASAP warping
-	//	vector<float> blkWeights;
-	//	vector<cv::Mat> homographies;
-	//	std::vector<cv::Point2f> sf1,sf0;
-	//	int numH = BlockDltHomography(m_oImgSize.width,m_oImgSize.height,8,m_goodFeatures[0],m_goodFeatures[1],homographies,blkWeights,sf0,sf1);
-	//	cv::Mat b;
-	//	m_ASAP->CreateSmoothCons(blkWeights);
-	//	if (sf1.size() > 0)
-	//		m_ASAP->SetControlPts(sf0,sf1);	
-	//	m_ASAP->CreateMyDataConsB(numH,homographies,b);	
-	//	m_ASAP->MySolve(b);
-	//	//m_ASAP->Warp(image,warpedImg);
-	//	m_ASAP->GpuWarp(d_CurrentColorFrame,d_CurrWarpedColorFrame);	
-	//	m_ASAP->getFlow(m_wflow);
-	//	m_ASAP->Reset();
-	//	
-	//}
+	{ 
+	    //My ASAP warping
+		vector<float> blkWeights;
+		vector<cv::Mat> homographies;
+		std::vector<cv::Point2f> sf1,sf0;
+		int numH = BlockDltHomography(m_oImgSize.width,m_oImgSize.height,8,m_goodFeatures[0],m_goodFeatures[1],homographies,blkWeights,sf0,sf1);
+		cv::Mat b;
+		m_ASAP->CreateSmoothCons(blkWeights);
+		if (sf1.size() > 0)
+			m_ASAP->SetControlPts(sf0,sf1);	
+		m_ASAP->CreateMyDataConsB(numH,homographies,b);	
+		m_ASAP->MySolve(b);
+		//m_ASAP->Warp(image,warpedImg);
+		m_ASAP->GpuWarp(d_CurrentColorFrame,d_CurrWarpedColorFrame);	
+		m_ASAP->getFlow(m_wflow);
+		m_ASAP->Reset();
+		
+	}
 	
 	
 	//{
@@ -1736,41 +1736,27 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	GpuTimer gtimer;
 	gtimer.Start();
 #endif
-	/*cv::Mat mat2[] = {m_ASAP->getMapX(),m_ASAP->getMapY()};	
-	cv::Mat map;
-	cv::merge(mat2,2,map);*/
-	/*d_Map.upload(m_blkWarping->getMapXY());
-	d_invMap.upload(m_blkWarping->getInvMapXY());*/
-	/*cv::Mat invMat2[] = {m_ASAP->getInvMapX(),m_ASAP->getInvMapY()};
-	cv::Mat invMap;
-	cv::merge(invMat2,2,invMap);
-	*d_Map.upload(map);
-	d_invMap.upload(invMap);*/
-	/*cv::Mat wimg;
-	cv::cvtColor(oInputImg,wimg,CV_BGR2BGRA);
-	d_CurrWarpedColorFrame.upload(wimg);*/
+	
+	//cv::Mat wimg;
+	//cv::cvtColor(oInputImg,wimg,CV_BGR2BGRA);
+	//d_CurrWarpedColorFrame.upload(wimg);
 	/*cv::imshow("warped img",oInputImg);
 	cv::waitKey();*/
 
-	
-	
 	WarpCudaBSOperator(d_CurrentColorFrame,d_CurrWarpedColorFrame, d_randStates,m_ASAP->getDMapXY(),m_ASAP->getDIMapXY(),++m_nFrameIndex,d_voBGColorSamples, d_wvoBGColorSamples,
 		d_voBGDescSamples,d_wvoBGDescSamples,d_bModels,d_wbModels,d_fModels,d_wfModels,d_FGMask, d_FGMask_last,d_outMaskPtr,m_fCurrLearningRateLowerCap,m_fCurrLearningRateUpperCap);
 
-	
-
 #ifndef REPORT
-	d_FGMask.download(oCurrFGMask);
+	
 	char filename[50];
 	sprintf(filename,".\\gpu\\bin%06d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,oCurrFGMask);
 #endif
 	/*cv::Mat maps[2];
 	cv::split(m_blkWarping->getInvMapXY(),maps);*/
-	cv::gpu::remap(d_FGMask,d_FGMask,m_ASAP->getDInvMapX(),m_ASAP->getDInvMapY(),0);
-	
+	//cv::gpu::remap(d_FGMask,d_FGMask,m_ASAP->getDInvMapX(),m_ASAP->getDInvMapY(),0);	
 	d_FGMask.download(oCurrFGMask);
-	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
+	cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	//oCurrFGMask.copyTo(m_oRawFGMask_last);
 	//cv::remap(oCurrFGMask,oCurrFGMask,m_ASAP->getInvMapX(),m_ASAP->getInvMapY(),0);
 	cudaMemcpy(m_outMask.data,d_outMaskPtr,m_nPixels,cudaMemcpyDeviceToHost);
