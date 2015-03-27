@@ -1,3 +1,5 @@
+#undef min
+#undef max
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/gpu/gpu.hpp>
@@ -21,10 +23,10 @@ void TestSuperpixel(int argc, char* argv[]);
 void MRFOptimization();
 void TCMRFOptimization();
 void TestRandom();
-void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, float rggThre = 2.0, float rggSeedThres = 0.8, float mdlConfidence = 0.8, float tcConfidence = 0.25, float scConfidence = 0.35);
+void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, int warpId = 1, float rggThre = 1.0, float rggSeedThres = 0.4, float mdlConfidence = 0.75, float tcConfidence = 0.15, float scConfidence = 0.35);
 void TestMotionEstimate();
 void TestRegionGrowing();
-
+void TestFeaturesRefine(int argc, char* argv[]);
 void TestSuperpixelFlow();
 void TestSuperpixelMatching();
 void TestFlowHistogram();

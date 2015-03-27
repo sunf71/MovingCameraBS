@@ -1,4 +1,6 @@
 #pragma once
+#undef min
+#undef max
 #include <vector>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/background_segm.hpp>
@@ -208,8 +210,10 @@ protected:
 	GpuSuperpixel* m_gs;
 	MRFOptimize* m_optimizer;	
 	cv::Mat m_warpedImg;
-	ASAPWarping* m_ASAP;	
+	ImageWarping* m_imgWarper;
 	BlockWarping* m_blkWarping;
+	ASAPWarping* m_ASAP;
+	GlobalWarping* m_glbWarping;
 	//DenseOpticalFlowProvier* m_DOFP;
 	cv::Mat m_flow,m_wflow;
 	//计算像素连续被判为前景的次数，若大于某门限可以改判为背景
@@ -283,10 +287,11 @@ protected:
 class GpuWarpBackgroundSubtractor : public WarpBackgroundSubtractor
 {
 public:
-	GpuWarpBackgroundSubtractor(float rggThreshold = 2.0,
-									float rggSeedThreshold = 0.8,
-									float modelConfidence = 0.8,
-									float tcConfidence = 0.25,
+	GpuWarpBackgroundSubtractor(int warpId = 1,
+		                            float rggThreshold = 1.0,
+									float rggSeedThreshold = 0.4,
+									float modelConfidence = 0.75,
+									float tcConfidence = 0.15,
 									float scConfidence = 0.35,
 									float fRelLBSPThreshold=BGSSUBSENSE_DEFAULT_LBSP_REL_SIMILARITY_THRESHOLD,
 									size_t nMinDescDistThreshold=BGSSUBSENSE_DEFAULT_DESC_DIST_THRESHOLD,
@@ -294,7 +299,7 @@ public:
 									size_t nBGSamples=BGSSUBSENSE_DEFAULT_NB_BG_SAMPLES,
 									size_t nRequiredBGSamples=BGSSUBSENSE_DEFAULT_REQUIRED_NB_BG_SAMPLES,
 									size_t nSamplesForMovingAvgs=BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS
-									):WarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,modelConfidence,tcConfidence)
+									):m_warpId(warpId),WarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,modelConfidence,tcConfidence)
 	{
 		
 
@@ -317,6 +322,7 @@ protected:
 		cv::gpu::swap(d_fModels,d_wfModels);
 		cv::gpu::swap(d_bModels,d_wbModels);
 	}
+	int m_warpId;
 	cv::Mat m_FGMask,m_outMask;
 	size_t* d_anLBSPThreshold_8bitLUT;
 	cv::gpu::GpuMat d_voBGColorSamples,d_wvoBGColorSamples;

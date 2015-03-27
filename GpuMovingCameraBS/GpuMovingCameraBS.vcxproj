@@ -61,6 +61,7 @@
     <ClInclude Include="GpuSuperpixel.h" />
     <ClInclude Include="GpuTimer.h" />
     <ClInclude Include="graph.h" />
+    <ClInclude Include="ImageWarping.h" />
     <ClInclude Include="LBP.h" />
     <ClInclude Include="LBSP.h" />
     <ClInclude Include="LinkedBlockList.h" />
@@ -202,7 +203,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>gpusubsensem</TargetName>
+    <TargetName>gpusubsensm</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='OpencvD|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -315,6 +316,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;REPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);d:\cula\r17\include;</AdditionalIncludeDirectories>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

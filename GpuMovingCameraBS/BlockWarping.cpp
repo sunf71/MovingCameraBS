@@ -2,6 +2,7 @@
 #include "findHomography.h"
 #include <algorithm>
 #include "CudaBSOperator.h"
+#include <opencv2\gpu\gpu.hpp>
 class MyCompare
 {
 public:
@@ -257,7 +258,10 @@ void BlockWarping::GpuWarp(const cv::gpu::GpuMat& img, cv::gpu::GpuMat& warpedIm
 
 	cv::gpu::merge(_dMapXY,2,_dMap);
 	cv::gpu::merge(_dIMapXY,2,_dIMap);
-	_dMap.download(_mapXY);
+	_dMap.download(_map);
+	_dIMap.download(_invMap);
+	cv::split(_map, _mapXY);
+	cv::split(_invMap, _invMapXY);
 }
 
 void BlockWarping::Warp(const cv::Mat& img, cv::Mat& warpedImg)
@@ -277,8 +281,8 @@ void BlockWarping::Warp(const cv::Mat& img, cv::Mat& warpedImg)
 			cv::Point2i pt1(x1,y1);
 			cv::Rect roi(pt0,pt1);
 			cv::Mat srcQuad = _srcPtMat(roi);
-			cv::Mat dstQuad = _mapXY(roi);
-			cv::Mat idstQuad = _invMapXY(roi);
+			cv::Mat dstQuad = _map(roi);
+			cv::Mat idstQuad = _invMap(roi);
 			/*MatrixTimesMatPoints(_blkHomos[idx],srcQuad,dstQuad);
 			MatrixTimesMatPoints(_blkInvHomos[idx],srcQuad,idstQuad);*/
 			const double * hptr = &_blkHomoVec[idx*8];
@@ -306,23 +310,89 @@ void BlockWarping::Warp(const cv::Mat& img, cv::Mat& warpedImg)
 		}
 	}
 	//warpedImg = img.clone();
-	cv::Mat maps[2];
-	cv::split(_mapXY,maps);
-	cv::remap(img,warpedImg,maps[0],maps[1],CV_INTER_CUBIC);
+	
+	cv::split(_map,_mapXY);
+	cv::remap(img, warpedImg, _mapXY[0], _mapXY[1], CV_INTER_CUBIC);
 	
 }
 
 void BlockWarping::getFlow(cv::Mat& flow)
 {
-	flow.create(_mapXY.size(),CV_32FC2);
+	flow.create(_map.size(),CV_32FC2);
 	for(int i=0; i<flow.rows; i++)
 	{
-		cv::Vec2f* ptr = _mapXY.ptr<cv::Vec2f>(i);
+		cv::Vec2f* ptr = _map.ptr<cv::Vec2f>(i);
 		
 		cv::Vec2f* ptrFlow = flow.ptr<cv::Vec2f>(i);
 		for(int j=0; j<flow.cols; j++)
 		{
 			ptrFlow[j] = cv::Vec2f(j-ptr[j][0],i-ptr[j][1]);
+		}
+	}
+}
+void GlobalWarping::SetFeaturePoints(const Points& p1, const Points& p2)
+{
+	//_homo = cv::findHomography( p2, p1,_inliers, CV_RANSAC, _threshold);
+	findHomographyDLT((Points)p2, (Points)p1, _homo);
+	_invHomo = _homo.inv();
+	double* homoPtr = (double*)_homo.data;
+	double* invHomoPtr = (double*)_invHomo.data;
+	for (int i = 0; i < _height; i++)
+	{
+		cv::Vec2f* ptr = _map.ptr<cv::Vec2f>(i);
+		cv::Vec2f* invPtr = _invMap.ptr<cv::Vec2f>(i);
+		for (int j = 0; j < _width; j++)
+		{
+			float wx = homoPtr[0] * j + homoPtr[1] * i + homoPtr[2];
+			float wy = homoPtr[3] * j + homoPtr[4] * i + homoPtr[5];
+			float ww = homoPtr[6] * j + homoPtr[7] * i + homoPtr[8];
+			wx /= ww;
+			wy /= ww;
+			ptr[j][0] = wx;
+			ptr[j][1] = wy;
+			wx = invHomoPtr[0] * j + invHomoPtr[1] * i + invHomoPtr[2];
+			wy = invHomoPtr[3] * j + invHomoPtr[4] * i + invHomoPtr[5];
+			ww = invHomoPtr[6] * j + invHomoPtr[7] * i + invHomoPtr[8];
+			wx /= ww;
+			wy /= ww;
+			invPtr[j][0] = wx;
+			invPtr[j][1] = wy;
+		}
+	}
+	cv::split(_map, _mapXY);
+	cv::split(_invMap, _invMapXY);
+	_dMap.upload(_map);
+	_dIMap.upload(_invMap);
+	for (size_t i = 0; i < 2; i++)
+	{
+		_dIMapXY[i].upload(_invMapXY[i]);
+		_dMapXY[i].upload(_mapXY[i]);
+	}
+	
+	
+	
+}
+void GlobalWarping::Warp(const cv::Mat& img, cv::Mat& warpedImg)
+{
+	cv::warpPerspective(img, warpedImg, _invHomo, img.size());
+}
+
+void GlobalWarping::GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg)
+{
+	cv::gpu::warpPerspective(dimg, dwimg, _invHomo, dimg.size());
+}
+
+void GlobalWarping::getFlow(cv::Mat& flow)
+{
+	flow.create(_map.size(), CV_32FC2);
+	for (int i = 0; i<flow.rows; i++)
+	{
+		cv::Vec2f* ptr = _map.ptr<cv::Vec2f>(i);
+
+		cv::Vec2f* ptrFlow = flow.ptr<cv::Vec2f>(i);
+		for (int j = 0; j<flow.cols; j++)
+		{
+			ptrFlow[j] = cv::Vec2f(j - ptr[j][0], i - ptr[j][1]);
 		}
 	}
 }

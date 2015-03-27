@@ -437,7 +437,7 @@ void ASAPWarping::MySolve(cv::Mat& b)
 		}
 	}
 }
-void ASAPWarping::GpuWarp(const cv::gpu::GpuMat& img, cv::gpu::GpuMat& warpImg, int gap)
+void ASAPWarping::GpuWarp(const cv::gpu::GpuMat& img, cv::gpu::GpuMat& warpImg)
 {
 	
 	for(int i=1; i<_height; i++)
@@ -457,16 +457,16 @@ void ASAPWarping::GpuWarp(const cv::gpu::GpuMat& img, cv::gpu::GpuMat& warpImg, 
 
 	cv::gpu::merge(_dMapXY,2,_dMap);
 	cv::gpu::merge(_dIMapXY,2,_dIMap);
-	_dMap.download(_mapXY);
-	_dMapXY[0].download(_maps[0]);
-	_dMapXY[1].download(_maps[1]);
+	_dMap.download(_map);
+	_dMapXY[0].download(_mapXY[0]);
+	_dMapXY[1].download(_mapXY[1]);
 	//_dIMap.download(_invMapXY);
-	_dIMapXY[0].download(_invMaps[0]);
-	_dIMapXY[1].download(_invMaps[1]);
+	_dIMapXY[0].download(_invMapXY[0]);
+	_dIMapXY[1].download(_invMapXY[1]);
 }
-void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap)
+void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg)
 {
-	_warpImg = cv::Mat::zeros(img1.rows+2*gap,img1.cols+2*gap,CV_8UC3);
+	_warpImg = cv::Mat::zeros(img1.rows,img1.cols,CV_8UC3);
 	for(int i=1; i<_height; i++)
 	{
 		for(int j=1; j<_width; j++)
@@ -478,17 +478,17 @@ void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap)
 		}
 	}
 	//warpImg = _warpImg.clone();
-	cv::remap(img1,warpImg,_maps[0],_maps[1],CV_INTER_CUBIC);
+	cv::remap(img1, warpImg, _mapXY[0], _mapXY[1], CV_INTER_CUBIC);
 	
 
-	cv::merge(_maps,2,_mapXY);
+	cv::merge(_mapXY, 2, _map);
 	//std::cout<<_mapXY;
-	_dMap.upload(_mapXY);
+	_dMap.upload(_map);
 	
-	cv::merge(_invMaps,2,_invMapXY);
-	_dIMap.upload(_invMapXY);
-	_dIMapXY[0].upload(_invMaps[0]);
-	_dIMapXY[1].upload(_invMaps[1]);
+	cv::merge(_invMapXY,2,_invMap);
+	_dIMap.upload(_invMap);
+	_dIMapXY[0].upload(_invMapXY[0]);
+	_dIMapXY[1].upload(_invMapXY[1]);
 
 }
 void ASAPWarping::calcQuadHomography(int row, int col, Quad& q1, Quad& q2)
@@ -567,10 +567,10 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 	for(int i=0; i<_quadHeight; i++)
 	{
 		int r = row*_quadHeight+i;
-		float* ptrX = _maps[0].ptr<float>(r);
-		float* ptrY = _maps[1].ptr<float>(r);
-		float* invPtrX = _invMaps[0].ptr<float>(r);
-		float* invPtrY = _invMaps[1].ptr<float>(r);
+		float* ptrX = _mapXY[0].ptr<float>(r);
+		float* ptrY = _mapXY[1].ptr<float>(r);
+		float* invPtrX = _invMapXY[0].ptr<float>(r);
+		float* invPtrY = _invMapXY[1].ptr<float>(r);
 		for(int j=0; j<_quadWidth; j++)
 		{
 			int c = col*_quadWidth+j;
@@ -598,11 +598,11 @@ void ASAPWarping::quadWarp(const cv::Mat& img, int row, int col, Quad& q1, Quad&
 }
 void ASAPWarping::getFlow(cv::Mat& flow)
 {
-	flow.create(_maps[0].size(),CV_32FC2);
+	flow.create(_mapXY[0].size(), CV_32FC2);
 	for(int i=0; i<flow.rows; i++)
 	{
-		float* ptrX = _maps[0].ptr<float>(i);
-		float* ptrY = _maps[1].ptr<float>(i);
+		float* ptrX = _mapXY[0].ptr<float>(i);
+		float* ptrY = _mapXY[1].ptr<float>(i);
 		cv::Vec2f* ptrFlow = flow.ptr<cv::Vec2f>(i);
 		for(int j=0; j<flow.cols; j++)
 		{

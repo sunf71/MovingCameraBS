@@ -216,57 +216,53 @@ void TestRandom()
 	cudaFree(d_rand);
 	delete[] h_rand;
 }
-void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, float rggThre, float rggSeedThres, float mdlConfidence, float tcConfidence, float scConfidence)
+void TestGpuSubsense(int procId, int start, int end, const char* input, const char* output, int warpId, float rggThre, float rggSeedThres, float mdlConfidence, float tcConfidence, float scConfidence)
 {
-
-	warmUpDevice();
-	VideoProcessor processor;	
-	FrameProcessor* tracker;
+	FrameProcessor* BSProcessor(NULL);
 	// Create feature tracker instance"..\\result\\subsensex\\moseg\\people1\\"
 	if (procId >=0)
 	{
-		tracker = new WarpBSProcessor(procId,output,start-1,rggThre,rggSeedThres,mdlConfidence,tcConfidence);
+		BSProcessor = new WarpBSProcessor(procId, output, start - 1, warpId, rggThre, rggSeedThres, mdlConfidence, tcConfidence);
 	}
 	else
 	{
-		tracker = new BSProcesor(output,start-1);
+		BSProcessor = new BSProcesor(output, start - 1);
 	}
+	char name[150];
 	std::vector<std::string> fileNames;
-
+	std::vector<cv::Mat> inputImgs;
+	std::vector<std::string> outFileNames;
+	cv::Mat img;
+	sprintf(name, "%s\\in%06d.jpg", input, start);
+	img = cv::imread(name);
+	BSProcessor->initialize(img);
 	for(int i=start; i<=end;i++)
 	{
-		char name[50];
-		//"..\\moseg\\people1\\in%06d.jpg"
-		sprintf(name,"%s\\in%06d.jpg",input,i);
-		//sprintf(name,"..\\PTZ\\input4\\drive1_%03d.png",i);
+		sprintf(name,"%s\\in%06d.jpg",input,i);		
 		fileNames.push_back(name);
+		sprintf(name, "%sbin%06d.png", output, i);
+		outFileNames.push_back(name);
 	}
-	// Open video file
-	processor.setInput(fileNames);
-	//processor.setInput("..\\ptz\\woman.avi");
-	// set frame processor
-	processor.setFrameProcessor(tracker);
+	
 
-	processor.dontDisplay();
-	// Declare a window to display the video
-	//processor.displayOutput("Tracked Features");
-
-	// Play the video at the original frame rate
-	//processor.setDelay(1000./processor.getFrameRate());
-	processor.setDelay(0);
-
+	cv::Mat outImg;
 	nih::Timer timer;
 	timer.start();
-	// Start the process
-	processor.run();
-	timer.stop();
+	
+	for (int i = 0; i < fileNames.size(); i++)
+	{
+		img = cv::imread(fileNames[i]);		
+		BSProcessor->process(img, outImg);
+		cv::imwrite(outFileNames[i], outImg);
+	}
 
+	timer.stop();
 	std::cout<<(end-start+1)/timer.seconds()<<" fps"<<std::endl;
 
 
-	cv::waitKey();
+	
 
-	safe_delete(tracker);
+	safe_delete(BSProcessor);
 
 
 }
@@ -1676,30 +1672,38 @@ void TestSuperpixelDownSample()
 
 void GpuSubsenseMain(int argc, char* argv[])
 {
-	printf("gpu 0 cpu 1 %s\n",argv[1]);
-	printf("from %s\n",argv[2]);
-	printf("to %s\n",argv[3]);
-	printf("input %s\n",argv[4]);
-	printf("output %s\n",argv[5]);
-	
+	printf("gpu 0 cpu 1: %s\n",argv[1]);
+	printf("from: %s\n",argv[2]);
+	printf("to: %s\n",argv[3]);
+	printf("input: %s\n",argv[4]);
+	printf("output: %s\n",argv[5]);
 	if (argc == 6)
 		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5]);
-	else if (argc == 10)
+	else if (argc == 7)
 	{
-		printf("region growing threshold %s\n",argv[6]);
-		printf("region growing seed threshold %s\n",argv[7]);
-		printf("model confidence %s\n",argv[8]);
-		printf("tc confidence %s\n",argv[9]);
-		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],atof(argv[6]),atof(argv[7]),atof(argv[8]),atof(argv[9]));
+		printf("warpId 1 my asap,2 block 3 global: %s\n",argv[6]);
+		
+		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],atoi(argv[6]));
 	}
 	else if (argc == 11)
 	{
-		printf("region growing threshold %s\n",argv[6]);
-		printf("region growing seed threshold %s\n",argv[7]);
-		printf("model confidence %s\n",argv[8]);
-		printf("tc confidence %s\n",argv[9]);
-		printf("sc confidence %s\n",argv[10]);
-		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],atof(argv[6]),atof(argv[7]),atof(argv[8]),atof(argv[9]),atof(argv[10]));
+		printf("warpId: 1\n");
+		printf("region growing threshold: %s\n",argv[6]);
+		printf("region growing seed threshold: %s\n",argv[7]);
+		printf("model confidence: %s\n",argv[8]);
+		printf("tc confidence: %s\n",argv[9]);
+		printf("sc confidence: %s\n",argv[10]);
+		TestGpuSubsense(atoi(argv[1]),atoi(argv[2]),atoi(argv[3]),argv[4],argv[5],1,atoi(argv[6]),atof(argv[7]),atof(argv[8]),atof(argv[9]),atof(argv[10]));
+	}
+	else if (argc == 12)
+	{
+		printf("warpId 1:my asap,2:block 3: global %s\n", argv[6]);
+		printf("region growing threshold: %s\n", argv[7]);
+		printf("region growing seed threshold: %s\n", argv[8]);
+		printf("model confidence: %s\n", argv[9]);
+		printf("tc confidence: %s\n", argv[10]);
+		printf("sc confidence: %s\n", argv[11]);
+		TestGpuSubsense(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), argv[4], argv[5], atoi(argv[6]), atof(argv[7]), atof(argv[8]), atof(argv[9]), atof(argv[10]), atof(argv[11]));
 	}
 }
 
@@ -1820,6 +1824,273 @@ void TestBlockHomography()
 	}
 
 }
+
+
+void RansacVsVoting(cv::Mat& img1, std::vector<cv::Point2f>& features1, 
+	cv::Mat& img0,  std::vector<cv::Point2f>&features0)
+{
+	
+	std::vector<uchar> inliers;
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+
+	OpticalFlowHistogram(features1, features0, histogram, ids, 10, 90);
+
+	//最大bin
+	int max = ids[0].size();
+	int idx(0);
+	for (int i = 1; i<ids.size(); i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
+	int width = img1.cols;
+	int height = img1.rows;
+	cv::Size size2(width * 2, height);
+	cv::Mat rstImg(size2, CV_8UC3);
+	img1.copyTo(rstImg(cv::Rect(0, 0, width, height)));
+	img0.copyTo(rstImg(cv::Rect(width, 0, width, height)));
+	cv::Mat rstImg2 = rstImg.clone();
+	for (int i = 0; i < ids[idx].size(); i++)
+	{
+		int j = ids[idx][i];
+		cv::line(rstImg, cv::Point(features0[j].x, features0[j].y), cv::Point(features1[j].x + width, features1[j].y), cv::Scalar(255, 0, 0));
+	}
+	cv::imwrite("votingOut.jpg", rstImg);
+	std::vector<int> rids;
+	cv::Mat homography = cv::findHomography(features1, features0, inliers, CV_RANSAC, 0.1);
+	for (int i = 0; i < inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+			rids.push_back(i);
+	}
+	for (int i = 0; i < rids.size(); i++)
+	{
+		int j = rids[i];
+		cv::line(rstImg, cv::Point(features0[j].x, features0[j].y), cv::Point(features1[j].x + width, features1[j].y), cv::Scalar(255, 0, 0));
+	}
+	cv::imwrite("RansacOut.jpg", rstImg);
+}
+struct Item
+{
+	int id;
+	double dist;
+
+};
+struct ItemComparer
+{
+	bool operator()(const Item& item1, const Item & item2)
+	{
+		return item1.dist > item2.dist;
+	}
+};
+typedef std::priority_queue<Item, std::vector<Item>, ItemComparer> Items;
+void RelFlowRefine(int width, int height, std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, int& ankorId)
+{
+	//select a anchor
+	inliers.resize(features0.size());
+	double minDistance(1e10);
+	int anchor = 0;
+	std::vector<float> dx0, dy0, dx1, dy1;
+	dx0.resize(features0.size());
+	dy0.resize(dx0.size());
+	dx1.resize(dx0.size());
+	dy1.resize(dy0.size());
+	for (int a = 0; a < features0.size(); a++)
+	{
+		inliers[a] = 0;
+		cv::Point2f anchorPt1 = features1[a];
+		cv::Point2f anchorPt0 = features0[a];
+
+		for (int i = 0; i < features1.size(); i++)
+		{
+			dx1[i] = features1[i].x - anchorPt1.x;
+			dy1[i] = features1[i].y - anchorPt1.y;
+		}
+
+		double sum(0);
+		double maxD(0);
+
+		for (int i = 0; i < features0.size(); i++)
+		{
+			double dx0 = features0[i].x - anchorPt0.x;
+			double dy0 = features0[i].y - anchorPt0.y;
+			double diffX = dx0 - dx1[i];
+			double diffY = dy0 - dy1[i];
+			double diff = sqrt(diffX*diffX + diffY*diffY);
+			sum += diff;
+		}
+		if (sum < minDistance)
+		{
+			minDistance = sum;
+			anchor = a;
+		}
+	}
+	ankorId = anchor;
+	cv::Point2f anchorPt1 = features1[anchor];
+	cv::Point2f anchorPt0 = features0[anchor];
+
+	for (int i = 0; i < features1.size(); i++)
+	{
+
+		dx1[i] = features1[i].x - anchorPt1.x;
+		dy1[i] = features1[i].y - anchorPt1.y;
+	}
+	double threshold = minDistance / (features0.size() - 1);
+	threshold = 1.2;
+	std::cout << "threshold = " << threshold << "\n";
+
+	
+	inliers[anchor] = 1;
+	cv::Mat diffMat(height, width, CV_32F);
+	Items items;
+	for (int i = 0; i < features0.size(); i++)
+	{
+
+		double dx0 = features0[i].x - anchorPt0.x;
+		double dy0 = features0[i].y - anchorPt0.y;
+		double diffX = dx0 - dx1[i];
+		double diffY = dy0 - dy1[i];
+		double diff = sqrt(diffX*diffX + diffY*diffY);
+		items.push(Item{ i, diff });
+		int idx = (int)(features1[i].x + 0.5) + (int)(features1[i].y + 0.5)*width;
+		*(float*)(diffMat.data + idx * 4) = diff;
+		if (diff > threshold)
+			inliers[i] = 0;
+		else
+			inliers[i] = 1;
+
+
+	}
+	//for (size_t i = 0; i < features0.size()*0.6; i++)
+	//{
+	//	Item item = items.top();
+	//	inliers[item.id] = 1;
+	//	items.pop();
+
+	//}
+	/*cv::normalize(diffMat, diffMat, 1.0, 0.0, NORM_MINMAX);
+	diffMat.convertTo(diffMat, CV_8U, 255);
+	cv::imshow("diffMat", diffMat);
+	cv::waitKey();*/
+}
+
+void TestFeaturesRefine(int argc, char* argv[])
+{
+	
+	int start = atoi(argv[1]);
+	int end = atoi(argv[2]);
+	int width = atoi(argv[3]);
+	int height = atoi(argv[4]);
+	int method = atoi(argv[5]);
+	char* path = argv[6];
+	int dBinNum(10), aBinNum(90);
+	if (method == 3 && argc == 9)
+	{
+		dBinNum = atoi(argv[7]);
+		aBinNum = atoi(argv[8]);
+	}
+	cv::Size size2(width * 2, height);
+	char fileName[200];
+	cv::Mat img0, gray0, img1, gray1, gtImg;
+	std::vector<cv::Point2f> features0, features1;
+	std::vector<uchar> inliers;
+	double warpErr(0);
+	char methodName[20];
+
+	for (int i = start; i <= end; i++)
+	{
+		sprintf(fileName, "%s//in%06d.jpg", path, i);
+		img1 = imread(fileName);
+		/*sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
+		gtImg = imread(fileName);
+		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);*/
+		cv::cvtColor(img1, gray1, CV_BGR2GRAY);
+		if (gray0.empty())
+		{
+			gray0 = gray1.clone();
+			img0 = img1.clone();
+		}
+		nih::Timer timer;
+		timer.start();
+		KLTFeaturesMatching(gray1, gray0, features1, features0, 5000, 0.05, 5);
+		timer.stop();
+		std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
+	
+		cv::Mat homo;
+		int anchorId(0);
+		
+		timer.start();
+		switch (method)
+		{
+		case 1:
+			sprintf(methodName, "Ransac");
+			cv::findHomography(features1, features0, inliers, CV_RANSAC, 0.1);
+			break;
+		case 2:
+			sprintf(methodName, "RelFlow");
+			RelFlowRefine(features1, features0, inliers, anchorId);
+			//RelFlowRefine(width, height, features1, features0, inliers, anchorId);
+			break;
+		case 3:
+			sprintf(methodName, "Histogram");
+			FeaturePointsRefineHistogram(features1, features0, inliers, dBinNum, aBinNum);
+			break;
+		default:
+			sprintf(methodName, "Ransac");
+			cv::findHomography(features1, features0, inliers, CV_RANSAC, 0.1);
+			break;
+		}
+		
+		timer.stop();
+		std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
+		sprintf(fileName, "%s%d.jpg", methodName, i);
+		if (method == 2)
+		{
+			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), anchorId);
+		}
+		else
+		{
+			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName));
+		}
+		
+		
+		int k(0);
+		for (size_t i = 0; i < inliers.size(); i++)
+		{
+			if (inliers[i] == 1)
+			{
+				features1[k] = features1[i];
+				features0[k] = features0[i];
+				k++;
+			}
+
+		}
+		features0.resize(k);
+		features1.resize(k);
+		findHomographyDLT(features1, features0, homo);
+		/*std::cout << "homoCV: \n" << homoCV << "\n";
+		std::cout << "homo: \n" << homo << "\n";*/
+
+		
+		cv::Mat wimg0;
+		cv::warpPerspective(img1, wimg0, homo, img1.size());
+		cv::Mat diff;
+		cv::absdiff(wimg0, img0, diff);
+		sprintf(fileName, "%sDiff%d.jpg", methodName, i);
+		double wr = cv::sum(cv::sum(diff))[0];
+		std::cout << "total diff " << wr << " \n";
+		warpErr += wr;
+		cv::imwrite(fileName, diff);
+		cv::swap(img0, img1);
+		cv::swap(gray0, gray1);
+	}
+	
+	std::cout << "warp err " << warpErr / (end - start + 1);
+}
 //测试直方图投票的方式选取背景特征点
 void TestFeaturesRefineHistogram(int argc, char* argv[])
 {
@@ -1839,27 +2110,37 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 	std::vector<uchar>status;
 	std::vector<float>err;
 	std::vector<float> blkWeights;
+	int errorImgNum(0);
+	
 	for (int i=start; i<=end; i++)
 	{
 		sprintf(fileName,"%s//in%06d.jpg",path,i);
 		img1 = imread(fileName);
-		sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
-		gtImg = imread(fileName);
-		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);
+		
 		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
 		if (gray0.empty())
 		{
 			gray0 = gray1.clone();
 			img0 = img1.clone();
 		}
-		/*nih::Timer timer;
-		timer.start();*/
-		KLTFeaturesMatching(gray1,gray0,features1,features0,5000,0.05,5);
+		nih::Timer timer;
+		timer.start();
+		KLTFeaturesMatching(gray1,gray0,features1,features0,500,0.05,10);
+		timer.stop();
+		std::cout << i <<"-----\nKLT " << timer.seconds() * 1000 << "ms\n";
+
+		RansacVsVoting(img1, features1, img0, features0);
 		/*timer.stop();
 		std::cout<<"klt tracking "<<timer.seconds()*1000<<"ms\n";
 		timer.start();*/
 		//BC2FFeaturePointsRefineHistogram(width,height,features1,features0,blkWeights,4,radSize1,thetaSize1,radSize2,thetaSize2);
-		C2FFeaturePointsRefineHistogram(width,height,features1,features0,radSize1,thetaSize1,radSize2,thetaSize2);
+		//C2FFeaturePointsRefineHistogram(width,height,features1,features0,radSize1,thetaSize1,radSize2,thetaSize2);
+		//FeaturePointsRefineHistogram(width, height, features1, features0, radSize1, thetaSize1);
+		std::vector<uchar> inliers;
+		FeaturePointsRefineHistogram(features1, features0, inliers, radSize1, thetaSize1);
+
+		sprintf(fileName, "histoRefine%06d.jpg", i);
+		ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName));
 		/*cv::Mat homo;
 		FeaturePointsRefineRANSAC(features1,features0,homo);*/
 		std::cout<<"features remians "<<features1.size()<<std::endl;
@@ -1867,6 +2148,9 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 		std::cout<<"refine "<<timer.seconds()*1000<<"ms\n";*/
 		//cv::Mat homography;
 		//FeaturePointsRefineRANSAC(features1,features0,homography);
+		sprintf(fileName, "%s//groundtruth//gt%06d.png", path, i);
+		gtImg = imread(fileName);
+		cv::cvtColor(gtImg, gtImg, CV_BGR2GRAY);
 		if (i>1)
 		{
 			bool save = false;
@@ -1887,6 +2171,7 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 			}
 			if (save)
 			{
+				errorImgNum++;
 				sprintf(fileName,".//error//%d_error_%d.jpg",i,ec);
 				cv::imwrite(fileName,rstImg);
 			}
@@ -1896,8 +2181,8 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 
 	}
 	
-
-
+	std::cout << "包含错误的图像数是" << errorImgNum << "\n";
+	
 }
 
 void TestBlockWarping()
@@ -2199,7 +2484,7 @@ void RGBHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, float min,
 		int s = 1;
 		for(int c=0; c<3; c++)
 		{
-			id += s*min(ceil(ptr[c] /step),bins-1);
+			id += s*std::min((int)ceil(ptr[c] /step),bins-1);
 			s*=bins;
 		}
 		histogram[id]++;
@@ -2231,7 +2516,7 @@ void LABHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, std::vecto
 		int s = 1;
 		for(int c=0; c<3; c++)
 		{
-			id += s*min(ceil((ptr[c]-minV[c]) /step[c]),bins-1);
+			id += s*std::min((int)ceil((ptr[c]-minV[c]) /step[c]),bins-1);
 			s*=bins;
 		}
 		histogram[id]++;
@@ -2252,7 +2537,7 @@ void HOG(cv::Mat&mag, cv::Mat& ang, std::vector<uint2>& poses, int bins, std::ve
 		int idx = poses[i].x + poses[i].y*width;
 		float m = *(float*)(mag.data + idx*4);
 		float a = *(float*)(ang.data + idx*4);
-		int id = min(floor(a/step),bins-1);
+		int id = std::min((int)floor(a/step),bins-1);
 		histogram[id] += m;
 	}
 }

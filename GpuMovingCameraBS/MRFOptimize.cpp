@@ -236,7 +236,7 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 		float d = min(1.0f,spPtr[i].ps*2);
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
-		float d2 = max(1e-20,1-d);
+		float d2 = max(1e-20f,1-d);
 		d2 =  - log(d2);
 		float t1(0),t2(0);
 		if (m_preResult != NULL && spPtr[i].temporalNeighbor >= 0)
@@ -326,7 +326,7 @@ void MRFOptimize::MaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta, 
 		float d = min(1.0f,spPtr[i].ps*2);
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
-		float d2 = max(1e-20,1-d);
+		float d2 = max(1e-20f,1-d);
 		d2 =  - log(d2);
 		float t1(0),t2(0);
 		if (m_preResult != NULL && spPtr[i].temporalNeighbor >= 0)

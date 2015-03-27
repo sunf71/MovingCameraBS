@@ -1,4 +1,6 @@
 #pragma once
+#undef min
+#undef max
 #include "Common.h"
 #include <opencv\cv.h>
 #include <opencv2/video/background_segm.hpp>

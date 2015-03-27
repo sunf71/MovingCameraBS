@@ -1,4 +1,6 @@
 #pragma once
+#undef min
+#undef max
 #include <vector>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/background_segm.hpp>

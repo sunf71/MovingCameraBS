@@ -58,11 +58,11 @@ private:
 	char pathName[150];
 	int _offset;
 public:
-	WarpBSProcessor(int procId,const char* str,int offset=0, float rggThreshold= 2.0, float rggSeedThreshold = 0.8, float mdlConfidence = 0.8, float tcConfidence = 0.25, float scConfidence = 0.35):_initFlag(false),_offset(offset)
+	WarpBSProcessor(int procId,const char* str,int offset=0, int warpId = 1,  float rggThreshold= 1.0, float rggSeedThreshold = 0.4, float mdlConfidence = 0.75, float tcConfidence = 0.15, float scConfidence = 0.35):_initFlag(false),_offset(offset)
 	{
 		if (procId==0)
 		{
-			_bgs = new GpuWarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,mdlConfidence,tcConfidence);
+			_bgs = new GpuWarpBackgroundSubtractor(warpId, rggThreshold, rggSeedThreshold, mdlConfidence, tcConfidence);
 			
 		}
 		else if (procId == 1)
@@ -79,23 +79,13 @@ public:
 		safe_delete(_bgs);
 		
 	}
+	virtual void initialize(cv::Mat& frame0)
+	{
+		std::vector<cv::KeyPoint> emptyKepPoints;
+		_bgs->initialize(frame0, emptyKepPoints);
+	}
 	void  process(cv:: Mat &frame, cv:: Mat &output)
 	{
-		/*cv::Mat gray;
-		cv::cvtColor(frame, gray, CV_BGR2GRAY);*/ 
-		static int frameNo = 1;
-		if (!_initFlag)
-		{
-			
-			_bgs->initialize(frame,_voKeyPoints);
-		
-			_initFlag = true;
-		}
 		_bgs->operator()(frame,output);
-
-		sprintf(fileName,"%sbin%06d.png",pathName,_offset+frameNo++);
-		imwrite(fileName,output);
-		//imshow("input",frame);
-		//output = frame;
 	}
 };

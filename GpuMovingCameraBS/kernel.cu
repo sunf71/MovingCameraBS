@@ -8,6 +8,7 @@ int main (int argc, char* argv[])
 	//TestSaliency(argc,argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
+	//TestFeaturesRefine(argc, argv);
 	//TestFeaturesRefineHistogram(argc,argv);
 	//TestSuperpixelDownSample();
 	//TestSuperpielxComputer();

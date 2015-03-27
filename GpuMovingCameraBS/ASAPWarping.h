@@ -1,5 +1,5 @@
 #pragma once
-
+#include "ImageWarping.h"
 #include <vector>
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -267,7 +267,7 @@ public:
 	cv::Mat _xMat, _yMat;
 };
 
-class ASAPWarping
+class ASAPWarping : public ImageWarping
 {
 public:
 	ASAPWarping(int width, int height, int quadStep, float weight):_quadStep(quadStep),_quadWidth(width/quadStep),_quadHeight(height/quadStep),_weight(weight)
@@ -293,11 +293,11 @@ public:
 		_SCc = 0;
 
 		//CreateSmoothCons(weight);
-		_maps[0].create(height,width,CV_32F);
-		_maps[1].create(height,width,CV_32F);
+		_mapXY[0].create(height,width,CV_32F);
+		_mapXY[1].create(height, width, CV_32F);
 		_outMask = cv::Mat::zeros(height,width,CV_32F);
-		_invMaps[0] = _maps[0].clone();
-		_invMaps[1] = _maps[1].clone();
+		_invMapXY[0] = _mapXY[0].clone();
+		_invMapXY[1] = _mapXY[1].clone();
 		//std::cout<<_SmoothConstraints;
 		_blkSize = _quadStep*_quadStep;
 		cudaMalloc(&_dBlkHomoVec,sizeof(double)*_blkSize*8);
@@ -333,8 +333,8 @@ public:
 	void CreateDataCons(cv::Mat& b);
 	void MySolve(cv::Mat& b);
 	void Solve();
-	void Warp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
-	void GpuWarp(const cv::gpu::GpuMat& img1, cv::gpu::GpuMat& warpImg, int gap = 0);
+	virtual void Warp(const cv::Mat& img1, cv::Mat& warpImg);
+	virtual void GpuWarp(const cv::gpu::GpuMat& img1, cv::gpu::GpuMat& warpImg);
 	void InvWarp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
 	std::vector<cv::Mat>& getHomographies()
 	{
@@ -344,57 +344,8 @@ public:
 	{
 		return _invHomographies;
 	}
-	cv::Mat& getInvMapX()
-	{
-		return _invMaps[0];
-	}
-	cv::Mat& getInvMapY()
-	{
-		return _invMaps[1];
-	}
-	cv::Mat& getMapX()
-	{
-		return _maps[0];
-	}
-	cv::Mat& getMapY()
-	{
-		return _maps[1];
-	}
-	cv::gpu::GpuMat& getDInvMapX()
-	{
-		return _dIMapXY[0];
-	}
-	cv::gpu::GpuMat& getDInvMapY()
-	{
-		return _dIMapXY[1];
-	}
-	cv::gpu::GpuMat& getDMapX()
-	{
-		return _dMapXY[0];
-
-	}
-	cv::gpu::GpuMat& getDMapY()
-	{
-		return _dMapXY[1];
-	}
-	cv::gpu::GpuMat& getDMapXY()
-	{
-		return _dMap;
-	}
-	cv::gpu::GpuMat& getDIMapXY()
-	{
-		return _dIMap;
-	}
-	cv::Mat& getInvMapXY()
-	{
-		return _invMapXY;
-	}
 	
-	cv::Mat& getMapXY()
-	{
-		return _mapXY;
-	}
-	void getFlow(cv::Mat& flow);
+	virtual void getFlow(cv::Mat& flow);
 protected:
 	void quadWarp(const cv::Mat& img, int row, int col, Quad& qd1, Quad& qd2);
 	void calcQuadHomography(int row, int col, Quad& qd1, Quad& qd2);
@@ -950,9 +901,9 @@ private:
 	int _SCc;
 	std::vector<cv::Mat> _homographies;
 	std::vector<cv::Mat> _invHomographies;
-	cv::Mat _maps[2], _invMaps[2];
-	cv::Mat _outMask, _mapXY;
-	cv::Mat _invMapXY;
+	
+	cv::Mat _outMask;
+	
 	//data constraints
 	std::vector<float>    _dataterm_element_i;
 	std::vector<float>    _dataterm_element_j;
@@ -970,7 +921,5 @@ private:
 	int _sRowCount;
 	double* _dBlkHomoVec,*_dBlkInvHomoVec;
 	std::vector<double> _blkHomoVec,_blkInvHomoVec;
-	cv::gpu::GpuMat _dMapXY[2];
-	cv::gpu::GpuMat _dIMapXY[2];
-	cv::gpu::GpuMat _dMap,_dIMap;
+	
 };

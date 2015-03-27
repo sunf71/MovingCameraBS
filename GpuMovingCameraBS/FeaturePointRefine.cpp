@@ -57,6 +57,26 @@ void FeaturePointsRefineRANSAC(int& nf, std::vector<cv::Point2f>& vf1, std::vect
 	vf1.resize(k);
 	vf2.resize(k);
 }
+void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>&features0, float threshold)
+{
+	std::vector<uchar> inliers;
+	int id;
+	RelFlowRefine(features1, features0, inliers, id, threshold);
+
+	int k(0);
+	for (size_t i = 0; i < inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{ 
+			features0[k] = features0[i];
+			features1[k] = features1[i];
+			k++;
+		}
+			
+	}
+	features0.resize(k);
+	features1.resize(k);
+}
 void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
 	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize ,int thetaSize,float thetaMin, float thetaMax)
 {
@@ -69,6 +89,8 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	memset(&histogram[0],0,sizeof(float)*binSize);
 	float max = -1e10;
 	float min = 1e10;
+	float maxTheta(-1);
+	float minTheta(361);
 	std::vector<float> thetas(f1.size());
 	std::vector<float> rads(f1.size());
 	for(int i =0; i<f1.size(); i++)
@@ -81,19 +103,20 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	
 		max = rads[i] >max? rads[i] : max;
 		min = rads[i]<min ? rads[i]: min;
-
+		maxTheta = std::max(theta, maxTheta);
+		minTheta = std::min(minTheta, theta);
 	}
 	float maxFlow = max-min+1e-6;
-	
-	maxFlow = maxFlow>1.0f?maxFlow:1.0f;
-	//std::cout<<"maxFlow "<<maxFlow<<std::endl;
-	
-	float stepR = (max-min+1e-6)/DistSize;
-	float stepT = (thetaMax - thetaMin)/thetaSize;
+	float thetaRange = maxTheta - minTheta;
+	//maxFlow = maxFlow>1.0f?maxFlow:1.0f;
+	std::cout << "Flow range " << maxFlow << " theta range " << thetaRange << std::endl;
+	//maxFlow = 10;
+	float stepR = maxFlow / DistSize;
+	float stepT = (maxTheta - minTheta) / thetaSize;
 	for(int i=0; i<f1.size(); i++)
 	{
-		int r = (int)((rads[i] - min)/stepR);
-		int t = (int)((thetas[i]-thetaMin)/stepT);
+		int r = (int)((rads[i]-min)/stepR);
+		int t = (int)((thetas[i])/stepT);
 		r = r>DistSize-1? DistSize-1:r;
 		t = t>thetaSize-1? thetaSize-1:t;
 		int idx = t*DistSize+r;
@@ -293,13 +316,42 @@ void OpticalFlowHistogram(const cv::Mat& flow,
 	}
 	
 }
+void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, std::vector<uchar>& inliers, int distSize, int thetaSize)
+{
+	inliers.resize(features1.size());
+	for (int i = 0; i < features1.size(); i++)
+	{
+		inliers[i] = 0;
+	}
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+
+	OpticalFlowHistogram(features1, features2, histogram, ids, distSize, thetaSize);
+
+	//最大bin
+	int max = ids[0].size();
+	int idx(0);
+	for (int i = 1; i<ids.size(); i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
+	int k = 0;
+	for (int i = 0; i<ids[idx].size(); i++)
+	{
+		inliers[ids[idx][i]] = 1;		
+	}
+}
 void FeaturePointsRefineHistogram(int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2,int distSize, int thetaSize)
 {
 	std::vector<float> histogram;
 	std::vector<std::vector<int>> ids;
 
 	OpticalFlowHistogram(features1,features2,histogram,ids,distSize,thetaSize);
-
+	
 	//最大bin
 	int max =ids[0].size(); 
 	int idx(0);
@@ -643,13 +695,12 @@ void BC2FFeaturePointsRefineHistogram(int width, int height,std::vector<cv::Poin
 	}
 }
 //nf是特征点数量，vf1中前面nf个是特征点，后面是超像素中心
-void FeaturePointsRefineHistogram(int& nf, int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2)
+void FeaturePointsRefineHistogram(int& nf, int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, int distSize, int thetaSize)
 {
 	std::vector<float> histogram;
 	std::vector<std::vector<int>> ids;
-	int len = sqrtf(width*width + height*height);
-	int distSize =10;
-	int thetaSize = 90;
+	
+	
 	OpticalFlowHistogram(features1,features2,histogram,ids,distSize,thetaSize);
 
 	//最大bin
@@ -821,3 +872,157 @@ void MatchingResult(const cv::Mat& simg, const cv::Mat& timg, const std::vector<
 }
 
 
+void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, int& ankorId, float threshold)
+{
+	//select a anchor
+	double minDistance(1e10);
+	int anchor = 0;
+	std::vector<float> dx0, dy0, dx1, dy1;
+	dx0.resize(features0.size());
+	dy0.resize(dx0.size());
+	dx1.resize(dx0.size());
+	dy1.resize(dy0.size());
+	for (int a = 0; a < features0.size(); a++)
+	{
+		cv::Point2f anchorPt1 = features1[a];
+		cv::Point2f anchorPt0 = features0[a];
+
+		for (int i = 0; i < features1.size(); i++)
+		{
+			dx1[i] = features1[i].x - anchorPt1.x;
+			dy1[i] = features1[i].y - anchorPt1.y;
+		}
+
+		double sum(0);
+		double maxD(0);
+
+		for (int i = 0; i < features0.size(); i++)
+		{
+			double dx0 = features0[i].x - anchorPt0.x;
+			double dy0 = features0[i].y - anchorPt0.y;
+			double diffX = dx0 - dx1[i];
+			double diffY = dy0 - dy1[i];
+			double diff = sqrt(diffX*diffX + diffY*diffY);
+			sum += diff;
+		}
+		if (sum < minDistance)
+		{
+			minDistance = sum;
+			anchor = a;
+		}
+	}
+	ankorId = anchor;
+	cv::Point2f anchorPt1 = features1[anchor];
+	cv::Point2f anchorPt0 = features0[anchor];
+
+	for (int i = 0; i < features1.size(); i++)
+	{
+
+		dx1[i] = features1[i].x - anchorPt1.x;
+		dy1[i] = features1[i].y - anchorPt1.y;
+	}
+	double threshold = minDistance / (features0.size() - 1);
+	//std::cout << "threshold = " << threshold << "\n";
+	
+	inliers.resize(features0.size());
+	inliers[anchor] = 1;
+	for (int i = 0; i < features0.size(); i++)
+	{
+
+		double dx0 = features0[i].x - anchorPt0.x;
+		double dy0 = features0[i].y - anchorPt0.y;
+		double diffX = dx0 - dx1[i];
+		double diffY = dy0 - dy1[i];
+		double diff = sqrt(diffX*diffX + diffY*diffY);
+
+		if (diff > threshold)
+			inliers[i] = 0;
+		else
+			inliers[i] = 1;
+
+
+	}
+
+
+}
+
+void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title)
+{
+	int width = img1.cols;
+	int height = img1.rows;
+	cv::Size size2(width * 2, height);
+	cv::Mat rstImg(size2, CV_8UC3);
+	img1.copyTo(rstImg(cv::Rect(0, 0, width, height)));
+	img0.copyTo(rstImg(cv::Rect(width, 0, width, height)));
+	cv::Scalar blue = cv::Scalar(255, 0, 0);
+	cv::Scalar red = cv::Scalar(0, 0, 255);
+	float inlierNum(0.f);
+	for (int i = 0; i < inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			cv::circle(rstImg, features1[i], 3, red);
+			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, red);
+			inlierNum++;
+		}
+		else
+		{
+			cv::circle(rstImg, features1[i], 3, blue);
+			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, blue);
+		}
+		//cv::line(rstImg, cv::Point(features0[j].x, features0[j].y), cv::Point(features1[j].x + width, features1[j].y), cv::Scalar(255, 0, 0));
+
+	}
+	if (title[title.size() - 4] == '.')
+	{
+		cv::imwrite(title, rstImg);
+	}
+	else
+	{
+		//cv::imshow("Feature Refine, Red: Possible background; Blue: Possible foreground", rstImg);
+		cv::imshow(title, rstImg);
+		cv::waitKey(0);
+	}
+	std::cout << "inlier pct " << inlierNum / inliers.size() << "\n";
+}
+
+void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title, int anchorId)
+{
+	int width = img1.cols;
+	int height = img1.rows;
+	cv::Size size2(width * 2, height);
+	cv::Mat rstImg(size2, CV_8UC3);
+	img1.copyTo(rstImg(cv::Rect(0, 0, width, height)));
+	img0.copyTo(rstImg(cv::Rect(width, 0, width, height)));
+	cv::Scalar blue = cv::Scalar(255, 0, 0);
+	cv::Scalar red = cv::Scalar(0, 0, 255);
+	float inlierNum(0.f);
+	for (int i = 0; i < inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			cv::circle(rstImg, features1[i], 3, red);
+			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, red);
+			inlierNum++;
+		}
+		else
+		{
+			cv::circle(rstImg, features1[i], 3, blue);
+			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, blue);
+		}
+		cv::line(rstImg, cv::Point(features1[anchorId].x, features1[anchorId].y),
+			cv::Point(features0[anchorId].x + width, features0[anchorId].y), cv::Scalar(255, 0, 0));
+
+	}
+	if (title[title.size() - 4] == '.')
+	{
+		cv::imwrite(title, rstImg);
+	}
+	else
+	{
+		//cv::imshow("Feature Refine, Red: Possible background; Blue: Possible foreground", rstImg);
+		cv::imshow(title, rstImg);
+		cv::waitKey(0);
+	}
+	std::cout << "inlier pct " << inlierNum / inliers.size() << "\n";
+}

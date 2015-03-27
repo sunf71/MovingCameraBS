@@ -1,6 +1,9 @@
 #pragma once
+#include "ImageWarping.h"
 #include <opencv\cv.h>
 #include <vector>
+#undef min
+#undef max
 #include <opencv2\gpu\gpu.hpp>
 #include "cuda.h"
 #include "cuda_runtime.h"
@@ -10,14 +13,33 @@ struct Cell
 	Points points0,points1;
 	int idx;
 };
-class BlockWarping
+class GlobalWarping : public ImageWarping
+{
+public:
+	GlobalWarping(int width, int height, float threshold = 0.1) :_width(width), _height(height), _threshold(threshold)
+	{
+		_map.create(height, width, CV_32FC2);
+		_invMap.create(height, width, CV_32FC2);
+	}
+	void SetFeaturePoints(const Points& p1, const Points& p2);
+	virtual void Warp(const cv::Mat& img, cv::Mat& warpedImg);
+	virtual void getFlow(cv::Mat& flow);
+	virtual void GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg);
+private:
+	int _width;
+	int _height;
+	float _threshold;
+	cv::Mat _homo, _invHomo;
+	std::vector<uchar> _inliers;
+};
+class BlockWarping:public ImageWarping
 {
 public:
 	BlockWarping(int width, int height, int quadStep):_width(width),_height(height),_quadStep(quadStep)
 	{
 		_srcPtMat.create(height,width,CV_32FC2);
-		_mapXY.create(height,width,CV_32FC2);
-		_invMapXY.create(height,width,CV_32FC2);
+		_map.create(height, width, CV_32FC2);
+		_invMap.create(height, width, CV_32FC2);
 		for(int i=0; i<height; i++)
 		{
 			float* ptr = _srcPtMat.ptr<float>(i);
@@ -115,9 +137,9 @@ public:
 	float MappingError(const double* ptr, const Points& p1, const Points& p2);
 	float MappingError(const std::vector<double>& homoVec, const Points& p1, const Points& p2);
 	void SetFeaturePoints(const Points& p1, const Points& p2);
-	void Warp(const cv::Mat& img, cv::Mat& warpedImg);
+	virtual void Warp(const cv::Mat& img, cv::Mat& warpedImg);
 	void GpuWarp(const cv::Mat& img, cv::Mat& warpedImg);
-	void GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg);
+	virtual void GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg);
 	//·Ö¿éId
 	int blockId(cv::Point2f pt)
 	{
@@ -127,41 +149,8 @@ public:
 		return idx + idy*_quadStep;
 
 	}
-	void getFlow(cv::Mat& flow);
-	cv::gpu::GpuMat& getDInvMapX()
-	{
-		return _dIMapXY[0];
-	}
-	cv::gpu::GpuMat& getDInvMapY()
-	{
-		return _dIMapXY[1];
-	}
-	cv::gpu::GpuMat& getDMapX()
-	{
-		return _dMapXY[0];
-
-	}
-	cv::gpu::GpuMat& getDMapY()
-	{
-		return _dMapXY[1];
-	}
-	cv::gpu::GpuMat& getDMapXY()
-	{
-		return _dMap;
-	}
-	cv::gpu::GpuMat& getDIMapXY()
-	{
-		return _dIMap;
-	}
-	cv::Mat& getInvMapXY()
-	{
-		return _invMapXY;
-	}
+	virtual void getFlow(cv::Mat& flow);
 	
-	cv::Mat& getMapXY()
-	{
-		return _mapXY;
-	}
 	
 private:
 	int _width;
@@ -175,15 +164,11 @@ private:
 	//std::vector<cv::Mat> _blkHomos, _blkInvHomos;
 	std::vector<double> _blkHomoVec,_blkInvHomoVec;
 	std::vector<float> _blkErrors;
-	std::vector<int> _emptyBlkIdx1, _emptyBlkIdx0;
-	cv::Mat _mapXY;
-	cv::Mat _invMapXY;
+	std::vector<int> _emptyBlkIdx1, _emptyBlkIdx0;	
 	cv::Mat _mesh;
 	cv::Mat _srcPtMat;
 	int _minNumForHomo;
-	cv::gpu::GpuMat _dImg,_dMap,_dIMap;
-	cv::gpu::GpuMat _dMapXY[2];
-	cv::gpu::GpuMat _dIMapXY[2];
+	
 	double* _dBlkHomoVec,*_dBlkInvHomoVec;
 
 };

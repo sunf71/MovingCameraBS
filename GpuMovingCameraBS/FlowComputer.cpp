@@ -1,4 +1,6 @@
 #include "FlowComputer.h"
+#undef min
+#undef max
 #include <opencv2/gpu/gpu.hpp>
 #include "CudaSuperpixel.h"
 #include "flowIO.h"
