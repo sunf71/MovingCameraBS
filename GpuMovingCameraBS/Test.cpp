@@ -2016,9 +2016,11 @@ void TestFeaturesRefine(int argc, char* argv[])
 		}
 		nih::Timer timer;
 		timer.start();
-		KLTFeaturesMatching(gray1, gray0, features1, features0, 5000, 0.05, 5);
+		KLTFeaturesMatching(gray1, gray0, features1, features0, 500, 0.05, 10);
 		timer.stop();
 		std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
+
+		BlockRelFlowRefine BRFR(width, height, 2);
 	
 		cv::Mat homo;
 		int anchorId(0);
@@ -2039,6 +2041,11 @@ void TestFeaturesRefine(int argc, char* argv[])
 			sprintf(methodName, "Histogram");
 			FeaturePointsRefineHistogram(features1, features0, inliers, dBinNum, aBinNum);
 			break;
+		case 4:
+			sprintf(methodName, "BlockRefFlow");
+			//BRFR.Refine(2, features1, features0, inliers, anchorId);
+			BRFR.Refine(features1, features0, inliers);
+			break;
 		default:
 			sprintf(methodName, "Ransac");
 			cv::findHomography(features1, features0, inliers, CV_RANSAC, 0.1);
@@ -2048,7 +2055,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		timer.stop();
 		std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
 		sprintf(fileName, "%s%d.jpg", methodName, i);
-		if (method == 2)
+		if (method == 2 || method==4)
 		{
 			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), anchorId);
 		}
@@ -2071,7 +2078,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 		}
 		features0.resize(k);
 		features1.resize(k);
-		findHomographyDLT(features1, features0, homo);
+		//findHomographyDLT(features1, features0, homo);
+		//findHomographyEqa(features1, features0, homo);
+		homo = cv::findHomography(features1, features0, CV_LMEDS);
 		/*std::cout << "homoCV: \n" << homoCV << "\n";
 		std::cout << "homo: \n" << homo << "\n";*/
 
@@ -3181,5 +3190,70 @@ void TestRTBS(int argc, char** argv)
 
 
 
+}
+
+
+void TestGpuKLT()
+{
+	cv::Mat img1, img0, gray1, gray0;
+	std::vector<cv::Point2f> f1, f0;
+	img1 = cv::imread("..//moseg//cars1//in000002.jpg");
+	img0 = cv::imread("..//moseg//cars1//in000001.jpg");
+	cv::cvtColor(img1, gray1, CV_BGR2GRAY);
+	cv::cvtColor(img0, gray0, CV_BGR2GRAY);
+	KLTFeaturesMatching(img1, img0, f1, f0);
+
+	cv::gpu::GpuMat dImg1, dImg0,dF1,dF0,dStatus;
+	cv::Mat cf1, cf0, cStatus;
+	std::vector<cv::Point2f> vf1, vf0;
+	std::vector<uchar> vStatus;
+	dImg1.upload(gray1);
+	dImg0.upload(gray0);
+	cf1.create(1, f1.size(), CV_32FC2);
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		float* ptr = (float*)(cf1.data + i * 8);
+		ptr[0] = f1[i].x;
+		ptr[1] = f1[i].y;
+	}
+	
+	dF1.upload(cf1);
+	/*cv::gpu::GoodFeaturesToTrackDetector_GPU dGFTTD(100,0.05,10);
+	dGFTTD.operator()(dImg1, dF1);*/
+	cv::gpu::PyrLKOpticalFlow gKLT;
+	gKLT.sparse(dImg1, dImg0, dF1, dF0, dStatus);
+	//dF1.download(cf1);
+	dF0.download(cf0);
+	dStatus.download(cStatus);
+	for (size_t i = 0; i < cf1.cols; i++)
+	{
+		if (cStatus.data[i] == 1)
+		{
+			float x = *(float*)(cf1.data + i * 8);
+			float y = *(float*)(cf1.data + i * 8 + 4);
+			vf1.push_back(cv::Point2f(x, y));
+			x = *(float*)(cf0.data + i * 8);
+			y = *(float*)(cf0.data + i * 8 + 4);
+			vf0.push_back(cv::Point2f(x, y));
+		}
+	}
+	std::cout << "GPU " << vf1.size() << "\n";
+	std::cout << "CPU " << f1.size() << "\n";
+	int err(0);
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		if (
+			abs(vf0[i].x - f0[i].x) > 1e-1 ||
+			abs(vf0[i].y - f0[i].y) > 1e-1)
+		{
+			std::cout <<"vf0: "<< vf0[i].x << " , " << vf0[i].y;
+			std::cout << " f0: " << f0[i].x << " , " << f0[i].y<<"\n";
+			
+			err++;
+
+		}
+			
+	}
+	std::cout << "ERROR " << err << "\n";
 }
 	

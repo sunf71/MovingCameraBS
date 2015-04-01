@@ -90,6 +90,30 @@ int BlockDltHomography(int width, int height, int quadWidth, std::vector<cv::Poi
 //Show feature refine result
 //@title, if title is a file name with extension, the result will be saved to that file, 
 //otherwise the result  will be shown in a window with the title
-void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title);
+void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title, bool line = false);
 
 void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title, int anchorId);
+
+class BlockRelFlowRefine
+{
+	typedef std::vector<cv::Point2f> Points;
+	struct Cell
+	{
+		std::vector<int> featureIds;
+		int idx;
+	};
+public:
+	BlockRelFlowRefine(int width, int height, int quad, float threshold = 1.0f) :_width(width), _height(height), _quad(quad), _threshold(threshold)
+	{
+		Init();
+	}
+	void Init();
+	void Refine(int id, Points& features1, Points& features0, std::vector<uchar>& inliers, int& aId);
+	void Refine(Points& features1, Points& features0, std::vector<uchar>& inliers);
+protected:
+	int _width, _height, _quad;
+	int _blkWidth, _blkHeight;
+	std::vector<Cell> _cells;
+	float _threshold;
+	Points _f1, _f0;
+};

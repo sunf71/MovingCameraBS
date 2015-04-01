@@ -336,6 +336,8 @@ public:
 	virtual void Warp(const cv::Mat& img1, cv::Mat& warpImg);
 	virtual void GpuWarp(const cv::gpu::GpuMat& img1, cv::gpu::GpuMat& warpImg);
 	void InvWarp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
+	void CalcQuadHomographies();
+	void WarpPt(const cv::Point2f& input, cv::Point2f& output);
 	std::vector<cv::Mat>& getHomographies()
 	{
 		return _homographies;

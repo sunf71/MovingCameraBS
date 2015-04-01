@@ -3,6 +3,7 @@
 #include "RegionMerging.h"
 #include "timer.h"
 #include "FeaturePointRefine.h"
+#include "findHomography.h"
 void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 {
 	
@@ -14,7 +15,10 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 	_fgMask = cv::Scalar(0);
 	cv::cvtColor(_img,_gray,CV_BGR2GRAY);
 	if (_preGray.empty())
+	{
 		_preGray = _gray.clone();
+		_preImg = _img.clone();
+	}
 	//for test
 	/*cv::Mat tmp = cv::imread("..\\moseg\\cars2\\in000001.jpg");
 	cv::cvtColor(tmp,_preGray,CV_BGR2GRAY);*/
@@ -41,6 +45,10 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 	}
 
 	_dFeatureDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(100,0.01,_spStep);
+
+	m_ASAP = new ASAPWarping(_width, _height, 8, 1.0);
+	//m_glbWarping = new GlobalWarping(_width, _height);
+	//m_blkWarping = new BlockWarping(_width, _height, 8);
 }
 
 void RTBackgroundSubtractor::operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRate)
@@ -53,6 +61,7 @@ void RTBackgroundSubtractor::operator()(cv::InputArray image, cv::OutputArray fg
 	fgmask.create(image.size(),CV_8UC1);
 	MovingSaliency(fgmask.getMat());
 	cv::swap(_preGray,_gray);
+	cv::swap(_preImg, _img);
 	cv::gpu::swap(_dGray,_dPreGray);
 }
 void RTBackgroundSubtractor::BuildHistogram(const int* labels, const SLICClusterCenter* centers)
@@ -403,6 +412,33 @@ void RTBackgroundSubtractor::SaliencyMap()
 }
 
 
+void RTBackgroundSubtractor::calcCameraMotion(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>&f0)
+{
+	vector<float> blkWeights;
+	vector<cv::Mat> homographies;
+	std::vector<cv::Point2f> sf1, sf0;
+	int numH = BlockDltHomography(_width, _height, 8, f1, f0, homographies, blkWeights, sf0, sf1);
+	cv::Mat b;
+	m_ASAP->CreateSmoothCons(blkWeights);
+	if (sf1.size() > 0)
+		m_ASAP->SetControlPts(sf0, sf1);
+	m_ASAP->CreateMyDataConsB(numH, homographies, b);
+	m_ASAP->MySolve(b);
+	m_ASAP->CalcQuadHomographies();
+	/*cv::Mat warpedImg;
+	m_ASAP->Warp(_img,warpedImg);*/
+	/*m_ASAP->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
+	m_ASAP->getFlow(m_wflow);*/
+	m_ASAP->Reset();
+
+	//m_glbWarping->SetFeaturePoints(f1, f0);
+
+	/*m_blkWarping->SetFeaturePoints(f1, f0);
+	m_blkWarping->CalcBlkHomography();	
+	cv::Mat warpedImg;
+	m_blkWarping->Warp(_img, warpedImg);
+	m_blkWarping->Reset();*/
+}
 
 void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 {
@@ -415,20 +451,10 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 	_SPComputer->GetSuperpixelResult(num,labels,centers);
 	fgMask = cv::Scalar(0);
 
-	//对区域面积小于threashold 的区域中的超像素进行klt跟踪	
+	
 	int regThreshold = 15;
 	std::vector<cv::Point2f> pt0,pt1;
-	////对每个超像素进行特征提取，每个超像素提取1个特征点
-	//pt0.resize(_spSize);
-	//#pragma omp parallel for
-	//for(int i=0; i<_spSize; i++)
-	//{
-	//	cv::goodFeaturesToTrack(_gray,pt1,1,0.05,5,_spMasks[i]);
-	//	//for(int j=0; j<1; j++)
-	//		pt0[i] = pt1[0];
-	//}
-	//timer.stop();
-	//std::cout<<"feature extracting "<<timer.seconds()*1000<<" ms \n";
+
 
 
 	std::vector<int> regs;
@@ -449,13 +475,7 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 			
 		}
 	}
-	//将小区域中的超像素中心点添加到pt0
-	for(int i=0; i<spfeatures.size(); i++)
-	{
-		for(int j=0; j<spfeatures[i].size(); j++)
-			pt0.push_back(spfeatures[i][j]);
-	}
-	upload(pt0,_dSPCenters);
+	
 	std::vector<float> dists(pt0.size());
 	
 	
@@ -501,10 +521,11 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 	tf1.resize(vf1.size() + pt0.size());
 	memcpy(&tf1[0],&vf1[0],sizeof(cv::Point2f)*nf);
 	memcpy(&tf1[vf1.size()],&pt0[0],sizeof(cv::Point2f)*pt0.size());
-	upload(tf1,_dCurrPts);
+	cv::calcOpticalFlowPyrLK(_gray,_preGray,tf1,tf2,status,err);
+	/*upload(tf1,_dCurrPts);
 	d_pyrLk.sparse(_dGray,_dPreGray,_dCurrPts,_dPrevPts,d_Status);
 	download(d_Status,status);
-	download(_dPrevPts,tf2);
+	download(_dPrevPts,tf2);*/
 #ifndef REPORT
 	timer.stop();
 	std::cout<<"	gpu optical flow "<<timer.seconds()*1000<<" ms\n";
@@ -513,7 +534,7 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 	timer.start();
 #endif	
 	int k(0);
-	for(int i=0; i<nf; i++)
+	for (int i = 0; i<nf; i++)
 	{
 		if (status[i] == 1)
 		{
@@ -525,7 +546,26 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 	}
 	vf1.resize(k);
 	vf2.resize(k);
-	homography = cv::findHomography(vf1,vf2,inliers,CV_RANSAC,1.0);
+	int aId(0);
+	RelFlowRefine(vf1, vf2, inliers, aId, 1.0);
+	//ShowFeatureRefine(_img, tf1, _preImg, tf2, inliers, "refine", aId);
+	k = 0;
+	for (int i = 0; i<vf1.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			vf1[k] = vf1[i];
+			vf2[k] = vf2[i];
+			k++;
+			
+		}
+		
+	}
+	vf1.resize(k);
+	vf2.resize(k);
+	//findHomographyEqa(vf1, vf2, homography);
+	calcCameraMotion(vf1, vf2);
+	/*homography = cv::findHomography(vf1,vf2,inliers,CV_RANSAC,1.0);*/
 
 #ifndef REPORT
 	timer.stop();
@@ -539,17 +579,24 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 
 	std::vector<int> fgRegs;
 	float avgDist(0);
+	//cv::Mat warpMat = m_blkWarping->getInvMapXY();
 	for(int i=nf; i<tf1.size(); i++)
 	{
 		if (status[i] == 1)
 		{
-			float wx = homoPtr[0]*tf1[i].x + homoPtr[1]*tf1[i].y + homoPtr[2];
+			/*float wx = homoPtr[0]*tf1[i].x + homoPtr[1]*tf1[i].y + homoPtr[2];
 			float wy = homoPtr[3]*tf1[i].x + homoPtr[4]*tf1[i].y + homoPtr[5];
 			float w = homoPtr[6]*tf1[i].x + homoPtr[7]*tf1[i].y + homoPtr[8];
 			wx /= w;
-			wy /= w;
-			float dx = tf2[i].x - wx;
-			float dy = tf2[i].y - wy;
+			wy /= w;*/
+			/*int x = tf1[i].x + 0.5;
+			int y = tf1[i].y + 0.5;
+			float wx = warpMat.ptr<cv::Vec2f>(y)[x][0];
+			float wy = warpMat.ptr<cv::Vec2f>(y)[x][1];*/
+			cv::Point2f wpt;
+			m_ASAP->WarpPt(tf1[i], wpt);
+			float dx = tf2[i].x - wpt.x;
+			float dy = tf2[i].y - wpt.y;
 			float dist = sqrt(dx*dx + dy*dy);	
 			dists[i-nf] = dist;			
 		}

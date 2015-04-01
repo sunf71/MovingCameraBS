@@ -1581,8 +1581,8 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	memcpy(&m_goodFeatures[0][0],&m_points[0][0],size);
 	memcpy(&m_goodFeatures[1][0],&m_points[1][0],size);
 	
-	//FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
-	RelFlowRefine(m_goodFeatures[0], m_goodFeatures[1], 1.0);
+	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
+	//RelFlowRefine(m_goodFeatures[0], m_goodFeatures[1], 1.0);
 	
 
 	/*int radSize1 = 10;
@@ -1674,6 +1674,7 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 		//std::cout<<"GpuWarp"<<std::endl;
 		m_blkWarping->getFlow(m_wflow);
 		m_blkWarping->Reset();
+		break;
 	}
 	case 3:
 	{

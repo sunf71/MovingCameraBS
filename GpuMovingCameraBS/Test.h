@@ -46,3 +46,4 @@ void TestRTBS(int argc, char** argv);
 void TestQuantize();
 
 void TestLBP();
+void TestGpuKLT();

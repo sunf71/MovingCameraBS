@@ -6,6 +6,7 @@
 #include <opencv2/video/background_segm.hpp>
 #include "SuperpixelComputer.h"
 #include "ASAPWarping.h"
+#include "BlockWarping.h"
 #include "videoprocessor.h"
 #include "timer.h"
 #include <opencv2\gpu\gpu.hpp>
@@ -17,7 +18,7 @@ public:
 	{
 		_totalColorBins = _colorBins*_colorBins*_colorBins;
 		_hogStep = 360.0/_hogBins;
-
+		
 		/*
 		//lab color space
 		_colorSteps[0] = 100.0/_colorBins;
@@ -37,6 +38,8 @@ public:
 		safe_delete_array(_segment);
 		safe_delete_array(_visited);
 		safe_delete(_dFeatureDetector);
+		safe_delete(m_ASAP);
+		//safe_delete(m_glbWarping);
 	}
 	void SetPreGray(cv::Mat& img)
 	{
@@ -78,11 +81,12 @@ protected:
  	    cv::Mat mat(1, d_mat.cols, CV_8UC1, (void*)&vec[0]);
  	    d_mat.download(mat);
  	}
+	void calcCameraMotion(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>&f0);
 private:
 	float _spAlpha;
 	int _spStep;
 	bool _initialized;
-	cv::Mat _img, _labImg, _rgbaImg,  _fImg, _dxImg, _dyImg, _magImg, _angImg;
+	cv::Mat _img, _preImg, _labImg, _rgbaImg,  _fImg, _dxImg, _dyImg, _magImg, _angImg;
 	cv::Mat _gray, _preGray;
 	SuperpixelComputer* _SPComputer;
 	std::vector<std::vector<float>> _colorHists, _nColorHists;
@@ -109,5 +113,10 @@ private:
 	cv::gpu::GpuMat _dFeatures,_dSPCenters,_dCurrPts,_dPrevPts,d_Status;
 	cv::gpu::PyrLKOpticalFlow  d_pyrLk;
 	cv::gpu::GoodFeaturesToTrackDetector_GPU* _dFeatureDetector;
+
+	ImageWarping* m_imgWarper;
+	BlockWarping* m_blkWarping;
+	ASAPWarping* m_ASAP;
+	GlobalWarping* m_glbWarping;
 };
 

@@ -491,6 +491,46 @@ void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg)
 	_dIMapXY[1].upload(_invMapXY[1]);
 
 }
+void ASAPWarping::WarpPt(const cv::Point2f& pt, cv::Point2f& output)
+{
+	
+	int idx = (int)(pt.x + 0.5) / _quadWidth;
+	int idy = (int)(pt.y + 0.5) / _quadHeight;
+	int id = idx + idy*_quadStep;
+	double *homoPtr = (double*)_homographies[id].data;
+	float wx = homoPtr[0] * pt.x + homoPtr[1] * pt.y + homoPtr[2];
+	float wy = homoPtr[3] * pt.x + homoPtr[4] * pt.y + homoPtr[5];
+	float w = homoPtr[6] * pt.x + homoPtr[7] * pt.y + homoPtr[8];
+	output.x = wx / w;
+	output.y = wy / w;
+}
+void ASAPWarping::CalcQuadHomographies()
+{
+	for (int i = 1; i<_height; i++)
+	{
+		for (int j = 1; j<_width; j++)
+		{
+			int id = (i - 1)*(_width - 1) + (j - 1);
+			Quad q1 = _source->getQuad(i, j);
+			Quad q2 = _destin->getQuad(i, j);
+			std::vector<cv::Point2f> f1, f2;
+			f1.push_back(q1.getV00());
+			f1.push_back(q1.getV01());
+			f1.push_back(q1.getV10());
+			f1.push_back(q1.getV11());
+
+			f2.push_back(q2.getV00());
+			f2.push_back(q2.getV01());
+			f2.push_back(q2.getV10());
+			f2.push_back(q2.getV11());
+
+			cv::Mat homography;
+			findHomographySVD(f1, f2, homography);
+			_invHomographies[id] = homography.inv();
+			_homographies[id] = homography.clone();
+		}
+	}
+}
 void ASAPWarping::calcQuadHomography(int row, int col, Quad& q1, Quad& q2)
 {
 	float minx = q2.getMinX();

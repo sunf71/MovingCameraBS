@@ -107,16 +107,16 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 		minTheta = std::min(minTheta, theta);
 	}
 	float maxFlow = max-min+1e-6;
-	float thetaRange = maxTheta - minTheta;
+	float thetaRange = maxTheta - minTheta +1e-6;
 	//maxFlow = maxFlow>1.0f?maxFlow:1.0f;
 	std::cout << "Flow range " << maxFlow << " theta range " << thetaRange << std::endl;
 	//maxFlow = 10;
 	float stepR = maxFlow / DistSize;
-	float stepT = (maxTheta - minTheta) / thetaSize;
+	float stepT = thetaRange / thetaSize;
 	for(int i=0; i<f1.size(); i++)
 	{
 		int r = (int)((rads[i]-min)/stepR);
-		int t = (int)((thetas[i])/stepT);
+		int t = (int)((thetas[i] - minTheta) / stepT);
 		r = r>DistSize-1? DistSize-1:r;
 		t = t>thetaSize-1? thetaSize-1:t;
 		int idx = t*DistSize+r;
@@ -946,7 +946,7 @@ void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>
 
 }
 
-void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title)
+void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title, bool line)
 {
 	int width = img1.cols;
 	int height = img1.rows;
@@ -963,14 +963,18 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 		{
 			cv::circle(rstImg, features1[i], 3, red);
 			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, red);
+			if (line)
+				cv::line(rstImg, cv::Point(features1[i].x, features1[i].y), cv::Point(features0[i].x + width, features0[i].y), red);
 			inlierNum++;
 		}
 		else
 		{
 			cv::circle(rstImg, features1[i], 3, blue);
 			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, blue);
+			if (line)
+				cv::line(rstImg, cv::Point(features1[i].x, features1[i].y), cv::Point(features0[i].x + width, features0[i].y), blue);
 		}
-		//cv::line(rstImg, cv::Point(features0[j].x, features0[j].y), cv::Point(features1[j].x + width, features1[j].y), cv::Scalar(255, 0, 0));
+		
 
 	}
 	if (title[title.size() - 4] == '.')
@@ -1003,6 +1007,8 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 		{
 			cv::circle(rstImg, features1[i], 3, red);
 			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, red);
+			cv::line(rstImg, cv::Point(features1[i].x, features1[i].y),
+				cv::Point(features0[i].x + width, features0[i].y), cv::Scalar(255, 0, 0));
 			inlierNum++;
 		}
 		else
@@ -1025,4 +1031,202 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 		cv::waitKey(0);
 	}
 	std::cout << "inlier pct " << inlierNum / inliers.size() << "\n";
+}
+
+void BlockRelFlowRefine::Init()
+{
+	_blkWidth = _width / _quad;
+	_blkHeight = _height / _quad;
+	_cells.resize(_quad*_quad);
+	for (size_t i = 0; i < _quad; i++)
+	{
+		for (size_t j = 0; j < _quad; j++)
+		{
+			_cells[i*_quad + j].idx = i*_quad + j;
+		}
+	}
+}
+void BlockRelFlowRefine::Refine(int id, Points& features1, Points& features0, std::vector<uchar>& inliers, int& aId)
+{
+	inliers.resize(features0.size());
+	memset(&inliers[0], 0, sizeof(uchar)*inliers.size());
+	//assign features to cells
+	for (size_t i = 0; i < features1.size(); i++)
+	{
+		cv::Point2f pt = features1[i];
+		int idx = (int)(pt.x + 0.5) / _blkWidth;
+		int idy = (int)(pt.y + 0.5) / _blkHeight;
+		_cells[idx + idy*_quad].featureIds.push_back(i);
+	}
+	int n4x[] = { -1, 0, 1, 0 };
+	int n4y[] = { 0, -1, 0, 1 };
+
+	for (size_t i = 0; i < _quad; i++)
+	{
+		for (size_t j = 0; j < _quad; j++)
+		{
+			int idx = i*_quad + j;
+			if (idx != id)
+				continue;
+			float minDistance(1e10);
+			int minId(-1);
+			for (size_t n = 0; n < 4; n++)
+			{
+				int ny = n4y[n] + i;
+				int nx = n4x[n] + j;
+				if (ny >= 0 && ny < _quad && nx >= 0 && nx < _quad)
+				{
+					int nidx = ny*_quad + nx;
+
+					for (size_t f = 0; f < _cells[nidx].featureIds.size(); f++)
+					{
+						size_t id = _cells[nidx].featureIds[f];
+						double nx1 = features1[id].x;
+						double ny1 = features1[id].y;
+						double nx0 = features0[id].x;
+						double ny0 = features0[id].y;
+						double sumD(0);
+						for (size_t c = 0; c < _cells[idx].featureIds.size(); c++)
+						{
+							int cid = _cells[idx].featureIds[c];
+							double x1 = features1[cid].x;
+							double y1 = features1[cid].y;
+							double x0 = features0[cid].x;
+							double y0 = features0[cid].y;
+							double dx1 = x1 - nx1;
+							double dy1 = y1 - ny1;
+							double dx0 = x0 - nx0;
+							double dy0 = y0 - ny0;
+							double dx = dx1 - dx0;
+							double dy = dy1 - dy0;
+							sumD += sqrtf(dx*dx + dy*dy);
+						}
+						if (sumD < minDistance)
+						{
+							minDistance = sumD;
+							minId = id;
+						}
+
+					}
+
+				}
+			}
+			aId = minId;
+			double maxD(0);
+			for (size_t c = 0; c < _cells[idx].featureIds.size(); c++)
+			{
+				int cid = _cells[idx].featureIds[c];
+				double nx1 = features1[minId].x;
+				double ny1 = features1[minId].y;
+				double nx0 = features0[minId].x;
+				double ny0 = features0[minId].y;
+				double x1 = features1[cid].x;
+				double y1 = features1[cid].y;
+				double x0 = features0[cid].x;
+				double y0 = features0[cid].y;
+				double dx1 = x1 - nx1;
+				double dy1 = y1 - ny1;
+				double dx0 = x0 - nx0;
+				double dy0 = y0 - ny0;
+				double dx = dx1 - dx0;
+				double dy = dy1 - dy0;
+				if (sqrtf(dx*dx + dy*dy) > maxD)
+					maxD = sqrtf(dx*dx + dy*dy);
+				if (sqrtf(dx*dx + dy*dy) < _threshold)
+				{
+					inliers[cid] = 1;
+				}
+			}
+			std::cout << "max distance " << maxD << "\n";
+		}
+	}
+}
+void BlockRelFlowRefine::Refine(Points& features1, Points& features0, std::vector<uchar>& inliers)
+{
+	inliers.resize(features0.size());
+	memset(&inliers[0], 0, sizeof(uchar)*inliers.size());
+	//assign features to cells
+	for (size_t i = 0; i < features1.size(); i++)
+	{
+		cv::Point2f pt = features1[i];
+		int idx = (int)(pt.x + 0.5) / _blkWidth;
+		int idy = (int)(pt.y + 0.5) / _blkHeight;
+		_cells[idx + idy*_quad].featureIds.push_back(i);
+	}
+	int n4x[] = { -1, 0, 1, 0 };
+	int n4y[] = { 0, -1, 0, 1 };
+	//iterate each block, fine anchor from neighbors
+	for (size_t i = 0; i < _quad; i++)
+	{
+		for (size_t j = 0; j < _quad; j++)
+		{
+			int idx = i*_quad + j;
+			float minDistance(1e10);
+			int minId(-1);
+			for (size_t n = 0; n < 4; n++)
+			{
+				int ny = n4y[n] + i;
+				int nx = n4x[n] + j;
+				if (ny >= 0 && ny < _quad && nx >= 0 && nx < _quad)
+				{
+					int nidx = ny*_quad + nx;
+					
+					for (size_t f = 0; f < _cells[nidx].featureIds.size(); f++)
+					{
+						size_t id = _cells[nidx].featureIds[f];
+						double nx1 = features1[id].x;
+						double ny1 = features1[id].y;
+						double nx0 = features0[id].x;
+						double ny0 = features0[id].y;
+						double sumD(0);
+						for (size_t c = 0; c < _cells[idx].featureIds.size(); c++)
+						{ 
+							int cid = _cells[idx].featureIds[c];
+							double x1 = features1[cid].x;
+							double y1 = features1[cid].y;
+							double x0 = features0[cid].x;
+							double y0 = features0[cid].y;
+							double dx1 = x1 - nx1;
+							double dy1 = y1 - ny1;
+							double dx0 = x0 - nx0;
+							double dy0 = y0 - ny0;
+							double dx = dx1 - dx0;
+							double dy = dy1 - dy0;
+							sumD += sqrtf(dx*dx + dy*dy);
+						}
+						if (sumD < minDistance)
+						{
+							minDistance = sumD;
+							minId = id;
+						}
+							
+					}
+
+				}
+			}
+			for (size_t c = 0; c < _cells[idx].featureIds.size(); c++)
+			{
+				int cid = _cells[idx].featureIds[c];
+				double nx1 = features1[minId].x;
+				double ny1 = features1[minId].y;
+				double nx0 = features0[minId].x;
+				double ny0 = features0[minId].y;
+				double x1 = features1[cid].x;
+				double y1 = features1[cid].y;
+				double x0 = features0[cid].x;
+				double y0 = features0[cid].y;
+				double dx1 = x1 - nx1;
+				double dy1 = y1 - ny1;
+				double dx0 = x0 - nx0;
+				double dy0 = y0 - ny0;
+				double dx = dx1 - dx0;
+				double dy = dy1 - dy0;
+				if (sqrtf(dx*dx + dy*dy) < _threshold)
+				{
+					inliers[cid] = 1;
+				}
+			}
+		}
+	}
+	
 }

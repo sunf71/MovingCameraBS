@@ -75,7 +75,9 @@ void BlockWarping::CalcBlkHomography()
 				//findHomographyDLT(f1[i],f0[i],homo);
 				//findHomographyNormalizedDLT(f1[i],f0[i],homo);
 				findHomographyEqa(_cells[i].points1,_cells[i].points0,homo);	
-				
+				//homo = cv::findHomography(_cells[i].points1, _cells[i].points0, CV_LMEDS);
+				/*std::cout << lhomo << "\n";
+				std::cout << homo << "\n";*/
 				invHomo = homo.inv();
 				_blkErrors[_cells[i].idx] =MappingError(homo,_cells[i].points1,_cells[i].points0);
 				//std::cout<<"error of cell "<<i<<" "<<_blkErrors[i]<<std::endl;
@@ -141,7 +143,7 @@ void BlockWarping::CalcBlkHomography()
 				{
 					cv::Mat homo,invHomo;
 					findHomographyEqa(f1,f0,homo);	
-
+					//homo = cv::findHomography(f1, f0, CV_LMEDS);
 					invHomo = homo.inv();
 					_blkErrors[_cells[i].idx] =MappingError(homo,f1,f0);
 					int dstIdx = _cells[i].idx*8;
