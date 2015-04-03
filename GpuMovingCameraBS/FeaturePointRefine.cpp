@@ -374,6 +374,86 @@ void FeaturePointsRefineHistogram(int width, int height,std::vector<cv::Point2f>
 	features1.resize(k);
 	features2.resize(k);
 }
+
+
+void OpticalFlowHistogramO(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int binSize)
+{
+	//	
+	std::vector<float> thetas(f1.size());
+	float maxTheta(0), minTheta(360);
+	for (int i = 0; i<f1.size(); i++)
+	{
+		float dx = f1[i].x - f2[i].x;
+		float dy = f1[i].y - f2[i].y;
+		float theta = atan2(dy, dx) / M_PI * 180 + 180;
+		thetas[i] = theta;
+		maxTheta = std::max(theta, maxTheta);
+		minTheta = std::min(minTheta, theta);
+	}
+	histogram.resize(binSize);
+	ids.resize(binSize);
+	for (int i = 0; i<binSize; i++)
+		ids[i].clear();
+	memset(&histogram[0], 0, sizeof(float)*binSize);
+	
+	float stepT = (maxTheta - minTheta) / binSize;
+	for (int i = 0; i<f1.size(); i++)
+	{
+		
+		int idx = (int)((thetas[i] - minTheta) / stepT);
+		idx = std::min(idx, binSize - 1);
+		//std::cout<<idx<<std::endl;
+		histogram[idx]++;
+		ids[idx].push_back(i);
+
+	}
+}
+void FeaturePointsRefineHistogramO(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, int thetaSize)
+{
+	std::vector<uchar> inliers;
+	FeaturePointsRefineHistogramO(features1, features2, inliers, thetaSize);
+	int k = 0;
+	for (int i = 0; i<inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			features1[k] = features1[i];
+			features2[k] = features2[i];
+			k++;
+		}	
+	}
+
+	features1.resize(k);
+	features2.resize(k);
+}
+void FeaturePointsRefineHistogramO(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, std::vector<uchar>& inliers, int thetaSize)
+{
+	inliers.resize(features1.size());
+	memset(&inliers[0], 0, inliers.size());
+	std::vector<float> histogram;
+	std::vector<std::vector<int>> ids;
+	OpticalFlowHistogramO(features1, features2, histogram, ids, thetaSize);
+
+	//最大bin
+	int max = ids[0].size();
+	int idx(0);
+	for (int i = 1; i<ids.size(); i++)
+	{
+		if (ids[i].size() > max)
+		{
+			max = ids[i].size();
+			idx = i;
+		}
+	}
+	for (int i = 0; i<ids[idx].size(); i++)
+	{
+		inliers[ids[idx][i]] = 1;
+	
+	}
+	
+}
+
 //求均值
 template<typename T>
 T average(std::vector<T>& data)
@@ -921,8 +1001,10 @@ void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>
 		dx1[i] = features1[i].x - anchorPt1.x;
 		dy1[i] = features1[i].y - anchorPt1.y;
 	}
-	double threshold = minDistance / (features0.size() - 1);
-	//std::cout << "threshold = " << threshold << "\n";
+	double t = threshold;
+	if (t < 0)
+		t = minDistance / (features0.size() - 1);
+	/*std::cout << "threshold = " << t << "\n";*/
 	
 	inliers.resize(features0.size());
 	inliers[anchor] = 1;
@@ -935,7 +1017,7 @@ void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>
 		double diffY = dy0 - dy1[i];
 		double diff = sqrt(diffX*diffX + diffY*diffY);
 
-		if (diff > threshold)
+		if (diff > t)
 			inliers[i] = 0;
 		else
 			inliers[i] = 1;
@@ -1007,19 +1089,20 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 		{
 			cv::circle(rstImg, features1[i], 3, red);
 			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, red);
-			cv::line(rstImg, cv::Point(features1[i].x, features1[i].y),
+		/*	cv::line(rstImg, cv::Point(features1[i].x, features1[i].y),
 				cv::Point(features0[i].x + width, features0[i].y), cv::Scalar(255, 0, 0));
-			inlierNum++;
+			inlierNum++;*/
 		}
 		else
 		{
 			cv::circle(rstImg, features1[i], 3, blue);
 			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, blue);
 		}
-		cv::line(rstImg, cv::Point(features1[anchorId].x, features1[anchorId].y),
-			cv::Point(features0[anchorId].x + width, features0[anchorId].y), cv::Scalar(255, 0, 0));
+		
 
 	}
+	cv::line(rstImg, cv::Point(features1[anchorId].x, features1[anchorId].y),
+		cv::Point(features0[anchorId].x + width, features0[anchorId].y), cv::Scalar(255, 0, 0));
 	if (title[title.size() - 4] == '.')
 	{
 		cv::imwrite(title, rstImg);
@@ -1229,4 +1312,118 @@ void BlockRelFlowRefine::Refine(Points& features1, Points& features0, std::vecto
 		}
 	}
 	
+}
+
+void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, int distSize, int thetaSize)
+{
+	std::vector<uchar> inliers;
+	FeaturePointsRefineHistogram(features1, features2, inliers, distSize, thetaSize);
+	int k = 0;
+	for (int i = 0; i<inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			features1[k] = features1[i];
+			features2[k] = features2[i];
+			k++;
+		}
+	}
+
+	features1.resize(k);
+	features2.resize(k);
+}
+
+void ShowFeatureRefineSingle(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title)
+{
+	cv::Mat rstMat = img1.clone();
+	cv::Scalar red(0, 0, 255);
+	cv::Scalar blue(255, 0, 0);
+	for (size_t i = 0; i < inliers.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			cv::circle(rstMat, features1[i], 3, red);
+			cv::line(rstMat, features1[i], features0[i], red);
+		}
+		else
+		{
+			cv::circle(rstMat, features1[i], 3, blue);
+			cv::line(rstMat, features1[i], features0[i], blue);
+		}
+	}
+	if (title[title.size() - 4] == '.')
+	{
+		cv::imwrite(title, rstMat);
+	}
+	else
+	{
+		//cv::imshow("Feature Refine, Red: Possible background; Blue: Possible foreground", rstImg);
+		cv::imshow(title, rstMat);
+		cv::waitKey(0);
+	}
+}
+
+void FeaturePointsRefineZoom(int width, int height, std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, std::vector<uchar>& inliers, int binSize)
+{
+	double ox = width / 2;
+	double oy = height / 2;
+	double minK(1e10);
+	double maxK(-1e10);
+	inliers.resize(features1.size());
+	memset(&inliers[0], 0, inliers.size());
+	std::vector<double> kvec(features1.size());
+	std::vector<double> histogram(binSize);
+	std::vector<std::vector<int>> ids(binSize);
+	memset(&histogram[0], 0, sizeof(double)*binSize);
+	//build histogram
+	for (size_t i = 0; i < features1.size(); i++)
+	{
+		double dx = features1[i].x - ox;
+		double dy = features1[i].y - oy;
+		double d1 = sqrt(dx*dx + dy*dy);
+		dx = features2[i].x - ox;
+		dy = features2[i].y - oy;
+		double d2 = sqrt(dx*dx + dy*dy);
+		double k = d1 / d2;
+		if (k > maxK)
+			maxK = k;
+		if (k < minK)
+			minK = k;
+		kvec[i] = k;
+	}
+	double step = (maxK - minK) / binSize + 1e-3;
+	for (size_t i = 0; i < features1.size(); i++)
+	{
+		int id = (kvec[i]-minK) / step;
+		id = std::min(binSize - 1, id);
+		ids[id].push_back(i);
+		histogram[id]++;
+	}
+	double maxV, minV;
+	int maxId, minId;
+	minMaxLoc(histogram, maxV, minV, maxId, minId);
+	for (size_t i = 0; i < ids[maxId].size(); i++)
+	{
+		inliers[ids[maxId][i]] = 1;
+	}
+}
+
+void FeaturePointsRefineZoom(int width, int height, std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, int binSize)
+{
+	std::vector<uchar> inliers;
+	FeaturePointsRefineZoom(width, height, features1, features2, inliers, binSize);
+	int k(0);
+	
+	for (int i = 0; i<features1.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			features1[k] = features1[i];
+			features2[k] = features2[i];
+			k++;
+		}
+	}
+
+	features1.resize(k);
+	features2.resize(k);
 }

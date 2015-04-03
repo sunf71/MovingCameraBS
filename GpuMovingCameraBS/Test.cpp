@@ -1977,7 +1977,48 @@ void RelFlowRefine(int width, int height, std::vector<cv::Point2f>& features1, s
 	cv::imshow("diffMat", diffMat);
 	cv::waitKey();*/
 }
+//test the optical orientation 
+void HomographyFlowOrientation()
+{
+	cv::Mat img1, img0;
+	img1 = cv::imread("..//moseg//cars7//in000024.jpg");
+	img0 = cv::imread("..//moseg//cars7//in000023.jpg");
+	std::vector<cv::Point2f> f1, f0;
+	std::vector<uchar> inliers;
+	KLTFeaturesMatching(img1, img0, f1, f0);
+	cv::Mat homo = cv::findHomography(f1, f0, inliers, CV_RANSAC);
+	std::cout << "homography: \n" << homo << "\n";
+	cv::Point2f src = cv::Point2f(0, 0);
+	cv::Point2f dst;
+	std::cout << "src " << src << "\n";
+	MatrixTimesPoint(homo, src, dst);
+	std::cout << "dst " << dst << "\n";
+	std::cout << "orientaion " << atan2(dst.y - src.y, dst.x - src.x) / M_PI * 180 +180 << " degree\n";
 
+	src = cv::Point2f(img1.cols, 0);
+	std::cout << "src " << src << "\n";
+	MatrixTimesPoint(homo, src, dst);
+	std::cout << "dst " << dst << "\n";
+	std::cout << "orientaion " << atan2(dst.y - src.y, dst.x - src.x) / M_PI * 180 + 180 << " degree\n";
+
+	src = cv::Point2f(0, img1.rows);
+	std::cout << "src " << src << "\n";
+	MatrixTimesPoint(homo, src, dst);
+	std::cout << "dst " << dst << "\n";
+	std::cout << "orientaion " << atan2(dst.y - src.y, dst.x - src.x) / M_PI * 180 + 180 << " degree\n";
+
+	src = cv::Point2f(img1.cols, img1.rows);
+	std::cout << "src " << src << "\n";
+	MatrixTimesPoint(homo, src, dst);
+	std::cout << "dst " << dst << "\n";
+	std::cout << "orientaion " << atan2(dst.y - src.y, dst.x - src.x) / M_PI * 180 + 180 << " degree\n";
+
+	src = cv::Point2f(img1.cols / 2, img1.rows/2);
+	std::cout << "src " << src << "\n";
+	MatrixTimesPoint(homo, src, dst);
+	std::cout << "dst " << dst << "\n";
+	std::cout << "orientaion " << atan2(dst.y - src.y, dst.x - src.x) / M_PI * 180 + 180 << " degree\n";
+}
 void TestFeaturesRefine(int argc, char* argv[])
 {
 	
@@ -1987,10 +2028,16 @@ void TestFeaturesRefine(int argc, char* argv[])
 	int height = atoi(argv[4]);
 	int method = atoi(argv[5]);
 	char* path = argv[6];
+	char* outPath = argv[7];
+	CreateDir(outPath);
 	int dBinNum(10), aBinNum(90);
-	if (method == 3 && argc == 9)
+	if (method == 3 && argc == 10)
 	{
-		dBinNum = atoi(argv[7]);
+		dBinNum = atoi(argv[8]);
+		aBinNum = atoi(argv[9]);
+	}
+	if (argc == 9)
+	{
 		aBinNum = atoi(argv[8]);
 	}
 	cv::Size size2(width * 2, height);
@@ -2046,6 +2093,14 @@ void TestFeaturesRefine(int argc, char* argv[])
 			//BRFR.Refine(2, features1, features0, inliers, anchorId);
 			BRFR.Refine(features1, features0, inliers);
 			break;
+		case 5:
+			sprintf(methodName, "HistogramO");
+			FeaturePointsRefineHistogramO(features1, features0, inliers, aBinNum);
+			break;
+		case 6:
+			sprintf(methodName, "HistogramZ");
+			FeaturePointsRefineZoom(width,height,features1, features0, inliers, aBinNum);
+			break;
 		default:
 			sprintf(methodName, "Ransac");
 			cv::findHomography(features1, features0, inliers, CV_RANSAC, 0.1);
@@ -2054,14 +2109,18 @@ void TestFeaturesRefine(int argc, char* argv[])
 		
 		timer.stop();
 		std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
-		sprintf(fileName, "%s%d.jpg", methodName, i);
+		sprintf(fileName, "%s\\%s%d.jpg", outPath,methodName, i);
 		if (method == 2 || method==4)
 		{
 			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), anchorId);
 		}
 		else
 		{
-			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName));
+			/*ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName));
+			sprintf(fileName, "%s\\%s%dL.jpg", outPath, methodName, i);
+			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), true);*/
+			
+			ShowFeatureRefineSingle(img1, features1, img0, features0, inliers, fileName);
 		}
 		
 		
@@ -2079,8 +2138,8 @@ void TestFeaturesRefine(int argc, char* argv[])
 		features0.resize(k);
 		features1.resize(k);
 		//findHomographyDLT(features1, features0, homo);
-		//findHomographyEqa(features1, features0, homo);
-		homo = cv::findHomography(features1, features0, CV_LMEDS);
+		findHomographyEqa(features1, features0, homo);
+		//homo = cv::findHomography(features1, features0, CV_LMEDS);
 		/*std::cout << "homoCV: \n" << homoCV << "\n";
 		std::cout << "homo: \n" << homo << "\n";*/
 
@@ -2089,7 +2148,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		cv::warpPerspective(img1, wimg0, homo, img1.size());
 		cv::Mat diff;
 		cv::absdiff(wimg0, img0, diff);
-		sprintf(fileName, "%sDiff%d.jpg", methodName, i);
+		sprintf(fileName, "%s\\%sDiff%d.jpg", outPath, methodName, i);
 		double wr = cv::sum(cv::sum(diff))[0];
 		std::cout << "total diff " << wr << " \n";
 		warpErr += wr;
@@ -2196,16 +2255,16 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 
 void TestBlockWarping()
 {
-	int start = 1;
-	int end = 30;
-	int width = 640;
-	int height = 480;
+	int start = 230;
+	int end = 260;
+	int width = 1280;
+	int height = 720;
 	float warpErr = 0;
 	int quadWidth = 8;
 	cv::Size size2(width*2,height);
 	std::vector<cv::Mat> homographies;
 	std::vector<float> blkWeights(quadWidth*quadWidth,0);
-	const char path[] = "..//moseg//cars2";
+	const char path[] = "..//iphone//mbh";
 	char dstPath[200];
 	sprintf(dstPath,"..//warpRst//mywarp//");
 	CreateDir(dstPath);
@@ -2213,7 +2272,7 @@ void TestBlockWarping()
 	cv::Mat img1,img0,gray1,gray0,wimg,gtImg;
 	std::vector<cv::Point2f> features1,features0;
 	std::vector<cv::Point2f> sf1,sf0;
-
+	NBlockWarping nblkWarping(width, height, quadWidth);
 	BlockWarping blkWarping(width,height,quadWidth);
 	ASAPWarping asapWarping(width,height,quadWidth,1.0);
 	for (int i=start; i<=end; i++)
@@ -2221,9 +2280,9 @@ void TestBlockWarping()
 		printf("%d------------\n",i);
 		sprintf(fileName,"%s//in%06d.jpg",path,i);
 		img1 = imread(fileName);
-		sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
+		/*sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
 		gtImg = imread(fileName);
-		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);
+		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);*/
 		cv::cvtColor(img1,gray1,CV_BGR2GRAY);
 		if (gray0.empty())
 		{
@@ -2244,30 +2303,30 @@ void TestBlockWarping()
 		//FeaturePointsRefineHistogram(width,height,features1,features0,10,36);
 		cv::Mat homo;
 		FeaturePointsRefineRANSAC(features1,features0,homo,0.1);
-		if (i>1)
-		{
-			bool save = false;
-			int ec(0);
-			cv::Mat rstImg(size2,CV_8UC3);
-			img0.copyTo(rstImg(cv::Rect(0,0,width,height)));
-			img1.copyTo(rstImg(cv::Rect(width,0,width,height)));
-			for(int j=0; j< features1.size(); j++)
-			{
-				int x = (int)(features1[j].x+0.5);
-				int y = (int)(features1[j].y+0.5);
-				if (gtImg.data[x+y*width] == 0xff)
-				{
-					cv::line(rstImg,cv::Point(features0[j].x,features0[j].y),cv::Point(features1[j].x+width,features1[j].y),cv::Scalar(255,0,0));
-					ec++;
-					save = true;
-				}
-			}
-			if (save)
-			{
-				sprintf(fileName,"..//warpRst//mywarp//error//%d_error_%d.jpg",i,ec);
-				cv::imwrite(fileName,rstImg);
-			}
-		}
+		//if (i>1)
+		//{
+		//	bool save = false;
+		//	int ec(0);
+		//	cv::Mat rstImg(size2,CV_8UC3);
+		//	img0.copyTo(rstImg(cv::Rect(0,0,width,height)));
+		//	img1.copyTo(rstImg(cv::Rect(width,0,width,height)));
+		//	for(int j=0; j< features1.size(); j++)
+		//	{
+		//		int x = (int)(features1[j].x+0.5);
+		//		int y = (int)(features1[j].y+0.5);
+		//		if (gtImg.data[x+y*width] == 0xff)
+		//		{
+		//			cv::line(rstImg,cv::Point(features0[j].x,features0[j].y),cv::Point(features1[j].x+width,features1[j].y),cv::Scalar(255,0,0));
+		//			ec++;
+		//			save = true;
+		//		}
+		//	}
+		//	if (save)
+		//	{
+		//		sprintf(fileName,"..//warpRst//mywarp//error//%d_error_%d.jpg",i,ec);
+		//		cv::imwrite(fileName,rstImg);
+		//	}
+		//}
 		timer.stop();
 		std::cout<<"featues refine "<<timer.seconds()*1000<<std::endl;
 		std::cout<<"features remians "<<features1.size()<<std::endl;
@@ -2296,12 +2355,13 @@ void TestBlockWarping()
 		
 		
 		timer.start();
-		blkWarping.SetFeaturePoints(features1,features0);
-
+		//blkWarping.SetFeaturePoints(features1,features0);
+		nblkWarping.SetFeaturePoints(features1, features0);
 		timer.stop();
 		std::cout<<"set featurepoints "<<timer.seconds()*1000<<std::endl;
 		timer.start();
-		blkWarping.CalcBlkHomography();
+		//blkWarping.CalcBlkHomography();
+		nblkWarping.CalcBlkHomography();
 		timer.stop();
 		std::cout<<"calc homo "<<timer.seconds()*1000<<std::endl;
 		//timer.start();
@@ -2310,16 +2370,20 @@ void TestBlockWarping()
 		gtimer.Start();
 		cv::gpu::GpuMat dimg,dwimg;
 		dimg.upload(img1);
-		blkWarping.GpuWarp(dimg,dwimg);
+		//blkWarping.GpuWarp(dimg,dwimg);
+		nblkWarping.GpuWarp(dimg, dwimg);
 		dwimg.download(wimg);
 		gtimer.Stop();
 
 		//timer.stop();
 		std::cout<<"blk warp "<<gtimer.Elapsed()<<std::endl;
 		cv::Mat flow;
-		blkWarping.getFlow(flow);
+		//blkWarping.getFlow(flow);
+		nblkWarping.getFlow(flow);
 		timer.start();
-		blkWarping.Reset();
+		//blkWarping.Reset();
+		nblkWarping.Reset();
+		//nblkWarping.getFlow(flow);
 		timer.stop();
 		std::cout<<"reset "<<timer.seconds()*1000<<std::endl;
 		
@@ -2485,21 +2549,34 @@ void RGBHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, float min,
 	float step = (max-min)/bins;
 	histogram.resize(bins*bins*bins);
 	memset(&histogram[0],0,sizeof(float)*histogram.size());
+	std::ofstream file("tmp.txt");
 	for(int i=0; i< poses.size(); i++)
 	{
+		file << "(" << poses[i].y << "," << poses[i].x << ")\n";
 		int idx = poses[i].x + poses[i].y*width;
 		float*ptr = (float*)(fImg.data + idx*12);
 		int id = 0;
 		int s = 1;
 		for(int c=0; c<3; c++)
 		{
-			id += s*std::min((int)ceil(ptr[c] /step),bins-1);
+			file << "chanell " << c << ":" << ptr[c] * 255;
+			file << " id " << (int)(ptr[c] / step) << "\n";
+			id += s*std::min((int)(ptr[c] /step),bins-1);
 			s*=bins;
 		}
+		file << " hist id " << id << "\n";
 		histogram[id]++;
 
 		
 	}
+	file.close();
+	
+	int minId, maxId;
+	float minV, maxV;
+	minMaxLoc(histogram, maxV, minV, maxId, minId);
+	DrawHistogram(histogram, histogram.size(), "histogram");
+	std::cout << maxId << "," << maxV << "\n";
+	cv::waitKey();
 	//cv::normalize(histogram,histogram,1.0,0.0,NORM_MINMAX);
 }
 void LABHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, std::vector<float>& histogram)
@@ -2540,7 +2617,9 @@ void HOG(cv::Mat&mag, cv::Mat& ang, std::vector<uint2>& poses, int bins, std::ve
 	int height = ang.rows;
 	float step = 360/bins;
 	histogram.resize(bins);
-	memset(&histogram[0],0,sizeof(float)*histogram.size());
+	/*memset(&histogram[0],0,sizeof(float)*histogram.size());*/
+	for (size_t i = 0; i < histogram.size(); i++)
+		histogram[i] = 1e-3;
 	for(int i=0; i< poses.size(); i++)
 	{
 		int idx = poses[i].x + poses[i].y*width;
@@ -2644,7 +2723,55 @@ void histogram()
 	DrawHistogram(labHist3,labHist3.size(),"lab hist3");
 	cv::waitKey();
 }
+//calculate color moments
+void ColorMoments(std::vector<cv::Vec3b>& colors, double* moments)
+{
+	double coeff[] = { 0.4, 0.3, 0.3 };
+	double avg[] = { 0, 0, 0 };
+	double std[] = { 0, 0, 0 };
+	double skw[] = { 0, 0, 0 };
+	for (size_t i = 0; i < colors.size(); i++)
+	{
+		for (size_t c = 0; c < 3; c++)
+		{
+			avg[c] += colors[i][c];
+		}
 
+	}
+	for (size_t c = 0; c < 3; c++)
+	{
+		avg[c] /= colors.size();
+	}
+	for (size_t i = 0; i < colors.size(); i++)
+	{
+		for (size_t c = 0; c < 3; c++)
+		{
+			double d = colors[i][c] - avg[c];
+			std[c] += d*d;
+			skw[c] += std[c] * d;
+
+		}
+
+	}
+	for (size_t c = 0; c < 3; c++)
+	{
+		std[c] = sqrt(std[c] / colors.size());
+		if (skw[c] < 0)
+		{
+			skw[c] = -pow(-1*skw[c] / colors.size(), 1.0 / 3);
+		}
+		else
+		{
+			skw[c] = pow(skw[c] / colors.size(), 1.0 / 3);
+
+		}
+		
+	}
+	for (size_t i = 0; i < 3; i++)
+	{
+		moments[i] = coeff[0] * avg[i] + coeff[1] * std[i] + coeff[2] * skw[i];
+	}
+}
 void SaliencyTest(const char* path,int pid, int width, int height, int step)
 {
 	nih::Timer timer;
@@ -2691,7 +2818,7 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	int num(0);
 	computer.GetSuperpixelResult(num,labels,centers);
 	//每个超像素中包含的像素以及位置
-	std::vector<std::vector<uchar4>> pixels(num);
+	std::vector<std::vector<Vec3b>> pixels(num);
 	std::vector<std::vector<uint2>> pos(num);
 	std::vector<std::vector<float>> histogram(num);
 	std::vector<std::vector<float>> lhistogram(num);
@@ -2718,7 +2845,7 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 					int id = m*width+n;
 					if (labels[id] == idx)
 					{
-						pixels[idx].push_back(make_uchar4(ptr[n][0],ptr[n][1],ptr[n][2],0));
+						pixels[idx].push_back(cv::Vec3b(ptr[n][0],ptr[n][1],ptr[n][2]));
 						pos[idx].push_back(make_uint2(n,m));
 						uchar* ptr = (avgImg.data+id*3);
 						ptr[0] = centers[idx].rgb.x;
@@ -2730,16 +2857,24 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 		}
 	}
 	cv::imwrite("avgImg.jpg",avgImg);
-
+	std::vector<double> colorMoments;
+	colorMoments.resize(spHeight*spWidth);
+	for (size_t i = 0; i <pixels.size(); i++)
+	{
+		double moment[3];
+		ColorMoments(pixels[i], moment);
+		colorMoments[i] = moment[0] + moment[1] + moment[2];
+	}
 	timer.start();
+	int colorBins(16);
 	#pragma omp parallel for
 	//计算每个超像素的直方图
-	for(int i=0; i<pos.size(); i++)
+	for(int i=81; i<pos.size(); i++)
 	{
-		LABHistogram(labImg,pos[i],12,histogram[i]);
+		//LABHistogram(labImg,pos[i],12,histogram[i]);
 		//cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );
-		/*RGBHistogram(fimg,pos[i],12,0,1,histogram[i]);
-		cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );*/
+		RGBHistogram(fimg, pos[i], colorBins, 0, 1, histogram[i]);
+		/*cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );*/
 		/*SparseHistogram(idx1i,nColor,pos[i],histogram[i]);
 		cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );*/
 		HOG(mag,ang,pos[i],36,lhistogram[i]);
@@ -2750,6 +2885,31 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	}
 	timer.stop();
 	std::cout<<"build histogram "<<timer.seconds()*1000<<"ms\n";
+	
+	cv::Mat histColMat(height, width, CV_8UC3);
+	int idx = 5 * spWidth + 1;
+	//在每个直方图之中找到最大bin，求每个超像素的主要颜色
+	for (size_t i = 0; i < pos.size(); i++)
+	{
+		if (i != idx && i != idx - 1 && i != idx - spWidth && i != idx + spWidth && i != idx + 1)
+			continue;
+		int minId, maxId;
+		float minV, maxV;
+		minMaxLoc(histogram[i], maxV, minV, maxId, minId);
+		size_t r = maxId % colorBins;
+		maxId /= colorBins;
+		size_t g = maxId % colorBins;
+		maxId /= colorBins;
+		size_t b = maxId % colorBins;
+		std::cout << i << " : " << r << "," << g << "," << b << "\n";
+		for (size_t j = 0; j < pos[i].size(); j++)
+		{
+			uchar* ptr = (histColMat.data + (pos[i][j].x + pos[i][j].y*width) * 3);
+			ptr[0] = r * colorBins, ptr[1] = g*colorBins, ptr[2] = b * colorBins;
+		}
+	}
+	cv::imshow("histCol", histColMat);
+	cv::waitKey();
 	/*int minX = width;
 	int maxX = 0;
 	int minY = height;
@@ -2884,13 +3044,47 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	rgbHConfidence = (avgGDist)/(avgCDist+avgGDist);
 	//rgbHConfidence = (avgGDist)/(avgDist+avgGDist);
 	float threshold = ((avgCDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist));	
+	std::cout << "rgbHConfidence " << rgbHConfidence << "\n";
 	std::cout<<"threshold: "<<threshold<<std::endl;
+	threshold *= 0.9;
 	//float threshold = (avgDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist);
+
+	int src = 95;
+	int dst = 94;
+
+	//minMaxLoc(histogram[src], max, min, maxId, minId);
+	double distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	double distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_HELLINGER);
+	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	double distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	std::cout << "distColorMoment " << distMoment << "\n";
+	dst = 77;
+	distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
+	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	std::cout << "distColorMoment " << distMoment << "\n";
+	dst = 113;
+	distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
+	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	std::cout << "distColorMoment " << distMoment << "\n";;
+	dst = 96;
+	distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
+	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	std::cout << "distColorMoment " << distMoment << "\n";;
 	std::vector<float4> avgColors;
 
 	timer.start();
-	//SuperPixelRegionMerging(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
-	SuperPixelRegionMergingFast(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
+	SuperPixelRegionMerging(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
+	//SuperPixelRegionMergingFast(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
 	
 	timer.stop();
 	std::cout<<"merging time: "<<timer.seconds()*1000<<"ms\n";

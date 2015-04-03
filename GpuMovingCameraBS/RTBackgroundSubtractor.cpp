@@ -72,6 +72,10 @@ void RTBackgroundSubtractor::BuildHistogram(const int* labels, const SLICCluster
 		
 		memset(&_HOGs[i][0],0,sizeof(float)*_hogBins);
 		memset(&_colorHists[i][0],0,sizeof(float)*_totalColorBins);
+		/*for (size_t j = 0; j < _totalColorBins; j++)
+		{
+			_colorHists[i][j] = 1e-3;
+		}*/
 		_spPoses[i].clear();
 
 		int x = int(centers[i].xy.x+0.5);
@@ -109,6 +113,8 @@ void RTBackgroundSubtractor::BuildHistogram(const int* labels, const SLICCluster
 				}
 			}
 		}
+		//cv::normalize(_colorHists[i], _colorHists[i], 1, 0, cv::NORM_L1);
+		//cv::normalize(_HOGs[i], _HOGs[i], 1, 0, cv::NORM_L1);
 	}
 }
 
@@ -147,6 +153,7 @@ void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClus
 	float confidence = (avgGDist)/(avgCDist+avgGDist);
 	//rgbHConfidence = (avgGDist)/(avgDist+avgGDist);
 	float threshold = ((avgCDist*confidence+(1-confidence)*avgGDist));	
+	
 	//std::cout<<"threshold: "<<threshold<<std::endl;
 	//std::ofstream file("mergeOut.txt");
 	

@@ -1,4 +1,6 @@
 #include "RegionMerging.h"
+#include <fstream>
+
 void SuperPixelRegionMerging(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,
 	std::vector<std::vector<uint2>>& pos,
 	std::vector<std::vector<float>>& histograms,
@@ -8,7 +10,7 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 	float threshold, int*& segmented, 
 	std::vector<int>& regSizes, std::vector<float4>& regAvgColors,float confidence)
 {
-	//std::ofstream file("mergeOut.txt");
+	std::ofstream file("mergeOut.txt");
 	const int dx4[] = {-1,0,1,0};
 	const int dy4[] = {0,-1,0,1};
 	//const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
@@ -36,7 +38,7 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 	//timer.start();
 	std::set<int> boundarySet;
 	boundarySet.insert(rand()%imgSize);
-	//boundarySet.insert(3);
+	//boundarySet.insert(95);
 	//boundarySet.insert(190);
 	std::vector<int> labelGroup;
 	
@@ -46,7 +48,7 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 		labelGroup.clear();
 		std::set<int>::iterator itr = boundarySet.begin();
 		int label = *itr;
-		//file<<"seed: "<<label<<"\n";
+		file<<"seed: "<<label<<"\n";
 		visited[label] = true;
 
 		labelGroup.push_back(label);
@@ -73,7 +75,7 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 		
 		while(pixDist < regMaxDist && regSize<imgSize)
 		{
-			//file<<"iy:"<<iy<<"ix:"<<ix<<"\n";
+			file<<"iy:"<<iy<<" ix:"<<ix<<"\n";
 			
 			for(int d=0; d<4; d++)
 			{
@@ -86,14 +88,14 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 					
 				}
 			}
-			//file<<"	neighbors: ";
+			file<<"	neighbors: ";
 			for (int i=0; i<neighbors.size(); i++)
 			{
 				int x = neighbors[i].x;
 				int y = neighbors[i].y;
-				//file<<x+y*spWidth<<"("<<y<<","<<x<<"),";
+				file<<x+y*spWidth<<"("<<y<<","<<x<<"),";
 			}
-			//file<<"\n";
+			file<<"\n";
 			int idxMin = 0;
 			pixDist = 255;
 			if (neighbors.size() == 0)
@@ -122,7 +124,7 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 				ix = neighbors[idxMin].x;
 				iy = neighbors[idxMin].y;
 				int minIdx =ix + iy*spWidth;			
-				//file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"\n";
+				file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"\n";
 				/*regColor.x = (regColor.x*regSize + centers[minIdx].rgb.x)/(regSize+1);
 				regColor.y = (regColor.y*regSize + centers[minIdx].rgb.y)/(regSize+1);
 				regColor.z = (regColor.z*regSize + centers[minIdx].rgb.z)/(regSize+1);*/
@@ -136,12 +138,12 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 					histograms[label][i] += histograms[minIdx][i];
 
 				}
-				//cv::normalize(histogram,histogram,1,0,NORM_L1 );
+				//cv::normalize(histograms[label], histograms[label], 1, 0, cv::NORM_L1);
 				for(int i=0; i<lhistograms[label].size(); i++)
 				{
 					lhistograms[label][i] += lhistograms[minIdx][i];
 				}
-				//cv::normalize(lhistogram,lhistogram,1,0,NORM_L1 );
+				//cv::normalize(lhistograms[label], lhistograms[label], 1, 0, cv::NORM_L1);
 				visited[minIdx] = true;
 				/*segmented[minIdx] = k;*/
 				//result.data[minIdx] = 0xff;
@@ -159,7 +161,7 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 				ix = neighbors[idxMin].x;
 				iy = neighbors[idxMin].y;
 				int minIdx =ix + iy*spWidth;			
-				//file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"overpass threshold "<<regMaxDist<<"\n";
+				file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"overpass threshold "<<regMaxDist<<"\n";
 			}
 		}
 		newHistograms.push_back(histograms[label]);		

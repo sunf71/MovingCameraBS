@@ -72,8 +72,8 @@ void BlockWarping::CalcBlkHomography()
 				std::cout<<"	block "<< i<<"  has "<<_cells[i].points0.size()<<" features, homography estimated\n";*/
 				cv::Mat homo,invHomo;
 				std::vector<uchar> inliers;
-				//findHomographyDLT(f1[i],f0[i],homo);
-				//findHomographyNormalizedDLT(f1[i],f0[i],homo);
+				//findHomographyEqa(f1[i],f0[i],homo);
+				//findHomographyEqa(f1[i],f0[i],homo);
 				findHomographyEqa(_cells[i].points1,_cells[i].points0,homo);	
 				//homo = cv::findHomography(_cells[i].points1, _cells[i].points0, CV_LMEDS);
 				/*std::cout << lhomo << "\n";
@@ -398,3 +398,94 @@ void GlobalWarping::getFlow(cv::Mat& flow)
 		}
 	}
 }
+
+
+
+
+
+
+void NBlockWarping::CalcBlkHomography()
+{
+	std::vector<bool> blkFlags(_blkSize);
+	memset(&blkFlags[0], 0, sizeof(blkFlags));
+
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		if (blkFlags[i])
+			continue;
+
+		cv::Mat homo, invHomo;
+		Points f1, f2;
+		AddFeaturePoints(f1, f2, i);
+		//if the block hasn't got a homo and the features are enough, just calculate
+		if (f1.size() > _minNumForHomo)
+		{
+			
+			findHomographyEqa(f1, f2, homo);
+			invHomo = homo.inv();
+			memcpy(&_blkHomoVec[_cells[i].idx * 8], homo.data, 64);
+			memcpy(&_blkInvHomoVec[_cells[i].idx * 8], invHomo.data, 64);
+			//std::cout << i << " direct calculated\n";
+			blkFlags[i] = true;
+		}
+		else
+		{
+			int x = i%_quadStep;
+			int y = i / _quadStep;
+			//acculate the neighbors untill get the minimu feature number
+			int r = 1;
+			std::vector<int> blockIds;
+			blockIds.push_back(i); 
+			while (f1.size() < _minNumForHomo)
+			{
+				for (int k = y - r; k <= y + r; k++)
+				{
+					if (k < 0 || k >= _quadStep)
+						continue;
+					if (k == y - r || k == y + r)
+					{
+						for (int j = x - r; j <= x + r; j++)
+						{
+							if (j < 0 || j >= _quadStep)
+								continue;
+							int idx = k*_quadStep + j;
+							AddFeaturePoints(f1, f2, idx);
+							blockIds.push_back(idx);
+						}
+					}
+					else
+					{
+						if (x - r >= 0 && x - r < _quadStep)
+						{
+							int idx = k*_quadStep + x - r;
+							AddFeaturePoints(f1, f2, idx);
+							blockIds.push_back(idx);
+
+						}
+						if (x + r >= 0 && x + r < _quadStep)
+						{
+							int idx = k*_quadStep + x + r;
+							AddFeaturePoints(f1, f2, idx);
+							blockIds.push_back(idx);
+						}
+					}
+					
+				}				
+				r++;
+			}
+			findHomographyEqa(f1, f2, homo);
+			invHomo = homo.inv();
+			//std::cout << "combination:";
+			for (size_t i = 0; i < blockIds.size(); i++)
+			{
+				int id = blockIds[i];
+				memcpy(&_blkHomoVec[_cells[id].idx * 8], homo.data, 64);
+				memcpy(&_blkInvHomoVec[_cells[id].idx * 8], invHomo.data, 64);
+				blkFlags[id] = true;
+				//std::cout << id << ",";
+			}
+			//std::cout << "\n";
+		}
+	}
+}
+

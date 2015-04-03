@@ -82,7 +82,7 @@ public:
 		cudaFree(_dBlkHomoVec);
 		cudaFree(_dBlkInvHomoVec);
 	}
-	void Reset()
+	virtual void Reset()
 	{
 		for(int i=0; i<_blkSize; i++)
 		{
@@ -132,7 +132,7 @@ public:
 			}
 		}
 	}
-	void CalcBlkHomography();
+	virtual void CalcBlkHomography();
 	float MappingError(const cv::Mat& homo, const Points& p1, const Points& p2);
 	float MappingError(const double* ptr, const Points& p1, const Points& p2);
 	float MappingError(const std::vector<double>& homoVec, const Points& p1, const Points& p2);
@@ -151,8 +151,10 @@ public:
 	}
 	virtual void getFlow(cv::Mat& flow);
 	
-	
 private:
+		std::vector<float> _blkErrors;
+		std::vector<int> _emptyBlkIdx1, _emptyBlkIdx0;
+protected:
 	int _width;
 	int _height;
 	int _quadStep;
@@ -163,13 +165,45 @@ private:
 	std::vector<Cell> _cells;
 	//std::vector<cv::Mat> _blkHomos, _blkInvHomos;
 	std::vector<double> _blkHomoVec,_blkInvHomoVec;
-	std::vector<float> _blkErrors;
-	std::vector<int> _emptyBlkIdx1, _emptyBlkIdx0;	
+
 	cv::Mat _mesh;
 	cv::Mat _srcPtMat;
 	int _minNumForHomo;
 	
 	double* _dBlkHomoVec,*_dBlkInvHomoVec;
 
+};
+
+class NBlockWarping :public BlockWarping
+{	
+public:
+	NBlockWarping(int width, int height, int quad) :BlockWarping(width,height,quad)
+	{
+		
+	};
+	//calculate homographies for each block,multi blocks may share one homographies
+	virtual void CalcBlkHomography();
+	virtual void Reset()
+	{
+		for (int i = 0; i<_blkSize; i++)
+		{
+			_cells[i].points0.clear();
+			_cells[i].points1.clear();
+			_cells[i].idx = i;			
+		}
+	}
+protected:
+	void AddFeaturePoints(Points& f1, Points&f2, int bid)
+	{
+		int n = f1.size();
+		int m = _cells[bid].points0.size();
+		if (m > 0)
+		{
+			f1.resize(n + m);
+			f2.resize(n + m);
+			memcpy(&f1[n], &_cells[bid].points1[0], sizeof(cv::Point2f)*m);
+			memcpy(&f2[n], &_cells[bid].points0[0], sizeof(cv::Point2f)*m);
+		}
+	}
 };
 

@@ -103,15 +103,24 @@ m_bInitializedInternalStructs(false)
 	,m_modelConfidence(modelConfidence)
 	,m_TCConfidence(tcConfidence)
 	,m_SCConfidence(scConfidence)
+	, m_imgWarper(NULL)
+	, m_blkWarping(NULL)
+	, m_nblkWarping(NULL)
+	, m_ASAP(NULL)
+	, m_glbWarping(NULL)
 	{
 		CV_Assert(m_nBGSamples>0 && m_nRequiredBGSamples<=m_nBGSamples);
 		CV_Assert(m_nMinColorDistThreshold>=STAB_COLOR_DIST_OFFSET);
-
+		
 }
 
 WarpBackgroundSubtractor::~WarpBackgroundSubtractor() 
 {
 	safe_delete(m_imgWarper);
+	safe_delete(m_blkWarping);	
+	safe_delete(m_nblkWarping);
+	safe_delete(m_ASAP);
+	safe_delete(m_glbWarping);
 	//delete m_DOFP;
 	delete m_SPComputer;
 
@@ -1272,6 +1281,9 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	case 3:
 		m_imgWarper = new GlobalWarping(oInitImg.cols, oInitImg.rows);
 		break;
+	case 4:
+		m_imgWarper = new NBlockWarping(oInitImg.cols, oInitImg.rows, 8);
+		break;
 	default:
 		m_imgWarper = new ASAPWarping(oInitImg.cols, oInitImg.rows, 8, 1.0);
 		break;
@@ -1581,9 +1593,11 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	memcpy(&m_goodFeatures[0][0],&m_points[0][0],size);
 	memcpy(&m_goodFeatures[1][0],&m_points[1][0],size);
 	
-	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
-	//RelFlowRefine(m_goodFeatures[0], m_goodFeatures[1], 1.0);
-	
+	//FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
+	//FeaturePointsRefineRANSAC(m_goodFeatures[0], m_goodFeatures[1], m_homography, 3.0f);
+	RelFlowRefine(m_goodFeatures[0], m_goodFeatures[1], -1);
+	//FeaturePointsRefineHistogramO(m_goodFeatures[0], m_goodFeatures[1], 5);
+	//FeaturePointsRefineHistogram(m_goodFeatures[0], m_goodFeatures[1], 5, 5);
 
 	/*int radSize1 = 10;
 	int thetaSize1 = 90;
@@ -1683,6 +1697,21 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 		m_glbWarping->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
 		m_glbWarping->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
 		m_glbWarping->getFlow(m_wflow);
+		break;
+	}
+	case 4:
+	{
+		//Block warping
+		m_nblkWarping = (NBlockWarping*)m_imgWarper;
+		m_nblkWarping->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
+		//std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
+		m_nblkWarping->CalcBlkHomography();
+		//std::cout<<"CalcBlkHomography"<<std::endl;
+		//m_blkWarping->Warp(image,warpedImg);
+		m_nblkWarping->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
+		//std::cout<<"GpuWarp"<<std::endl;
+		m_nblkWarping->getFlow(m_wflow);
+		m_nblkWarping->Reset();
 		break;
 	}
 	default:

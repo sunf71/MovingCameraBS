@@ -9,7 +9,15 @@ inline void MatrixTimesPoint(const double* ptr, cv::Point2f& point)
 	point.x = x/z;
 	point.y = y/z;
 }
-
+inline void MatrixTimesPoint(const cv::Mat& mat, const cv::Point2f& point, cv::Point2f& out)
+{
+	const double * ptr = mat.ptr<double>(0);
+	float x = ptr[0] * point.x + ptr[1] * point.y + ptr[2];
+	float y = ptr[3] * point.x + ptr[4] * point.y + ptr[5];
+	float z = ptr[6] * point.x + ptr[7] * point.y + ptr[8] + 1e-6;
+	out.x = x / z;
+	out.y = y / z;
+}
 inline void MatrixTimesPoint(const cv::Mat& mat, cv::Point2f& point)
 {
 	const double * ptr = mat.ptr<double>(0);

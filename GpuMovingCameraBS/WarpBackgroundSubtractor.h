@@ -212,6 +212,7 @@ protected:
 	cv::Mat m_warpedImg;
 	ImageWarping* m_imgWarper;
 	BlockWarping* m_blkWarping;
+	NBlockWarping* m_nblkWarping;
 	ASAPWarping* m_ASAP;
 	GlobalWarping* m_glbWarping;
 	//DenseOpticalFlowProvier* m_DOFP;

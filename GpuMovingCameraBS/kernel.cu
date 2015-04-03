@@ -3,7 +3,7 @@
 int main (int argc, char* argv[])
 {
 	//TestGpuKLT();
-	TestRTBS(argc,argv);
+	//TestRTBS(argc,argv);
 	//TestLBP();
 	//TestQuantize();
 	//TestSaliency(argc,argv);
@@ -22,7 +22,7 @@ int main (int argc, char* argv[])
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();
 	//TestRandom();
-	//GpuSubsenseMain( argc, argv);
+	GpuSubsenseMain( argc, argv);
 	//MRFOptimization();
 	//TestSuperpixel(argc, argv);
 	//testCudaGpu();
