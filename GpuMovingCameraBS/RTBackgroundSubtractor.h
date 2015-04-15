@@ -9,12 +9,13 @@
 #include "BlockWarping.h"
 #include "videoprocessor.h"
 #include "timer.h"
+#include "HistComparer.h"
 #include <opencv2\gpu\gpu.hpp>
 
 class RTBackgroundSubtractor: public cv::BackgroundSubtractor 
 {
 public:
-	RTBackgroundSubtractor(float mthreshold = 1.0, float spAlpha = 0.9):_mThreshold(mthreshold),_frameIdx(0),_spStep(40),_spAlpha(spAlpha),_hogBins(36),_colorBins(12)
+	RTBackgroundSubtractor(float mthreshold = 1.0, float spAlpha = 0.9, int warpId = 1):_mThreshold(mthreshold),_frameIdx(0),_spStep(40),_warpId(warpId),_spAlpha(spAlpha),_hogBins(36),_colorBins(12)
 	{
 		_totalColorBins = _colorBins*_colorBins*_colorBins;
 		_hogStep = 360.0/_hogBins;
@@ -38,7 +39,9 @@ public:
 		safe_delete_array(_segment);
 		safe_delete_array(_visited);
 		safe_delete(_dFeatureDetector);
-		safe_delete(m_ASAP);
+		safe_delete(_imgWarper);
+		safe_delete(_rgbHComp);
+		safe_delete(_gradHComp);		
 		//safe_delete(m_glbWarping);
 	}
 	void SetPreGray(cv::Mat& img)
@@ -63,6 +66,7 @@ protected:
 	void MovingSaliency(cv::Mat& fgMask);
 	void BuildHistogram(const int* labels, const SLICClusterCenter* centers);
 	void RegionMergingFast(const int*  labels, const SLICClusterCenter* centers);
+	void RegionMergingFastQ(const int*  labels, const SLICClusterCenter* centers);
 	void SaliencyMap();
 	void upload(std::vector<cv::Point2f>& vec, cv::gpu::GpuMat& d_mat)
 	{
@@ -83,6 +87,7 @@ protected:
  	}
 	void calcCameraMotion(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>&f0);
 private:
+	int _warpId;
 	float _spAlpha;
 	int _spStep;
 	bool _initialized;
@@ -114,9 +119,13 @@ private:
 	cv::gpu::PyrLKOpticalFlow  d_pyrLk;
 	cv::gpu::GoodFeaturesToTrackDetector_GPU* _dFeatureDetector;
 
-	ImageWarping* m_imgWarper;
-	BlockWarping* m_blkWarping;
-	ASAPWarping* m_ASAP;
-	GlobalWarping* m_glbWarping;
+	HistComparer* _rgbHComp, *_gradHComp;
+
+
+	ImageWarping* _imgWarper;
+	BlockWarping* _blkWarping;
+	NBlockWarping* _nblkWarping;
+	ASAPWarping* _ASAP;
+	GlobalWarping* _glbWarping;
 };
 

@@ -4,6 +4,7 @@
 #include <queue>
 #include <vector>
 #include "CudaSuperpixel.h"
+#include "HistComparer.h"
 
 struct RegInfo
 {
@@ -40,6 +41,17 @@ void SuperPixelRegionMerging(int width, int height, int step,const int*  labels,
 	float threshold, int*& segmented, 
 	std::vector<int>& regSizes, std::vector<float4>& regAvgColors,float confidence = 0.6);
 
+void SuperPixelRegionMerging(int width, int height, int step, const int*  labels, const SLICClusterCenter* centers,
+	std::vector<std::vector<uint2>>& pos,
+	std::vector<std::vector<float>>& histograms,
+	std::vector<std::vector<float>>& lhistograms,
+	HistComparer* histComp1,
+	HistComparer* histComp2,
+	std::vector<std::vector<uint2>>& newPos,
+	std::vector<std::vector<float>>& newHistograms,
+	float threshold, int*& segmented,
+	std::vector<int>& regSizes, std::vector<float4>& regAvgColors, float confidence = 0.6);
+
 void SuperPixelRegionMergingFast(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,
 	std::vector<std::vector<uint2>>& pos,
 	std::vector<std::vector<float>>& histograms,
@@ -48,3 +60,15 @@ void SuperPixelRegionMergingFast(int width, int height, int step,const int*  lab
 	std::vector<std::vector<float>>& newHistograms,
 	float threshold, int*& segmented, 
 	std::vector<int>& regSizes, std::vector<float4>& regAvgColors,float confidence = 0.6);
+
+
+void SuperPixelRegionMergingFast(int width, int height, int step, const int*  labels, const SLICClusterCenter* centers,
+	std::vector<std::vector<uint2>>& pos,
+	std::vector<std::vector<float>>& histograms,
+	std::vector<std::vector<float>>& lhistograms,
+	HistComparer* histComp1,
+	HistComparer* histComp2,
+	std::vector<std::vector<uint2>>& newPos,
+	std::vector<std::vector<float>>& newHistograms,
+	float threshold, int*& segmented,
+	std::vector<int>& regSizes, std::vector<float4>& regAvgColors, float confidence = 0.6);

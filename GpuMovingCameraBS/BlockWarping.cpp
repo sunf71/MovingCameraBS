@@ -51,7 +51,7 @@ float BlockWarping::MappingError(const std::vector<double>& homoVec, const Point
 	}
 	return err/p1.size();
 }
-void BlockWarping::CalcBlkHomography()
+void BlockWarping::Solve()
 {
 	/*_blkInvHomos.resize(_blkSize);
 	_blkHomos.resize(_blkSize);*/
@@ -219,8 +219,17 @@ void BlockWarping::CalcBlkHomography()
 
 
 }	
-
-void BlockWarping::SetFeaturePoints(const Points& features1, const Points& features0)
+void BlockWarping::WarpPt(const cv::Point2f& pt, cv::Point2f& output)
+{
+	int id = blockId(pt);
+	double *homoPtr = &_blkHomoVec[id*8];
+	float wx = homoPtr[0] * pt.x + homoPtr[1] * pt.y + homoPtr[2];
+	float wy = homoPtr[3] * pt.x + homoPtr[4] * pt.y + homoPtr[5];
+	float w = homoPtr[6] * pt.x + homoPtr[7] * pt.y + 1;
+	output.x = wx / w;
+	output.y = wy / w;
+}
+void BlockWarping::SetFeaturePoints(Points& features1, Points& features0)
 {
 	//将特征点归入到分块中
 	for(int i=0; i< features1.size(); i++)
@@ -332,11 +341,17 @@ void BlockWarping::getFlow(cv::Mat& flow)
 		}
 	}
 }
-void GlobalWarping::SetFeaturePoints(const Points& p1, const Points& p2)
+void GlobalWarping::SetFeaturePoints(Points& p1, Points& p2)
 {
 	//_homo = cv::findHomography( p2, p1,_inliers, CV_RANSAC, _threshold);
 	findHomographyDLT((Points)p2, (Points)p1, _homo);
 	_invHomo = _homo.inv();
+	
+	
+	
+}
+void GlobalWarping::Warp(const cv::Mat& img, cv::Mat& warpedImg)
+{
 	double* homoPtr = (double*)_homo.data;
 	double* invHomoPtr = (double*)_invHomo.data;
 	for (int i = 0; i < _height; i++)
@@ -370,17 +385,46 @@ void GlobalWarping::SetFeaturePoints(const Points& p1, const Points& p2)
 		_dIMapXY[i].upload(_invMapXY[i]);
 		_dMapXY[i].upload(_mapXY[i]);
 	}
-	
-	
-	
-}
-void GlobalWarping::Warp(const cv::Mat& img, cv::Mat& warpedImg)
-{
+
 	cv::warpPerspective(img, warpedImg, _invHomo, img.size());
 }
 
 void GlobalWarping::GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg)
 {
+	double* homoPtr = (double*)_homo.data;
+	double* invHomoPtr = (double*)_invHomo.data;
+	for (int i = 0; i < _height; i++)
+	{
+		cv::Vec2f* ptr = _map.ptr<cv::Vec2f>(i);
+		cv::Vec2f* invPtr = _invMap.ptr<cv::Vec2f>(i);
+		for (int j = 0; j < _width; j++)
+		{
+			float wx = homoPtr[0] * j + homoPtr[1] * i + homoPtr[2];
+			float wy = homoPtr[3] * j + homoPtr[4] * i + homoPtr[5];
+			float ww = homoPtr[6] * j + homoPtr[7] * i + homoPtr[8];
+			wx /= ww;
+			wy /= ww;
+			ptr[j][0] = wx;
+			ptr[j][1] = wy;
+			wx = invHomoPtr[0] * j + invHomoPtr[1] * i + invHomoPtr[2];
+			wy = invHomoPtr[3] * j + invHomoPtr[4] * i + invHomoPtr[5];
+			ww = invHomoPtr[6] * j + invHomoPtr[7] * i + invHomoPtr[8];
+			wx /= ww;
+			wy /= ww;
+			invPtr[j][0] = wx;
+			invPtr[j][1] = wy;
+		}
+	}
+	cv::split(_map, _mapXY);
+	cv::split(_invMap, _invMapXY);
+	_dMap.upload(_map);
+	_dIMap.upload(_invMap);
+	for (size_t i = 0; i < 2; i++)
+	{
+		_dIMapXY[i].upload(_invMapXY[i]);
+		_dMapXY[i].upload(_mapXY[i]);
+	}
+
 	cv::gpu::warpPerspective(dimg, dwimg, _invHomo, dimg.size());
 }
 
@@ -400,11 +444,12 @@ void GlobalWarping::getFlow(cv::Mat& flow)
 }
 
 
+void GlobalWarping::WarpPt(const cv::Point2f& input, cv::Point2f& output)
+{
+	MatrixTimesPoint(_invHomo, input, output);
+}
 
-
-
-
-void NBlockWarping::CalcBlkHomography()
+void NBlockWarping::Solve()
 {
 	std::vector<bool> blkFlags(_blkSize);
 	memset(&blkFlags[0], 0, sizeof(blkFlags));

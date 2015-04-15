@@ -42,6 +42,16 @@
     <None Include="LBSP_16bits_dbcross_s4ch.i" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\QC\deltaE2000.hpp" />
+    <ClInclude Include="..\QC\ind_sim_pair.hpp" />
+    <ClInclude Include="..\QC\ind_val_pair.hpp" />
+    <ClInclude Include="..\QC\QC_full_sparse.hpp" />
+    <ClInclude Include="..\QC\QC_sparse_sparse.hpp" />
+    <ClInclude Include="..\QC\QC_utils.hpp" />
+    <ClInclude Include="..\QC\sparse_matlab_like_matrix.hpp" />
+    <ClInclude Include="..\QC\sparse_similarity_matrix_utils.hpp" />
+    <ClInclude Include="..\QC\sparse_vector_constant_time_access_element.hpp" />
+    <ClInclude Include="..\QC\tictoc.hpp" />
     <ClInclude Include="ASAPWarping.h" />
     <ClInclude Include="block.h" />
     <ClInclude Include="BlockWarping.h" />
@@ -69,6 +79,7 @@
     <ClInclude Include="MotionEstimate.h" />
     <ClInclude Include="MRFOptimize.h" />
     <ClInclude Include="PictureHandler.h" />
+    <ClInclude Include="HistComparer.h" />
     <ClInclude Include="RandUtils.h" />
     <ClInclude Include="RegionMerging.h" />
     <ClInclude Include="RTBackgroundSubtractor.h" />
@@ -203,7 +214,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>gpusubsensem</TargetName>
+    <TargetName>testwarperror</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='OpencvD|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -227,7 +238,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <TargetName>gpusubsensem</TargetName>
+    <TargetName>testwarpError</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>GpuSubsenseM</TargetName>

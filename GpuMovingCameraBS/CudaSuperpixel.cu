@@ -216,8 +216,8 @@ __device__ double distance(int x, int y, uchar4* imgBuffer,int width, int height
 	double d_rgb = sqrt(dr*dr + dg*dg + db*db);
 	double dx = (x*1.f - d_ceneters[label].xy.x);
 	double dy =  (y*1.f - d_ceneters[label].xy.y);
-	double d_xy = (dx*dx + dy*dy);
-	return (1-alpha)*d_rgb + alpha*d_xy/(radius);
+	double d_xy = sqrt(dx*dx + dy*dy);
+	return (1-alpha)*d_rgb/255 + alpha*d_xy/(2*radius);
 }
 __global__  void UpdateBoundaryKernel(uchar4* imgBuffer, int nHeight, int nWidth,int* labels,SLICClusterCenter* d_ceneters, int nClusters,float alpha, float radius)
 {

@@ -11,6 +11,10 @@ public:
 	virtual void getFlow(cv::Mat& flow) = 0;
 	virtual void Warp(const cv::Mat& img, cv::Mat& warpedImg) = 0;	
 	virtual void GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg) = 0;
+	virtual void WarpPt(const cv::Point2f& input, cv::Point2f& output) = 0;
+	virtual void SetFeaturePoints(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2) = 0;
+	virtual void Solve() = 0;
+	virtual void Reset(){}
 	cv::gpu::GpuMat& getDInvMapX()
 	{
 		return _dIMapXY[0];

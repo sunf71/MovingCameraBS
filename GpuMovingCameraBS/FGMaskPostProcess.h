@@ -19,15 +19,15 @@ inline void postProcessSegments(const Mat& img, Mat& mask)
 {
 	int niters = 1;
 
-	vector<vector<Point> > contours,imgContours;
+	vector<vector<cv::Point> > contours,imgContours;
 	vector<Vec4i> hierarchy,imgHierarchy;
 	
 	Mat temp;
 
 
-	dilate(mask, temp, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
-	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//腐蚀
-	dilate(temp, temp, Mat(), Point(-1,-1), niters);
+	dilate(mask, temp, Mat(), cv::Point(-1, -1), niters);//膨胀，3*3的element，迭代次数为niters
+	erode(temp, temp, Mat(), cv::Point(-1, -1), niters * 2);//腐蚀
+	dilate(temp, temp, Mat(), cv::Point(-1, -1), niters);
 	
 	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
 	
@@ -39,11 +39,11 @@ inline void postProcessSegments(const Mat& img, Mat& mask)
 	Scalar color( 255, 255, 255 );
 	for( int i = 0; i< contours.size(); i++ )
 	{
-		const vector<Point>& c = contours[i];
+		const vector<cv::Point>& c = contours[i];
 		double area = fabs(contourArea(Mat(c)));
 		if( area > minArea )
 		{
-			drawContours( cimg, contours, i, color, CV_FILLED, 8, hierarchy, 0, Point() );
+			drawContours(cimg, contours, i, color, CV_FILLED, 8, hierarchy, 0, cv::Point());
 			
 		}
 		

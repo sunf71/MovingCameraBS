@@ -288,7 +288,7 @@ protected:
 class GpuWarpBackgroundSubtractor : public WarpBackgroundSubtractor
 {
 public:
-	GpuWarpBackgroundSubtractor(int warpId = 1,
+	GpuWarpBackgroundSubtractor(int warpId = 0,
 		                            float rggThreshold = 1.0,
 									float rggSeedThreshold = 0.4,
 									float modelConfidence = 0.75,

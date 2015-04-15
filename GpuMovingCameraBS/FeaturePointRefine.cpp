@@ -609,7 +609,7 @@ int BlockDltHomography(int width, int height, int quadWidth, std::vector<cv::Poi
 		{
 			//std::cout<<"	block "<< i<<"  has "<<f1[i].size()<<" features, homography estimated\n";
 			cv::Mat homo;
-			std::vector<uchar> inliers;
+			/*std::vector<uchar> inliers;*/
 			//findHomographyDLT(f1[i],f0[i],homo);
 			//findHomographyNormalizedDLT(f1[i],f0[i],homo);
 			findHomographyEqa(f1[i],f0[i],homo);

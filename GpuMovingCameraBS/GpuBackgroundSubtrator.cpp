@@ -1063,7 +1063,7 @@ void GpuBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg)
 #ifndef REPORT
 	cpuTimer.start();
 #endif
-	m_ASAP->SetControlPts(m_points[0],m_points[1]);
+	m_ASAP->SetFeaturePoints(m_points[0],m_points[1]);
 	m_ASAP->Solve();
 	m_ASAP->Warp(image,warpedImg);
 	m_ASAP->Reset();

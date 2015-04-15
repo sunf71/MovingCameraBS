@@ -21,10 +21,12 @@ public:
 		_map.create(height, width, CV_32FC2);
 		_invMap.create(height, width, CV_32FC2);
 	}
-	void SetFeaturePoints(const Points& p1, const Points& p2);
+	virtual void SetFeaturePoints(Points& p1, Points& p2);
 	virtual void Warp(const cv::Mat& img, cv::Mat& warpedImg);
 	virtual void getFlow(cv::Mat& flow);
 	virtual void GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg);
+	virtual void WarpPt(const cv::Point2f& input, cv::Point2f& output);
+	virtual void Solve(){}
 private:
 	int _width;
 	int _height;
@@ -132,11 +134,11 @@ public:
 			}
 		}
 	}
-	virtual void CalcBlkHomography();
+	virtual void Solve();
 	float MappingError(const cv::Mat& homo, const Points& p1, const Points& p2);
 	float MappingError(const double* ptr, const Points& p1, const Points& p2);
 	float MappingError(const std::vector<double>& homoVec, const Points& p1, const Points& p2);
-	void SetFeaturePoints(const Points& p1, const Points& p2);
+	virtual void SetFeaturePoints(Points& p1, Points& p2);
 	virtual void Warp(const cv::Mat& img, cv::Mat& warpedImg);
 	void GpuWarp(const cv::Mat& img, cv::Mat& warpedImg);
 	virtual void GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg);
@@ -150,7 +152,7 @@ public:
 
 	}
 	virtual void getFlow(cv::Mat& flow);
-	
+	void WarpPt(const cv::Point2f& input, cv::Point2f& output);
 private:
 		std::vector<float> _blkErrors;
 		std::vector<int> _emptyBlkIdx1, _emptyBlkIdx0;
@@ -181,8 +183,9 @@ public:
 	{
 		
 	};
+
 	//calculate homographies for each block,multi blocks may share one homographies
-	virtual void CalcBlkHomography();
+	virtual void Solve();
 	virtual void Reset()
 	{
 		for (int i = 0; i<_blkSize; i++)

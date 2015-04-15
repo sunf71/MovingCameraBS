@@ -270,45 +270,51 @@ public:
 class ASAPWarping : public ImageWarping
 {
 public:
-	ASAPWarping(int width, int height, int quadStep, float weight):_quadStep(quadStep),_quadWidth(width/quadStep),_quadHeight(height/quadStep),_weight(weight)
+	ASAPWarping(){};
+	ASAPWarping(int width, int height, int quadStep, float weight):_imgWidth(width),_imgHeight(height),_quadStep(quadStep),_quadWidth(width/quadStep),_quadHeight(height/quadStep),_weight(weight)
+	{		
+		Init();
+		CreateSmoothCons(weight);		
+	};
+	void Init()
 	{
-		_source = new Mesh(height,width,_quadWidth,_quadHeight);
-		_destin = new Mesh(height,width,_quadWidth,_quadHeight);
+		_source = new Mesh(_imgHeight, _imgWidth, _quadWidth, _quadHeight);
+		_destin = new Mesh(_imgHeight, _imgWidth, _quadWidth, _quadHeight);
 		_height = _source->_meshHeight;
 		_width = _source->_meshWidth;
 
 		_x_index.resize(_height*_width);
 		_y_index.resize(_height*_width);
-		for(int i=0; i<_height*_width; i++)
+		for (int i = 0; i<_height*_width; i++)
 		{
 			_x_index[i] = i;
-			_y_index[i] = _height*_width+i;
+			_y_index[i] = _height*_width + i;
 		}
-		_num_smooth_cons = (_height-2)*(_width-2)*16 + (2*(_width+_height)-8)*8+4*4;
+		_num_smooth_cons = (_height - 2)*(_width - 2) * 16 + (2 * (_width + _height) - 8) * 8 + 4 * 4;
 
-		_columns = _width*_height*2;
-		_homographies.resize((_width-1)*(_height-1));
-		_invHomographies.resize((_width-1)*(_height-1));
-		_SmoothConstraints = cv::Mat::zeros(_num_smooth_cons*5,3,CV_32F);
+		_columns = _width*_height * 2;
+		_homographies.resize((_width - 1)*(_height - 1));
+		_invHomographies.resize((_width - 1)*(_height - 1));
+		_SmoothConstraints = cv::Mat::zeros(_num_smooth_cons * 5, 3, CV_32F);
 		_SCc = 0;
 
-		//CreateSmoothCons(weight);
-		_mapXY[0].create(height,width,CV_32F);
-		_mapXY[1].create(height, width, CV_32F);
-		_outMask = cv::Mat::zeros(height,width,CV_32F);
+		
+		_mapXY[0].create(_imgHeight, _imgWidth, CV_32F);
+		_mapXY[1].create(_imgHeight, _imgWidth, CV_32F);
+		_outMask = cv::Mat::zeros(_imgHeight, _imgWidth, CV_32F);
 		_invMapXY[0] = _mapXY[0].clone();
 		_invMapXY[1] = _mapXY[1].clone();
 		//std::cout<<_SmoothConstraints;
 		_blkSize = _quadStep*_quadStep;
-		cudaMalloc(&_dBlkHomoVec,sizeof(double)*_blkSize*8);
-		cudaMalloc(&_dBlkInvHomoVec,sizeof(double)*_blkSize*8);
-		_dMapXY[0].create(height,width,CV_32F);
-		_dMapXY[1].create(height,width,CV_32F);
-		_dIMapXY[0].create(height,width,CV_32F);
-		_dIMapXY[1].create(height,width,CV_32F);
-		_blkHomoVec.resize(_blkSize*8);
-		_blkInvHomoVec.resize(_blkSize*8);
-	};
+		cudaMalloc(&_dBlkHomoVec, sizeof(double)*_blkSize * 8);
+		cudaMalloc(&_dBlkInvHomoVec, sizeof(double)*_blkSize * 8);
+		_dMapXY[0].create(_imgHeight, _imgWidth, CV_32F);
+		_dMapXY[1].create(_imgHeight, _imgWidth, CV_32F);
+		_dIMapXY[0].create(_imgHeight, _imgWidth, CV_32F);
+		_dIMapXY[1].create(_imgHeight, _imgWidth, CV_32F);
+		_blkHomoVec.resize(_blkSize * 8);
+		_blkInvHomoVec.resize(_blkSize * 8);
+	}
 	void CreateSmoothCons(float weight);
 	void CreateSmoothCons(std::vector<float> weights);
 	~ASAPWarping()
@@ -318,21 +324,17 @@ public:
 		cudaFree(_dBlkHomoVec);
 		cudaFree(_dBlkInvHomoVec);
 	}
-	void SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts);
-	void Reset()
+	virtual void SetFeaturePoints(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts);
+	virtual void Reset()
 	{
-		//_rowCount = _sRowCount;
-		_rowCount = 0;
-		_sRowCount = 0;
-		_SCc = 0;
+		_rowCount = _sRowCount;
 	}
+	virtual void Solve();
 	void AddDataCons(int i, int j, double* hPtr, cv::Mat& b);
-	//添加双线性差值dataterm
-	void CreateMyDataConsB(int num, std::vector<cv::Mat>& homographies, cv::Mat& b);
-	void CreateMyDataCons(int num, std::vector<cv::Mat>& homographies, cv::Mat& b);
+	
 	void CreateDataCons(cv::Mat& b);
-	void MySolve(cv::Mat& b);
-	void Solve();
+	
+	
 	virtual void Warp(const cv::Mat& img1, cv::Mat& warpImg);
 	virtual void GpuWarp(const cv::gpu::GpuMat& img1, cv::gpu::GpuMat& warpImg);
 	void InvWarp(const cv::Mat& img1, cv::Mat& warpImg, int gap = 0);
@@ -883,9 +885,10 @@ protected:
 	}
 	
 	
-private:
+protected:
 	int  _height;
 	int _width;
+	int _imgWidth, _imgHeight;
 	int _quadWidth;
 	int _quadHeight;
 	int _quadStep;
@@ -924,4 +927,27 @@ private:
 	double* _dBlkHomoVec,*_dBlkInvHomoVec;
 	std::vector<double> _blkHomoVec,_blkInvHomoVec;
 	
+};
+
+
+class MyASAPWarping : public ASAPWarping
+{
+public:
+	MyASAPWarping(int width, int height, int quadStep, float weight)
+	{
+		_quadStep = quadStep;
+		_quadWidth = width / quadStep;
+		_quadHeight = height / quadStep;
+		_imgHeight = height; 
+		_imgWidth = width;
+		_height = height;
+		Init();		
+	};
+	//添加双线性差值dataterm
+	void CreateMyDataConsB(int num, std::vector<cv::Mat>& homographies, cv::Mat& b);
+	void CreateMyDataCons(int num, std::vector<cv::Mat>& homographies, cv::Mat& b);
+	void MySolve(cv::Mat& b);
+	virtual void Solve();
+	virtual void Reset();
+	virtual void SetFeaturePoints(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2);
 };

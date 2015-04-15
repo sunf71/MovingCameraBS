@@ -961,36 +961,7 @@ void MotionEstimate::EstimateMotion( Mat& curImg,  Mat& prevImg, Mat& transM, Ma
 	//cv::imwrite("mask.jpg",mask);
 	
 }
-void DrawHistogram(std::vector<float>& histogram, int size, const std::string name)
-{
-	float max = histogram[0];
-	int idx = 0;
-	for(int i=1; i<size; i++)
-	{
-		if (histogram[i] > max)
-		{
-			max = histogram[i];
-			idx = i;
-		}
 
-	}
-	cv::Mat img(400,600,CV_8UC3);
-	img = cv::Scalar(0);
-	float step = (img.cols-100+size-1)/size;
-	
-	cv::Scalar color(255,255,0);
-	for(int i=0; i<size; i++)
-	{
-		cv::Point2i pt1,pt2;
-		pt1.x = i*step;
-		pt1.y = img.rows - (histogram[i]/max*img.rows);
-		pt2.x = pt1.x + step;
-		pt2.y = img.rows;
-		cv::rectangle(img,cv::Rect(pt1,pt2),color);
-	}
-	cv::imshow(name,img);
-	//cv::waitKey();
-}
 
 void MotionEstimate::EstimateMotionHistogram( Mat& curImg,  Mat& prevImg, Mat& transM, Mat& mask)
 {

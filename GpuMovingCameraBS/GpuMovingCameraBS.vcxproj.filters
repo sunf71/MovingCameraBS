@@ -10,6 +10,9 @@
     <Filter Include="头文件">
       <UniqueIdentifier>{de860d7a-756f-4b37-a535-50fa77fe66ac}</UniqueIdentifier>
     </Filter>
+    <Filter Include="QC">
+      <UniqueIdentifier>{0797d2b5-e41e-4c43-8b92-4ef7ce00669f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="LBSP_16bits_dbcross_s4ch.i">
@@ -144,6 +147,39 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="ImageWarping.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\deltaE2000.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\ind_sim_pair.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\ind_val_pair.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\QC_full_sparse.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\QC_sparse_sparse.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\QC_utils.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\sparse_matlab_like_matrix.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\sparse_similarity_matrix_utils.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\sparse_vector_constant_time_access_element.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\tictoc.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="HistComparer.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

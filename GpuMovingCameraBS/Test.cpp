@@ -15,6 +15,8 @@
 #include <fstream>
 #include <algorithm>
 #include <queue>
+#include "HistComparer.h"
+#include "FGMaskPostProcess.h"
 void testCudaGpu()
 {
 	try
@@ -834,7 +836,7 @@ void TestSuperpixelMatching()
 	KLTFeaturesMatching(sgray,tgray,features0,features1);
 	cv::Mat homography;
 	FeaturePointsRefineRANSAC(features0,features1,homography);
-	asap.SetControlPts(features0,features1);
+	asap.SetFeaturePoints(features0,features1);
 	asap.Solve();
 	asap.Warp(simg,wimg);
 	cv::Mat warpFlow;
@@ -1798,16 +1800,11 @@ void TestBlockHomography()
 		
 		
 
-		asap.Reset();
-		/*asap.CreateSmoothCons(1.0);
-		asap.SetControlPts(features1,features0);
-		asap.Solve();*/
+		asap.Reset();		
+		asap.SetFeaturePoints(features1,features0);
+		asap.Solve();
 		
-		cv::Mat b;
-		asap.CreateSmoothCons(blkWeights);		
-		asap.CreateMyDataCons(num,homographies,b);
-		asap.MySolve(b);
-		asap.Warp(img1,wimg);
+		
 		/*cv::imshow("warped image",wimg);
 		cv::waitKey();*/
 		sprintf(fileName,"%swin%06d.jpg",dstPath,i);
@@ -2031,12 +2028,17 @@ void TestFeaturesRefine(int argc, char* argv[])
 	char* outPath = argv[7];
 	CreateDir(outPath);
 	int dBinNum(10), aBinNum(90);
+	float threshold(1.0);
 	if (method == 3 && argc == 10)
 	{
 		dBinNum = atoi(argv[8]);
 		aBinNum = atoi(argv[9]);
 	}
-	if (argc == 9)
+	else if (method == 2 && argc == 9)
+	{
+		threshold = atof(argv[8]);
+	}
+	else if (argc==9)
 	{
 		aBinNum = atoi(argv[8]);
 	}
@@ -2361,7 +2363,7 @@ void TestBlockWarping()
 		std::cout<<"set featurepoints "<<timer.seconds()*1000<<std::endl;
 		timer.start();
 		//blkWarping.CalcBlkHomography();
-		nblkWarping.CalcBlkHomography();
+		nblkWarping.Solve();
 		timer.stop();
 		std::cout<<"calc homo "<<timer.seconds()*1000<<std::endl;
 		//timer.start();
@@ -2549,34 +2551,34 @@ void RGBHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, float min,
 	float step = (max-min)/bins;
 	histogram.resize(bins*bins*bins);
 	memset(&histogram[0],0,sizeof(float)*histogram.size());
-	std::ofstream file("tmp.txt");
+	//std::ofstream file("tmp.txt");
 	for(int i=0; i< poses.size(); i++)
 	{
-		file << "(" << poses[i].y << "," << poses[i].x << ")\n";
+		//file << "(" << poses[i].y << "," << poses[i].x << ")\n";
 		int idx = poses[i].x + poses[i].y*width;
 		float*ptr = (float*)(fImg.data + idx*12);
 		int id = 0;
 		int s = 1;
 		for(int c=0; c<3; c++)
 		{
-			file << "chanell " << c << ":" << ptr[c] * 255;
-			file << " id " << (int)(ptr[c] / step) << "\n";
+			/*file << "chanell " << c << ":" << ptr[c] * 255;
+			file << " id " << (int)(ptr[c] / step) << "\n";*/
 			id += s*std::min((int)(ptr[c] /step),bins-1);
 			s*=bins;
 		}
-		file << " hist id " << id << "\n";
+		/*file << " hist id " << id << "\n";*/
 		histogram[id]++;
 
 		
 	}
-	file.close();
+	//file.close();
 	
-	int minId, maxId;
+	/*int minId, maxId;
 	float minV, maxV;
 	minMaxLoc(histogram, maxV, minV, maxId, minId);
 	DrawHistogram(histogram, histogram.size(), "histogram");
 	std::cout << maxId << "," << maxV << "\n";
-	cv::waitKey();
+	cv::waitKey();*/
 	//cv::normalize(histogram,histogram,1.0,0.0,NORM_MINMAX);
 }
 void LABHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, std::vector<float>& histogram)
@@ -2772,8 +2774,11 @@ void ColorMoments(std::vector<cv::Vec3b>& colors, double* moments)
 		moments[i] = coeff[0] * avg[i] + coeff[1] * std[i] + coeff[2] * skw[i];
 	}
 }
+
 void SaliencyTest(const char* path,int pid, int width, int height, int step)
 {
+	typedef std::vector<float> HISTOGRAM;
+	typedef std::vector<HISTOGRAM> HISTOGRAMS;
 	nih::Timer timer;
 	char imgName[200];
 	sprintf(imgName,"%s\\in%06d.jpg",path,pid);
@@ -2820,8 +2825,8 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	//每个超像素中包含的像素以及位置
 	std::vector<std::vector<Vec3b>> pixels(num);
 	std::vector<std::vector<uint2>> pos(num);
-	std::vector<std::vector<float>> histogram(num);
-	std::vector<std::vector<float>> lhistogram(num);
+	HISTOGRAMS histogram(num);
+	HISTOGRAMS lhistogram(num);
 	/*std::vector<uchar3> avgColor(num);*/
 	float rgbHConfidence = 0.6;
 	int k=0;
@@ -2869,47 +2874,50 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	int colorBins(16);
 	#pragma omp parallel for
 	//计算每个超像素的直方图
-	for(int i=81; i<pos.size(); i++)
+	for(int i=0; i<pos.size(); i++)
 	{
 		//LABHistogram(labImg,pos[i],12,histogram[i]);
 		//cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );
 		RGBHistogram(fimg, pos[i], colorBins, 0, 1, histogram[i]);
 		/*cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );*/
-		/*SparseHistogram(idx1i,nColor,pos[i],histogram[i]);
-		cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );*/
+		/*SparseHistogram(idx1i,nColor,pos[i],histogram[i]);*/
+		cv::normalize(histogram[i],histogram[i],1,0,NORM_L1 );
 		HOG(mag,ang,pos[i],36,lhistogram[i]);
-		//cv::normalize(lhistogram[i],lhistogram[i],1,0,NORM_L1 );
+		cv::normalize(lhistogram[i],lhistogram[i],1,0,NORM_L1 );
 		//LBPHistogram(lbpImg,pos[i],lhistogram[i]);
 		//DrawHistogram(histogram,histogram.size());
 		//cv::waitKey();
 	}
 	timer.stop();
 	std::cout<<"build histogram "<<timer.seconds()*1000<<"ms\n";
-	
+	HistComparer* qrgbComp = new QCHistComparer(colorBins*colorBins*colorBins);
+	HistComparer* qgradComp = new QCHistComparer(36);
+	HistComparer* cvComp = new CVBHATTHistComparer();
 	cv::Mat histColMat(height, width, CV_8UC3);
-	int idx = 5 * spWidth + 1;
+	
 	//在每个直方图之中找到最大bin，求每个超像素的主要颜色
-	for (size_t i = 0; i < pos.size(); i++)
-	{
-		if (i != idx && i != idx - 1 && i != idx - spWidth && i != idx + spWidth && i != idx + 1)
-			continue;
-		int minId, maxId;
-		float minV, maxV;
-		minMaxLoc(histogram[i], maxV, minV, maxId, minId);
-		size_t r = maxId % colorBins;
-		maxId /= colorBins;
-		size_t g = maxId % colorBins;
-		maxId /= colorBins;
-		size_t b = maxId % colorBins;
-		std::cout << i << " : " << r << "," << g << "," << b << "\n";
-		for (size_t j = 0; j < pos[i].size(); j++)
-		{
-			uchar* ptr = (histColMat.data + (pos[i][j].x + pos[i][j].y*width) * 3);
-			ptr[0] = r * colorBins, ptr[1] = g*colorBins, ptr[2] = b * colorBins;
-		}
-	}
-	cv::imshow("histCol", histColMat);
-	cv::waitKey();
+	//int idx = 5 * spWidth + 1;
+	//for (size_t i = 0; i < pos.size(); i++)
+	//{
+	//	if (i != idx && i != idx - 1 && i != idx - spWidth && i != idx + spWidth && i != idx + 1)
+	//		continue;
+	//	int minId, maxId;
+	//	float minV, maxV;
+	//	minMaxLoc(histogram[i], maxV, minV, maxId, minId);
+	//	size_t r = maxId % colorBins;
+	//	maxId /= colorBins;
+	//	size_t g = maxId % colorBins;
+	//	maxId /= colorBins;
+	//	size_t b = maxId % colorBins;
+	//	std::cout << i << " : " << r << "," << g << "," << b << "\n";
+	//	for (size_t j = 0; j < pos[i].size(); j++)
+	//	{
+	//		uchar* ptr = (histColMat.data + (pos[i][j].x + pos[i][j].y*width) * 3);
+	//		ptr[0] = r * colorBins, ptr[1] = g*colorBins, ptr[2] = b * colorBins;
+	//	}
+	//}
+	//cv::imshow("histCol", histColMat);
+	//cv::waitKey();
 	/*int minX = width;
 	int maxX = 0;
 	int minY = height;
@@ -2973,6 +2981,8 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	//计算平均相邻超像素距离之间的距离
 	const int dx4[] = {-1,0,1,0};
 	const int dy4[] = {0,-1,0,1};
+	float qavgCDist(0);
+	float qavgGDist(0);
 	float avgCDist(0);
 	float avgGDist(0);
 	float avgDist(0);
@@ -2990,8 +3000,10 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 				{
 					int nIdx = dy*spWidth + dx;
 					nc++;
-					avgCDist += cv::compareHist(histogram[idx],histogram[nIdx],CV_COMP_BHATTACHARYYA);
-					avgGDist += cv::compareHist(lhistogram[idx],lhistogram[nIdx],CV_COMP_BHATTACHARYYA);
+					avgCDist += cvComp->Distance(histogram[idx], histogram[nIdx]);
+					avgGDist += cvComp->Distance(lhistogram[idx], lhistogram[nIdx]);
+					qavgCDist += qrgbComp->Distance(histogram[idx], histogram[nIdx]);
+					qavgGDist += qgradComp->Distance(lhistogram[idx], lhistogram[nIdx]);
 					avgDist += L2Dist(centers[idx].rgb,centers[nIdx].rgb);
 				}
 			}
@@ -3000,6 +3012,8 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	}
 	avgCDist/=nc;
 	avgGDist/=nc;
+	qavgCDist /= nc;
+	qavgGDist /= nc;
 	avgDist/=(nc*255);
 	//std::vector<int>minIdx(num);
 	//std::vector<float>minDist(num);
@@ -3046,44 +3060,68 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	float threshold = ((avgCDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist));	
 	std::cout << "rgbHConfidence " << rgbHConfidence << "\n";
 	std::cout<<"threshold: "<<threshold<<std::endl;
-	threshold *= 0.9;
 	//float threshold = (avgDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist);
 
-	int src = 95;
-	int dst = 94;
+	float qrgbHConfidence = (qavgGDist) / (qavgCDist + qavgGDist);
+	//float qrgbHConfidence = 1.0;
+	float qthreshold = ((qavgCDist*qrgbHConfidence + (1 - qrgbHConfidence)*qavgGDist));
+	std::cout << "qrgbHConfidence " << qrgbHConfidence << "\n";
+	std::cout << "qthreshold: " << qthreshold << std::endl;
+	//int src = 81;
+	//int dst = src-1;
 
-	//minMaxLoc(histogram[src], max, min, maxId, minId);
-	double distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
-	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
-	double distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_HELLINGER);
-	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
-	double distMoment = abs(colorMoments[src] - colorMoments[dst]);
-	std::cout << "distColorMoment " << distMoment << "\n";
-	dst = 77;
-	distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
-	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
-	distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
-	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
-	distMoment = abs(colorMoments[src] - colorMoments[dst]);
-	std::cout << "distColorMoment " << distMoment << "\n";
-	dst = 113;
-	distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
-	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
-	distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
-	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
-	distMoment = abs(colorMoments[src] - colorMoments[dst]);
-	std::cout << "distColorMoment " << distMoment << "\n";;
-	dst = 96;
-	distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
-	std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
-	distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
-	std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
-	distMoment = abs(colorMoments[src] - colorMoments[dst]);
-	std::cout << "distColorMoment " << distMoment << "\n";;
+	////minMaxLoc(histogram[src], max, min, maxId, minId);
+	//double distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	//double distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	//double distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	//std::cout << "distColorMoment " << distMoment << "\n";
+	//distRGB = qrgbComp->Distance(histogram[src], histogram[dst]);
+	//std::cout << "QC DistRGB " << distRGB << "\n";
+	//distGrad = qgradComp->Distance(lhistogram[src], lhistogram[dst]);
+	//std::cout << "QC DistGRAD " << distGrad << "\n";
+
+	//dst = src - 16;
+	//distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	//distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	//distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	//std::cout << "distColorMoment " << distMoment << "\n";
+	//distRGB = qrgbComp->Distance(histogram[src], histogram[dst]);
+	//std::cout << "QC DistRGB " << distRGB << "\n";
+	//distGrad = qgradComp->Distance(lhistogram[src], lhistogram[dst]);
+	//std::cout << "QC DistGRAD " << distGrad << "\n";
+
+	//dst = src + 16;
+	//distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	//distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	//distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	//std::cout << "distColorMoment " << distMoment << "\n";
+	//distRGB = qrgbComp->Distance(histogram[src], histogram[dst]);
+	//std::cout << "QC DistRGB " << distRGB << "\n";
+	//distGrad = qgradComp->Distance(lhistogram[src], lhistogram[dst]);
+	//std::cout << "QC DistGRAD " << distGrad << "\n";
+
+	//dst = src + 1;
+	//distRGB = cv::compareHist(histogram[src], histogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distRGB " << src << " , " << dst << " " << distRGB << "\n";
+	//distGrad = cv::compareHist(lhistogram[src], lhistogram[dst], CV_COMP_BHATTACHARYYA);
+	//std::cout << "distGrad " << src << " , " << dst << " " << distGrad << "\n";
+	//distMoment = abs(colorMoments[src] - colorMoments[dst]);
+	//std::cout << "distColorMoment " << distMoment << "\n";
+	//distRGB = qrgbComp->Distance(histogram[src], histogram[dst]);
+	//std::cout << "QC DistRGB " << distRGB << "\n";
+	//distGrad = qgradComp->Distance(lhistogram[src], lhistogram[dst]);
+	//std::cout << "QC DistGRAD " << distGrad << "\n";
+
 	std::vector<float4> avgColors;
 
 	timer.start();
-	SuperPixelRegionMerging(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
+	SuperPixelRegionMerging(width, height, step, labels, centers, pos, histogram, lhistogram, qrgbComp, qgradComp, newpos, newHistograms, qthreshold, segmented, regSizes, avgColors, qrgbHConfidence);
 	//SuperPixelRegionMergingFast(width,height,step,labels,centers,pos,histogram,lhistogram,newpos,newHistograms,threshold,segmented,regSizes,avgColors,rgbHConfidence);
 	
 	timer.stop();
@@ -3206,7 +3244,12 @@ void SaliencyTest(const char* path,int pid, int width, int height, int step)
 	/*cv::imshow("salImg",salImg);*/
 	//cv::waitKey();
 	delete[] segmented;
+	safe_delete(qrgbComp);
+	safe_delete(qgradComp);
+	safe_delete(cvComp);
 }
+
+
 void TestSaliency(int argC, char** argv)
 {
 	//histogram();
@@ -3310,6 +3353,13 @@ void TestRTBS(int argc, char** argv)
 		float mthreshold = atof(argv[5]);
 		float alpha = atof(argv[6]);
 		bs = new RTBackgroundSubtractor(mthreshold,alpha);
+	}
+	else if (argc == 8)
+	{
+		float mthreshold = atof(argv[5]);
+		float alpha = atof(argv[6]);
+		int warpId = atoi(argv[7]);
+		bs = new RTBackgroundSubtractor(mthreshold, alpha, warpId);
 	}
 	else
 	{
@@ -3449,5 +3499,88 @@ void TestGpuKLT()
 			
 	}
 	std::cout << "ERROR " << err << "\n";
+}
+
+void TestWarpError(int argc, char**argv)
+{
+	char fileName[200];
+	int start = atoi(argv[1]);
+	int end = atoi(argv[2]);	
+	int method = atoi(argv[3]);
+	char* path = argv[4];
+	char* outPath = argv[5];
+	CreateDir(outPath);
+	sprintf(fileName, "%s\\in%06d.jpg", path, start);
+	cv::Mat prevImg = cv::imread(fileName);
+	int width = prevImg.cols;
+	int height = prevImg.rows;
+	ImageWarping* warper;
+	
+	switch (method)
+	{
+	case 0:
+		warper = new ASAPWarping(width, height, 8, 1.0);
+		break;
+	case 1:
+		warper = new MyASAPWarping(width, height, 8, 1.0);
+		break;
+	case 2:
+		warper = new BlockWarping(width, height, 8);
+		break;
+	case 3:
+		warper = new NBlockWarping(width, height, 8);
+		break;
+	case 4:
+		warper = new GlobalWarping(width, height);
+		break;
+	default:
+		warper = new ASAPWarping(width, height, 8, 1.0);
+		break;
+	}
+	cv::Mat curImg, warpImg, warpError;
+	cv::Mat gray0, gray1;
+	std::vector<cv::Point2f> features0, features1;
+	cv::Mat homography;
+	cv::cvtColor(prevImg, gray0, CV_BGR2GRAY);
+	for (size_t i = start; i <= end; i++)
+	{
+		std::cout << i << "\n";
+		sprintf(fileName, "%s\\in%06d.jpg", path, i);
+		curImg = cv::imread(fileName);
+		cv::cvtColor(curImg, gray1, CV_BGR2GRAY);
+		KLTFeaturesMatching(gray1, gray0, features1, features0, 500);
+		FeaturePointsRefineRANSAC(features1, features0,homography);
+		warper->SetFeaturePoints(features1, features0);
+		warper->Solve();
+		warper->Reset();
+		warper->Warp(gray1, warpImg);
+		cv::absdiff(warpImg, gray0, warpError);
+		sprintf(fileName, "%swarpErr%d.jpg", outPath, i);
+		cv::imwrite(fileName, warpError);
+		cv::Canny(warpError, warpError, 100, 300);
+		sprintf(fileName, "%swarpErrEdge%d.jpg", outPath, i);
+		cv::imwrite(fileName, warpError);
+		cv::Mat mask(height,width,CV_8UC3);
+		vector<vector<cv::Point> > contours, imgContours;
+		vector<Vec4i> hierarchy, imgHierarchy;
+		findContours(warpError, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);//找轮廓
+		Scalar color(255, 255, 255);
+		for (int i = 0; i< contours.size(); i++)
+		{
+			const vector<cv::Point>& c = contours[i];
+			double area = fabs(contourArea(Mat(c)));
+			if (area > 100)
+			{
+				drawContours(mask, contours, i, color, CV_FILLED, 8, hierarchy, 0, cv::Point());
+
+			}
+
+		}
+		cv::cvtColor(mask, mask, CV_BGR2GRAY);
+		sprintf(fileName, "%swarpErrMask%d.jpg", outPath, i);
+		cv::imwrite(fileName, mask);
+		cv::swap(prevImg, curImg);
+		cv::swap(gray1, gray0);
+	}	
 }
 	

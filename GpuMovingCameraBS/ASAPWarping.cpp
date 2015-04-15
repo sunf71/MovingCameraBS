@@ -4,6 +4,7 @@
 #include <opencv\cv.h>
 #include "findHomography.h"
 #include "CudaBSOperator.h"
+#include "FeaturePointRefine.h"
 bool isPointInTriangular(const cv::Point2f& pt, const cv::Point2f& V0, const cv::Point2f& V1, const cv::Point2f& V2)
 {   
 	float lambda1 = ((V1.y-V2.y)*(pt.x-V2.x) + (V2.x-V1.x)*(pt.y-V2.y)) / ((V1.y-V2.y)*(V0.x-V2.x) + (V2.x-V1.x)*(V0.y-V2.y));
@@ -171,7 +172,7 @@ void ASAPWarping::CreateSmoothCons(float weight)
 		   _sRowCount = _rowCount;
 }
 
-void ASAPWarping::SetControlPts(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts)
+void ASAPWarping::SetFeaturePoints(std::vector<cv::Point2f>& inputsPts, std::vector<cv::Point2f>& outputsPts)
 {
 	int len = inputsPts.size();
 	_dataterm_element_orgPt = inputsPts;
@@ -281,98 +282,7 @@ void ASAPWarping::AddDataCons(int i, int j, double* homoptr, cv::Mat& b)
 	b.at<float>(_rowCount,0) = wy;
 	_rowCount++;
 }
-void ASAPWarping::CreateMyDataCons(int num, std::vector<cv::Mat>& homographies, cv::Mat& b)
-{
-	int len = num;
-	_num_data_cons = len*2*4;
-	_DataConstraints.create(_num_data_cons,3,CV_32F);
-	b.create(_num_data_cons+_num_smooth_cons,1,CV_32F);
-	b = cv::Scalar(0);
-	_DCc = 0;
-	float * ptr = _DataConstraints.ptr<float>(_DCc);       
-	
-	for(int i=0; i<_height-1; i++)
-	{
-		for(int j=0; j< _width-1; j++)
-		{
-			if (!homographies[i*_quadStep + j].empty())
-			{
-				double* hptr = (double*)homographies[i*_quadStep + j].data;
-				AddDataCons(i,j,hptr,b);
-				AddDataCons(i,j+1,hptr,b);
-				AddDataCons(i+1,j,hptr,b);
-				AddDataCons(i+1,j+1,hptr,b);
-			}
-		}
-	}
-}
-void ASAPWarping::CreateMyDataConsB(int num, std::vector<cv::Mat>& homographies, cv::Mat& b)
-{
-	//homo dataterm
-	int len = num;
-	_num_data_cons = len*2*4;
-	//bileaner dataterm
-	len = _dataterm_element_i.size();
-	_num_data_cons += len*8;
 
-	_DataConstraints.create(_num_data_cons,3,CV_32F);
-	b.create(_num_data_cons+_num_smooth_cons,1,CV_32F);
-	b = cv::Scalar(0);
-	_DCc = 0;
-	float * ptr = _DataConstraints.ptr<float>(_DCc);       
-	
-	for(int i=0; i<_height-1; i++)
-	{
-		for(int j=0; j< _width-1; j++)
-		{
-			if (!homographies[i*_quadStep + j].empty())
-			{
-				double* hptr = (double*)homographies[i*_quadStep + j].data;
-				AddDataCons(i,j,hptr,b);
-				AddDataCons(i,j+1,hptr,b);
-				AddDataCons(i+1,j,hptr,b);
-				AddDataCons(i+1,j+1,hptr,b);
-			}
-		}
-	}
-
-	for(int k=0; k<len; k++)
-	{
-		//std::cout<<k<<std::endl;
-		float i = _dataterm_element_i[k];
-		float j = _dataterm_element_j[k];
-		float v00 = _dataterm_element_V00[k];
-		float v01 = _dataterm_element_V01[k];
-		float v10 = _dataterm_element_V10[k];
-		float v11 = _dataterm_element_V11[k];
-		float * ptr = _DataConstraints.ptr<float>(_DCc);       
-		ptr[0] = _rowCount; ptr[1] = _x_index[(i-1)*_width+j-1]; ptr[2]= v00; _DCc = _DCc+1;
-		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _x_index[(i-1)*_width+j]; ptr[2]= v01; _DCc = _DCc+1;
-		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width+j-1]; ptr[2]= v10; _DCc = _DCc+1;
-		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width+j]; ptr[2]= v11; _DCc = _DCc+1;		
-		
-		b.at<float>(_rowCount,0) = _dataterm_element_desPt[k].x;
-		_rowCount = _rowCount+1;
-
-		ptr = _DataConstraints.ptr<float>(_DCc);       
-		ptr[0] = _rowCount; ptr[1] = _y_index[(i-1)*_width+j-1]; ptr[2]= v00; _DCc = _DCc+1;
-		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _y_index[(i-1)*_width+j]; ptr[2]= v01; _DCc = _DCc+1;
-		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width+j-1]; ptr[2]= v10; _DCc = _DCc+1;
-		ptr = _DataConstraints.ptr<float>(_DCc); 
-		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width+j]; ptr[2]= v11; _DCc = _DCc+1;		
-		
-		b.at<float>(_rowCount,0) = _dataterm_element_desPt[k].y;
-		_rowCount = _rowCount+1;        
-
-
-	}
-
-}
 void ASAPWarping::Solve()
 {
 	cv::Mat b;
@@ -413,30 +323,7 @@ void ASAPWarping::Solve()
 		}
 	}
 }
-void ASAPWarping::MySolve(cv::Mat& b)
-{
-	int N = _SmoothConstraints.rows + _DataConstraints.rows;
 
-	cv::Mat AMat(N,3,CV_32F);
-	
-	_SmoothConstraints.copyTo(AMat(cv::Rect(0,0,3,_SmoothConstraints.rows)));
-	_DataConstraints.copyTo(AMat(cv::Rect(0,_SmoothConstraints.rows,3,_DataConstraints.rows)));
-
-	
-	
-	std::vector<float> x;
-	
-	LeastSquareSolve(b.rows,_columns,AMat,b,x);
-	int hwidth = _columns/2;
-	for(int i=0; i<_height; i++)
-	{
-		for(int j=0; j<_width; j++)
-		{
-			cv::Point2f pt(x[i*_width+j],x[hwidth+i*_width+j]);
-			_destin->setVertex(i,j,pt);
-		}
-	}
-}
 void ASAPWarping::GpuWarp(const cv::gpu::GpuMat& img, cv::gpu::GpuMat& warpImg)
 {
 	
@@ -484,7 +371,9 @@ void ASAPWarping::Warp(const cv::Mat& img1, cv::Mat& warpImg)
 	cv::merge(_mapXY, 2, _map);
 	//std::cout<<_mapXY;
 	_dMap.upload(_map);
-	
+	_dMapXY[0].upload(_mapXY[0]);
+	_dMapXY[1].upload(_mapXY[1]);
+
 	cv::merge(_invMapXY,2,_invMap);
 	_dIMap.upload(_invMap);
 	_dIMapXY[0].upload(_invMapXY[0]);
@@ -650,4 +539,143 @@ void ASAPWarping::getFlow(cv::Mat& flow)
 		}
 	}
 }
+void MyASAPWarping::CreateMyDataCons(int num, std::vector<cv::Mat>& homographies, cv::Mat& b)
+{
+	int len = num;
+	_num_data_cons = len * 2 * 4;
+	_DataConstraints.create(_num_data_cons, 3, CV_32F);
+	b.create(_num_data_cons + _num_smooth_cons, 1, CV_32F);
+	b = cv::Scalar(0);
+	_DCc = 0;
+	float * ptr = _DataConstraints.ptr<float>(_DCc);
 
+	for (int i = 0; i<_height - 1; i++)
+	{
+		for (int j = 0; j< _width - 1; j++)
+		{
+			if (!homographies[i*_quadStep + j].empty())
+			{
+				double* hptr = (double*)homographies[i*_quadStep + j].data;
+				AddDataCons(i, j, hptr, b);
+				AddDataCons(i, j + 1, hptr, b);
+				AddDataCons(i + 1, j, hptr, b);
+				AddDataCons(i + 1, j + 1, hptr, b);
+			}
+		}
+	}
+}
+void MyASAPWarping::CreateMyDataConsB(int num, std::vector<cv::Mat>& homographies, cv::Mat& b)
+{
+	//homo dataterm
+	int len = num;
+	_num_data_cons = len * 2 * 4;
+	//bileaner dataterm
+	len = _dataterm_element_i.size();
+	_num_data_cons += len * 8;
+
+	_DataConstraints.create(_num_data_cons, 3, CV_32F);
+	b.create(_num_data_cons + _num_smooth_cons, 1, CV_32F);
+	b = cv::Scalar(0);
+	_DCc = 0;
+	float * ptr = _DataConstraints.ptr<float>(_DCc);
+
+	for (int i = 0; i<_height - 1; i++)
+	{
+		for (int j = 0; j< _width - 1; j++)
+		{
+			if (!homographies[i*_quadStep + j].empty())
+			{
+				double* hptr = (double*)homographies[i*_quadStep + j].data;
+				AddDataCons(i, j, hptr, b);
+				AddDataCons(i, j + 1, hptr, b);
+				AddDataCons(i + 1, j, hptr, b);
+				AddDataCons(i + 1, j + 1, hptr, b);
+			}
+		}
+	}
+
+	for (int k = 0; k<len; k++)
+	{
+		//std::cout<<k<<std::endl;
+		float i = _dataterm_element_i[k];
+		float j = _dataterm_element_j[k];
+		float v00 = _dataterm_element_V00[k];
+		float v01 = _dataterm_element_V01[k];
+		float v10 = _dataterm_element_V10[k];
+		float v11 = _dataterm_element_V11[k];
+		float * ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[(i - 1)*_width + j - 1]; ptr[2] = v00; _DCc = _DCc + 1;
+		ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[(i - 1)*_width + j]; ptr[2] = v01; _DCc = _DCc + 1;
+		ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width + j - 1]; ptr[2] = v10; _DCc = _DCc + 1;
+		ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _x_index[i*_width + j]; ptr[2] = v11; _DCc = _DCc + 1;
+
+		b.at<float>(_rowCount, 0) = _dataterm_element_desPt[k].x;
+		_rowCount = _rowCount + 1;
+
+		ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[(i - 1)*_width + j - 1]; ptr[2] = v00; _DCc = _DCc + 1;
+		ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[(i - 1)*_width + j]; ptr[2] = v01; _DCc = _DCc + 1;
+		ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width + j - 1]; ptr[2] = v10; _DCc = _DCc + 1;
+		ptr = _DataConstraints.ptr<float>(_DCc);
+		ptr[0] = _rowCount; ptr[1] = _y_index[i*_width + j]; ptr[2] = v11; _DCc = _DCc + 1;
+
+		b.at<float>(_rowCount, 0) = _dataterm_element_desPt[k].y;
+		_rowCount = _rowCount + 1;
+
+
+	}
+
+}
+void MyASAPWarping::Reset()
+{
+	_rowCount = 0;
+	_sRowCount = 0;
+	_SCc = 0;
+}
+void MyASAPWarping::SetFeaturePoints(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2)
+{
+	vector<float> blkWeights;
+	vector<cv::Mat> homographies;
+	std::vector<cv::Point2f> sf1, sf0;
+	int numH = BlockDltHomography(_imgWidth, _imgHeight, 8, f1, f2, homographies, blkWeights, sf0, sf1);
+	if (sf1.size() > 0)
+		ASAPWarping::SetFeaturePoints(sf0, sf1);
+	cv::Mat b;
+	CreateSmoothCons(blkWeights);
+	
+	CreateMyDataConsB(numH, homographies, b);
+	MySolve(b);
+}
+void MyASAPWarping::Solve()
+{
+	
+}
+void MyASAPWarping::MySolve(cv::Mat& b)
+{
+	int N = _SmoothConstraints.rows + _DataConstraints.rows;
+
+	cv::Mat AMat(N, 3, CV_32F);
+
+	_SmoothConstraints.copyTo(AMat(cv::Rect(0, 0, 3, _SmoothConstraints.rows)));
+	_DataConstraints.copyTo(AMat(cv::Rect(0, _SmoothConstraints.rows, 3, _DataConstraints.rows)));
+
+
+
+	std::vector<float> x;
+
+	LeastSquareSolve(b.rows, _columns, AMat, b, x);
+	int hwidth = _columns / 2;
+	for (int i = 0; i<_height; i++)
+	{
+		for (int j = 0; j<_width; j++)
+		{
+			cv::Point2f pt(x[i*_width + j], x[hwidth + i*_width + j]);
+			_destin->setVertex(i, j, pt);
+		}
+	}
+}

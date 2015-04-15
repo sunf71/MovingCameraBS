@@ -599,35 +599,7 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	
 	}
 }
-void DrawHistogram(std::vector<float>& histogram, int size, const std::string name = "histogram")
-{
-	float max = histogram[0];
-	int idx = 0;
-	for(int i=1; i<size; i++)
-	{
-		if (histogram[i] > max)
-		{
-			max = histogram[i];
-			idx = i;
-		}
 
-	}
-	cv::Mat img(400,300,CV_8UC3);
-	img = cv::Scalar(0);
-	int step = (img.cols+size-1)/size;
-	cv::Scalar color(255,255,0);
-	for(int i=0; i<size; i++)
-	{
-		cv::Point2i pt1,pt2;
-		pt1.x = i*step;
-		pt1.y = img.rows - (histogram[i]/max*img.rows);
-		pt2.x = pt1.x + step;
-		pt2.y = img.rows;
-		cv::rectangle(img,cv::Rect(pt1,pt2),color);
-	}
-	cv::imshow(name,img);
-	//cv::waitKey();
-}
 void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
 {
 	homography.create(3,3,CV_64F);

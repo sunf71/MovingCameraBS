@@ -44,11 +44,28 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 		memset(&_colorHists[i][0],0,sizeof(float)*_totalColorBins);
 	}
 
-	_dFeatureDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(100,0.01,_spStep);
-
-	m_ASAP = new ASAPWarping(_width, _height, 8, 1.0);
-	//m_glbWarping = new GlobalWarping(_width, _height);
-	//m_blkWarping = new BlockWarping(_width, _height, 8);
+	_dFeatureDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(500,0.05,20);
+	
+	switch (_warpId)
+	{
+	case 1:
+		_imgWarper = new ASAPWarping(_width, _height, 8, 1.0);
+		break;
+	case 2:
+		_imgWarper = new BlockWarping(_width, _height, 8);
+		break;
+	case 3:
+		_imgWarper = new NBlockWarping(_width, _height, 8);
+		break;
+	case 4:
+		_imgWarper = new GlobalWarping(_width, _height);
+		break;
+	default:
+		_imgWarper = new ASAPWarping(_width, _height, 8, 1.0);
+		break;
+	}
+	
+	
 }
 
 void RTBackgroundSubtractor::operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRate)
@@ -66,16 +83,21 @@ void RTBackgroundSubtractor::operator()(cv::InputArray image, cv::OutputArray fg
 }
 void RTBackgroundSubtractor::BuildHistogram(const int* labels, const SLICClusterCenter* centers)
 {
+	/*_rgbHComp = new QCHistComparer(_totalColorBins);
+	_gradHComp = new QCHistComparer(_hogBins);*/
+	_gradHComp = new CVBHATTHistComparer();
+	_rgbHComp = new CVBHATTHistComparer();
+	//_gradHComp = new CVBHATTHistComparer();
 	#pragma omp parallel for
 	for(int i=0; i<_spSize; i++)
 	{
 		
 		memset(&_HOGs[i][0],0,sizeof(float)*_hogBins);
-		memset(&_colorHists[i][0],0,sizeof(float)*_totalColorBins);
-		/*for (size_t j = 0; j < _totalColorBins; j++)
+		//memset(&_colorHists[i][0],0,sizeof(float)*_totalColorBins);
+		for (size_t j = 0; j < _totalColorBins; j++)
 		{
 			_colorHists[i][j] = 1e-3;
-		}*/
+		}
 		_spPoses[i].clear();
 
 		int x = int(centers[i].xy.x+0.5);
@@ -104,8 +126,8 @@ void RTBackgroundSubtractor::BuildHistogram(const int* labels, const SLICCluster
 					int s = 1;
 					for(int c=0; c<3; c++)
 					{
-						//bin += s*std::min<float>(ceil((labPtr[n][c]-_colorMins[c]) /_colorSteps[c]),_colorBins-1);
-						bin += s*std::min<float>(ceil((rgbPtr[n][c]-_colorMins[c]) /_colorSteps[c]),_colorBins-1);
+						//bin += s*std::min<float>(floor((labPtr[n][c]-_colorMins[c]) /_colorSteps[c]),_colorBins-1);
+						bin += s*std::min<float>(floor((rgbPtr[n][c] - _colorMins[c]) / _colorSteps[c]), _colorBins - 1);
 						s*=_colorBins;
 					}
 					_colorHists[i][bin] ++;
@@ -113,11 +135,255 @@ void RTBackgroundSubtractor::BuildHistogram(const int* labels, const SLICCluster
 				}
 			}
 		}
-		//cv::normalize(_colorHists[i], _colorHists[i], 1, 0, cv::NORM_L1);
-		//cv::normalize(_HOGs[i], _HOGs[i], 1, 0, cv::NORM_L1);
+		cv::normalize(_colorHists[i], _colorHists[i], 1, 0, cv::NORM_L1);
+		cv::normalize(_HOGs[i], _HOGs[i], 1, 0, cv::NORM_L1);
 	}
+	/*nih::Timer timer;
+	timer.start();
+	_rgbHComp->Distance(_colorHists[0], _colorHists[1]);
+	timer.stop();
+	std::cout << "QC hist dist takse " << timer.seconds()*1000 << " ms\n";
+	CVBHATTHistComparer* hc = new CVBHATTHistComparer();
+	timer.start();
+	hc->Distance(_colorHists[0], _colorHists[1]);
+	timer.stop();
+	std::cout << "QC hist dist takse " << timer.seconds()*1000 << " ms\n";
+	delete(hc);*/
 }
+void RTBackgroundSubtractor::RegionMergingFastQ(const int*  labels, const SLICClusterCenter* centers)
+{
+	/*QCHistComparer* qchc = new QCHistComparer(_colorBins);
+	QCHistComparer* qghc = new QCHistComparer(_hogBins);*/
+	//计算平均相邻超像素距离之间的距离
+	static const int dx4[] = { -1, 0, 1, 0 };
+	static const int dy4[] = { 0, -1, 0, 1 };
+	//const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+	//const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
+	float avgCDist(0);
+	float avgGDist(0);
 
+	int nc(0);
+#pragma omp parallel for
+	for (int idx = 0; idx<_spSize; idx++)
+	{
+		int i = idx / _spWidth;
+		int j = idx%_spWidth;
+		for (int n = 0; n<4; n++)
+		{
+			int dy = i + dy4[n];
+			int dx = j + dx4[n];
+			if (dy >= 0 && dy<_spHeight && dx >= 0 && dx < _spWidth)
+			{
+				int nIdx = dy*_spWidth + dx;
+				nc++;
+				avgCDist += _rgbHComp->Distance(_colorHists[idx], _colorHists[nIdx]);
+				avgGDist += _gradHComp->Distance(_HOGs[idx], _HOGs[nIdx]);
+
+			}
+		}
+	}
+	avgCDist /= nc;
+	avgGDist /= nc;
+	float confidence = (avgGDist) / (avgCDist + avgGDist);
+	//rgbHConfidence = (avgGDist)/(avgDist+avgGDist);
+	float threshold = 0.9*((avgCDist*confidence + (1 - confidence)*avgGDist));
+
+	//std::cout<<"threshold: "<<threshold<<std::endl;
+	//std::ofstream file("mergeOut.txt");
+
+
+	float pixDist(0);
+	_regSizes.clear();
+	_regIdices.clear();
+	int regSize(0);
+	//当前新标签
+	int curLabel(0);
+	memset(_visited, 0, _spSize);
+	memset(_segment, 0, sizeof(int)*_spSize);
+	std::vector<int> singleLabels;
+	//region growing 后的新label
+	std::vector<int> newLabels(_spSize);
+
+	//nih::Timer timer;
+	//timer.start();
+	std::set<int> boundarySet;
+	boundarySet.insert(rand() % _spSize);
+	//boundarySet.insert(3);
+	//boundarySet.insert(190);
+	std::vector<int> labelGroup;
+
+	while (!boundarySet.empty())
+	{
+		//std::cout<<boundarySet.size()<<std::endl;
+		labelGroup.clear();
+		std::set<int>::iterator itr = boundarySet.begin();
+		int label = *itr;
+		//file<<"seed: "<<label<<"\n";
+		_visited[label] = true;
+		labelGroup.push_back(label);
+		//newLabels[label] = curLabel;
+		boundarySet.erase(itr);
+		SLICClusterCenter cc = centers[label];
+		int k = cc.xy.x;
+		int j = cc.xy.y;
+		float4 regColor = cc.rgb;
+		int ix = label%_spWidth;
+		int iy = label / _spWidth;
+		pixDist = 0;
+		regSize = 1;
+
+		RegInfos neighbors, tneighbors;
+		while (pixDist < threshold && regSize<_spSize)
+		{
+			//file<<"iy:"<<iy<<"ix:"<<ix<<"\n";
+
+			for (int d = 0; d<4; d++)
+			{
+				int x = ix + dx4[d];
+				int y = iy + dy4[d];
+				size_t idx = x + y*_spWidth;
+				if (x >= 0 && x<_spWidth && y >= 0 && y<_spHeight && !_visited[idx])
+				{
+					_visited[idx] = true;
+					float rd = _rgbHComp->Distance(_colorHists[idx], _colorHists[label]);
+					float hd = _gradHComp->Distance(_HOGs[idx], _HOGs[label]);
+					float dist = confidence*rd + hd*(1 - confidence);
+					neighbors.push(RegInfo(idx, x, y, dist));
+				}
+			}
+
+			if (neighbors.empty())
+				break;
+			RegInfo sp = neighbors.top();
+			pixDist = sp.dist;
+
+			int minIdx = sp.label;
+			ix = sp.x;
+			iy = sp.y;
+			if (pixDist < threshold)
+			{
+				neighbors.pop();
+				//file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"\n";
+				float tmpx = regColor.x;
+				float tmpy = regColor.y;
+				float tmpz = regColor.z;
+				regColor.x = (regColor.x*regSize + centers[minIdx].rgb.x) / (regSize + 1);
+				regColor.y = (regColor.y*regSize + centers[minIdx].rgb.y) / (regSize + 1);
+				regColor.z = (regColor.z*regSize + centers[minIdx].rgb.z) / (regSize + 1);
+				float t = 2.0;
+				float dx = abs(tmpx - regColor.x);
+				float dy = abs(tmpy - regColor.y);
+				float dz = abs(tmpz - regColor.z);
+
+				/*regColor.x += centers[minIdx].rgb.x;
+				regColor.y += centers[minIdx].rgb.y;
+				regColor.z += centers[minIdx].rgb.z;*/
+				regSize++;
+				labelGroup.push_back(minIdx);
+
+
+				for (int i = 0; i<_totalColorBins; i++)
+				{
+					_colorHists[label][i] += _colorHists[minIdx][i];
+				}
+				cv::normalize(_colorHists[label], _colorHists[label], 1, 0, cv::NORM_L1);
+
+				for (int i = 0; i<_hogBins; i++)
+				{
+					_HOGs[label][i] += _HOGs[minIdx][i];
+				}
+				cv::normalize(_HOGs[label], _HOGs[label], 1, 0, cv::NORM_L1);
+				_visited[minIdx] = true;
+				if (sqrt(dx*dx + dy*dy + dz*dz) > t)
+				{
+					while (!tneighbors.empty())
+						tneighbors.pop();
+					while (!neighbors.empty())
+					{
+						RegInfo sp = neighbors.top();
+						neighbors.pop();
+						float rd = _rgbHComp->Distance(_colorHists[sp.label], _colorHists[label]);
+						float hd = _gradHComp->Distance(_HOGs[sp.label], _HOGs[label]);
+						sp.dist = confidence*rd + hd*(1 - confidence);
+						tneighbors.push(sp);
+					}
+					std::swap(neighbors, tneighbors);
+				}
+				/*segmented[minIdx] = k;*/
+				//result.data[minIdx] = 0xff;
+				//smask.data[minIdx] = 0xff;
+
+				std::set<int>::iterator itr = boundarySet.find(minIdx);
+				if (itr != boundarySet.end())
+				{
+					boundarySet.erase(itr);
+				}
+			}
+			/*else
+			{
+			file<<"nearst neighbor "<<minIdx<<"("<<iy<<","<<ix<<") with distance:"<<pixDist<<"overpass threshold "<<regMaxDist<<"\n";
+			}*/
+		}
+		_nColorHists.push_back(_colorHists[label]);
+		_nHOGs.push_back(_HOGs[label]);
+		_regIdices.push_back(labelGroup);
+
+		for (int i = 0; i<labelGroup.size(); i++)
+		{
+			newLabels[labelGroup[i]] = curLabel;
+		}
+
+		_regSizes.push_back(regSize);
+		curLabel++;
+		std::vector<RegInfo> *vtor = (std::vector<RegInfo> *)&neighbors;
+		for (int i = 0; i<vtor->size(); i++)
+		{
+			int label = ((RegInfo)vtor->operator [](i)).label;
+			_visited[label] = false;
+			if (boundarySet.find(label) == boundarySet.end())
+				boundarySet.insert(label);
+		}
+		if (regSize <2)
+			singleLabels.push_back(label);
+	}
+
+
+	//对单个超像素，检查其是否在大区域之中（周边三个以上label一样）
+	for (int i = 0; i<singleLabels.size(); i++)
+	{
+		int label = singleLabels[i];
+		int ix = label%_spWidth;
+		int iy = label / _spWidth;
+		std::vector<int> ulabel;
+
+		for (int d = 0; d<4; d++)
+		{
+			int x = ix + dx4[d];
+			int y = iy + dy4[d];
+			if (x >= 0 && x<_spWidth && y >= 0 && y<_spHeight)
+			{
+				int nlabel = x + y*_spWidth;
+				if (std::find(ulabel.begin(), ulabel.end(), newLabels[nlabel]) == ulabel.end())
+					ulabel.push_back(newLabels[nlabel]);
+			}
+
+		}
+		if (ulabel.size() <= 2)
+		{
+			newLabels[label] = ulabel[0];
+			_regSizes[ulabel[0]]++;
+		}
+	}
+
+	for (int i = 0; i<newLabels.size(); i++)
+	{
+#pragma omp parallel for
+		for (int j = 0; j<_spPoses[i].size(); j++)
+			_segment[_spPoses[i][j].x + _spPoses[i][j].y*_width] = newLabels[i];
+	}
+	/*delete qghc;
+	delete qchc;*/
+}
 void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClusterCenter* centers)
 {
 	//计算平均相邻超像素距离之间的距离
@@ -421,30 +687,10 @@ void RTBackgroundSubtractor::SaliencyMap()
 
 void RTBackgroundSubtractor::calcCameraMotion(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>&f0)
 {
-	vector<float> blkWeights;
-	vector<cv::Mat> homographies;
-	std::vector<cv::Point2f> sf1, sf0;
-	int numH = BlockDltHomography(_width, _height, 8, f1, f0, homographies, blkWeights, sf0, sf1);
-	cv::Mat b;
-	m_ASAP->CreateSmoothCons(blkWeights);
-	if (sf1.size() > 0)
-		m_ASAP->SetControlPts(sf0, sf1);
-	m_ASAP->CreateMyDataConsB(numH, homographies, b);
-	m_ASAP->MySolve(b);
-	m_ASAP->CalcQuadHomographies();
-	/*cv::Mat warpedImg;
-	m_ASAP->Warp(_img,warpedImg);*/
-	/*m_ASAP->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
-	m_ASAP->getFlow(m_wflow);*/
-	m_ASAP->Reset();
-
-	//m_glbWarping->SetFeaturePoints(f1, f0);
-
-	/*m_blkWarping->SetFeaturePoints(f1, f0);
-	m_blkWarping->CalcBlkHomography();	
-	cv::Mat warpedImg;
-	m_blkWarping->Warp(_img, warpedImg);
-	m_blkWarping->Reset();*/
+	_imgWarper->SetFeaturePoints(f0, f1);
+	_imgWarper->Solve();
+	_imgWarper->Reset();
+	
 }
 
 void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
@@ -601,7 +847,7 @@ void RTBackgroundSubtractor::MovingSaliency(cv::Mat& fgMask)
 			float wx = warpMat.ptr<cv::Vec2f>(y)[x][0];
 			float wy = warpMat.ptr<cv::Vec2f>(y)[x][1];*/
 			cv::Point2f wpt;
-			m_ASAP->WarpPt(tf1[i], wpt);
+			_imgWarper->WarpPt(tf1[i], wpt);
 			float dx = tf2[i].x - wpt.x;
 			float dy = tf2[i].y - wpt.y;
 			float dist = sqrt(dx*dx + dy*dy);	

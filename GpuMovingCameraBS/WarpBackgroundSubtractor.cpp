@@ -596,13 +596,7 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	/*m_ASAP->CreateSmoothCons(1.0);	
 	m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
 	m_ASAP->Solve();*/
-	cv::Mat b;
-	m_ASAP->CreateSmoothCons(blkWeights);
-	if (sf1.size() > 0)
-		m_ASAP->SetControlPts(sf0,sf1);	
-	m_ASAP->CreateMyDataConsB(numH,homographies,b);
-	//m_ASAP->CreateMyDataCons(numH,homographies,b);
-	m_ASAP->MySolve(b);
+	m_ASAP->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
 	m_ASAP->Warp(image,warpedImg);
 	m_ASAP->Reset();
 	m_ASAP->getFlow(m_wflow);
@@ -1272,6 +1266,9 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 	//m_DOFP = new EPPMDenseOptialFlow();
 	switch (m_warpId)
 	{
+	case 0:
+		m_imgWarper = new MyASAPWarping(oInitImg.cols, oInitImg.rows, 8, 1.0);
+		break;
 	case 1:
 		m_imgWarper = new ASAPWarping(oInitImg.cols, oInitImg.rows, 8, 1.0);
 		break;
@@ -1285,7 +1282,7 @@ void GpuWarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std:
 		m_imgWarper = new NBlockWarping(oInitImg.cols, oInitImg.rows, 8);
 		break;
 	default:
-		m_imgWarper = new ASAPWarping(oInitImg.cols, oInitImg.rows, 8, 1.0);
+		m_imgWarper = new MyASAPWarping(oInitImg.cols, oInitImg.rows, 8, 1.0);
 		break;
 	}
 	
@@ -1557,14 +1554,14 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	cpuTimer.start();
 #endif
 	
-	std::vector<float> err;
-	cv::calcOpticalFlowPyrLK(m_gray, m_preGray, m_points[0], m_points[1], m_status, err);
-	/*
+	/*std::vector<float> err;
+	cv::calcOpticalFlowPyrLK(m_gray, m_preGray, m_points[0], m_points[1], m_status, err);*/
+	
 	upload(m_points[0],d_currPts);
 	d_pyrLk.sparse(d_gray,d_preGray,d_currPts,d_prevPts,d_status);
 	download(d_status,m_status);
 	download(d_prevPts,m_points[1]);
-	*/
+	
 #ifndef REPORT
 	cpuTimer.stop();
 	std::cout<<"	calcOpticalFlowPyrLK  "<<cpuTimer.seconds()*1000<<" ms"<<std::endl;
@@ -1593,9 +1590,9 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	memcpy(&m_goodFeatures[0][0],&m_points[0][0],size);
 	memcpy(&m_goodFeatures[1][0],&m_points[1][0],size);
 	
-	//FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
+	FeaturePointsRefineRANSAC(nf,m_goodFeatures[0],m_goodFeatures[1],m_homography,0.1);
 	//FeaturePointsRefineRANSAC(m_goodFeatures[0], m_goodFeatures[1], m_homography, 3.0f);
-	RelFlowRefine(m_goodFeatures[0], m_goodFeatures[1], -1);
+	//RelFlowRefine(m_goodFeatures[0], m_goodFeatures[1], -1);
 	//FeaturePointsRefineHistogramO(m_goodFeatures[0], m_goodFeatures[1], 5);
 	//FeaturePointsRefineHistogram(m_goodFeatures[0], m_goodFeatures[1], 5, 5);
 
@@ -1641,102 +1638,11 @@ bool GpuWarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warped
 	cpuTimer.start();
 
 #endif	
-
-	switch (m_warpId)
-	{
-	case 1:
-	{
-		//My ASAP warping
-		m_ASAP = (ASAPWarping*)m_imgWarper;
-		vector<float> blkWeights;
-		vector<cv::Mat> homographies;
-		std::vector<cv::Point2f> sf1, sf0;
-		int numH = BlockDltHomography(m_oImgSize.width, m_oImgSize.height, 8, m_goodFeatures[0], m_goodFeatures[1], homographies, blkWeights, sf0, sf1);
-		cv::Mat b;
-		m_ASAP->CreateSmoothCons(blkWeights);
-		if (sf1.size() > 0)
-			m_ASAP->SetControlPts(sf0, sf1);
-		m_ASAP->CreateMyDataConsB(numH, homographies, b);
-		m_ASAP->MySolve(b);
-		//m_ASAP->Warp(image,warpedImg);
-		m_ASAP->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
-		m_ASAP->getFlow(m_wflow);
-		m_ASAP->Reset();
-		////ASAP warping
-		//{
-		//	m_ASAP = (ASAPWarping*)m_imgWarper;
-		//	//m_ASAP->CreateSmoothCons(1.0);	
-		//	m_ASAP->SetControlPts(m_goodFeatures[0], m_goodFeatures[1]);
-		//	m_ASAP->Solve();
-		//	m_ASAP->Warp(rgbaImg, warpedImg);
-		//	d_CurrWarpedColorFrame.upload(warpedImg);
-		//	m_ASAP->Reset();
-		//	m_ASAP->getFlow(m_wflow);
-		//}
-		break;
-	}	
-	case 2:
-	{
-		//Block warping
-		m_blkWarping = (BlockWarping*)m_imgWarper;
-		m_blkWarping->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
-		//std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
-		m_blkWarping->CalcBlkHomography();
-		//std::cout<<"CalcBlkHomography"<<std::endl;
-		//m_blkWarping->Warp(image,warpedImg);
-		m_blkWarping->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
-		//std::cout<<"GpuWarp"<<std::endl;
-		m_blkWarping->getFlow(m_wflow);
-		m_blkWarping->Reset();
-		break;
-	}
-	case 3:
-	{
-		//global warping
-		m_glbWarping = (GlobalWarping*)m_imgWarper;
-		m_glbWarping->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
-		m_glbWarping->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
-		m_glbWarping->getFlow(m_wflow);
-		break;
-	}
-	case 4:
-	{
-		//Block warping
-		m_nblkWarping = (NBlockWarping*)m_imgWarper;
-		m_nblkWarping->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
-		//std::cout<<"set feature points "<<m_goodFeatures[0].size()<<std::endl;
-		m_nblkWarping->CalcBlkHomography();
-		//std::cout<<"CalcBlkHomography"<<std::endl;
-		//m_blkWarping->Warp(image,warpedImg);
-		m_nblkWarping->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
-		//std::cout<<"GpuWarp"<<std::endl;
-		m_nblkWarping->getFlow(m_wflow);
-		m_nblkWarping->Reset();
-		break;
-	}
-	default:
-	{
-		//My ASAP warping
-		m_ASAP = (ASAPWarping*)m_imgWarper;
-		vector<float> blkWeights;
-		vector<cv::Mat> homographies;
-		std::vector<cv::Point2f> sf1, sf0;
-		int numH = BlockDltHomography(m_oImgSize.width, m_oImgSize.height, 8, m_goodFeatures[0], m_goodFeatures[1], homographies, blkWeights, sf0, sf1);
-		cv::Mat b;
-		m_ASAP->CreateSmoothCons(blkWeights);
-		if (sf1.size() > 0)
-			m_ASAP->SetControlPts(sf0, sf1);
-		m_ASAP->CreateMyDataConsB(numH, homographies, b);
-		m_ASAP->MySolve(b);
-		//m_ASAP->Warp(image,warpedImg);
-		m_ASAP->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
-		m_ASAP->getFlow(m_wflow);
-		m_ASAP->Reset();
-		break;
-	}
-
-	}
-
+	m_imgWarper->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
+	m_imgWarper->Solve();	
+	m_imgWarper->GpuWarp(d_CurrentColorFrame, d_CurrWarpedColorFrame);
+	m_imgWarper->getFlow(m_wflow);
+	m_imgWarper->Reset();
 
 #ifndef REPORT
 	cpuTimer.stop();
@@ -2044,7 +1950,7 @@ void WarpSPBackgroundSubtractor::WarpSPImg()
 	}
 	f0.resize(k);
 	f1.resize(k);
-	m_spASAP->SetControlPts(f0,f1);
+	m_spASAP->SetFeaturePoints(f0,f1);
 	m_spASAP->Solve();
 	m_spASAP->Warp(m_spDSImg,m_wspDSImg);
 	m_spASAP->Reset();
