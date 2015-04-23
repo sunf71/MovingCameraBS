@@ -83,6 +83,13 @@ public:
 	  {
 		  return _spHeight;
 	  }
+	  std::vector<int>& GetNeighbors(int i)
+	  {
+		  if (i < _neighbors.size())
+		  {
+			  return _neighbors[i];
+		  }
+	  }
 protected:
 	void release();
 	void init();

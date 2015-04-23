@@ -17,6 +17,7 @@
 #include <queue>
 #include "HistComparer.h"
 #include "FGMaskPostProcess.h"
+#include "GCoptimization.h"
 void testCudaGpu()
 {
 	try
@@ -3436,6 +3437,15 @@ void TestRTBS(int argc, char** argv)
 
 }
 
+struct Proposal
+{
+	Proposal(cv::Rect _window, cv::Rect _kernel, float _score) : window(_window),
+		kernel(_kernel),
+		score(_score){}
+	cv::Rect kernel;
+	cv::Rect window;
+	float score;
+};
 
 void TestGpuKLT()
 {
@@ -3501,6 +3511,315 @@ void TestGpuKLT()
 	std::cout << "ERROR " << err << "\n";
 }
 
+float GetWindowValue(const cv::Mat& img, size_t llx, size_t lly, size_t rrx, size_t rry)
+{
+	float v00 = img.ptr<int>(lly + 1)[llx + 1];
+	float v01 = img.ptr<int>(lly + 1)[rrx + 1];
+	float v10 = img.ptr<int>(rry + 1)[llx + 1];
+	float v11 = img.ptr<int>(rry + 1)[rrx + 1];
+	return v11 - v01 - v10 + v00;
+}
+
+float GetProposalScore(const cv::Mat& img, size_t i, size_t j, size_t rows, size_t cols, size_t border)
+{
+	size_t llx = j;
+	size_t lly = i;
+	size_t rrx = j + cols;
+	size_t rry = i + rows;
+	size_t kllx = llx + border;
+	size_t klly = lly + border;
+	size_t krrx = rrx - border;
+	size_t krry = rry - border;
+	size_t kernelSize = (rows - border)*(cols - border);
+	size_t borderSize = rows*cols - kernelSize;
+	float kernelV = GetWindowValue(img, kllx, klly, krrx, krry);
+	float borderV = GetWindowValue(img, llx, lly, rrx, rry) - kernelV;
+	return borderV / (rows + cols);
+}
+
+//img is the integral image
+void WindowIteration(const cv::Mat& img, size_t rows, size_t cols, size_t step, std::vector<Proposal>& proposals)
+{
+	const float borderf = 0.1;
+	size_t border = (max(rows, cols) - 1)*borderf;
+	size_t kernelSize = (rows - border)*(cols - border);
+	size_t borderSize = rows*cols - kernelSize;
+	if (img.rows < rows + 1 || img.cols < cols + 1)
+		return;
+	for (size_t i = 0; i < img.rows - 1 - rows; i += step)
+	{
+		size_t lly = i;
+		size_t rry = i + rows;
+		if (lly<0 || rry >img.rows - 1)
+			continue;
+		for (size_t j = 0; j < img.cols - 1 - cols; j += step)
+		{
+			size_t llx = j;			
+			size_t rrx = j + cols;			
+			size_t kllx = llx + border;
+			size_t klly = lly + border;
+			size_t krrx = rrx - border;
+			size_t krry = rry - border;
+			if (llx <0 || rrx >= img.cols - 1)
+				continue;
+			//std::cout << llx << "," << lly << "," << rrx << "," << rry << "\n";
+			cv::Rect kernel = cv::Rect(kllx, klly, cols - border * 2, rows - border * 2);
+			cv::Rect window = cv::Rect(llx, lly, cols, rows);
+			float kernelV = GetWindowValue(img, kllx, klly, krrx, krry);
+			float borderV = GetWindowValue(img, llx, lly, rrx, rry) - kernelV;
+			float score = borderV /  (rows + cols);
+			
+			Proposal p(window, kernel, score);
+			proposals.push_back(p);
+		}
+	}
+}
+struct ProposalComparer
+{
+	bool operator()(const Proposal& p1, const Proposal& p2)
+	{
+		return p1.score > p2.score;
+	}
+};
+void ProposalLocate(const cv::Mat& img, std::vector<Proposal>& proposals)
+{
+	size_t maxRC = max(img.rows, img.cols);
+	float wRows[] = { 0.25, 0.3, 0.5, 0.7 }; // Window row size relative to image size max(imRow, imCol))
+	float wCols[] = { 0.1, 0.3, 0.5, 0.4 }; // Window column size relative to image size max(imRow, imCol))
+	float sampleStep[] = { 0.01, 0.015, 0.03, 0.04 }; // Window sampling step relative to image size max(imRow, imCol)) (one for each window size)
+	int configs = sizeof(wRows) / sizeof(float);
+	cv::Mat intImg;
+	cv::integral(img, intImg);
+	for (size_t i = 0; i < configs; i++)
+	{
+		size_t rows = wRows[i] * maxRC;
+		size_t cols = wCols[i] * maxRC;
+		size_t step = sampleStep[i] * maxRC;
+		WindowIteration(intImg, rows, cols, step, proposals);
+	}
+
+	std::sort(proposals.begin(), proposals.end(), ProposalComparer());
+}
+float L1Distance(const float4& f1, const float4& f2)
+{
+	float dx = f1.x - f2.x;
+	float dy = f1.y - f2.y;
+	float dz = f1.z - f2.z;
+	float dw = f1.w - f2.w;
+	return (abs(dx) + abs(dy) + abs(dz)/3);
+}
+typedef Graph<float, float, float> GraphType;
+void addEdge(SLICClusterCenter* centers, GraphType* g, int i, int j, float avgDistance, float lmd1 = 0.30, float lmd2 = 0.3)
+{
+	float cap = lmd1 + lmd2*exp(-L1Distance(centers[i].rgb, centers[j].rgb) / 2 / avgDistance);
+	g->add_edge(i, j, cap, cap);
+}
+void SuperpixelOptimize(SuperpixelComputer& computer, cv::Mat& img, cv::Mat& seed, cv::Mat& result, cv::Mat& contoursRst, int step = 40)
+{
+	
+	size_t width = img.cols;
+	size_t height = img.rows;
+	contoursRst = cv::Mat::zeros(height, width, CV_8UC3);
+	int* labels;
+	int num(0);
+	SLICClusterCenter* centers;
+	computer.ComputeSuperpixel(img);
+	cv::Mat spImg;
+	/*computer.GetVisualResult(img, spImg);
+	cv::imshow("superpixel", spImg);
+	cv::waitKey();*/
+	computer.GetSuperpixelResult(num, labels, centers);
+	float avgDist = computer.ComputAvgColorDistance();
+	
+	GraphType *g;
+	g = new GraphType(/*estimated # of nodes*/ num, /*estimated # of edges*/ num*4);
+	for (size_t i = 0; i < num; i++)
+	{
+		g->add_node();
+		int cx = (int)(centers[i].xy.x + 0.5);
+		int cy = (int)(centers[i].xy.y + 0.5);
+		double num(0);
+		for (int m = cx - step; m <= cx + step; m++)
+		{
+			if (m < 0 || m >= width)
+				continue;
+			for (int n = cy - step; n < cy + step; n++)
+			{
+				if (n < 0 || n >= height)
+					continue;
+				int idx = n*width + m;
+				if (labels[idx] == i && seed.data[idx] == 0xff)
+				{
+					num++;
+				}
+
+			}
+		}
+		float sp = num / centers[i].nPoints;
+		float d = min(1.0f, sp * 2);
+		d = max(1e-20f, d);
+		float d1 = -log(d);
+		float d2 = max(1e-20f, 1 - d);
+		d2 = -log(d2);
+		g->add_tweights(i, d1, d2);
+	}
+	int spWidth = computer.GetSPWidth();
+	int spHeight = computer.GetSPHeight();
+	for (int i = 0; i<num; i++)
+	{
+
+		if (i - 1 >= 0)
+		{
+			addEdge(centers, g, i, i - 1, avgDist);		
+			if (i + spWidth - 1 < num)
+				addEdge(centers, g, i, i + spWidth - 1, avgDist);
+			if (i - spWidth - 1 >= 0)
+				addEdge(centers, g, i, i - spWidth - 1, avgDist); 
+		}
+		if (i + 1<num)
+		{
+			addEdge(centers, g, i, i + 1, avgDist);
+			if (i + spWidth + 1<num)
+				addEdge(centers, g, i, i + spWidth + 1, avgDist); 
+			if (i - spWidth + 1 >= 0)
+				addEdge(centers, g, i, i - spWidth + 1, avgDist);
+		}
+
+		if (i - spWidth >= 0)
+			addEdge(centers, g, i, i - spWidth, avgDist);
+
+		if (i + spWidth<num)
+			addEdge(centers, g, i, i + spWidth, avgDist);
+
+	}
+	float flow = g->maxflow();
+	result.create(img.size(), CV_8U);
+	int* labelResult = new int[num];
+	std::vector<cv::Point> seeds;
+	for (int i = 0; i < num; i++)
+	{
+	
+		if (g->what_segment(i) == GraphType::SINK)
+		{
+			labelResult[i] = 1;
+			seeds.push_back(cv::Point((int)(centers[i].xy.x+0.5),(int)(centers[i].xy.y+0.5)));
+		}
+		else
+		{
+			labelResult[i] = 0;
+		}
+	}
+		
+	/*computer.RegionGrowing(seeds, avgDist, labelResult);*/
+	result = cv::Scalar(0);
+	unsigned char* imgPtr = result.data;
+	for (int i = 0; i<num; i++)
+	{
+		if (labelResult[i] == 1)
+		{
+			/*for(int j=0; j<m_spPtr[i].pixels.size(); j++)
+			{
+			int idx = m_spPtr[i].pixels[j].first + m_spPtr[i].pixels[j].second*m_width;
+			imgPtr[idx] = 0xff;
+			}*/
+			int k = centers[i].xy.x;
+			int j = centers[i].xy.y;
+			int radius = step + 5;
+			for (int x = k - radius; x <= k + radius; x++)
+			{
+				for (int y = j - radius; y <= j + radius; y++)
+				{
+					if (x<0 || x>width - 1 || y<0 || y> height - 1)
+						continue;
+					int idx = x + y*width;
+					if (labels[idx] == i)
+					{
+						imgPtr[idx] = 0xff;
+					}
+				}
+			}
+		}
+	}
+	if (seeds.size() > 0)
+	{
+		cv::cvtColor(result, result, CV_GRAY2BGR);
+		std::vector<cv::Point> hull;
+		cv::convexHull(seeds, hull, false);
+		vector<vector<cv::Point>> convexContour;  // Convex hull contour points   
+		convexContour.push_back(hull);
+		//approxPolyDP(hull, convexContour, 0.001, true);
+		for (int i = 0; i < convexContour.size(); i++)
+		{
+			drawContours(result, convexContour, i, cv::Scalar(0, 0, 255), 1, 8);
+			drawContours(contoursRst, convexContour, i, cv::Scalar(255, 255, 255), CV_FILLED);
+		}
+	}
+	delete g;
+	safe_delete_array(labelResult);
+}
+void EdgeGrowing(const cv::Mat& edgeMap, const cv::Mat& seeds, cv::Mat& result)
+{
+	size_t height = edgeMap.rows;
+	size_t width = edgeMap.cols;
+	for (size_t i = 0; i < height; i++)
+	{
+		for (size_t i = 0; i < width; i++)
+		{
+			
+		}
+
+	}
+
+}
+void MatchContour(const vector<vector<cv::Point>> & contours, const cv::Mat& contourImg, const cv::Mat& edgeImg, vector<int>& matchedContours, cv::Mat& matchedEdgeImg)
+{
+	int width = edgeImg.cols;
+	matchedEdgeImg = contourImg.clone();
+	cv::cvtColor(matchedEdgeImg, matchedEdgeImg, CV_GRAY2BGR);
+	float threshold = 0.2;//匹配条件
+	float threshold2 = 20;//有效边缘的最小长度
+	std::vector<cv::Point> mPonits;
+	for (int i = 0; i < contours.size(); i++)
+	{
+		size_t m(0);
+		std::vector<cv::Point> ponits;
+		for (size_t j = 0; j < contours[i].size(); j++)
+		{
+			int idx = contours[i][j].x + contours[i][j].y*width;
+			if (edgeImg.data[idx] == 0xff)
+			{
+				m++;
+				ponits.push_back(contours[i][j]);
+				mPonits.push_back(contours[i][j]);
+			}
+				
+		}
+		if (m > threshold*contours[i].size() && contours[i].size() > threshold2)
+		{
+			matchedContours.push_back(i);
+			for (size_t j = 0; j < ponits.size(); j++)
+			{
+				
+				cv::circle(matchedEdgeImg, ponits[j], 2, cv::Scalar(255,0,0));
+			}
+			
+		}
+		
+	}
+	if (mPonits.size() > 0)
+	{
+		std::vector<cv::Point> hull;
+		cv::convexHull(mPonits, hull,false);
+		vector<vector<cv::Point>> convexContour;  // Convex hull contour points   
+		convexContour.push_back(hull);
+		//approxPolyDP(hull, convexContour, 0.001, true);
+		for (int i = 0; i< convexContour.size(); i++)
+		{
+			drawContours(matchedEdgeImg, convexContour, i, cv::Scalar(0, 0, 255), 1, 8);
+		}
+	}
+	
+}
 void TestWarpError(int argc, char**argv)
 {
 	char fileName[200];
@@ -3515,7 +3834,8 @@ void TestWarpError(int argc, char**argv)
 	int width = prevImg.cols;
 	int height = prevImg.rows;
 	ImageWarping* warper;
-	
+	int spStep = 5;
+	SuperpixelComputer spComputer(width, height, spStep);
 	switch (method)
 	{
 	case 0:
@@ -3555,30 +3875,75 @@ void TestWarpError(int argc, char**argv)
 		warper->Reset();
 		warper->Warp(gray1, warpImg);
 		cv::absdiff(warpImg, gray0, warpError);
+		cv::Mat outMask;
+		warper->GetOutMask(outMask);
+		/*cv::imshow("outmask", outMask);
+		cv::waitKey(0);*/
+		cv::bitwise_not(outMask, outMask);
+		cv::bitwise_and(outMask, warpError, warpError);			
+		cv::GaussianBlur(warpError, warpError, cv::Size(3, 3), 1.0);
+		cv::threshold(warpError, warpError, 50, 255,  CV_THRESH_BINARY);		
 		sprintf(fileName, "%swarpErr%d.jpg", outPath, i);
 		cv::imwrite(fileName, warpError);
-		cv::Canny(warpError, warpError, 100, 300);
+
+		cv::Mat result,contourRst;
+		SuperpixelOptimize(spComputer, curImg, warpError, result, contourRst, spStep);
+		
+		sprintf(fileName, "%soptimized%d.jpg", outPath, i);
+		cv::imwrite(fileName, result);
+		sprintf(fileName, "%sbin%06d.png", outPath, i);
+		cv::imwrite(fileName, contourRst);
+
+		cv::Mat wpImg;
+		curImg.copyTo(wpImg, warpError);
+		sprintf(fileName, "%swarpErrImg%d.jpg", outPath, i);
+		cv::imwrite(fileName, wpImg);
+
+		cv::Mat warpErrors;
+		cv::resize(warpError, warpErrors, cv::Size(width / 4, height / 4));
+		sprintf(fileName, "%swarpErrS%d.jpg", outPath, i);
+		cv::imwrite(fileName, warpErrors);
+
+		vector<vector<cv::Point>> contours;
+		cv::Mat imgC; 
+		drawImageContour(curImg, imgC, contours);		
+		sprintf(fileName, "%simgContour%d.jpg", outPath, i);
+		cv::imwrite(fileName, imgC);
+
+		cv::Mat mask;
+		cv::Canny(warpError, mask, 100, 300);
 		sprintf(fileName, "%swarpErrEdge%d.jpg", outPath, i);
-		cv::imwrite(fileName, warpError);
-		cv::Mat mask(height,width,CV_8UC3);
-		vector<vector<cv::Point> > contours, imgContours;
-		vector<Vec4i> hierarchy, imgHierarchy;
-		findContours(warpError, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);//找轮廓
-		Scalar color(255, 255, 255);
-		for (int i = 0; i< contours.size(); i++)
-		{
-			const vector<cv::Point>& c = contours[i];
-			double area = fabs(contourArea(Mat(c)));
-			if (area > 100)
-			{
-				drawContours(mask, contours, i, color, CV_FILLED, 8, hierarchy, 0, cv::Point());
-
-			}
-
-		}
-		cv::cvtColor(mask, mask, CV_BGR2GRAY);
-		sprintf(fileName, "%swarpErrMask%d.jpg", outPath, i);
 		cv::imwrite(fileName, mask);
+
+		/*std::vector<Proposal> proposals;
+		ProposalLocate(mask, proposals);
+		cv::Mat boxImg = mask.clone();
+		cv::cvtColor(boxImg, boxImg, CV_GRAY2BGR);
+		for (int p = 0; p < 5; p++)
+		{
+			cv::rectangle(boxImg, proposals[p].window, cv::Scalar(0, 0, 0xff));
+			cv::rectangle(boxImg, proposals[p].kernel, cv::Scalar(0xff, 0, 0));
+		}
+		
+		sprintf(fileName, "%sbox%d.jpg", outPath, i);
+		cv::imwrite(fileName, boxImg);*/
+		/*std::vector<int> matchedContours;
+		cv::Mat contourImg = cv::Mat(curImg.size(), curImg.type(),cv::Scalar(0,0,0));
+		cv::Mat matchedEdge;
+		MatchContour(contours, imgC, mask, matchedContours, matchedEdge);
+		for (int i = 0; i< matchedContours.size(); i++)
+		{						
+			drawContours(contourImg, contours, matchedContours[i], cv::Scalar(255, 255, 255), 1, 8);
+		}
+		cv::cvtColor(contourImg, contourImg, CV_BGR2GRAY);		
+		sprintf(fileName, "%sWarpErrMatchedImgC%d.jpg", outPath, i);
+		cv::imwrite(fileName, contourImg);
+		sprintf(fileName, "%sMatchedEdges%d.jpg", outPath, i);
+		cv::imwrite(fileName, matchedEdge);*/
+
+			
+		
+
 		cv::swap(prevImg, curImg);
 		cv::swap(gray1, gray0);
 	}	

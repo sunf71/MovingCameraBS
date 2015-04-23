@@ -13,6 +13,50 @@ public:
 	virtual void GpuWarp(const cv::gpu::GpuMat& dimg, cv::gpu::GpuMat& dwimg) = 0;
 	virtual void WarpPt(const cv::Point2f& input, cv::Point2f& output) = 0;
 	virtual void SetFeaturePoints(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2) = 0;
+	virtual void GetOutMask(cv::Mat& mask)
+	{
+		size_t _imgHeight = _map.rows;
+		size_t _imgWidth = _map.cols;
+		mask.create(_imgHeight, _imgWidth, CV_8U);
+		mask = cv::Scalar(0);
+		size_t border = 1;
+		for (int i = 0; i < _imgHeight; i++)
+		{
+			cv::Vec2f* ptr = _map.ptr<cv::Vec2f>(i);
+			uchar* mPtr = mask.ptr<uchar>(i);
+			for (int j = 0; j < _imgWidth; j++)
+			{
+				int x = ptr[j][0];
+				int y = ptr[j][1];
+				if (x < border || x >= _imgWidth - border || y < border || y >= _imgHeight-border)
+				{
+					mPtr[j] = 0xff;
+				}
+			}
+		}
+	}
+	virtual void GetInvOutMask(cv::Mat& mask)
+	{
+		size_t _imgHeight = _map.rows;
+		size_t _imgWidth = _map.cols;
+		mask.create(_imgHeight, _imgWidth, CV_8U);
+		mask = cv::Scalar(0);
+		size_t border = 1;
+		for (int i = 0; i < _imgHeight; i++)
+		{
+			cv::Vec2f* ptr = _invMap.ptr<cv::Vec2f>(i);
+			uchar* mPtr = mask.ptr<uchar>(i);
+			for (int j = 0; j < _imgWidth; j++)
+			{
+				int x = ptr[j][0];
+				int y = ptr[j][1];
+				if (x < border || x >= _imgWidth - border || y < border || y >= _imgHeight - border)
+				{
+					mPtr[j] = 0xff;
+				}
+			}
+		}
+	}
 	virtual void Solve() = 0;
 	virtual void Reset(){}
 	cv::gpu::GpuMat& getDInvMapX()

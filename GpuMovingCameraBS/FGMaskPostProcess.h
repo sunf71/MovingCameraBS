@@ -1,3 +1,4 @@
+#include <opencv\cv.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 using namespace cv;
@@ -49,4 +50,39 @@ inline void postProcessSegments(const Mat& img, Mat& mask)
 		
 	}
 	cv::cvtColor(cimg,mask,CV_BGR2GRAY);
+}
+
+inline void drawImageContour(const Mat& img, Mat& contourImg, vector<vector<cv::Point> >& contours)
+{
+	cv::Mat gray;
+	if (img.channels() == 3)
+	{
+		cv::cvtColor(img, gray, CV_BGR2GRAY);
+	}
+	else
+	{
+		gray = img.clone();
+	}
+	cv::GaussianBlur(gray, gray, cv::Size(3, 3),0);
+	cv::Mat edge;
+	cv::Canny(gray, edge, 100, 300);
+	
+	contourImg.create(img.size(), CV_8UC3);
+	contourImg = cv::Scalar(0);
+	contours.clear();
+	vector<Vec4i> hierarchy;
+	findContours(edge, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//ÕÒÂÖÀª
+	Scalar color(255, 255, 255);
+	for (int i = 0; i< contours.size(); i++)
+	{
+		//const vector<cv::Point>& c = contours[i];
+		/*double area = fabs(contourArea(Mat(c)));
+		if (area > 100)*/
+		{
+			drawContours(contourImg, contours, i, color, 1, 8, hierarchy, 0, cv::Point());
+
+		}
+
+	}
+	cv::cvtColor(contourImg, contourImg, CV_BGR2GRAY);
 }
