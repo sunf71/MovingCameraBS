@@ -75,6 +75,7 @@
     <ClInclude Include="LBP.h" />
     <ClInclude Include="LBSP.h" />
     <ClInclude Include="LinkedBlockList.h" />
+    <ClInclude Include="LSE.h" />
     <ClInclude Include="MeanShift.h" />
     <ClInclude Include="MotionEstimate.h" />
     <ClInclude Include="MRFOptimize.h" />
@@ -106,6 +107,7 @@
     <ClCompile Include="graph.cpp" />
     <ClCompile Include="LBSP.cpp" />
     <ClCompile Include="LinkedBlockList.cpp" />
+    <ClCompile Include="LSE.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="maxflow.cpp" />
     <ClCompile Include="MeanShift.cpp" />

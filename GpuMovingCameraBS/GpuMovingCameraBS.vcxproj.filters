@@ -182,6 +182,9 @@
     <ClInclude Include="HistComparer.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="LSE.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WarpBackgroundSubtractor.cpp">
@@ -260,6 +263,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="RegionMerging.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LSE.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

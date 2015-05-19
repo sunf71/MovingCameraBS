@@ -18,6 +18,7 @@
 #include "HistComparer.h"
 #include "FGMaskPostProcess.h"
 #include "GCoptimization.h"
+#include "LSE.h"
 void testCudaGpu()
 {
 	try
@@ -3757,19 +3758,34 @@ void SuperpixelOptimize(SuperpixelComputer& computer, cv::Mat& img, cv::Mat& see
 	delete g;
 	safe_delete_array(labelResult);
 }
-void EdgeGrowing(const cv::Mat& edgeMap, const cv::Mat& seeds, cv::Mat& result)
+
+
+void TestLSE()
 {
-	size_t height = edgeMap.rows;
-	size_t width = edgeMap.cols;
-	for (size_t i = 0; i < height; i++)
-	{
-		for (size_t i = 0; i < width; i++)
-		{
-			
-		}
-
-	}
-
+	cv::Mat img = cv::imread("..//release//warperror//warp1//cars1//warpErr9.jpg");
+	cv::Mat mask, u;
+	/*mask = cv::Mat::zeros(img.size(), CV_8U);
+	mask(cv::Rect(9, 9, mask.cols - 10 * 2 + 1, mask.rows - 10 * 2 + 1)) = cv::Scalar(255);*/
+	mask = cv::imread("..//release//warperror//warp1//cars1//bin000009.png");
+	cv::cvtColor(mask, mask, CV_BGR2GRAY);
+	int N = 150;
+	
+	LSEWR(img, 1.5, 1.5, 0.04, 5, 3, 4, N, mask, u);
+	cv::bitwise_not(u,mask); 
+	cv::imwrite("mask9.jpg",mask);
+	img = cv::imread("..//moseg//cars1//in000009.jpg");
+	N = 100;
+	LSEWR(img, 1.5, 1.5, 0.04, 5, -3, 4, N, mask, u);
+	/*cv::Mat f = (cv::Mat_<float>(4, 5) << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20);
+	std::cout << f << "\n";
+	NeumannBoundCond<float>(f);
+	std::cout << f;
+	cv::Mat dx, dy;
+	MGradient<float>(f, dx, dy);
+	std::cout <<"\n"<< dx << "\n" << dy << "\n";
+	cv::Mat lap;
+	cv::Laplacian(f, lap, CV_32F);
+	std::cout << lap << "\n";*/
 }
 void MatchContour(const vector<vector<cv::Point>> & contours, const cv::Mat& contourImg, const cv::Mat& edgeImg, vector<int>& matchedContours, cv::Mat& matchedEdgeImg)
 {
@@ -3822,6 +3838,8 @@ void MatchContour(const vector<vector<cv::Point>> & contours, const cv::Mat& con
 }
 void TestWarpError(int argc, char**argv)
 {
+	TestLSE();
+	return;
 	char fileName[200];
 	int start = atoi(argv[1]);
 	int end = atoi(argv[2]);	
