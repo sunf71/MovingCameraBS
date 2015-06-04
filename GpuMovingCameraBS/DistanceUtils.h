@@ -1,5 +1,5 @@
 #pragma once
-
+#include <vector_types.h>
 #include <opencv2/core/types_c.h>
 
 //! computes the absolute difference of two unsigned char values
@@ -103,4 +103,14 @@ static inline size_t gdist_ushort_8bitLUT(ushort a, ushort b) {
 //! computes the sum of gradient magnitude distances between two 3x16 bits vectors (min=0, max=48)
 static inline size_t gdist_ushort_8bitLUT(const ushort* a, const ushort* b) {
 	return (size_t)abs((int)popcount_ushort_8bitsLUT(a)-(int)popcount_ushort_8bitsLUT(b));
+}
+
+
+static inline float L1Distance(const float4& f1, const float4& f2)
+{
+	float dx = f1.x - f2.x;
+	float dy = f1.y - f2.y;
+	float dz = f1.z - f2.z;
+	float dw = f1.w - f2.w;
+	return (abs(dx) + abs(dy) + abs(dz)) / 3;
 }

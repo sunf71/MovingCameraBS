@@ -10,7 +10,7 @@ using namespace cv;
 
 int main(int argc, char* argv[])
 {
-	IplImage *img = cvLoadImage("in000001.jpg");
+	IplImage *img = cvLoadImage("..//moseg//cars1//in000001.jpg");
 	cv::Mat imgT(img);
 	// Mean shift
 	/*int **ilabels = new int *[img->height];

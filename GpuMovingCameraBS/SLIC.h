@@ -23,7 +23,7 @@
 
 #if !defined(_SLIC_H_INCLUDED_)
 #define _SLIC_H_INCLUDED_
-
+#include "CudaSuperpixel.h"
 
 #include <vector>
 #include <string>
@@ -44,6 +44,18 @@ public:
 		const int					width,
 		const int					height,
 		int*						klabels,
+		int&						numlabels,
+		const int&					STEP,
+		const double&				m);
+	//============================================================================
+	// Superpixel segmentation for a given step size (superpixel size ~= step*step)
+	//============================================================================
+	void PerformSLICO_ForGivenStepSize(
+		const unsigned int*			ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
+		const int					width,
+		const int					height,
+		int*						klabels,
+		SLICClusterCenter* centers,
 		int&						numlabels,
 		const int&					STEP,
 		const double&				m);
@@ -86,7 +98,7 @@ public:
 		const int&					height);
 
 private:
-
+	
 	//============================================================================
 	// Magic SLIC. No need to set M (compactness factor) and S (step size).
 	// SLICO (SLIC Zero) varies only M dynamicaly, not S.
@@ -97,6 +109,17 @@ private:
 		vector<double>&				kseedsb,
 		vector<double>&				kseedsx,
 		vector<double>&				kseedsy,
+		int*						klabels,
+		const int&					STEP,
+		const int&					NUMITR);
+
+	void PerformSuperpixelSegmentation_VariableSandM(
+		vector<double>&				kseedsl,
+		vector<double>&				kseedsa,
+		vector<double>&				kseedsb,
+		vector<double>&				kseedsx,
+		vector<double>&				kseedsy,
+		vector<int>& clustersize,
 		int*						klabels,
 		const int&					STEP,
 		const int&					NUMITR);

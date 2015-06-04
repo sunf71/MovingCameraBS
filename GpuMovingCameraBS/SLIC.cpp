@@ -685,6 +685,141 @@ void SLIC::PerformSuperpixelSegmentation_VariableSandM(
 	}
 }
 
+void SLIC::PerformSuperpixelSegmentation_VariableSandM(
+	vector<double>&				kseedsl,
+	vector<double>&				kseedsa,
+	vector<double>&				kseedsb,
+	vector<double>&				kseedsx,
+	vector<double>&				kseedsy,
+	vector<int>& clustersize,
+	int*						klabels,
+	const int&					STEP,
+	const int&					NUMITR)
+{
+	int sz = m_width*m_height;
+	const int numk = kseedsl.size();
+	//double cumerr(99999.9);
+	int numitr(0);
+
+	//----------------
+	int offset = STEP;
+	if (STEP < 10) offset = STEP*1.5;
+	//----------------
+
+	vector<double> sigmal(numk, 0);
+	vector<double> sigmaa(numk, 0);
+	vector<double> sigmab(numk, 0);
+	vector<double> sigmax(numk, 0);
+	vector<double> sigmay(numk, 0);
+	
+	vector<double> inv(numk, 0);//to store 1/clustersize[k] values
+	vector<double> distxy(sz, DBL_MAX);
+	vector<double> distlab(sz, DBL_MAX);
+	vector<double> distvec(sz, DBL_MAX);
+	vector<double> maxlab(numk, 10 * 10);//THIS IS THE VARIABLE VALUE OF M, just start with 10
+	vector<double> maxxy(numk, STEP*STEP);//THIS IS THE VARIABLE VALUE OF M, just start with 10
+
+	double invxywt = 1.0 / (STEP*STEP);//NOTE: this is different from how usual SLIC/LKM works
+
+	while (numitr < NUMITR)
+	{
+		//------
+		//cumerr = 0;
+		numitr++;
+		//------
+
+		distvec.assign(sz, DBL_MAX);
+		for (int n = 0; n < numk; n++)
+		{
+			int y1 = max(0, (int)kseedsy[n] - offset);
+			int y2 = min(m_height, (int)kseedsy[n] + offset);
+			int x1 = max(0, (int)kseedsx[n] - offset);
+			int x2 = min(m_width, (int)kseedsx[n] + offset);
+
+			for (int y = y1; y < y2; y++)
+			{
+				for (int x = x1; x < x2; x++)
+				{
+					int i = y*m_width + x;
+					_ASSERT(y < m_height && x < m_width && y >= 0 && x >= 0);
+
+					double l = m_lvec[i];
+					double a = m_avec[i];
+					double b = m_bvec[i];
+
+					distlab[i] = (l - kseedsl[n])*(l - kseedsl[n]) +
+						(a - kseedsa[n])*(a - kseedsa[n]) +
+						(b - kseedsb[n])*(b - kseedsb[n]);
+
+					distxy[i] = (x - kseedsx[n])*(x - kseedsx[n]) +
+						(y - kseedsy[n])*(y - kseedsy[n]);
+
+					//------------------------------------------------------------------------
+					double dist = distlab[i] / maxlab[n] + distxy[i] * invxywt;//only varying m, prettier superpixels
+					//double dist = distlab[i]/maxlab[n] + distxy[i]/maxxy[n];//varying both m and S
+					//------------------------------------------------------------------------
+
+					if (dist < distvec[i])
+					{
+						distvec[i] = dist;
+						klabels[i] = n;
+					}
+				}
+			}
+		}
+		//-----------------------------------------------------------------
+		// Assign the max color distance for a cluster
+		//-----------------------------------------------------------------
+		if (0 == numitr)
+		{
+			maxlab.assign(numk, 1);
+			maxxy.assign(numk, 1);
+		}
+		{for (int i = 0; i < sz; i++)
+		{
+			if (maxlab[klabels[i]] < distlab[i]) maxlab[klabels[i]] = distlab[i];
+			if (maxxy[klabels[i]] < distxy[i]) maxxy[klabels[i]] = distxy[i];
+		}}
+		//-----------------------------------------------------------------
+		// Recalculate the centroid and store in the seed values
+		//-----------------------------------------------------------------
+		sigmal.assign(numk, 0);
+		sigmaa.assign(numk, 0);
+		sigmab.assign(numk, 0);
+		sigmax.assign(numk, 0);
+		sigmay.assign(numk, 0);
+		clustersize.assign(numk, 0);
+
+		for (int j = 0; j < sz; j++)
+		{
+			int temp = klabels[j];
+			_ASSERT(klabels[j] >= 0);
+			sigmal[klabels[j]] += m_lvec[j];
+			sigmaa[klabels[j]] += m_avec[j];
+			sigmab[klabels[j]] += m_bvec[j];
+			sigmax[klabels[j]] += (j%m_width);
+			sigmay[klabels[j]] += (j / m_width);
+
+			clustersize[klabels[j]]++;
+		}
+
+		{for (int k = 0; k < numk; k++)
+		{
+			//_ASSERT(clustersize[k] > 0);
+			if (clustersize[k] <= 0) clustersize[k] = 1;
+			inv[k] = 1.0 / double(clustersize[k]);//computing inverse now to multiply, than divide later
+		}}
+
+		{for (int k = 0; k < numk; k++)
+		{
+			kseedsl[k] = sigmal[k] * inv[k];
+			kseedsa[k] = sigmaa[k] * inv[k];
+			kseedsb[k] = sigmab[k] * inv[k];
+			kseedsx[k] = sigmax[k] * inv[k];
+			kseedsy[k] = sigmay[k] * inv[k];
+		}}
+	}
+}
 //===========================================================================
 ///	SaveSuperpixelLabels
 ///
@@ -845,7 +980,7 @@ void SLIC::PerformSLICO_ForGivenStepSize(
 	vector<double> kseedsb(0);
 	vector<double> kseedsx(0);
 	vector<double> kseedsy(0);
-
+	
 	//--------------------------------------------------
 	m_width  = width;
 	m_height = height;
@@ -862,8 +997,7 @@ void SLIC::PerformSLICO_ForGivenStepSize(
 	vector<double> edgemag(0);
 	if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
 	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, perturbseeds, edgemag);
-
-	PerformSuperpixelSegmentation_VariableSandM(kseedsl,kseedsa,kseedsb,kseedsx,kseedsy,klabels,STEP,10);
+	PerformSuperpixelSegmentation_VariableSandM(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, 10);
 	numlabels = kseedsl.size();
 
 	int* nlabels = new int[sz];
@@ -871,7 +1005,66 @@ void SLIC::PerformSLICO_ForGivenStepSize(
 	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
 	if(nlabels) delete [] nlabels;
 }
+void SLIC::PerformSLICO_ForGivenStepSize(
+	const unsigned int*			ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
+	const int					width,
+	const int					height,
+	int*						klabels,
+	SLICClusterCenter* centers,
+	int&						numlabels,
+	const int&					STEP,
+	const double&				m)
+{
+	vector<double> kseedsl(0);
+	vector<double> kseedsa(0);
+	vector<double> kseedsb(0);
+	vector<double> kseedsx(0);
+	vector<double> kseedsy(0);
+	vector<int> clustersize(0);
+	//--------------------------------------------------
+	m_width = width;
+	m_height = height;
+	int sz = m_width*m_height;
+	//klabels.resize( sz, -1 );
+	//--------------------------------------------------
+	//klabels = new int[sz];
+	for (int s = 0; s < sz; s++) klabels[s] = -1;
+	//--------------------------------------------------
+	DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
+	//--------------------------------------------------
 
+	bool perturbseeds(true);
+	vector<double> edgemag(0);
+	if (perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
+	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, perturbseeds, edgemag);
+	clustersize.resize(kseedsl.size());
+	memset(&clustersize[0], 0, sizeof(int)*clustersize.size());
+	PerformSuperpixelSegmentation_VariableSandM(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, clustersize, klabels, STEP, 10);
+	
+	numlabels = kseedsl.size();
+
+	int* nlabels = new int[sz];
+	EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, double(sz) / double(STEP*STEP));
+	{
+		for (int i = 0; i < sz; i++)
+		{
+			klabels[i] = nlabels[i]; 
+			
+		}
+			
+	}
+	if (nlabels) delete[] nlabels;
+
+	for (size_t i = 0; i < kseedsl.size(); i++)
+	{
+		centers[i].rgb.x = kseedsl[i];
+		centers[i].rgb.y = kseedsa[i];
+		centers[i].rgb.z = kseedsb[i];
+		centers[i].xy.x = kseedsx[i];
+		centers[i].xy.y = kseedsy[i];
+		centers[i].nPoints = clustersize[i];
+	}
+}
 //===========================================================================
 ///	PerformSLICO_ForGivenK
 ///

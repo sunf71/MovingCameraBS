@@ -144,6 +144,44 @@ void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img)
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
 }
+void SuperpixelComputer::GetSuperpixelPoses(std::vector<std::vector<uint2>>& _spPoses)
+{
+	if (_labels == NULL)
+		return;
+	int _spSize = _spWidth*_spHeight;
+	_spPoses.clear();
+	_spPoses.resize(_spSize);
+	for (int i = 0; i < _spSize; i++)
+	{
+		_spPoses[i].clear();
+		int x = int(_centers[i].xy.x + 0.5);
+		int y = int(_centers[i].xy.y + 0.5);
+		for (int m = -_step + y; m <= _step + y; m++)
+		{
+			if (m < 0 || m >= _height)
+				continue;		
+			for (int n = -_step + x; n <= _step + x; n++)
+			{
+				if (n < 0 || n >= _width)
+					continue;
+				int id = m*_width + n;
+				if (_labels[id] == i)
+				{			
+					_spPoses[i].push_back(make_uint2(n, m));
+				}
+			}
+		}	
+	}
+}
+void SuperpixelComputer::ComputeSLICSuperpixel(const cv::Mat& img)
+{
+	cv::Mat rgbaImg;
+	cv::cvtColor(img, rgbaImg, CV_BGR2BGRA);
+	SLIC slic;
+	int num(0);
+	double m(0);
+	slic.PerformSLICO_ForGivenStepSize((unsigned int*)rgbaImg.data, img.cols, img.rows, _labels, _centers, num, _step, m);
+}
 struct SPInfo
 {
 	SPInfo(){}

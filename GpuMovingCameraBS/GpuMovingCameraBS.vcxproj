@@ -59,6 +59,7 @@
     <ClInclude Include="ComSuperpixel.h" />
     <ClInclude Include="CudaBSOperator.h" />
     <ClInclude Include="CudaSuperpixel.h" />
+    <ClInclude Include="Dijkstra.h" />
     <ClInclude Include="DistanceUtils.h" />
     <ClInclude Include="energy.h" />
     <ClInclude Include="FeaturePointRefine.h" />
@@ -98,6 +99,7 @@
     <ClCompile Include="ASAPWarping.cpp" />
     <ClCompile Include="BlockWarping.cpp" />
     <ClCompile Include="ComSuperpixel.cpp" />
+    <ClCompile Include="Dijkstra.cpp" />
     <ClCompile Include="FeaturePointRefine.cpp" />
     <ClCompile Include="FlowComputer.cpp" />
     <ClCompile Include="flowIO.cpp" />
@@ -216,7 +218,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>testwarperror</TargetName>
+    <TargetName>saliencyTest</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='OpencvD|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -240,7 +242,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <TargetName>testwarpError</TargetName>
+    <TargetName>saliencyTest</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>GpuSubsenseM</TargetName>

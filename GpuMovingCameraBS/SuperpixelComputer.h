@@ -35,6 +35,7 @@ public:
 		  return _nPixels;
 	  }
 	  void ComputeSuperpixel(const cv::Mat& img);
+	  void ComputeSLICSuperpixel(const cv::Mat& img);
 	  void ComputeBigSuperpixel(uchar4* d_rgbaBuffer);
 	  void ComputeBigSuperpixel(const cv::Mat& img);
 	  void ComputeSuperpixel(const cv::Mat& Img, int& num, int*& labels, SLICClusterCenter*& centers);
@@ -71,6 +72,8 @@ public:
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg);
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, const cv::Mat& srcInvMapXImg, const cv::Mat& srcInvMapYImg, 
 		  cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg, cv::Mat& dstInvMapXImg,  cv::Mat& dstInvMapYImg );
+
+	  void GetSuperpixelPoses(std::vector<std::vector<uint2>>& poses);
 	  ~SuperpixelComputer()
 	  {
 		  release();
@@ -109,7 +112,6 @@ private:
 	SLICClusterCenter* _preCenters;
 	GpuSuperpixel* _gs;
 	std::vector<std::vector<int>> _neighbors;
-	
 	//用于superpixel region growing
 	//背景label数组大小为_nPixels若为1表示是背景
 	int * _bgLabels;

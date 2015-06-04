@@ -5,7 +5,33 @@
 #include <vector>
 #include "CudaSuperpixel.h"
 #include "HistComparer.h"
+#include "SuperpixelComputer.h"
+#include <math.h>
 
+// Expands a 10-bit integer into 30 bits
+// by inserting 2 zeros after each bit.
+inline unsigned int expandBits(unsigned int v)
+{
+	v = (v * 0x00010001u) & 0xFF0000FFu;
+	v = (v * 0x00000101u) & 0x0F00F00Fu;
+	v = (v * 0x00000011u) & 0xC30C30C3u;
+	v = (v * 0x00000005u) & 0x49249249u;
+	return v;
+}
+
+// Calculates a 30-bit Morton code for the
+// given 3D point located within the unit cube [0,1].
+inline unsigned int morton3D(float x, float y, float z)
+{
+	using namespace std;
+	x = min(max(x * 1024.0f, 0.0f), 1023.0f);
+	y = min(max(y * 1024.0f, 0.0f), 1023.0f);
+	z = min(max(z * 1024.0f, 0.0f), 1023.0f);
+	unsigned int xx = expandBits((unsigned int)x);
+	unsigned int yy = expandBits((unsigned int)y);
+	unsigned int zz = expandBits((unsigned int)z);
+	return xx * 4 + yy * 2 + zz;
+}
 struct RegInfo
 {
 	RegInfo(){}
@@ -22,13 +48,73 @@ struct RegInfoCmp
 		return na.dist > nb.dist;
     }  
 };
-void inline SaveSegment(int width, int height, int* segmented, char* name)
+struct SPRegion
+{
+	SPRegion(){}
+	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){}
+	int id;
+	int size;
+	float4 color;
+	////邻居区域Id
+	//std::vector<int> neighbors;
+	//区域中所有超像素的Id
+	std::vector<int> spIndices;
+	std::vector<float> colorHist;
+	std::vector<float> hog;
+	int cX;
+	int cY;
+	float dist;
+	//一阶中心距
+	float moment;
+};
+//结构体的比较方法 改写operator()  
+struct RegionSizeCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+		return na.size > nb.size;
+	}
+};
+struct RegionSizeZero
+{
+	bool operator()(const SPRegion &na)
+	{
+		return na.size == 0;
+	}
+};
+struct RegionColorCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+		unsigned int ca = morton3D(na.color.x, na.color.y, na.color.z);
+		unsigned int cb = morton3D(nb.color.x, nb.color.y, nb.color.z);
+		return ca > cb;
+	}
+}; 
+
+struct RegionDistCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+		return na.dist > nb.dist;
+	}
+};
+typedef std::priority_queue<SPRegion, std::vector<SPRegion>, RegionDistCmp> SPRegionPQ;
+
+
+inline float4 operator * (float4& a, float n)
+{
+	return make_float4(a.x*n, a.y*n, a.z*n, a.w*n);
+}
+inline float4 operator+(float4& a, float4& b)
+{
+	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+}
+
+void inline SaveSegment(int width, int height, int* segmented, const char* name)
 {
 	cv::Mat img(height,width,CV_32S,segmented);
-	double max,min;
-	cv::minMaxLoc(img,&min,&max);
 	cv::imwrite(name,img);
-
 }
 typedef std::priority_queue<RegInfo,std::vector<RegInfo>,RegInfoCmp> RegInfos;
 
@@ -52,23 +138,77 @@ void SuperPixelRegionMerging(int width, int height, int step, const int*  labels
 	float threshold, int*& segmented,
 	std::vector<int>& regSizes, std::vector<float4>& regAvgColors, float confidence = 0.6);
 
-void SuperPixelRegionMergingFast(int width, int height, int step,const int*  labels, const SLICClusterCenter* centers,
-	std::vector<std::vector<uint2>>& pos,
-	std::vector<std::vector<float>>& histograms,
-	std::vector<std::vector<float>>& lhistograms,
-	std::vector<std::vector<uint2>>& newPos,
-	std::vector<std::vector<float>>& newHistograms,
-	float threshold, int*& segmented, 
-	std::vector<int>& regSizes, std::vector<float4>& regAvgColors,float confidence = 0.6);
 
 
-void SuperPixelRegionMergingFast(int width, int height, int step, const int*  labels, const SLICClusterCenter* centers,
-	std::vector<std::vector<uint2>>& pos,
-	std::vector<std::vector<float>>& histograms,
-	std::vector<std::vector<float>>& lhistograms,
-	HistComparer* histComp1,
-	HistComparer* histComp2,
-	std::vector<std::vector<uint2>>& newPos,
-	std::vector<std::vector<float>>& newHistograms,
+
+void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* computer,
+	std::vector<std::vector<uint2>>& _spPoses,
+	std::vector<std::vector<float>>& _colorHists,
+	std::vector<std::vector<float>>& _HOGs,
+	std::vector<std::vector<int>>& _regIdices,
+	std::vector<int>& newLabels,
+	std::vector<std::vector<float>>& _nColorHists,
+	std::vector<std::vector<float>>& _nHOGs,
 	float threshold, int*& segmented,
-	std::vector<int>& regSizes, std::vector<float4>& regAvgColors, float confidence = 0.6);
+	std::vector<int>& _regSizes, std::vector<float4>& _regColors, float confidence=0.6);
+
+
+void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* computer,
+	std::vector<std::vector<uint2>>& _spPoses,
+	std::vector<std::vector<float>>& _colorHists,
+	std::vector<std::vector<float>>& _HOGs,
+	std::vector<int>& newLabels,
+	std::vector<SPRegion>& regions,
+	int*& segmented,
+	float threshold, float confidence = 0.6
+	);
+
+void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0);
+void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<float4>& regColors, cv::Mat& mask);
+void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<int>& regions, std::vector<float4>& regColors, cv::Mat& mask);
+void GetSaliencyMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<int>& regSizes, std::vector<std::vector<int>>& regIndices, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, cv::Mat& mask);
+void GetSaliencyMap(int widht, int height, SuperpixelComputer* computer, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, cv::Mat& mask);
+
+void RegionAnalysis(int width, int height, SuperpixelComputer* computer, int* segmented,
+	std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<int>& regSizes,
+	std::vector<std::vector<int>>& regIndices,
+	std::vector<float4>& regColors,
+	std::vector<SPRegion>& regions);
+
+//handle holes and occlusions
+void RegionAnalysis(int width, int height, SuperpixelComputer* computer, int* segmented,
+	std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions);
+
+//handle hole
+int HandleHole(int i, std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions,
+	std::vector<std::vector<int>>& regNeighbors);
+
+//merge region i to region nRegId
+void MergeRegion(int i, int nRegId,
+	std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions,
+	std::vector<std::vector<int>>& regNeighbors);
+
+//merge region i to region nRegId
+void MergeRegion(int i, int nRegId,
+	std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<int>& regSizes,
+	std::vector<std::vector<int>>& regIndices,
+	std::vector<float4>& regColors,
+	std::vector<SPRegion>& regions,
+	std::vector<std::vector<int>>& regNeighbors);
+
+void MergeRegion(int i, int nRegId,
+	std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions);
+
+void GetContrastMap(int widht, int height, SuperpixelComputer* computer, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, cv::Mat& mask);

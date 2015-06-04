@@ -6,7 +6,7 @@ int main (int argc, char* argv[])
 	//TestRTBS(argc,argv);
 	//TestLBP();
 	//TestQuantize();
-	//TestSaliency(argc,argv);
+	TestSaliency(argc,argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
 	//TestFeaturesRefine(argc, argv);
@@ -27,7 +27,7 @@ int main (int argc, char* argv[])
 	//TestSuperpixel(argc, argv);
 	//testCudaGpu();
 	//TestDescDiff();
-	TestWarpError(argc, argv);
+	//TestWarpError(argc, argv);
 	return 0;
 
 }

@@ -908,8 +908,8 @@ int MeanShift(const cv::Mat& imgMat, int *&labels,const int spatial_radius, cons
 		}
 
 		// Output
-		/*STOP_TIMING(timer);
-		std::cout<<"Mean Shift(ms):"<<GET_TIMING(timer)<<std::endl;*/
+		STOP_TIMING(timer);
+		std::cout<<"Mean Shift(ms):"<<GET_TIMING(timer)<<std::endl;
 
 		cvReleaseImage(&result);
 		delete []mode;

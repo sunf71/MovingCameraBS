@@ -216,6 +216,6 @@ void LSEWR(const cv::Mat& img, float sigma, float epsilon, float mu, float lambd
 	//	}
 
 	//}
-	cv::imshow("result", u);
-	cv::waitKey();
+	/*cv::imshow("result", u);
+	cv::waitKey();*/
 }

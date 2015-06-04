@@ -4,6 +4,9 @@
 #include "timer.h"
 #include "FeaturePointRefine.h"
 #include "findHomography.h"
+#include "DistanceUtils.h"
+#include <numeric>
+#include <hash_map>
 void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 {
 	
@@ -28,7 +31,7 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 	_spHeight = _SPComputer->GetSPHeight();
 	_spSize = _spWidth*_spHeight;
 	_segment = new int[_width*_height];
-
+	_newLabels.resize(_spSize);
 	_colorHists.resize(_spSize);
 	_HOGs.resize(_spSize);
 	_spPoses.resize(_spSize);
@@ -71,6 +74,7 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 void RTBackgroundSubtractor::operator()(cv::InputArray image, cv::OutputArray fgmask, double learningRate)
 {
 	_img = image.getMat();
+	//cv::GaussianBlur(_img, _img, cv::Size(5, 5), 1.5);
 	SaliencyMap();
 	/*cv::Mat regionMask;
 	GetRegionMap(regionMask);
@@ -195,6 +199,7 @@ void RTBackgroundSubtractor::RegionMergingFastQ(const int*  labels, const SLICCl
 	float pixDist(0);
 	_regSizes.clear();
 	_regIdices.clear();
+	_regColors.clear();
 	int regSize(0);
 	//当前新标签
 	int curLabel(0);
@@ -427,6 +432,7 @@ void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClus
 	float pixDist(0);	
 	_regSizes.clear();
 	_regIdices.clear();
+	_regColors.clear();
 	int regSize(0);
 	//当前新标签
 	int curLabel(0);
@@ -434,7 +440,8 @@ void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClus
 	memset(_segment,0,sizeof(int)*_spSize);
 	std::vector<int> singleLabels;
 	//region growing 后的新label
-	std::vector<int> newLabels(_spSize);
+	
+	
 	
 	//nih::Timer timer;
 	//timer.start();
@@ -443,7 +450,7 @@ void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClus
 	//boundarySet.insert(3);
 	//boundarySet.insert(190);
 	std::vector<int> labelGroup;
-	
+	float4 regColor;
 	while(!boundarySet.empty())
 	{
 		//std::cout<<boundarySet.size()<<std::endl;
@@ -458,7 +465,7 @@ void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClus
 		SLICClusterCenter cc = centers[label];
 		int k = cc.xy.x;
 		int j = cc.xy.y;		
-		float4 regColor = cc.rgb;
+		regColor = cc.rgb;
 		int ix = label%_spWidth;
 		int iy = label/_spWidth;
 		pixDist = 0;
@@ -559,10 +566,10 @@ void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClus
 		_nColorHists.push_back(_colorHists[label]);	
 		_nHOGs.push_back(_HOGs[label]);
 		_regIdices.push_back(labelGroup);
-
+		_regColors.push_back(regColor);
 		for(int i=0; i<labelGroup.size(); i++)
 		{
-			newLabels[labelGroup[i]] = curLabel;
+			_newLabels[labelGroup[i]] = curLabel;
 		}
 
 		_regSizes.push_back(regSize);
@@ -595,23 +602,27 @@ void RTBackgroundSubtractor::RegionMergingFast(const int* labels, const SLICClus
 			if (x>=0 && x<_spWidth && y>=0 && y<_spHeight)
 			{
 				int nlabel = x+y*_spWidth;		
-				if (std::find(ulabel.begin(),ulabel.end(),newLabels[nlabel]) == ulabel.end())
-					ulabel.push_back(newLabels[nlabel]);
+				if (std::find(ulabel.begin(),ulabel.end(),_newLabels[nlabel]) == ulabel.end())
+					ulabel.push_back(_newLabels[nlabel]);
 			}
 			
 		}
-		if (ulabel.size()<=2)
+		if (ulabel.size() <= 2)
 		{
-				newLabels[label] = ulabel[0];
-				_regSizes[ulabel[0]]++;
+			_regIdices[_newLabels[label]].clear();
+			_regSizes[_newLabels[label]] = 0;
+			_newLabels[label] = ulabel[0];
+			_regSizes[ulabel[0]]++;
+			_regIdices[ulabel[0]].push_back(label);
+
 		}
 	}
 	
-	for(int i=0; i<newLabels.size(); i++)
+	for (int i = 0; i<_newLabels.size(); i++)
 	{
 		#pragma omp parallel for
 		for (int j=0; j<_spPoses[i].size(); j++)
-			_segment[_spPoses[i][j].x + _spPoses[i][j].y*_width] = newLabels[i];
+			_segment[_spPoses[i][j].x + _spPoses[i][j].y*_width] = _newLabels[i];
 	}
 
 	
@@ -642,7 +653,7 @@ void RTBackgroundSubtractor::SaliencyMap()
 	timer.start();
 #endif
 	//superpixel
-	_SPComputer->ComputeBigSuperpixel(_img);
+	_SPComputer->ComputeBigSuperpixel(_img);	
 #ifndef REPORT
 	timer.stop();
 	std::cout<<"	Superpixel "<<timer.seconds()*1000<<" ms\n";
@@ -954,6 +965,176 @@ void RTBackgroundSubtractor::GetSuperpixelMap(cv::Mat& sp)
 {
 	_SPComputer->GetVisualResult(_img,sp);
 }
+float4 add(const float4& a, const float4& b)
+{
+	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+}
+struct RegionInfo
+{
+	int RegId;
+	int RegSize;
+	float4 RegColor;
+	std::vector<int> RegSPs;
+};
+
+bool RegComparer(const RegionInfo& a, const RegionInfo& b)
+{
+	return a.RegSize > b.RegSize;
+}
+void RTBackgroundSubtractor::GetSaliencyMap(cv::Mat& mask)
+{
+	//average color distance of regions
+	//std::vector<RegionInfo> Regs;
+	//for (size_t i = 0; i < _regSizes.size(); i++)
+	//{
+	//	if (_regSizes[i] > 0)
+	//	{
+	//		RegionInfo rif;
+	//		rif.RegId = i;
+	//		rif.RegColor = _regColors[i];
+	//		rif.RegSize = _regSizes[i];
+	//		rif.RegSPs = _regIdices[i];
+	//		Regs.push_back(rif);
+	//	}
+	//	
+	//}
+	//std::sort(Regs.begin(), Regs.end(), RegComparer);
+	//for (size_t k = 0; k <Regs.size()/2; k++)
+	//{
+	//	//merg to the largest region
+	//	for (size_t i = Regs.size() - 1; i >k; i--)
+	//	{
+	//		if (L1Distance(Regs[i].RegColor, Regs[k].RegColor) < 20)
+	//		{
+	//			std::cout << "merging "<<k<<" , " << i << "\n";
+	//			Regs[k].RegColor = make_float4((Regs[k].RegColor.x*Regs[k].RegSize + Regs[i].RegColor.x*Regs[i].RegSize) / (Regs[k].RegSize + Regs[i].RegSize),
+	//				(Regs[k].RegColor.y*Regs[k].RegSize + Regs[i].RegColor.y*Regs[i].RegSize) / (Regs[k].RegSize + Regs[i].RegSize),
+	//				(Regs[k].RegColor.z*Regs[k].RegSize + Regs[i].RegColor.z*Regs[i].RegSize) / (Regs[k].RegSize + Regs[i].RegSize), 0);
+	//			Regs[k].RegSize += Regs[i].RegSize;
+	//			for (size_t j = 0; j < Regs[i].RegSPs.size(); j++)
+	//			{
+	//				Regs[k].RegSPs.push_back(Regs[i].RegSPs[j]);
+	//			}
+
+	//			Regs.erase(Regs.begin()+i);
+	//		}
+	//	}
+	//}
+	
+	
+	int * labels;
+	SLICClusterCenter* centers;
+	int num(0);
+	_SPComputer->GetSuperpixelResult(num, labels, centers);
+
+	/*_regSizes.clear();
+	_regColors.clear();
+	_regIdices.clear();
+	for (size_t i = 0; i < Regs.size(); i++)
+	{
+		_regSizes.push_back(Regs[i].RegSize);
+		_regColors.push_back(Regs[i].RegColor);
+		_regIdices.push_back(Regs[i].RegSPs);
+		for (size_t j = 0; j < Regs[i].RegSPs.size(); j++)
+		{
+			std::vector<uint2> poses = _spPoses[Regs[i].RegSPs[j]];
+			for (int k = 0; k<poses.size(); k++)
+				_segment[poses[k].x + poses[k].y*_width] = i;
+
+		}
+		
+	}*/
+	
+	//Region PIF
+	//calculate the inhomogenity of regions
+	int K = 3;
+	std::vector<float> regPIF(_regSizes.size(),0);
+	for (size_t i = 0; i < _regSizes.size(); i++)
+	{
+		int center = std::accumulate(_regIdices[i].begin(), _regIdices[i].end(), 0);
+		center = 1.0*center / _regSizes[i];
+		int x(0), y(0);
+		int step = 1;
+		for (int r = 0; r < _regIdices[i].size(); r++)
+		{
+			int xr = _regIdices[i][r] % _spWidth;
+			int yr = _regIdices[i][r] / _spWidth;
+			x += xr;
+			y += yr;
+		}
+		/*int x = center%_spWidth;
+		int y = center / _spWidth;*/
+		x = (x*1.0 / _regSizes[i] + 0.5);
+		y = (y*1.0 / _regSizes[i] + 0.5);
+		std::vector<int> ulabel;
+		float c(0);
+		for (int m = y-K*step; m <=y+K*step; m+=step)
+		{
+			if (m<0 || m>_spHeight - 1)
+				continue;
+			for (int n = x - K*step; n <= x + K*step; n+=step)
+			{
+				if (n<0 || n>_spWidth - 1)
+					continue;
+				c++;
+				int idx = m*_spWidth + n;
+				if (std::find(ulabel.begin(), ulabel.end(), _newLabels[idx]) == ulabel.end())
+					ulabel.push_back(_newLabels[idx]);;
+			}
+		}
+		regPIF[i] = ulabel.size()/c;
+		
+	}
+	mask.create(_height, _width, CV_8U);
+	
+	int maxSize = *(max_element(_regSizes.begin(), _regSizes.end()));
+	int avgSize = std::accumulate(_regSizes.begin(), _regSizes.end(),0)/_regSizes.size();
+	float threshold = 50;
+	for (int i = 0; i < _spHeight; i++)
+	{
+		for (int j = 0; j < _spWidth; j++)
+		{
+			int label = i*_spWidth + j;			
+			//int x = int(centers[label].xy.x + 0.5);
+			//int y = int(centers[label].xy.y + 0.5);
+			//int idx = x + y*_width;
+			int regLabel = _newLabels[label];
+			float saliency = (1 - _regSizes[regLabel] * 1.0 / maxSize);
+			//float saliency = _regSizes[regLabel] > 10 ? 0 : 1;
+			//float saliency = regPIF[regLabel];
+			//int ns(2);
+			//float nh(0);
+			//int count(0);
+			//for (int m = i - ns; m <= i + ns; m++)
+			//{
+			//	if (m<0 || m>_spHeight - 1)
+			//		continue;
+			//	for (int n = j - ns; n <= j + ns; n++)
+			//	{
+			//		if (n<0 || n>_spWidth - 1)
+			//			continue;
+			//		count++;
+			//		int index = m*_spWidth + n;
+			//		int xx = int(centers[index].xy.x + 0.5);
+			//		int yy = int(centers[index].xy.y + 0.5);
+			//		int idx = xx + yy*_width;					
+			//		int cl = _segment[yy*_width + xx];
+			//		if (L1Distance(_regColors[cl], _regColors[regLabel]) > threshold)
+			//			nh++;
+			//			
+			//	}
+			//}
+			//nh /= count;
+			for (size_t i = 0; i < _spPoses[label].size(); i++)
+			{
+				int index = _spPoses[label][i].y* _width + _spPoses[label][i].x;
+				mask.data[index] = (uchar)(regPIF[regLabel] * 255 * saliency);
+			}
+
+		}
+	}
+	//cv::threshold(mask, mask, 100, 255, CV_THRESH_BINARY);
+}
 
 void RTBackgroundSubtractor::GetRegionMap(cv::Mat& mask)
 {
@@ -962,6 +1143,12 @@ void RTBackgroundSubtractor::GetRegionMap(cv::Mat& mask)
 	CvRNG rng= cvRNG(cvGetTickCount());
 	for(int i=0; i<_spSize;i++)
 		color[i] = cvRandInt(&rng);
+
+	int * labels;
+	SLICClusterCenter* centers;
+	int num(0);
+	_SPComputer->GetSuperpixelResult(num, labels, centers);
+	
 	// Draw random color
 	for(int i=0;i<_height;i++)
 	{
@@ -970,9 +1157,10 @@ void RTBackgroundSubtractor::GetRegionMap(cv::Mat& mask)
 		for(int j=0;j<_width;j++)
 		{ 
 			int cl = _segment[i*_width+j];
-			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 0] = (color[cl])&255;
-			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 1] = (color[cl]>>8)&255;
-			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 2] = (color[cl]>>16)&255;
+			
+			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 0] = (uchar)_regColors[cl].x;
+			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 1] = (uchar)_regColors[cl].y;
+			((uchar *)(mask.data + i*mask.step.p[0]))[j*mask.step.p[1] + 2] = (uchar)_regColors[cl].z;
 		
 		}
 	}
