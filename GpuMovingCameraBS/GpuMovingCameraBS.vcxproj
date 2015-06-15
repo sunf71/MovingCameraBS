@@ -64,6 +64,7 @@
     <ClInclude Include="energy.h" />
     <ClInclude Include="FeaturePointRefine.h" />
     <ClInclude Include="FGMaskPostProcess.h" />
+    <ClInclude Include="FileNameHelper.h" />
     <ClInclude Include="findHomography.h" />
     <ClInclude Include="FlowComputer.h" />
     <ClInclude Include="flowIO.h" />

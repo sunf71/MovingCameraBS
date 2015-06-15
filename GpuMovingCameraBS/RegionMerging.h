@@ -18,7 +18,13 @@ inline unsigned int expandBits(unsigned int v)
 	v = (v * 0x00000005u) & 0x49249249u;
 	return v;
 }
-
+inline unsigned int SeparateBy4(unsigned int x) {
+	x &= 0x0000007f;                  // x = ---- ---- ---- ---- ---- ---- -654 3210
+	x = (x ^ (x << 16)) & 0x0070000F; // x = ---- ---- -654 ---- ---- ---- ---- 3210
+	x = (x ^ (x << 8)) & 0x40300C03; // x = -6-- ---- --54 ---- ---- 32-- ---- --10
+	x = (x ^ (x << 4)) & 0x42108421; // x = -6-- --5- ---4 ---- 3--- -2-- --1- ---0
+	return x;
+}
 // Calculates a 30-bit Morton code for the
 // given 3D point located within the unit cube [0,1].
 inline unsigned int morton3D(float x, float y, float z)
@@ -32,6 +38,18 @@ inline unsigned int morton3D(float x, float y, float z)
 	unsigned int zz = expandBits((unsigned int)z);
 	return xx * 4 + yy * 2 + zz;
 }
+inline unsigned int morton5D(float x, float y, float r, float g, float b)
+{
+	using namespace std;
+	x = min(max(x * 256.f, 0.0f), 256.f);
+	y = min(max(y * 256.f, 0.0f), 256.f);
+	r = min(max(r * 256.f, 0.0f), 256.f);
+	g = min(max(g * 256.f, 0.0f), 256.f);
+	b = min(max(b * 256.f, 0.0f), 256.f);
+	
+	return SeparateBy4(x) | (SeparateBy4(y) << 1) | (SeparateBy4(r) << 2) | (SeparateBy4(g) << 3) | (SeparateBy4(b) << 4);
+}
+
 struct RegInfo
 {
 	RegInfo(){}
@@ -56,7 +74,7 @@ struct SPRegion
 	int size;
 	float4 color;
 	////邻居区域Id
-	//std::vector<int> neighbors;
+	std::vector<int> neighbors;
 	//区域中所有超像素的Id
 	std::vector<int> spIndices;
 	std::vector<float> colorHist;
@@ -86,8 +104,8 @@ struct RegionColorCmp
 {
 	bool operator()(const SPRegion &na, const SPRegion &nb)
 	{
-		unsigned int ca = morton3D(na.color.x, na.color.y, na.color.z);
-		unsigned int cb = morton3D(nb.color.x, nb.color.y, nb.color.z);
+		unsigned int ca = morton3D(na.color.x/255, na.color.y/255, na.color.z/255);
+		unsigned int cb = morton3D(nb.color.x/255, nb.color.y/255, nb.color.z/255);
 		return ca > cb;
 	}
 }; 
@@ -181,7 +199,8 @@ void RegionAnalysis(int width, int height, SuperpixelComputer* computer, int* se
 void RegionAnalysis(int width, int height, SuperpixelComputer* computer, int* segmented,
 	std::vector<int>& newLabels,
 	std::vector<std::vector<uint2>>& spPoses,
-	std::vector<SPRegion>& regions);
+	std::vector<SPRegion>& regions,
+	std::vector<std::vector<int>>& regNeighbors);
 
 //handle hole
 int HandleHole(int i, std::vector<int>& newLabels,
@@ -211,4 +230,17 @@ void MergeRegion(int i, int nRegId,
 	std::vector<std::vector<uint2>>& spPoses,
 	std::vector<SPRegion>& regions);
 
-void GetContrastMap(int widht, int height, SuperpixelComputer* computer, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, cv::Mat& mask);
+void MergeRegions(int i, int nRegId,
+	std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions);
+
+void GetContrastMap(int widht, int height, SuperpixelComputer* computer, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors,cv::Mat& mask);
+
+typedef std::vector<float> HISTOGRAM;
+typedef std::vector<HISTOGRAM> HISTOGRAMS;
+void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist);
+
+
+void IterativeRegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF);
+void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF);

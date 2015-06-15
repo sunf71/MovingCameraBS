@@ -21,6 +21,7 @@
 #include "LSE.h"
 #include <numeric>
 #include "Dijkstra.h"
+#include "FileNameHelper.h"
 void testCudaGpu()
 {
 	try
@@ -2800,7 +2801,7 @@ void ColorMoments(std::vector<cv::Vec3b>& colors, double* moments)
 struct MortonCode
 {
 	int id;
-	int code;
+	unsigned int code;
 };
 struct CodeComparer
 {
@@ -2812,17 +2813,22 @@ struct CodeComparer
 void TestMontonCode(cv::Mat& img)
 {
 	
+
 	cv::Mat fimg, labImg;
 	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
 	cv::cvtColor(fimg, labImg, CV_BGR2Lab);
 	int width = img.cols;
 	int height = img.rows;
-	SuperpixelComputer computer(width, height, 10);
+	SuperpixelComputer computer(width, height, 16, 0.65);
 	int spWidth = computer.GetSPWidth();
 	int spHeight = computer.GetSPHeight();
 	int spSize(0), *labels(NULL);
 	SLICClusterCenter* centers(NULL);
 	computer.ComputeSuperpixel(img);
+	cv::Mat spMap;
+	computer.GetVisualResult(img, spMap);
+	cv::imshow("sp", spMap);
+	cv::waitKey(0);
 	computer.GetSuperpixelResult(spSize, labels, centers);
 	std::vector<float> x, y, r, g, b, gray;
 	for (size_t i = 0; i < spHeight; i++)
@@ -2843,7 +2849,7 @@ void TestMontonCode(cv::Mat& img)
 	{
 		MortonCode code;
 		code.id = i;
-		code.code = morton3D(x[i], y[i], gray[i]);
+		code.code = morton3D(r[i],g[i],b[i]);
 		mortonCodes.push_back(code);
 	}
 	
@@ -2865,15 +2871,12 @@ void TestMontonCode(cv::Mat& img)
 	cv::imshow("mtest", mask);
 	cv::waitKey();
 }
-void SaliencyTest(const char* path, int pid, int step)
+void SaliencyTest(const char* inputPath, const char* fileName, const char* outputPath, int step)
 {
 	
-
-	typedef std::vector<float> HISTOGRAM;
-	typedef std::vector<HISTOGRAM> HISTOGRAMS;
 	nih::Timer timer;
 	char imgName[200];
-	sprintf(imgName, "%s\\in%06d.jpg", path, pid);
+	sprintf(imgName, "%s\\%s.jpg", inputPath, fileName);
 	cv::Mat img = cv::imread(imgName);
 	cv::Mat fimg, gray, labImg, lbpImg;
 	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
@@ -2896,7 +2899,7 @@ void SaliencyTest(const char* path, int pid, int step)
 	std::cout << "superpixel " << timer.seconds() * 1000 << "ms\n";
 
 	computer.GetVisualResult(img, simg);
-	sprintf(imgName, "%s//superpixel_%d.jpg", path, pid);
+	sprintf(imgName, "%ssuperpixel_%s.jpg", outputPath, fileName);
 	cv::imwrite(imgName, simg);
 
 	//计算每个超像素与周围超像素的差别
@@ -2906,88 +2909,39 @@ void SaliencyTest(const char* path, int pid, int step)
 	SLICClusterCenter* centers = NULL;
 	int _spSize(0);
 	computer.GetSuperpixelResult(_spSize, labels, centers);
-	//每个超像素中包含的像素以及位置
-	std::vector<std::vector<Vec3b>> pixels(_spSize);
-	std::vector<std::vector<uint2>> _spPoses(_spSize);
-	HISTOGRAMS _colorHists(_spSize);
-	HISTOGRAMS _HOGs(_spSize);
-	int _colorBins(16);
-	int _hogBins(36);
-	int _totalColorBins = _colorBins*_colorBins*_colorBins;
-	int _hogStep = 360.0 / _hogBins;
+	//每个超像素中包含的像素以及位置	
+	std::vector<std::vector<uint2>> _spPoses;
+	computer.GetSuperpixelPoses(_spPoses);
 
-	float _colorSteps[3], _colorMins[3];
-	//rgb color space
-	_colorSteps[0] = _colorSteps[1] = _colorSteps[2] = 255.0 / _colorBins;
-	_colorMins[0] = _colorMins[1] = _colorMins[2] = 0;
-
-	for (int i = 0; i < _spSize; i++)
+	std::vector<int> nLabels;
+	std::vector<SPRegion> regions;
+	std::vector < std::vector<int>> neighbors;
+	IterativeRegionGrowing(img, computer, nLabels, regions, neighbors, 0.2);
+	cv::Mat regMask;
+	
+	int *pixSeg = new int[_width*_height];
+	for (int i = 0; i < _height; i++)
 	{
-
-		_spPoses[i].clear();
-		_colorHists[i].resize(_totalColorBins);
-		_HOGs[i].resize(_hogBins);
-		for (size_t k = 0; k < _hogBins; k++)
+		for (int j = 0; j < _width; j++)
 		{
-			_HOGs[i][k] = 0.1f;
+			int idx = i*_width + j;
+			pixSeg[idx] = nLabels[labels[idx]];
 		}
-		memset(&_colorHists[i][0], 0, sizeof(float)*_totalColorBins);
 	}
-	/*std::vector<uchar3> avgColor(num);*/
-	float rgbHConfidence = 0.6;
-	int k = 0;
-
-	timer.start();
+	GetRegionMap(_width, _height, &computer, pixSeg, regions, regMask);
+	cv::imshow("segmentd", regMask);
+	cv::waitKey();
 
 
+	
 
-#pragma omp parallel for
-	for (int i = 0; i < _spSize; i++)
-	{
-		_spPoses[i].clear();
-
-		int x = int(centers[i].xy.x + 0.5);
-		int y = int(centers[i].xy.y + 0.5);
-
-		for (int m = -step + y; m <= step + y; m++)
-		{
-			if (m < 0 || m >= _height)
-				continue;
-			//cv::Vec3b* ptr = _img.ptr<cv::Vec3b>(m);
-			float* magPtr = _magImg.ptr<float>(m);
-			float* angPtr = _angImg.ptr<float>(m);
-			//cv::Vec3f* labPtr = _labImg.ptr<cv::Vec3f>(m);
-			cv::Vec3b* rgbPtr = img.ptr<cv::Vec3b>(m);
-			for (int n = -step + x; n <= step + x; n++)
-			{
-				if (n < 0 || n >= _width)
-					continue;
-				int id = m*_width + n;
-				if (labels[id] == i)
-				{
-					int bin = std::min<float>(floor(angPtr[n] / _hogStep), _hogBins - 1);
-					_HOGs[i][bin] += magPtr[n];
-					bin = 0;
-					int s = 1;
-					for (int c = 0; c < 3; c++)
-					{
-						//bin += s*std::min<float>(floor((labPtr[n][c]-_colorMins[c]) /_colorSteps[c]),_colorBins-1);
-						bin += s*std::min<float>(floor((rgbPtr[n][c] - _colorMins[c]) / _colorSteps[c]), _colorBins - 1);
-						s *= _colorBins;
-					}
-					_colorHists[i][bin] ++;
-					_spPoses[i].push_back(make_uint2(n, m));
-				}
-			}
-		}
-		cv::normalize(_colorHists[i], _colorHists[i], 1, 0, cv::NORM_L1);
-		cv::normalize(_HOGs[i], _HOGs[i], 1, 0, cv::NORM_L1);
-	}
+	HISTOGRAMS _colorHists;
+	HISTOGRAMS _HOGs;
+	BuildHistogram(img, &computer, _colorHists, _HOGs);
 	timer.stop();
 	std::cout << "build histogram " << timer.seconds() * 1000 << "ms\n";
 
-
-
+	
 
 	//计算平均相邻超像素距离之间的距离
 	const int dx4[] = { -1, 0, 1, 0 };
@@ -3029,11 +2983,12 @@ void SaliencyTest(const char* path, int pid, int step)
 	std::vector<float4> regColors;
 	int* segmented = new int[_width*_height];
 	memset(&segmented[0], -1, sizeof(int)*_width*_height);
-	rgbHConfidence = (avgGDist) / (avgCDist + avgGDist);
-	//rgbHConfidence = (avgGDist)/(avgDist+avgGDist);
+	float rgbHConfidence = (avgGDist) / (avgCDist + avgGDist);
+	rgbHConfidence =1;
 	float threshold = ((avgCDist*rgbHConfidence + (1 - rgbHConfidence)*avgGDist));
 	std::cout << "rgbHConfidence " << rgbHConfidence << "\n";
 	std::cout << "threshold: " << threshold << std::endl;
+	//threshold = 0.4;
 	//float threshold = (avgDist*rgbHConfidence+(1-rgbHConfidence)*avgGDist);
 
 	//float qrgbHConfidence = (qavgGDist) / (qavgCDist + qavgGDist);
@@ -3052,22 +3007,30 @@ void SaliencyTest(const char* path, int pid, int step)
 	sprintf(imgName, "%s\\Region%06d.png", path, pid);
 	cv::imwrite(imgName, regionLabel);*/
 	std::vector<SPRegion> Regions;
-	SuperPixelRegionMergingFast(_width, _height, &computer, _spPoses, _colorHists, _HOGs, newLabels, Regions, segmented,threshold,rgbHConfidence);
+	SuperPixelRegionMergingFast(_width, _height, &computer, _spPoses, _colorHists, _HOGs, newLabels, Regions, segmented, threshold, rgbHConfidence);
 	timer.stop();
 	std::cout << "merging time: " << timer.seconds() * 1000 << "ms\n";
-
+	std::vector<std::vector<int>> regNeighrbors;
 	timer.start();
-	
+
 	//RegionAnalysis(_width, _height, &computer, segmented, newLabels, _spPoses, regSizes, _regIdices, regColors, regions);
-	RegionAnalysis(_width, _height, &computer, segmented, newLabels, _spPoses, Regions);
+	RegionAnalysis(_width, _height, &computer, segmented, newLabels, _spPoses, Regions, regNeighrbors);
 	timer.stop();
 	std::cout << "RegionAnalysis time: " << timer.seconds() * 1000 << "ms\n";
 
 	std::cout << Regions.size() << std::endl;
 	cv::Mat mask, SalMask;
-	
+
 	HISTOGRAMS hogs;
 	HISTOGRAMS colorHists;
+	int _colorBins(16);
+	int _hogBins(36);
+	int _totalColorBins = _colorBins*_colorBins*_colorBins;
+	int _hogStep = 360.0 / _hogBins;
+	float _colorSteps[3], _colorMins[3];
+	//rgb color space
+	_colorSteps[0] = _colorSteps[1] = _colorSteps[2] = 255.0 / _colorBins;
+	_colorMins[0] = _colorMins[1] = _colorMins[2] = 0;
 	colorHists.resize(Regions.size());
 	hogs.resize(Regions.size());
 	for (size_t i = 0; i <Regions.size(); i++)
@@ -3113,81 +3076,88 @@ void SaliencyTest(const char* path, int pid, int step)
 		Regions[i].colorHist = colorHists[i];
 	}
 	GetRegionMap(_width, _height, &computer, segmented, Regions, mask);
-	
+
 	//cv::imshow("region merging",mask);
-	sprintf(imgName, "%s\\Region%06d.jpg", path, pid);
+	sprintf(imgName, "%sRegion%s.jpg", outputPath, fileName);
 	cv::imwrite(imgName, mask);
-	cv::Mat idxImg(_height, _width, CV_32S,segmented);
-	sprintf(imgName, "%s\\Segmented%06d.png", path, pid);
+	cv::Mat idxImg(_height, _width, CV_32S);
+	for (int i = 0; i < _height; i++)
+	{
+		int* ptr = idxImg.ptr<int>(i);
+		for (int j = 0; j < _width; j++)
+		{
+			int idx = i*_width + j;
+			ptr[j] = segmented[idx];
+		}
+	}
+	sprintf(imgName, "%sSegmented%s.bmp", outputPath, fileName);
 	cv::imwrite(imgName, idxImg);
 
 	timer.start();
 	GetSaliencyMap(_width, _height, &computer, newLabels, _spPoses, Regions, SalMask);
-	sprintf(imgName, "%s\\SalPIF%06d.jpg", path, pid);
+	sprintf(imgName, "%s%s_SalPIF.png", outputPath, fileName);
 	timer.stop();
 	std::cout << "GetSaliencyMap time: " << timer.seconds() * 1000 << "ms\n";
 	cv::imwrite(imgName, SalMask);
 
 	timer.start();
 	cv::Mat ConMask;
-	GetContrastMap(_width, _height, &computer, newLabels, _spPoses, Regions, ConMask);
-	sprintf(imgName, "%s\\SalContrast%06d.jpg", path, pid);
+	GetContrastMap(_width, _height, &computer, newLabels, _spPoses, Regions, regNeighrbors, ConMask);
+	sprintf(imgName, "%s%s_SF.png", outputPath, fileName);
 	timer.stop();
 	std::cout << "GetContrastMap time: " << timer.seconds() * 1000 << "ms\n";
 	cv::imwrite(imgName, ConMask);
-	//float lmd = 0.5;
-	//cv::Mat SalMap;
-	//
-	//cv::addWeighted(smap, lmd, SalMask, (1 - lmd), 0, SalMap);
-	////cv::bitwise_or(smap, SalMask, SalMap);
-	//sprintf(imgName, "%s\\Sal%06d.png", path, pid);
-	////cv::threshold(SalMap, SalMap, 128, 255, CV_THRESH_BINARY);
-	//cv::imwrite(imgName, SalMap);
-	//cv::waitKey(); 
 	
-	/*std::vector<float> moments(regions.size());
-	for (int i = 0; i < regions.size(); i++)
-		moments[i] = regions[i].moment+regions[i].size;
-	cv::normalize(moments, moments, 1, 0, cv::NORM_L1);
-	cv::Mat smap(_height, _width, CV_8U);
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		int regId = regions[i].id;
-		for (size_t j = 0; j < _regIdices[regId].size(); j++)
-		{
-			for (k = 0; k < _spPoses[_regIdices[regId][j]].size(); k++)
-			{
-				uint2 xy = _spPoses[_regIdices[regId][j]][k];
-				int idx = xy.x + xy.y*_width;
-				smap.data[idx] = (1 - moments[i]) * 255;
-			}
-		}
-	}
-	cv::imshow("smap", smap);
-	cv::waitKey();*/
-	//sum = std::accumulate(gmmV.begin(), gmmV.end(), 0);
 	delete[] segmented;
 	//safe_delete(qrgbComp);
 	//safe_delete(qgradComp);
-
+}
+void SaliencyTest(const char* path, int pid, int step)
+{
+	typedef std::vector<float> HISTOGRAM;
+	typedef std::vector<HISTOGRAM> HISTOGRAMS;
+	nih::Timer timer;
+	char imgName[200];
+	sprintf(imgName, "in%06d.jpg", pid);
+	char outPath[200];
+	sprintf(outPath, "%s\\saliency", path);
+	SaliencyTest(path, imgName, outPath, step);
 }
 
 
 void TestSaliency(int argC, char** argv)
 {
-	
 	//histogram();
 	//return;
-	int start = atoi(argv[1]);
-	int end = atoi(argv[2]);
-	char* path = argv[3];
-	int step = atoi(argv[4]);
-
-	for (int i = start; i <= end; i++)
+	if (argC == 5)
 	{
-
-		SaliencyTest((const char*)path, i, step);
+		int start = atoi(argv[1]);
+		int end = atoi(argv[2]);
+		char* path = argv[3];
+		int step = atoi(argv[4]);
+		for (int i = start; i <= end; i++)
+		{
+			SaliencyTest((const char*)path, i, step);
+		}
 	}
+	else
+	{
+		char* path = argv[1];
+		int step = atoi(argv[2]);
+		std::vector<std::string> fileNames;
+		FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
+		char outPath[200];
+		sprintf(outPath, "%s\\saliency\\", path);
+		CreateDir(outPath);
+		SaliencyTest(path, "in000003", outPath, step);
+		
+	/*	for (int i = 6770; i < fileNames.size(); i++)
+		{
+			std::cout <<i<< " processing "<<fileNames[i].c_str() << "\n";
+			SaliencyTest(path, fileNames[i].c_str(), outPath, step);
+		}*/
+	}
+	
 }
 
 

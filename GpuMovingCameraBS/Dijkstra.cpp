@@ -11,6 +11,7 @@ void DijkstraComputePaths(vertex_t source,
 	std::vector<weight_t> &min_distance,
 	std::vector<vertex_t> &previous)
 {
+	
 	int n = adjacency_list.size();
 	min_distance.clear();
 	min_distance.resize(n, max_weight);
@@ -19,7 +20,6 @@ void DijkstraComputePaths(vertex_t source,
 	previous.resize(n, -1);
 	std::set<std::pair<weight_t, vertex_t> > vertex_queue;
 	vertex_queue.insert(std::make_pair(min_distance[source], source));
-
 	while (!vertex_queue.empty())
 	{
 		weight_t dist = vertex_queue.begin()->first;
@@ -27,6 +27,7 @@ void DijkstraComputePaths(vertex_t source,
 		vertex_queue.erase(vertex_queue.begin());
 
 		// Visit each edge exiting u
+		
 		const std::vector<neighbor> &neighbors = adjacency_list[u];
 		for (std::vector<neighbor>::const_iterator neighbor_iter = neighbors.begin();
 			neighbor_iter != neighbors.end();

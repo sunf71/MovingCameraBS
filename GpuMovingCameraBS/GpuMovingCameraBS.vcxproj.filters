@@ -188,6 +188,9 @@
     <ClInclude Include="Dijkstra.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="FileNameHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WarpBackgroundSubtractor.cpp">
