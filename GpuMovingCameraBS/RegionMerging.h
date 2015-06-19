@@ -119,7 +119,20 @@ struct RegionDistCmp
 };
 typedef std::priority_queue<SPRegion, std::vector<SPRegion>, RegionDistCmp> SPRegionPQ;
 
+struct RegDist
+{
+	int sRid;
+	int bRid;
+	double dist;
+};
 
+struct RegDistDescComparer
+{
+	bool operator()(const RegDist& rd1, const RegDist& rd2)
+	{
+		return rd1.dist < rd2.dist;
+	}
+};
 inline float4 operator * (float4& a, float n)
 {
 	return make_float4(a.x*n, a.y*n, a.z*n, a.w*n);
@@ -180,7 +193,8 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	int*& segmented,
 	float threshold, float confidence = 0.6
 	);
-
+void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask);
+void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0);
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0);
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<float4>& regColors, cv::Mat& mask);
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<int>& regions, std::vector<float4>& regColors, cv::Mat& mask);
@@ -239,8 +253,40 @@ void GetContrastMap(int widht, int height, SuperpixelComputer* computer, std::ve
 
 typedef std::vector<float> HISTOGRAM;
 typedef std::vector<HISTOGRAM> HISTOGRAMS;
-void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist);
+void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, int colorSpace = 0);
 
+void BuildQHistorgram(const cv::Mat& idxImg, int colorNum, SuperpixelComputer* computer, HISTOGRAMS& colorHist);
 
-void IterativeRegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF);
+inline double RegionDist(const SPRegion& ra, const SPRegion& rb)
+{
+	double colorDist =  cv::compareHist(ra.colorHist, rb.colorHist, CV_COMP_BHATTACHARYYA);
+	//double gradDist = cv::compareHist(ra.hog, rb.hog, CV_COMP_BHATTACHARYYA);
+	//double sizeDist = std::max(ra.size*1.f, rb.size*1.f);
+	return colorDist;
+}
+
+inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colorDist)
+{
+	double d(0);
+	for (int i = 0; i < ra.colorHist.size(); i++)
+	{
+		for (int j = 0; j < rb.colorHist.size(); j++)
+		{
+			float dist = colorDist[i][j];
+			d += ra.colorHist[i] * rb.colorHist[j] * (dist);
+		}
+	}
+	//double gradDist = cv::compareHist(ra.hog, rb.hog, CV_COMP_BHATTACHARYYA);
+	return d;
+}
+
+void IterativeRegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF);
+void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, cv::Mat1f& colorDist, float thresholdF);
+
+template<class T, int D> inline T vecSqrDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { T s = 0; for (int i = 0; i < D; i++) s += sqrt((v1[i] - v2[i])*(v1[i] - v2[i])*1.0f); return s; } // out of range risk for T = byte, ...
+template<class T, int D> inline T    vecDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { return sqrt(vecSqrDist(v1, v2)); } // out of range risk for T = byte, ...
+
+int Quantize(cv::Mat& img3f, cv::Mat &idx1i, cv::Mat &_color3f, cv::Mat &_colorNum, double ratio, const int clrNums[3]);
+
+void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, cv::Mat& segmet);

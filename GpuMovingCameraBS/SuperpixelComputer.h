@@ -17,11 +17,11 @@ public:
 		  for(int i=0; i<_nPixels; i++)
 		  {
 			  float4 color = _centers[i].rgb;
-			  for (int j=0; j< _neighbors[i].size(); j++)
+			  for (int j=0; j< _neighbors4[i].size(); j++)
 			  {
-				  if (_centers[i].nPoints > 0 && _centers[_neighbors[i][j]].nPoints >0 )
+				  if (_centers[i].nPoints > 0 && _centers[_neighbors4[i][j]].nPoints >0 )
 				  {				
-					  float4 ncolor =  _centers[_neighbors[i][j]].rgb;
+					  float4 ncolor =  _centers[_neighbors4[i][j]].rgb;
 					  avgE += (abs(color.x-ncolor.x) + abs(color.y - ncolor.y) + abs(color.z-ncolor.z))/3;
 					  count++;
 				  }
@@ -86,12 +86,21 @@ public:
 	  {
 		  return _spHeight;
 	  }
-	  std::vector<int>& GetNeighbors(int i)
+	  std::vector<int>& GetNeighbors4(int i)
 	  {
-		  if (i < _neighbors.size())
+		  if (i >= _neighbors4.size())
 		  {
-			  return _neighbors[i];
+			  return std::vector<int>();
 		  }
+		  return _neighbors4[i];
+	  }
+	  std::vector<int>& GetNeighbors8(int i)
+	  {
+		  if (i >= _neighbors4.size())
+		  {
+			  return std::vector<int>();
+		  }
+		  return _neighbors8[i];
 	  }
 protected:
 	void release();
@@ -111,7 +120,8 @@ private:
 	int* _preLabels;
 	SLICClusterCenter* _preCenters;
 	GpuSuperpixel* _gs;
-	std::vector<std::vector<int>> _neighbors;
+	std::vector<std::vector<int>> _neighbors4;
+	std::vector<std::vector<int>> _neighbors8;
 	//用于superpixel region growing
 	//背景label数组大小为_nPixels若为1表示是背景
 	int * _bgLabels;

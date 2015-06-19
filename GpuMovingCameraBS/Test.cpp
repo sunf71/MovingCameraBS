@@ -2442,97 +2442,6 @@ float L2Dist(const float4& a, const float4& b)
 	double dw = a.w - b.w;
 	return sqrt(dx*dx + dy*dy + dz*dz + dw*dw);
 }
-template<class T, int D> inline T vecSqrDist(const Vec<T, D> &v1, const Vec<T, D> &v2) { T s = 0; for (int i = 0; i < D; i++) s += sqrt((v1[i] - v2[i])*1.0f); return s; } // out of range risk for T = byte, ...
-int Quantize(cv::Mat& img3f, Mat &idx1i, Mat &_color3f, Mat &_colorNum, double ratio, const int clrNums[3])
-{
-	float clrTmp[3] = { clrNums[0] - 0.0001f, clrNums[1] - 0.0001f, clrNums[2] - 0.0001f };
-	int w[3] = { clrNums[1] * clrNums[2], clrNums[2], 1 };
-
-	CV_Assert(img3f.data != NULL);
-	idx1i = Mat::zeros(img3f.size(), CV_32S);
-	int rows = img3f.rows, cols = img3f.cols;
-	if (img3f.isContinuous() && idx1i.isContinuous()){
-		cols *= rows;
-		rows = 1;
-	}
-
-	// Build color pallet
-	map<int, int> pallet;
-	for (int y = 0; y < rows; y++)
-	{
-		const float* imgData = img3f.ptr<float>(y);
-		int* idx = idx1i.ptr<int>(y);
-		for (int x = 0; x < cols; x++, imgData += 3)
-		{
-			idx[x] = (int)(imgData[0] * clrTmp[0])*w[0] + (int)(imgData[1] * clrTmp[1])*w[1] + (int)(imgData[2] * clrTmp[2]);
-			pallet[idx[x]] ++;
-		}
-	}
-
-	// Find significant colors
-	int maxNum = 0;
-	{
-		int count = 0;
-		vector<pair<int, int>> num; // (num, color) pairs in num
-		num.reserve(pallet.size());
-		for (map<int, int>::iterator it = pallet.begin(); it != pallet.end(); it++)
-			num.push_back(pair<int, int>(it->second, it->first)); // (color, num) pairs in pallet
-		sort(num.begin(), num.end(), std::greater<pair<int, int>>());
-
-		maxNum = (int)num.size();
-		int maxDropNum = cvRound(rows * cols * (1 - ratio));
-		for (int crnt = num[maxNum - 1].first; crnt < maxDropNum && maxNum > 1; maxNum--)
-			crnt += num[maxNum - 2].first;
-		maxNum = min(maxNum, 256); // To avoid very rarely case
-		if (maxNum <= 10)
-			maxNum = min(10, (int)num.size());
-
-		pallet.clear();
-		for (int i = 0; i < maxNum; i++)
-			pallet[num[i].second] = i;
-
-		vector<Vec3i> color3i(num.size());
-		for (unsigned int i = 0; i < num.size(); i++)
-		{
-			color3i[i][0] = num[i].second / w[0];
-			color3i[i][1] = num[i].second % w[0] / w[1];
-			color3i[i][2] = num[i].second % w[1];
-		}
-
-		for (unsigned int i = maxNum; i < num.size(); i++)
-		{
-			int simIdx = 0, simVal = INT_MAX;
-			for (int j = 0; j < maxNum; j++)
-			{
-				int d_ij = vecSqrDist<int, 3>(color3i[i], color3i[j]);
-				if (d_ij < simVal)
-					simVal = d_ij, simIdx = j;
-			}
-			pallet[num[i].second] = pallet[num[simIdx].second];
-		}
-	}
-
-	_color3f = Mat::zeros(1, maxNum, CV_32FC3);
-	_colorNum = Mat::zeros(_color3f.size(), CV_32S);
-
-	Vec3f* color = (Vec3f*)(_color3f.data);
-	int* colorNum = (int*)(_colorNum.data);
-	for (int y = 0; y < rows; y++)
-	{
-		const Vec3f* imgData = img3f.ptr<Vec3f>(y);
-		int* idx = idx1i.ptr<int>(y);
-		for (int x = 0; x < cols; x++)
-		{
-			idx[x] = pallet[idx[x]];
-			color[idx[x]] += imgData[x];
-			colorNum[idx[x]] ++;
-		}
-	}
-	for (int i = 0; i < _color3f.cols; i++)
-		color[i] /= (float)colorNum[i];
-
-	return _color3f.cols;
-}
 //量化后的稀疏直方图，index是量化后的颜色id，一共有colorNum种颜色
 void SparseHistogram(cv::Mat& indexImg, int colorNum, std::vector<uint2>& poses, std::vector<float>& histogram)
 {
@@ -2546,8 +2455,7 @@ void SparseHistogram(cv::Mat& indexImg, int colorNum, std::vector<uint2>& poses,
 	{
 		int idx = poses[i].x + poses[i].y*width;
 		int*ptr = (int*)(indexImg.data + idx * 4);
-		int id =
-			histogram[*ptr]++;
+		int id = histogram[*ptr]++;
 	}
 }
 void LBPHistogram(cv::Mat& LbpImg, std::vector<uint2>& poses, std::vector<float>& histogram)
@@ -2916,21 +2824,18 @@ void SaliencyTest(const char* inputPath, const char* fileName, const char* outpu
 	std::vector<int> nLabels;
 	std::vector<SPRegion> regions;
 	std::vector < std::vector<int>> neighbors;
-	IterativeRegionGrowing(img, computer, nLabels, regions, neighbors, 0.2);
+	timer.start();
+	IterativeRegionGrowing(img, computer, nLabels, regions, neighbors, 0.2, 10);
+	timer.stop();
+	std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
 	cv::Mat regMask;
 	
-	int *pixSeg = new int[_width*_height];
-	for (int i = 0; i < _height; i++)
-	{
-		for (int j = 0; j < _width; j++)
-		{
-			int idx = i*_width + j;
-			pixSeg[idx] = nLabels[labels[idx]];
-		}
-	}
-	GetRegionMap(_width, _height, &computer, pixSeg, regions, regMask);
-	cv::imshow("segmentd", regMask);
-	cv::waitKey();
+	
+	GetRegionMap(_width, _height, &computer, nLabels, regions, regMask);
+	
+	sprintf(imgName, "%sregion_%s.jpg", outputPath, fileName);
+	cv::imwrite(imgName, regMask);
+	return;
 
 
 	
@@ -3124,9 +3029,103 @@ void SaliencyTest(const char* path, int pid, int step)
 	SaliencyTest(path, imgName, outPath, step);
 }
 
+void TestRegionDist()
+{
+	cv::Mat img = cv::imread("124.jpg");
+	SuperpixelComputer computer(img.cols, img.rows, 40, 0.55);
+	int spSize, *labels;
+	SLICClusterCenter* centers;
+	computer.ComputeSuperpixel(img);
+	cv::Mat spImg;
+	computer.GetVisualResult(img, spImg);
+	cv::imwrite("spImg.jpg", spImg);
 
+	computer.GetSuperpixelResult(spSize, labels, centers);
+	cv::Mat fimg;
+	img.convertTo(fimg, CV_32F, 1.0 / 255);
+	HISTOGRAMS colorHist, gradHist, qColorHist;
+	BuildHistogram(img, &computer, colorHist, gradHist);
+
+	cv::Mat idxImg, colorf, colorNum;
+	const int colorSize[] = { 12, 12, 12 };
+	int colors = Quantize(fimg, idxImg, colorf, colorNum, 0.95, colorSize);
+	BuildQHistorgram(idxImg, colors, &computer, qColorHist);
+	cv::cvtColor(colorf, colorf, CV_BGR2Lab);
+	cv::Mat_<float> cDistCache1f = cv::Mat::zeros(colorf.cols, colorf.cols, CV_32F); {
+		cv::Vec3f* pColor = (cv::Vec3f*)colorf.data;
+		for (int i = 0; i < cDistCache1f.rows; i++)
+			for (int j = i + 1; j < cDistCache1f.cols; j++)
+			{
+				float dist = vecDist<float, 3>(pColor[i], pColor[j]);
+				cDistCache1f[i][j] = cDistCache1f[j][i] = vecDist<float, 3>(pColor[i], pColor[j]);
+
+			}
+
+	}
+	std::vector<int> newLabels(spSize);
+	std::vector<SPRegion> regions;
+	//init regions 
+	for (int i = 0; i < spSize; i++)
+	{
+		newLabels[i] = i;
+		SPRegion region;
+		region.cX = centers[i].xy.x;
+		region.cY = centers[i].xy.y;
+		region.color = centers[i].rgb;
+		region.colorHist = qColorHist[i];
+		region.hog = gradHist[i];
+		region.size = 1;
+		region.dist = 0;
+		region.id = i;
+		region.neighbors = computer.GetNeighbors4(i);
+		region.spIndices.push_back(i);
+		regions.push_back(region);
+		//regNeighbors.push_back(computer.GetNeighbors(i));
+	}
+	/*int regi = 10*4+2;
+	int regj = 10*5+1;
+	double qcolorDist = RegionDist(regions[regi], regions[regj], cDistCache1f);
+	double clolorHistDist = cv::compareHist(colorHist[regi], colorHist[regj], CV_COMP_BHATTACHARYYA);
+	double gradHistDist = cv::compareHist(gradHist[regi], gradHist[regj], CV_COMP_BHATTACHARYYA);
+	std::cout << "Q colorDist = " << qcolorDist << "\n";
+	std::cout << "clolorHistDist = " << clolorHistDist << "\n";
+	std::cout << "gradHistDist = " << gradHistDist << "\n";*/
+	std::ofstream ofile("dist.txt");
+	std::vector<RegDist> QRegDists,HCRegDists,HGRegDists;
+	for (int i = 0; i < regions.size(); i++)
+	{
+		for (int j = 0; j < regions[i].neighbors.size(); j++)
+		{
+			int n = regions[i].neighbors[j];
+			if (i < n)
+			{
+				double dist = RegionDist(regions[i], regions[n], cDistCache1f);
+
+				RegDist rd;
+				rd.sRid = i;
+				rd.bRid = n;
+				rd.dist = dist;
+				QRegDists.push_back(rd);
+				ofile << "Region " << i << " ,Region " << n << " QC dist " << rd.dist;
+				rd.dist = cv::compareHist(colorHist[i], colorHist[n], CV_COMP_BHATTACHARYYA);
+				ofile << " HC dist " << rd.dist;
+				HCRegDists.push_back(rd);
+				rd.dist = cv::compareHist(gradHist[i], gradHist[n], CV_COMP_BHATTACHARYYA);
+				ofile << " HG dist " << rd.dist<<"\n";
+				HGRegDists.push_back(rd);
+			}
+		}
+	}
+	ofile.close();
+	std::sort(QRegDists.begin(), QRegDists.end(), RegDistDescComparer());
+	std::sort(HCRegDists.begin(), HCRegDists.end(), RegDistDescComparer());
+	std::sort(HGRegDists.begin(), HGRegDists.end(), RegDistDescComparer());
+	
+}
 void TestSaliency(int argC, char** argv)
 {
+	/*TestRegionDist();
+	return;*/
 	//histogram();
 	//return;
 	if (argC == 5)
@@ -3149,7 +3148,7 @@ void TestSaliency(int argC, char** argv)
 		char outPath[200];
 		sprintf(outPath, "%s\\saliency\\", path);
 		CreateDir(outPath);
-		SaliencyTest(path, "in000003", outPath, step);
+		SaliencyTest(path, "in000002", outPath, step);
 		
 	/*	for (int i = 6770; i < fileNames.size(); i++)
 		{

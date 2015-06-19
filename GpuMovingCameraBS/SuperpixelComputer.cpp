@@ -15,7 +15,8 @@ void SuperpixelComputer::init()
 	_preLabels = NULL;
 	_preCenters = NULL;
 	_gs = new GpuSuperpixel(_width,_height,_step,_alpha);
-	_neighbors.resize(_nPixels);
+	_neighbors4.resize(_nPixels);
+	_neighbors8.resize(_nPixels);
 	_bgLabels = new int[_nPixels];
 	_visited = new char[_nPixels];
 	_segmented = new char[_nPixels];
@@ -23,68 +24,93 @@ void SuperpixelComputer::init()
 	{
 		int i = 0;
 		int idx = j + i*_spWidth;
-		_neighbors[idx].push_back(idx-1);
-		_neighbors[idx].push_back(idx + 1);
-		_neighbors[idx].push_back(idx + _spWidth);
-		_neighbors[idx].push_back(idx - 1 + _spWidth);
-		_neighbors[idx].push_back(idx + _spWidth + 1);
+		_neighbors8[idx].push_back(idx - 1);
+		_neighbors8[idx].push_back(idx + 1);
+		_neighbors8[idx].push_back(idx + _spWidth);
+		_neighbors8[idx].push_back(idx - 1 + _spWidth);
+		_neighbors8[idx].push_back(idx + _spWidth + 1);
+		_neighbors4[idx].push_back(idx - 1);
+		_neighbors4[idx].push_back(idx + 1);
+		_neighbors4[idx].push_back(idx + _spWidth);
 		i = _spHeight - 1;
 		idx = j + i*_spWidth;
-		_neighbors[idx].push_back(idx - 1);
-		_neighbors[idx].push_back(idx + 1);
-		_neighbors[idx].push_back(idx - 1 - _spWidth);
-		_neighbors[idx].push_back(idx - _spWidth + 1);
-		_neighbors[idx].push_back(idx - _spWidth);
+		_neighbors8[idx].push_back(idx - 1);
+		_neighbors8[idx].push_back(idx + 1);
+		_neighbors8[idx].push_back(idx - 1 - _spWidth);
+		_neighbors8[idx].push_back(idx - _spWidth + 1);
+		_neighbors8[idx].push_back(idx - _spWidth);
+		_neighbors4[idx].push_back(idx - 1);
+		_neighbors4[idx].push_back(idx + 1);
+		_neighbors4[idx].push_back(idx - _spWidth);
 	}
 	for (size_t i = 1; i < _spHeight - 1; i++)
 	{
 		int j = 0;
 		int idx = j + i*_spWidth;		
-		_neighbors[idx].push_back(idx + 1);
-		_neighbors[idx].push_back(idx + _spWidth);
-		_neighbors[idx].push_back(idx + 1 + _spWidth);
-		_neighbors[idx].push_back(idx - _spWidth + 1);
-		_neighbors[idx].push_back(idx - _spWidth);
+		_neighbors8[idx].push_back(idx + 1);
+		_neighbors8[idx].push_back(idx + _spWidth);
+		_neighbors8[idx].push_back(idx + 1 + _spWidth);
+		_neighbors8[idx].push_back(idx - _spWidth + 1);
+		_neighbors8[idx].push_back(idx - _spWidth);
+		_neighbors4[idx].push_back(idx - _spWidth);
+		_neighbors4[idx].push_back(idx + 1);
+		_neighbors4[idx].push_back(idx + _spWidth);
 		j = _spWidth - 1;
 		idx = j + i*_spWidth;
-		_neighbors[idx].push_back(idx - 1);
-		_neighbors[idx].push_back(idx + _spWidth);
-		_neighbors[idx].push_back(idx - 1 + _spWidth);
-		_neighbors[idx].push_back(idx - _spWidth - 1);
-		_neighbors[idx].push_back(idx - _spWidth);
+		_neighbors8[idx].push_back(idx - 1);
+		_neighbors8[idx].push_back(idx + _spWidth);
+		_neighbors8[idx].push_back(idx - 1 + _spWidth);
+		_neighbors8[idx].push_back(idx - _spWidth - 1);
+		_neighbors8[idx].push_back(idx - _spWidth);
+		_neighbors4[idx].push_back(idx - _spWidth);
+		_neighbors4[idx].push_back(idx - 1);
+		_neighbors4[idx].push_back(idx + _spWidth);
 	}
 	for (size_t i = 1; i < _spHeight - 1; i++)
 	{
 		for (size_t j = 1; j < _spWidth - 1; j++)
 		{
 			int idx = j + i*_spWidth;
-			_neighbors[idx].push_back(idx - 1);
-			_neighbors[idx].push_back(idx + 1);
-			_neighbors[idx].push_back(idx + _spWidth);
-			_neighbors[idx].push_back(idx - 1 + _spWidth);
-			_neighbors[idx].push_back(idx + 1 + _spWidth);
-			_neighbors[idx].push_back(idx - _spWidth - 1);
-			_neighbors[idx].push_back(idx - _spWidth);
-			_neighbors[idx].push_back(idx - _spWidth + 1);
+			_neighbors8[idx].push_back(idx - 1);
+			_neighbors8[idx].push_back(idx + 1);
+			_neighbors8[idx].push_back(idx + _spWidth);
+			_neighbors8[idx].push_back(idx - 1 + _spWidth);
+			_neighbors8[idx].push_back(idx + 1 + _spWidth);
+			_neighbors8[idx].push_back(idx - _spWidth - 1);
+			_neighbors8[idx].push_back(idx - _spWidth);
+			_neighbors8[idx].push_back(idx - _spWidth + 1);
+			_neighbors4[idx].push_back(idx - _spWidth);
+			_neighbors4[idx].push_back(idx + 1);
+			_neighbors4[idx].push_back(idx + _spWidth);
+			_neighbors4[idx].push_back(idx - 1);
 		}
 	}
-	_neighbors[0].push_back(1);
-	_neighbors[0].push_back(_spWidth);
-	_neighbors[0].push_back(_spWidth + 1);
+	_neighbors8[0].push_back(1);
+	_neighbors8[0].push_back(_spWidth);
+	_neighbors8[0].push_back(_spWidth + 1);
 
-	_neighbors[_spWidth - 1].push_back(_spWidth - 2);
-	_neighbors[_spWidth - 1].push_back(2 * _spWidth - 1);
-	_neighbors[_spWidth - 1].push_back(2 * _spWidth - 2);
+	_neighbors4[0].push_back(1);
+	_neighbors4[0].push_back(_spWidth);
+
+	_neighbors8[_spWidth - 1].push_back(_spWidth - 2);
+	_neighbors8[_spWidth - 1].push_back(2 * _spWidth - 1);
+	_neighbors8[_spWidth - 1].push_back(2 * _spWidth - 2);
+	_neighbors4[_spWidth - 1].push_back(_spWidth - 2);
+	_neighbors4[_spWidth - 1].push_back(2 * _spWidth - 1);
 
 	int idx = _spWidth*_spHeight-1;
-	_neighbors[idx].push_back(idx - _spWidth);
-	_neighbors[idx].push_back(idx - 1);
-	_neighbors[idx].push_back(idx - _spWidth - 1);
-	
+	_neighbors8[idx].push_back(idx - _spWidth);
+	_neighbors8[idx].push_back(idx - 1);
+	_neighbors8[idx].push_back(idx - _spWidth - 1);
+	_neighbors4[idx].push_back(idx - _spWidth);
+	_neighbors4[idx].push_back(idx - 1);
+
 	idx -= (_spWidth - 1);
-	_neighbors[idx].push_back(idx - _spWidth);
-	_neighbors[idx].push_back(idx + 1);
-	_neighbors[idx].push_back(idx - _spWidth + 1);
+	_neighbors8[idx].push_back(idx - _spWidth);
+	_neighbors8[idx].push_back(idx + 1);
+	_neighbors8[idx].push_back(idx - _spWidth + 1);
+	_neighbors4[idx].push_back(idx - _spWidth);
+	_neighbors4[idx].push_back(idx + 1);
 }
 
 void SuperpixelComputer::release()
