@@ -2458,21 +2458,7 @@ void SparseHistogram(cv::Mat& indexImg, int colorNum, std::vector<uint2>& poses,
 		int id = histogram[*ptr]++;
 	}
 }
-void LBPHistogram(cv::Mat& LbpImg, std::vector<uint2>& poses, std::vector<float>& histogram)
-{
-	int width = LbpImg.cols;
-	int height = LbpImg.rows;
-	int binSize = 59;
-	histogram.resize(binSize);
-	memset(&histogram[0], 0, sizeof(float)*histogram.size());
-	for (int i = 0; i < poses.size(); i++)
-	{
-		int idx = poses[i].x + poses[i].y*width;
-		uchar ptr = *(uchar*)(LbpImg.data + idx);
-		histogram[ptr]++;
-	}
 
-}
 void RGBHistogram(cv::Mat& fImg, std::vector<uint2>& poses, int bins, float min, float max, std::vector<float>& histogram)
 {
 	int width = fImg.cols;
@@ -2616,7 +2602,10 @@ void histogram()
 	LABHistogram(labImg1, poses, 12, labHist1);
 	LABHistogram(labImg2, poses, 12, labHist2);
 	LABHistogram(labImg3, poses, 12, labHist3);
-
+	std::vector<float> lbpHist1, lbpHist2, lbpHist3;
+	LBPHistogram(lbp1, poses, lbpHist1);
+	LBPHistogram(lbp2, poses, lbpHist2);
+	LBPHistogram(lbp3, poses, lbpHist3);
 	/*cv::normalize(hist1,hist1,1,0,NORM_L1 );
 	cv::normalize(hist2,hist2,1,0,NORM_L1 );
 	cv::normalize(hist3,hist3,1,0,NORM_L1 );*/
@@ -2633,9 +2622,14 @@ void histogram()
 	float ld2 = cv::compareHist(labHist1, labHist3, CV_COMP_BHATTACHARYYA);
 	float ld3 = cv::compareHist(labHist2, labHist3, CV_COMP_BHATTACHARYYA);
 
+	float pd1 = cv::compareHist(lbpHist1, lbpHist2, CV_COMP_BHATTACHARYYA);
+	float pd2 = cv::compareHist(lbpHist1, lbpHist3, CV_COMP_BHATTACHARYYA);
+	float pd3 = cv::compareHist(lbpHist2, lbpHist3, CV_COMP_BHATTACHARYYA);
+
 	std::cout << cd1 << " " << cd2 << " " << cd3 << std::endl;
 	std::cout << hd1 << " " << hd2 << " " << hd3 << std::endl;
 	std::cout << ld1 << " " << ld2 << " " << ld3 << std::endl;
+	std::cout << pd1 << " " << pd2 << " " << pd3 << std::endl;
 	DrawHistogram(hist1, hist1.size(), "hist1");
 	DrawHistogram(hist2, hist2.size(), "hist2");
 	DrawHistogram(hist3, hist3.size(), "hist3");
@@ -2779,9 +2773,66 @@ void TestMontonCode(cv::Mat& img)
 	cv::imshow("mtest", mask);
 	cv::waitKey();
 }
+void RegionMerging(const char* inputPath, const char* fileName, const char* outputPath, int step)
+{
+	nih::Timer timer;
+	char imgName[200];
+	sprintf(imgName, "%s\\%s.jpg", inputPath, fileName);
+	char outPath[200];
+	sprintf(outPath, "%s%s\\", outputPath, fileName);
+	CreateDir(outPath);
+	cv::Mat img = cv::imread(imgName);
+	cv::Mat fimg, gray, labImg, lbpImg;
+	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
+	cv::cvtColor(fimg, labImg, CV_BGR2Lab);
+	cv::cvtColor(img, gray, CV_BGR2GRAY);
+	cv::GaussianBlur(gray, gray, cv::Size(3, 3), 0);
+	cv::Mat dx, dy, _angImg, _magImg;
+	cv::Scharr(gray, dx, CV_32F, 1, 0);
+	cv::Scharr(gray, dy, CV_32F, 0, 1);
+	cv::cartToPolar(dx, dy, _magImg, _angImg, true);
+	sprintf(imgName, "%s\\%s_edge.png", inputPath, fileName);
+	cv::Mat edgeMap = cv::imread(imgName, -1);
+	if (edgeMap.channels() == 3)
+		cv::cvtColor(edgeMap, edgeMap, CV_BGR2GRAY);
+	edgeMap.convertTo(edgeMap, CV_32F, 1.0 / 255);
+
+	int _width = img.cols;
+	int _height = img.rows;
+	cv::Mat simg;
+
+	SuperpixelComputer computer(_width, _height, step, 0.55);
+	timer.start();
+	computer.ComputeSuperpixel(img);
+	timer.stop();
+	std::cout << "superpixel " << timer.seconds() * 1000 << "ms\n";
+
+	computer.GetVisualResult(img, simg);
+	sprintf(imgName, "%ssuperpixel_%s.jpg", outputPath, fileName);
+	cv::imwrite(imgName, simg);
+
+	//计算每个超像素与周围超像素的差别
+	int spHeight = computer.GetSPHeight();
+	int spWidth = computer.GetSPWidth();
+	int* labels;
+	SLICClusterCenter* centers = NULL;
+	int _spSize(0);
+	computer.GetSuperpixelResult(_spSize, labels, centers);
+	//每个超像素中包含的像素以及位置	
+	std::vector<std::vector<uint2>> _spPoses;
+	computer.GetSuperpixelPoses(_spPoses);
+
+	std::vector<int> nLabels;
+	std::vector<SPRegion> regions;
+	std::vector < std::vector<int>> neighbors;
+	timer.start();
+	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 2);
+	timer.stop();
+	std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
+	
+}
 void SaliencyTest(const char* inputPath, const char* fileName, const char* outputPath, int step)
 {
-	
 	nih::Timer timer;
 	char imgName[200];
 	sprintf(imgName, "%s\\%s.jpg", inputPath, fileName);
@@ -2825,7 +2876,7 @@ void SaliencyTest(const char* inputPath, const char* fileName, const char* outpu
 	std::vector<SPRegion> regions;
 	std::vector < std::vector<int>> neighbors;
 	timer.start();
-	IterativeRegionGrowing(img, computer, nLabels, regions, neighbors, 0.2, 10);
+	IterativeRegionGrowing(img, computer, nLabels, regions, neighbors, 0.2, 2);
 	timer.stop();
 	std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
 	cv::Mat regMask;
@@ -3104,14 +3155,14 @@ void TestRegionDist()
 				RegDist rd;
 				rd.sRid = i;
 				rd.bRid = n;
-				rd.dist = dist;
+				rd.colorDist = dist;
 				QRegDists.push_back(rd);
-				ofile << "Region " << i << " ,Region " << n << " QC dist " << rd.dist;
-				rd.dist = cv::compareHist(colorHist[i], colorHist[n], CV_COMP_BHATTACHARYYA);
-				ofile << " HC dist " << rd.dist;
+				ofile << "Region " << i << " ,Region " << n << " QC dist " << rd.colorDist;
+				rd.colorDist = cv::compareHist(colorHist[i], colorHist[n], CV_COMP_BHATTACHARYYA);
+				ofile << " HC dist " << rd.colorDist;
 				HCRegDists.push_back(rd);
-				rd.dist = cv::compareHist(gradHist[i], gradHist[n], CV_COMP_BHATTACHARYYA);
-				ofile << " HG dist " << rd.dist<<"\n";
+				rd.colorDist = cv::compareHist(gradHist[i], gradHist[n], CV_COMP_BHATTACHARYYA);
+				ofile << " HG dist " << rd.colorDist << "\n";
 				HGRegDists.push_back(rd);
 			}
 		}
@@ -3122,6 +3173,22 @@ void TestRegionDist()
 	std::sort(HGRegDists.begin(), HGRegDists.end(), RegDistDescComparer());
 	
 }
+void TestRegionMerging(int argc, char* argv[])
+{
+	char* path = argv[1];
+	int step = atoi(argv[2]);
+	std::vector<std::string> fileNames;
+	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
+	char outPath[200];
+	sprintf(outPath, "%s\\saliency\\", path);
+	CreateDir(outPath);
+	for (size_t i = 0; i < fileNames.size(); i++)
+	{
+		RegionMerging(path, fileNames[i].c_str(), outPath, step);
+	}
+}
+	
+
 void TestSaliency(int argC, char** argv)
 {
 	/*TestRegionDist();
@@ -3148,13 +3215,13 @@ void TestSaliency(int argC, char** argv)
 		char outPath[200];
 		sprintf(outPath, "%s\\saliency\\", path);
 		CreateDir(outPath);
-		SaliencyTest(path, "in000002", outPath, step);
+		//SaliencyTest(path, "75", outPath, step);
 		
-	/*	for (int i = 6770; i < fileNames.size(); i++)
+		for (int i = 6770; i < fileNames.size(); i++)
 		{
 			std::cout <<i<< " processing "<<fileNames[i].c_str() << "\n";
 			SaliencyTest(path, fileNames[i].c_str(), outPath, step);
-		}*/
+		}
 	}
 	
 }

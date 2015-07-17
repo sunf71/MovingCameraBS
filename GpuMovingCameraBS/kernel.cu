@@ -6,7 +6,8 @@ int main (int argc, char* argv[])
 	//TestRTBS(argc,argv);
 	//TestLBP();
 	//TestQuantize();
-	TestSaliency(argc,argv);
+	//TestSaliency(argc,argv);
+	TestRegionMerging(argc, argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
 	//TestFeaturesRefine(argc, argv);

@@ -50,8 +50,8 @@ static void BilinearInterpolation(int width, int height, const T* data, float x,
 	{
 		int sx = (int)x;
 		int sy = (int)y;
-		int bx = min(sx +1,width-1);
-		int by = min(sy +1,height-1);
+		int bx = std::min(sx +1,width-1);
+		int by = std::min(sy + 1, height - 1);
 		float tx = x - sx;
 		float ty = y - sy;
 		size_t idx_rgb_lu = (sx+sy*width)*step;
@@ -188,4 +188,21 @@ inline void LBPGRAY(const cv::Mat& img, cv::Mat& lbpImg)
 
 		}
 	}
+}
+
+
+inline void LBPHistogram(cv::Mat& LbpImg, std::vector<uint2>& poses, std::vector<float>& histogram)
+{
+	int width = LbpImg.cols;
+	int height = LbpImg.rows;
+	int binSize = 59;
+	histogram.resize(binSize);
+	memset(&histogram[0], 0, sizeof(float)*histogram.size());
+	for (int i = 0; i < poses.size(); i++)
+	{
+		int idx = poses[i].x + poses[i].y*width;
+		uchar ptr = *(uchar*)(LbpImg.data + idx);
+		histogram[ptr]++;
+	}
+
 }

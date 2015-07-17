@@ -75,10 +75,21 @@ struct SPRegion
 	float4 color;
 	////邻居区域Id
 	std::vector<int> neighbors;
+	//与每个邻居区域的边界超像素数
+	std::vector<int> borders;
+	//与每个邻居的边界超像素Id
+	std::vector<std::vector<int>> borderSpIndices;
+	//与每个邻居区域的边界超像素数
+	std::vector<int> borderPixelNum;
+	//与每个邻居的边界像素
+	std::vector<std::vector<uint2>> borderPixels;
+	//与每个邻居的边界像素中是边缘的像素个数
+	std::vector<float> edgeness;
 	//区域中所有超像素的Id
 	std::vector<int> spIndices;
 	std::vector<float> colorHist;
 	std::vector<float> hog;
+	std::vector<float> lbpHist;
 	int cX;
 	int cY;
 	float dist;
@@ -121,16 +132,32 @@ typedef std::priority_queue<SPRegion, std::vector<SPRegion>, RegionDistCmp> SPRe
 
 struct RegDist
 {
+	RegDist()
+	{
+		edgeness = colorDist = hogDist = sizeDist = lbpDist = 0;
+	}
 	int sRid;
 	int bRid;
-	double dist;
+	double colorDist;
+	double hogDist;
+	double sizeDist;
+	double lbpDist;
+	double edgeness;
 };
 
 struct RegDistDescComparer
 {
+	RegDistDescComparer()
+	{
+		colorW = hogW = sizeW = 1.0 / 3;
+	}
+	RegDistDescComparer(double cw, double hw, double sw) :colorW(cw), hogW(hw), sizeW(sw){};
+	double colorW, hogW, sizeW;
 	bool operator()(const RegDist& rd1, const RegDist& rd2)
 	{
-		return rd1.dist < rd2.dist;
+		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist;
+		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist;
+		return d1 < d2;
 	}
 };
 inline float4 operator * (float4& a, float n)
@@ -254,15 +281,15 @@ void GetContrastMap(int widht, int height, SuperpixelComputer* computer, std::ve
 typedef std::vector<float> HISTOGRAM;
 typedef std::vector<HISTOGRAM> HISTOGRAMS;
 void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, int colorSpace = 0);
-
+void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, HISTOGRAMS& lbpHist, int colorSpace = 0);
 void BuildQHistorgram(const cv::Mat& idxImg, int colorNum, SuperpixelComputer* computer, HISTOGRAMS& colorHist);
 
 inline double RegionDist(const SPRegion& ra, const SPRegion& rb)
 {
 	double colorDist =  cv::compareHist(ra.colorHist, rb.colorHist, CV_COMP_BHATTACHARYYA);
-	//double gradDist = cv::compareHist(ra.hog, rb.hog, CV_COMP_BHATTACHARYYA);
-	//double sizeDist = std::max(ra.size*1.f, rb.size*1.f);
-	return colorDist;
+	double gradDist = cv::compareHist(ra.hog, rb.hog, CV_COMP_BHATTACHARYYA);	
+	
+	return colorDist/*+gradDist*/;
 }
 
 inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colorDist)
@@ -276,17 +303,32 @@ inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colo
 			d += ra.colorHist[i] * rb.colorHist[j] * (dist);
 		}
 	}
-	//double gradDist = cv::compareHist(ra.hog, rb.hog, CV_COMP_BHATTACHARYYA);
+
 	return d;
 }
 
+void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
+
+void IterativeRegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
+
 void IterativeRegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
-void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF);
+
+void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
+
+void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& spSaliency, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
+
+void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
+
+void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
+
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, cv::Mat1f& colorDist, float thresholdF);
+
+void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, cv::Mat1f& colorDist, float thresholdF);
 
 template<class T, int D> inline T vecSqrDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { T s = 0; for (int i = 0; i < D; i++) s += sqrt((v1[i] - v2[i])*(v1[i] - v2[i])*1.0f); return s; } // out of range risk for T = byte, ...
 template<class T, int D> inline T    vecDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { return sqrt(vecSqrDist(v1, v2)); } // out of range risk for T = byte, ...
-
 int Quantize(cv::Mat& img3f, cv::Mat &idx1i, cv::Mat &_color3f, cv::Mat &_colorNum, double ratio, const int clrNums[3]);
 
 void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, cv::Mat& segmet);
+
+void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, int* segmet);
