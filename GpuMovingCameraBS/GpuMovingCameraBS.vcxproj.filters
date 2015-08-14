@@ -1,0 +1,292 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{e298cfa8-5d5a-4888-9569-1185e598cb3c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Cuda">
+      <UniqueIdentifier>{c2c038d6-0e05-4ada-b025-fe4949da6295}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{de860d7a-756f-4b37-a535-50fa77fe66ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="QC">
+      <UniqueIdentifier>{0797d2b5-e41e-4c43-8b92-4ef7ce00669f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="LBSP_16bits_dbcross_s4ch.i">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="LBSP_16bits_dbcross_s3ch.i">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="LBSP_16bits_dbcross_3ch3t.i">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="LBSP_16bits_dbcross_3ch1t.i">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="LBSP_16bits_dbcross_1ch.i">
+      <Filter>头文件</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="WarpBackgroundSubtractor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="videoprocessor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="timer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Test.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SuperpixelComputer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SubSenseBSProcessor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SparseSolver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SparseMatrixSolverHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SLIC.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RandUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="PictureHandler.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="MRFOptimize.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="MotionEstimate.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="MeanShift.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="LinkedBlockList.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="LBSP.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="graph.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GpuTimer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GpuSuperpixel.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GpuBackgroundSubtractor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GCoptimization.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="flowIO.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FlowComputer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="findHomography.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FGMaskPostProcess.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FeaturePointRefine.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="energy.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DistanceUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CudaSuperpixel.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CudaBSOperator.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ComSuperpixel.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Common.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="BlockWarping.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="block.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ASAPWarping.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="LBP.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RTBackgroundSubtractor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RegionMerging.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageWarping.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\deltaE2000.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\ind_sim_pair.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\ind_val_pair.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\QC_full_sparse.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\QC_sparse_sparse.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\QC_utils.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\sparse_matlab_like_matrix.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\sparse_similarity_matrix_utils.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\sparse_vector_constant_time_access_element.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QC\tictoc.hpp">
+      <Filter>QC</Filter>
+    </ClInclude>
+    <ClInclude Include="HistComparer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="LSE.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Dijkstra.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FileNameHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="WarpBackgroundSubtractor.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="timer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Test.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SuperpixelComputer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SparseSolver.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SLIC.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="PictureHandler.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MRFOptimize.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MotionEstimate.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MeanShift.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="maxflow.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LinkedBlockList.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LBSP.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="graph.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GpuSuperpixel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GpuBackgroundSubtrator.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GCoptimization.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="flowIO.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="FlowComputer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="FeaturePointRefine.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ComSuperpixel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="BlockWarping.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ASAPWarping.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RTBackgroundSubtractor.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RegionMerging.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LSE.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Dijkstra.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CudaSuperpixel.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CudaBSOperator.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>

@@ -133,17 +133,25 @@ void MovieMakeMain(int argc, char* argv[])
 	{
 		BGSMovieMaker::MakeMovie(argv[1],argv[2],cv::Size(atoi(argv[3]),atoi(argv[4])),atoi(argv[5]),atoi(argv[6]),argv[7],atoi(argv[8]));
 	}
+	else if (argc == 10)
+	{
+		BGSMovieMaker::MakeMovie(argv[1], argv[2], cv::Size(atoi(argv[3]), atoi(argv[4])), atoi(argv[5]), atoi(argv[6]), argv[7], atoi(argv[8]), atoi(argv[9]));
+	}
+	else if (argc == 11)
+	{
+		BGSMovieMaker::MakeMovie(argv[1], argv[2], cv::Size(atoi(argv[3]), atoi(argv[4])), atoi(argv[5]), atoi(argv[6]), argv[7], atoi(argv[8]), atoi(argv[9]), atoi(argv[10]));
+	}
 	else
 	{
-		printf("const char* maskPath,const char* imgPath,int width, int height, int from, int to, const char* outFileName, int fps = 25\n");
+		printf("wrong arguments\nconst char* maskPath,const char* imgPath,int width, int height, int from, int to, const char* outFileName, int saveImg =0, int type = 0, int fps = 25\n");
 	}
 
 }
 int main(int argc, char* argv[])
 {
-	//MovieMakeMain(argc,argv);
+	MovieMakeMain(argc,argv);
 	//TestCVSolve();
-	TestASAPWarping();
+	//TestASAPWarping();
 	//BGSMovieMaker::MakeMovie("..\\result\\subsensex\\ptz\\input3\\warpbaseline","..\\ptz\\input3",cv::Size(320,240),1,1130,"zoominzoomout_s.avi");
 	return 0;
 	VideoProcessor processor;

@@ -43,186 +43,7 @@ Copyright (C) 2010-2011 Robert Laganiere, www.laganiere.name
 //#include "mclcppclass.h"
 
 
-//统计类，用于计算标准差，协方差等统计数据
-class STAT
-{
-public:
 
-	STAT(void)
-	{
-	}
-
-	~STAT(void)
-	{
-	}
-
-	//计算均值 
-	template  <class T>
-	static double Mean(vector<T>& v)
-	{
-		double sum = 0;
-		for(int i=0; i<v.size(); i++)
-		{
-			sum += v[i];
-		}
-		return sum/v.size();
-	}
-	//计算方差
-	template <class T>
-	static double Variance(vector<T>& v)
-	{
-		double ret = 0;
-		double mean = Mean(v);
-		for(int i=0; i<v.size(); i++)
-		{
-			ret += (v[i] - mean)*(v[i] - mean);
-		}
-		return ret/v.size();
-	}
-	template <class T>
-	static double Variance(vector<T>& v,double mean)
-	{
-		double ret = 0;		
-		for(int i=0; i<v.size(); i++)
-		{
-			ret += (v[i] - mean)*(v[i] - mean);
-		}
-		return ret/v.size();
-	}
-	//计算标准差
-	template <class T>
-	static double STD(vector<T>& v)
-	{
-		return sqrt(Variance(v));
-	}
-
-	//计算协方差
-	template <class T>
-	static double Cov(vector<T>& a, vector<T>& b)
-	{
-		assert(a.size() == b.size());
-
-		//cov(a,b) = E(a*b) - E(a)*E(b)
-		double ret = 0;
-		double suma = 0;
-		double sumb = 0;
-		for(int i=0; i<a.size(); i++)
-		{
-			ret += a[i]*b[i];
-			suma += a[i];
-			sumb += b[i];		
-		}
-		
-		return (ret - suma*sumb/a.size())/a.size();
-	}
-
-	template <class T>
-	static double Cov(vector<T>& a, vector<T>&b, double meanA, double meanB)
-	{
-		assert(a.size() == b.size());
-		double ret = 0;
-		
-		for(int i=0; i<a.size(); i++)
-		{
-			ret += a[i]*b[i];
-			
-		}
-		return ret/a.size() - meanA*meanB;
-	}
-
-	template<class T>
-	static double BhatBinDistance(const vector<T>& a, const vector<T>& b)
-	{
-		assert(a.size() == b.size());
-		float sumXY = 0;
-		float sumX = 0;
-		float sumY = 0;
-		for(int i=0; i<a.size(); i++)
-		{
-			sumXY += sqrt(a[i]*b[i]);
-			sumX += a[i];
-			sumY += b[i];
-		}
-
-		return 1 - sumXY/sqrt(sumX*sumY);
-	}
-
-	//计算直方图距离
-	template <class T>
-	static double BinDistance(const vector<T>& a, const vector<T>& b)
-	{
-		return 1- abs(CorDistance(a,b));
-	/*	return BhatBinDistance(a,b);*/
-	}
-
-	//计算直方图距离
-	template <class T>
-	static double BinDistance(const vector<vector<T>>& a, const vector<vector<T>>& b)
-	{
-		
-		double Max = 0;		
-		int c = 0;
-	    vector<T> sumA(a[0].size(),0),sumB(a[0].size(),0);
-
-		for(int i=0; i<3; i++)
-		{
-		/*	double max = *max_element(a[i].begin(),a[i].end());
-			double ratio = max/accumulate(a[i].begin(),a[i].end(),0);
-			max *= ratio;
-			if (max > Max)
-			{
-				Max = max;
-				c = i;
-			}*/
-			for(int j=0; j<a[0].size(); j++)
-			{
-				sumA[j] += a[i][j];
-				sumB[j] += b[i][j];
-			}
-		}	
-		return BinDistance(sumA,sumB);
-		//return BinDistance(a[c],b[c]);		
-	}
-	//计算直方图距离
-	template <class T>
-	static double CorDistance(const vector<T>& a, const vector<T>& b)
-	{	
-		//distance = (cov(a,b) + c)/(std(a)*std(b) + c) c是一个防止除0的常数 0.00001
-		const double c = 0.00001;
-		assert(a.size() == b.size());
-
-		//cov(a,b) = E(a*b) - E(a)*E(b)
-		double cov = 0;
-		double suma = 0;
-		double sumb = 0;
-		for(int i=0; i<a.size(); i++)
-		{
-			cov += a[i]*b[i];
-			suma += a[i];
-			sumb += b[i];		
-		}
-		
-		double meanA = suma/a.size();
-		double meanB = sumb/b.size();
-
-		double stdA = 0;
-		double stdB = 0;
-		for(int i=0; i<a.size(); i++)
-		{
-			stdA += (a[i] - meanA)*(a[i] - meanA);
-			stdB += (b[i] - meanB)*(b[i] - meanB);
-
-		}
-		stdA = sqrt(stdA/a.size());
-		stdB = sqrt(stdB/a.size());
-
-		cov /= a.size();
-		cov -= meanA * meanB;
-		
-		return (cov + c)/(stdA*stdB +c);	
-	
-	}
-};
 void TestAffine()
 {
 	using namespace cv;
@@ -778,35 +599,7 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 	
 	}
 }
-void DrawHistogram(std::vector<float>& histogram, int size, const std::string name = "histogram")
-{
-	float max = histogram[0];
-	int idx = 0;
-	for(int i=1; i<size; i++)
-	{
-		if (histogram[i] > max)
-		{
-			max = histogram[i];
-			idx = i;
-		}
 
-	}
-	cv::Mat img(400,300,CV_8UC3);
-	img = cv::Scalar(0);
-	int step = (img.cols+size-1)/size;
-	cv::Scalar color(255,255,0);
-	for(int i=0; i<size; i++)
-	{
-		cv::Point2i pt1,pt2;
-		pt1.x = i*step;
-		pt1.y = img.rows - (histogram[i]/max*img.rows);
-		pt2.x = pt1.x + step;
-		pt2.y = img.rows;
-		cv::rectangle(img,cv::Rect(pt1,pt2),color);
-	}
-	cv::imshow(name,img);
-	//cv::waitKey();
-}
 void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
 {
 	homography.create(3,3,CV_64F);
@@ -1091,7 +884,7 @@ void TestPatchStructralSimilarity()
 					ushort p1[3],p2[3];
 					computeRGBDescriptor(grad1x,grad1y,j,i,hist1,p1);
 					computeRGBDescriptor(grad2x,grad2y,wx,wy,hist2,p2);
-					double dist = STAT::BinDistance(hist1,hist2);
+					double dist = cv::compareHist(hist1, hist2, CV_COMP_BHATTACHARYYA);
 					size_t pdist = hdist_ushort_8bitLUT(p1,p2);
 					if ( dist < 0.5/*pdist < 12*/ )
 					{
