@@ -2154,7 +2154,7 @@ void GetContrastMap(int width, int height, SuperpixelComputer* computer, std::ve
 		
 		bgSize += regions[i].size;
 		bgReg++;
-		if (bgSize > 0.45*totalSize)
+		if (bgSize > 0.6*totalSize)
 			break;		
 		
 	}
@@ -2183,6 +2183,7 @@ void GetContrastMap(int width, int height, SuperpixelComputer* computer, std::ve
 	float M = 10;
 	for (size_t i = 0; i < regions.size(); i++)
 	{
+		
 		int minId(0);
 		double minDist(regions.size());
 		for (size_t k = 0; k < bgReg; k++)
@@ -2604,7 +2605,8 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	int * labels(NULL);
 	SLICClusterCenter* centers(NULL);
 	computer.GetSuperpixelResult(spSize, labels, centers);
-
+	std::vector<std::vector<uint2>> spPoses;
+	computer.GetSuperpixelPoses(spPoses);
 	newLabels.resize(spSize);
 	//init regions 
 	for (int i = 0; i < spSize; i++)
@@ -2656,10 +2658,37 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	}
 	cv::imshow("spSaliency", smap);
 	cv::waitKey();*/
+	//region neighbors index by region vector index
+	regNeighbors.resize(regions.size());
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+		{
+			for (size_t k = 0; k < regions.size(); k++)
+			{
+				if (regions[k].id == regions[i].neighbors[j])
+				{
+					regNeighbors[i].push_back(k);
+					break;
+				}
+			}
+		}
+	}
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		if (regions[i].size > 0 && regNeighbors[i].size() < 4)
+		{
+			int regId = regions[i].id;
+			//处理空洞区域，将其合并到最接近的邻居中
+			HandleHole(i, newLabels, spPoses, regions, regNeighbors);
+		}
 
+	}
 	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
 	int size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
 	regions.resize(size);
+
+	
 }
 
 void IterativeRegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold)
@@ -2757,6 +2786,23 @@ void IterativeRegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelC
 	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
 	int size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
 	regions.resize(size);
+
+	//region neighbors index by region vector index
+	regNeighbors.resize(size);
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+		{
+			for (size_t k = 0; k < regions.size(); k++)
+			{
+				if (regions[k].id == regions[i].neighbors[j])
+				{
+					regNeighbors[i].push_back(k);
+					break;
+				}
+			}
+		}
+	}
 }
 //iterative region growing
 void IterativeRegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold)
@@ -2828,6 +2874,7 @@ void IterativeRegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, st
 	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
 	int size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
 	regions.resize(size);
+	
 }
 
 void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& spSaliency, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF)

@@ -2826,9 +2826,17 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	std::vector<SPRegion> regions;
 	std::vector < std::vector<int>> neighbors;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 2);
+	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 20);
 	timer.stop();
 	std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
+
+	
+	
+	cv::Mat salMap;	
+	GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
+	
+	sprintf(imgName, "%ssaliency_%s.jpg", outputPath, fileName);
+	cv::imwrite(imgName, salMap);
 	
 }
 void SaliencyTest(const char* inputPath, const char* fileName, const char* outputPath, int step)
