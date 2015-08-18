@@ -72,6 +72,7 @@ struct SPRegion
 	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){}
 	int id;
 	int size;
+	float wsize;
 	float4 color;
 	////邻居区域Id
 	std::vector<int> neighbors;
@@ -102,6 +103,14 @@ struct RegionSizeCmp
 	bool operator()(const SPRegion &na, const SPRegion &nb)
 	{
 		return na.size > nb.size;
+	}
+};
+//结构体的比较方法 改写operator()  
+struct RegionWSizeCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+		return na.wsize > nb.wsize;
 	}
 };
 struct RegionSizeZero
@@ -248,6 +257,13 @@ int HandleHole(int i, std::vector<int>& newLabels,
 	std::vector<std::vector<uint2>>& spPoses,
 	std::vector<SPRegion>& regions,
 	std::vector<std::vector<int>>& regNeighbors);
+
+//handle hole
+int HandleHoles(int i, std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions);
+
+int HandleHoleDemo(int width, int height, int i, SuperpixelComputer* computer, std::vector<std::vector<uint2>>& spPoses, std::vector<int>& nLabels, std::vector<SPRegion>& regions);
 
 //merge region i to region nRegId
 void MergeRegion(int i, int nRegId,

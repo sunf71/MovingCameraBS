@@ -1650,6 +1650,98 @@ void MergeRegion(int i, int nRegId,
 	regIndices[regId].clear();
 }
 
+int HandleHoleDemo(int width, int height, int i, SuperpixelComputer* computer, std::vector<std::vector<uint2>>& spPoses, std::vector<int>& newLabels, std::vector<SPRegion>& regions)
+{
+	int ret = 0;
+	int regId = regions[i].id;
+	//处理空洞区域，将其合并到最接近的邻居中
+	float minDist(1e10);
+	int minId(-1);
+	std::vector<int> INeighbors;
+	for (size_t n = 0; n < regions[i].neighbors.size(); n++)
+	{
+		int nid = regions[i].neighbors[n];
+		INeighbors.push_back(nid);
+		float dist = L1Distance(regions[i].color, regions[nid].color);
+		if (dist < minDist)
+		{
+			minDist = dist;
+			minId = n;
+		}
+	}
+
+	int j = regions[i].neighbors[minId];
+	std::cout << "merge regions " << i << " " << j << std::endl;
+	std::vector<uint2> spParis;
+	spParis.push_back(make_uint2(i, j));
+	cv::Mat mask;
+	GetRegionMap(width, height, computer, newLabels, regions,spParis, mask);
+	char name[25];
+	sprintf(name, "Mergeing%d_%d.jpg", i, j);
+	cv::imwrite(name, mask);
+	MergeRegions(i, j, newLabels, spPoses, regions);
+	GetRegionMap(width, height, computer, newLabels, regions, mask);
+	sprintf(name, "Merged%d_%d.jpg", i, j);
+	cv::imwrite(name, mask);
+	ret++;
+	//检查合并后的邻居是不是邻居变少了
+	int minN = 2;
+	for (size_t n = 0; n < INeighbors.size(); n++)
+	{
+
+		int nSize = regions[INeighbors[n]].neighbors.size();
+		std::cout << INeighbors[n] << " neighbors " << nSize << std::endl;
+		if (regions[INeighbors[n]].size>0 && nSize > 0 && nSize < minN)
+		{
+			std::cout << "	handle hole " << INeighbors[n] << std::endl;
+			ret += HandleHoleDemo(width, height, INeighbors[n], computer, spPoses, newLabels, regions);
+		}
+	}
+	return ret;
+}
+
+int HandleHole(int i, std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions)
+{
+	int ret = 0;
+	int regId = regions[i].id;
+	//处理空洞区域，将其合并到最接近的邻居中
+	float minDist(1e10);
+	int minId(-1);
+	std::vector<int> INeighbors;
+	for (size_t n = 0; n < regions[i].neighbors.size(); n++)
+	{
+		int nid = regions[i].neighbors[n];
+		INeighbors.push_back(nid);
+		float dist = L1Distance(regions[i].color, regions[nid].color);
+		if (dist < minDist)
+		{
+			minDist = dist;
+			minId = n;
+		}
+	}
+
+	int j = regions[i].neighbors[minId];
+	std::cout << "merge regions " << i << " " << j << std::endl;
+	MergeRegions(i, j, newLabels, spPoses, regions);
+	ret++;
+	//检查合并后的邻居是不是邻居变少了
+	int minN = 2;
+	for (size_t n = 0; n < INeighbors.size(); n++)
+	{
+		
+		int nSize = regions[INeighbors[n]].neighbors.size();
+		std::cout << INeighbors[n] << " neighbors " << nSize << std::endl;
+		if ((regions[INeighbors[n]].size>0 && nSize > 0 && nSize < minN) 
+			|| regions[INeighbors[n]].size == 1)
+		{
+			std::cout << "	handle hole " << INeighbors[n] << std::endl;
+			ret += HandleHole(INeighbors[n], newLabels, spPoses, regions);
+		}
+	}
+	return ret;
+}
 int HandleHole(int i, std::vector<int>& newLabels,
 	std::vector<std::vector<uint2>>& spPoses,
 	std::vector<SPRegion>& regions,
@@ -2140,6 +2232,26 @@ void GetSaliencyMap(int width, int height, SuperpixelComputer* computer,
 
 void GetContrastMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, cv::Mat& mask)
 {
+	//加权区域面积，包含边缘超像素的区域是背景的概率更大
+	float weight = 2;
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		float wsize(0);
+		for (size_t j = 0; j < regions[i].size; j++)
+		{
+			int col = regions[i].spIndices[j] % computer->GetSPWidth();
+			int row = regions[i].spIndices[j] / computer->GetSPWidth();
+			if (row == 0 || row == computer->GetSPHeight() - 1 || col == 0 || col == computer->GetSPWidth() - 1)
+			{
+				wsize += weight;
+			}
+			else
+				wsize += 1;
+		}
+		regions[i].wsize = wsize;
+	}
+	std::sort(regions.begin(), regions.end(), RegionWSizeCmp());
+
 	/*int x1(255), y1(284), x2(466), y2(137);
 	int reg1 = segmented[x1 + y1*_width];
 	int reg2 = segmented[x2 + y2*_width];*/
@@ -2154,7 +2266,7 @@ void GetContrastMap(int width, int height, SuperpixelComputer* computer, std::ve
 		
 		bgSize += regions[i].size;
 		bgReg++;
-		if (bgSize > 0.6*totalSize)
+		if (bgSize > 0.65*totalSize)
 			break;		
 		
 	}
@@ -2658,6 +2770,30 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	}
 	cv::imshow("spSaliency", smap);
 	cv::waitKey();*/
+	
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2) ||
+			regions[i].size == 1)
+		{
+			int regId = regions[i].id;
+			std::cout << "handle hole " << i << " size " << regions[i].size << " neighbors " << regions[i].neighbors.size() << std::endl;
+			//处理空洞区域，将其合并到最接近的邻居中
+			HandleHole(i, newLabels, spPoses, regions);
+			//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
+		}
+
+	}
+	
+	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
+	int size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
+	regions.resize(size);
+	cv::Mat rmask;
+	char name[100];
+	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+	sprintf(name, "%sFregMergeF_%d.jpg", outPath, size);
+	cv::imwrite(name, rmask);
+
 	//region neighbors index by region vector index
 	regNeighbors.resize(regions.size());
 	for (size_t i = 0; i < regions.size(); i++)
@@ -2674,21 +2810,6 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 			}
 		}
 	}
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		if (regions[i].size > 0 && regNeighbors[i].size() < 4)
-		{
-			int regId = regions[i].id;
-			//处理空洞区域，将其合并到最接近的邻居中
-			HandleHole(i, newLabels, spPoses, regions, regNeighbors);
-		}
-
-	}
-	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
-	int size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
-	regions.resize(size);
-
-	
 }
 
 void IterativeRegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold)
