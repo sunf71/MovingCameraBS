@@ -5,7 +5,10 @@
 #include "DistanceUtils.h"
 #include "Dijkstra.h"
 #include "LBP.h"
-
+double sqr(double a)
+{
+	return a*a;
+}
 void SuperPixelRegionMerging(int width, int height, int step, const int*  labels, const SLICClusterCenter* centers,
 	std::vector<std::vector<uint2>>& pos,
 	std::vector<std::vector<float>>& histograms,
@@ -2407,7 +2410,7 @@ void GetContrastMap(int width, int height, SuperpixelComputer* computer, std::ve
 		//float nBgHogDist = cv::compareHist(regions[i].hog, regions[minId].hog, CV_COMP_BHATTACHARYYA);
 		//float nBgColorDist = maxDist;
 		
-
+		float sal = nBgColorDist*exp(-9.0 * (sqr(regions[i].ad2c.x) + sqr(regions[i].ad2c.y)));
 		for (size_t j = 0; j < regions[i].spIndices.size(); j++)
 		{
 			for (size_t s = 0; s < spPoses[regions[i].spIndices[j]].size(); s++)
@@ -2416,7 +2419,7 @@ void GetContrastMap(int width, int height, SuperpixelComputer* computer, std::ve
 
 				int idx = xy.x + xy.y*width;
 				//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
-				mask.at<float>(xy.y, xy.x) = nBgColorDist;
+				mask.at<float>(xy.y, xy.x) = sal;
 				//*(float*)(mask.data + idx * 4) = minDist;
 				//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
 			}

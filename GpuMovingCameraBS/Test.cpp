@@ -2830,8 +2830,46 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	timer.stop();
 	std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
 
-	
-	
+	//求每个区域的中心距
+	cv::Mat momentMask;
+	momentMask.create(_height, _width, CV_32F);
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		float dx(0),dy(0);
+		float d(0);
+		for (size_t j = 0; j < regions[i].spIndices.size(); j++)
+		{
+			int y = regions[i].spIndices[j] / spWidth;
+			int x = regions[i].spIndices[j] % spWidth;
+			dx += abs(x*1.0 / spWidth - 0.5);
+			dy += abs(y*1.0 / spHeight - 0.5);
+			d += dx + dy;
+		}
+		regions[i].moment = d/regions[i].size;
+		regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
+		for (size_t j = 0; j < regions[i].spIndices.size(); j++)
+		{
+			for (size_t s = 0; s < _spPoses[regions[i].spIndices[j]].size(); s++)
+			{
+				uint2 xy = _spPoses[regions[i].spIndices[j]][s];
+
+				int idx = xy.x + xy.y*_width;
+				//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
+				momentMask.at<float>(xy.y, xy.x) = regions[i].moment;
+				//*(float*)(mask.data + idx * 4) = minDist;
+				//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
+			}
+		}
+	}
+	normalize(momentMask, momentMask, 0, 1, cv::NORM_MINMAX, CV_32F);
+	/*double min, max;
+	cv::minMaxLoc(mask, &min, &max);*/
+	//cv::threshold(mask, mask, 1.5, 255, CV_THRESH_BINARY);
+	momentMask.convertTo(momentMask, CV_8U, 255);
+	sprintf(imgName, "%smoment_%s.jpg", outputPath, fileName);
+	cv::imwrite(imgName, momentMask);
+
+
 	cv::Mat salMap;	
 	GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
 	

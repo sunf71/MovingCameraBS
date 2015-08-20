@@ -73,6 +73,7 @@ struct SPRegion
 	int id;
 	int size;
 	float wsize;
+	float2 ad2c;
 	float4 color;
 	////ÁÚ¾ÓÇøÓòId
 	std::vector<int> neighbors;
