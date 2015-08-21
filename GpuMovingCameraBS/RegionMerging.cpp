@@ -5,6 +5,7 @@
 #include "DistanceUtils.h"
 #include "Dijkstra.h"
 #include "LBP.h"
+#include "Common.h"
 double sqr(double a)
 {
 	return a*a;
@@ -1726,7 +1727,7 @@ int HandleHole(int i, std::vector<int>& newLabels,
 	}
 
 	int j = regions[i].neighbors[minId];
-	std::cout << "merge regions " << i << " " << j << std::endl;
+	//std::cout << "merge regions " << i << " " << j << std::endl;
 	MergeRegions(i, j, newLabels, spPoses, regions);
 	ret++;
 	//检查合并后的邻居是不是邻居变少了
@@ -1735,11 +1736,11 @@ int HandleHole(int i, std::vector<int>& newLabels,
 	{
 		
 		int nSize = regions[INeighbors[n]].neighbors.size();
-		std::cout << INeighbors[n] << " neighbors " << nSize << std::endl;
+		//std::cout << INeighbors[n] << " neighbors " << nSize << std::endl;
 		if ((regions[INeighbors[n]].size>0 && nSize > 0 && nSize < minN) 
 			|| regions[INeighbors[n]].size == 1)
 		{
-			std::cout << "	handle hole " << INeighbors[n] << std::endl;
+			//std::cout << "	handle hole " << INeighbors[n] << std::endl;
 			ret += HandleHole(INeighbors[n], newLabels, spPoses, regions);
 		}
 	}
@@ -2687,7 +2688,7 @@ void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS
 		cv::normalize(lbpHists[i], lbpHists[i], 1, 0, cv::NORM_L1);
 	}
 }
-void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold)
+void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold, bool debug)
 {
 	
 	int width = img.cols, height = img.rows;
@@ -2774,13 +2775,12 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	cv::imshow("spSaliency", smap);
 	cv::waitKey();*/
 	
-	for (size_t i = 0; i < regions.size(); i++)
+ 	for (size_t i = 0; i < regions.size(); i++)
 	{
 		if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2) ||
 			regions[i].size == 1)
 		{
-			int regId = regions[i].id;
-			std::cout << "handle hole " << i << " size " << regions[i].size << " neighbors " << regions[i].neighbors.size() << std::endl;
+			int regId = regions[i].id;			
 			//处理空洞区域，将其合并到最接近的邻居中
 			HandleHole(i, newLabels, spPoses, regions);
 			//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
@@ -2791,11 +2791,16 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
 	int size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
 	regions.resize(size);
-	cv::Mat rmask;
-	char name[100];
-	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
-	sprintf(name, "%sFregMergeF_%d.jpg", outPath, size);
-	cv::imwrite(name, rmask);
+	
+	if (debug)
+	{
+		cv::Mat rmask;
+		char name[100];
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+		sprintf(name, "%sFregMergeF_%d.jpg", outPath, size);
+		cv::imwrite(name, rmask);
+	}
+	
 
 	//region neighbors index by region vector index
 	regNeighbors.resize(regions.size());
@@ -3756,7 +3761,7 @@ int Quantize(cv::Mat& img3f, cv::Mat &idx1i, cv::Mat &_color3f, cv::Mat &_colorN
 }
 
 
-void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF)
+void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug)
 {
 	static int idx = 0;
 	std::vector<RegDist> RegDists;
@@ -3834,11 +3839,17 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 		}
 
 	}
-	cv::Mat mask;
-	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, regPairs, mask);
 	char name[100];
-	sprintf(name, "%s%dregMergeB.jpg", outPath, idx);
-	cv::imwrite(name, mask);
+	if (debug)
+	{
+		CreateDir((char*)outPath);
+		cv::Mat mask;
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, regPairs, mask);
+		
+		sprintf(name, "%s%dregMergeB.jpg", outPath, idx);
+		cv::imwrite(name, mask);
+	}
+	
 	for (int i = 0; i < regPairs.size(); i++)
 	{
 		MergeRegions(regPairs[i].x, regPairs[i].y, newLabels, spPoses, regions);
@@ -3853,10 +3864,14 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 
 	delete[] segment;
 
-	cv::Mat rmask;
-	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
-	sprintf(name, "%s%dregMergeF_%d.jpg", outPath, idx, RegSize);
-	cv::imwrite(name, rmask);
+	if (debug)
+	{
+		cv::Mat rmask;
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+		sprintf(name, "%s%dregMergeF_%d.jpg", outPath, idx, RegSize);
+		cv::imwrite(name, rmask);
+	}
+	
 	idx++;
 
 }
