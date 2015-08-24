@@ -2773,14 +2773,14 @@ void TestMontonCode(cv::Mat& img)
 	cv::imshow("mtest", mask);
 	cv::waitKey();
 }
-void RegionMerging(const char* inputPath, const char* fileName, const char* outputPath, int step)
+void RegionMerging(const char* inputPath, const char* fileName, const char* outputPath, int step, bool debug = false)
 {
 	nih::Timer timer;
 	char imgName[200];
 	sprintf(imgName, "%s\\%s.jpg", inputPath, fileName);
 	char outPath[200];
 	sprintf(outPath, "%s%s\\", outputPath, fileName);
-	CreateDir(outPath);
+	
 	cv::Mat img = cv::imread(imgName);
 	cv::Mat fimg, gray, labImg, lbpImg;
 	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
@@ -2791,7 +2791,7 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	cv::Scharr(gray, dx, CV_32F, 1, 0);
 	cv::Scharr(gray, dy, CV_32F, 0, 1);
 	cv::cartToPolar(dx, dy, _magImg, _angImg, true);
-	sprintf(imgName, "%s\\%s_edge.png", inputPath, fileName);
+	sprintf(imgName, "%s\\Edges\\%s_edge.png", inputPath, fileName);
 	cv::Mat edgeMap = cv::imread(imgName, -1);
 	if (edgeMap.channels() == 3)
 		cv::cvtColor(edgeMap, edgeMap, CV_BGR2GRAY);
@@ -2802,14 +2802,21 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	cv::Mat simg;
 
 	SuperpixelComputer computer(_width, _height, step, 0.55);
+	
+	
 	timer.start();
 	computer.ComputeSuperpixel(img);
 	timer.stop();
-	std::cout << "superpixel " << timer.seconds() * 1000 << "ms\n";
+	
 
-	computer.GetVisualResult(img, simg);
-	sprintf(imgName, "%ssuperpixel_%s.jpg", outputPath, fileName);
-	cv::imwrite(imgName, simg);
+	if (debug)
+	{
+		std::cout << "superpixel " << timer.seconds() * 1000 << "ms\n";
+		computer.GetVisualResult(img, simg);
+		sprintf(imgName, "%ssuperpixel_%s.jpg", outputPath, fileName);
+		cv::imwrite(imgName, simg);
+	}
+	
 
 	//计算每个超像素与周围超像素的差别
 	int spHeight = computer.GetSPHeight();
@@ -2828,11 +2835,13 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	timer.start();
 	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 20);
 	timer.stop();
-	std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
+	if (debug)
+		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
 
 	//求每个区域的中心距
 	cv::Mat momentMask;
 	momentMask.create(_height, _width, CV_32F);
+	std::vector<float> moments;
 	for (size_t i = 0; i < regions.size(); i++)
 	{
 		float dx(0),dy(0);
@@ -2846,7 +2855,25 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 			d += dx + dy;
 		}
 		regions[i].moment = d/regions[i].size;
+		moments.push_back(regions[i].moment);
 		regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
+		//for (size_t j = 0; j < regions[i].spIndices.size(); j++)
+		//{
+		//	for (size_t s = 0; s < _spPoses[regions[i].spIndices[j]].size(); s++)
+		//	{
+		//		uint2 xy = _spPoses[regions[i].spIndices[j]][s];
+
+		//		int idx = xy.x + xy.y*_width;
+		//		//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
+		//		momentMask.at<float>(xy.y, xy.x) = regions[i].moment;
+		//		//*(float*)(mask.data + idx * 4) = minDist;
+		//		//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
+		//	}
+		//}
+	}
+	normalize(moments, moments, 1.0, 0.0, cv::NORM_MINMAX);
+	for (size_t i = 0; i < regions.size(); i++)
+	{
 		for (size_t j = 0; j < regions[i].spIndices.size(); j++)
 		{
 			for (size_t s = 0; s < _spPoses[regions[i].spIndices[j]].size(); s++)
@@ -2855,13 +2882,14 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 
 				int idx = xy.x + xy.y*_width;
 				//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
-				momentMask.at<float>(xy.y, xy.x) = regions[i].moment;
+				momentMask.at<float>(xy.y, xy.x) = moments[i]*255;
 				//*(float*)(mask.data + idx * 4) = minDist;
 				//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
 			}
 		}
 	}
-	normalize(momentMask, momentMask, 0, 1, cv::NORM_MINMAX, CV_32F);
+	
+	//normalize(momentMask, momentMask, 1.0, 0, cv::NORM_MINMAX, CV_32F);
 	/*double min, max;
 	cv::minMaxLoc(mask, &min, &max);*/
 	//cv::threshold(mask, mask, 1.5, 255, CV_THRESH_BINARY);
@@ -2876,6 +2904,38 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	sprintf(imgName, "%ssaliency_%s.jpg", outputPath, fileName);
 	cv::imwrite(imgName, salMap);
 	
+	cv::Mat sMask;
+	sMask.create(_height, _width, CV_32S);
+	std::vector<int> sortedLabels;	
+	for (size_t i = 0; i < nLabels.size(); i++)
+	{
+		if (std::find(sortedLabels.begin(), sortedLabels.end(), nLabels[i]) == sortedLabels.end())
+		{
+			sortedLabels.push_back(nLabels[i]);
+		}
+	}
+	
+
+	
+	int *pixSeg = new int[_width*_height];
+	for (int i = 0; i < _height; i++)
+	{
+		for (int j = 0; j < _width; j++)
+		{
+			int idx = i*_width + j;
+			int id = std::find(sortedLabels.begin(), sortedLabels.end(), nLabels[labels[idx]]) - sortedLabels.begin();
+			pixSeg[idx] = id;
+		}
+	}
+	memcpy(sMask.data, pixSeg, sizeof(int)*_width*_height);
+	delete[] pixSeg;
+	sprintf(imgName, "%ssegment_%s.bmp", outputPath, fileName);
+	cv::imwrite(imgName, sMask);
+
+	cv::Mat rmask;
+	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask);
+	sprintf(imgName, "%sregion_%s_%d.jpg", outputPath, fileName, regions.size());
+	cv::imwrite(imgName, rmask);
 }
 void SaliencyTest(const char* inputPath, const char* fileName, const char* outputPath, int step)
 {
@@ -3226,7 +3286,7 @@ void TestRegionMerging(int argc, char* argv[])
 	std::vector<std::string> fileNames;
 	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
 	char outPath[200];
-	sprintf(outPath, "%s\\saliency\\", path);
+	sprintf(outPath, "%s\\Regions\\", path);
 	CreateDir(outPath);
 	for (size_t i = 0; i < fileNames.size(); i++)
 	{
