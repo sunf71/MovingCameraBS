@@ -72,6 +72,8 @@ struct SPRegion
 	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){}
 	int id;
 	int size;
+	float wsize;
+	float2 ad2c;
 	float4 color;
 	////邻居区域Id
 	std::vector<int> neighbors;
@@ -79,7 +81,7 @@ struct SPRegion
 	std::vector<int> borders;
 	//与每个邻居的边界超像素Id
 	std::vector<std::vector<int>> borderSpIndices;
-	//与每个邻居区域的边界超像素数
+	//与每个邻居区域的边界像素数
 	std::vector<int> borderPixelNum;
 	//与每个邻居的边界像素
 	std::vector<std::vector<uint2>> borderPixels;
@@ -102,6 +104,14 @@ struct RegionSizeCmp
 	bool operator()(const SPRegion &na, const SPRegion &nb)
 	{
 		return na.size > nb.size;
+	}
+};
+//结构体的比较方法 改写operator()  
+struct RegionWSizeCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+		return na.wsize > nb.wsize;
 	}
 };
 struct RegionSizeZero
@@ -249,6 +259,13 @@ int HandleHole(int i, std::vector<int>& newLabels,
 	std::vector<SPRegion>& regions,
 	std::vector<std::vector<int>>& regNeighbors);
 
+//handle hole
+int HandleHoles(int i, std::vector<int>& newLabels,
+	std::vector<std::vector<uint2>>& spPoses,
+	std::vector<SPRegion>& regions);
+
+int HandleHoleDemo(int width, int height, int i, SuperpixelComputer* computer, std::vector<std::vector<uint2>>& spPoses, std::vector<int>& nLabels, std::vector<SPRegion>& regions);
+
 //merge region i to region nRegId
 void MergeRegion(int i, int nRegId,
 	std::vector<int>& newLabels,
@@ -307,7 +324,7 @@ inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colo
 	return d;
 }
 
-void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
+void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15, bool debug = false);
 
 void IterativeRegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
 
@@ -317,7 +334,9 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& 
 
 void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& spSaliency, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
-void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
+void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
+
+void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
