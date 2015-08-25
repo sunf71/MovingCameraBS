@@ -81,7 +81,7 @@ struct SPRegion
 	std::vector<int> borders;
 	//与每个邻居的边界超像素Id
 	std::vector<std::vector<int>> borderSpIndices;
-	//与每个邻居区域的边界超像素数
+	//与每个邻居区域的边界像素数
 	std::vector<int> borderPixelNum;
 	//与每个邻居的边界像素
 	std::vector<std::vector<uint2>> borderPixels;

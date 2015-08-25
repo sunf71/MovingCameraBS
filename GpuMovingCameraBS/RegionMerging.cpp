@@ -1737,7 +1737,7 @@ int HandleHole(int i, std::vector<int>& newLabels,
 		
 		int nSize = regions[INeighbors[n]].neighbors.size();
 		//std::cout << INeighbors[n] << " neighbors " << nSize << std::endl;
-		if ((regions[INeighbors[n]].size>0 && nSize > 0 && nSize < minN) 
+		if ((regions[INeighbors[n]].size>0 && nSize > 0 && nSize < minN && regions[INeighbors[n]].size>0<5)
 			|| regions[INeighbors[n]].size == 1)
 		{
 			//std::cout << "	handle hole " << INeighbors[n] << std::endl;
@@ -2748,7 +2748,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	//GetRegionBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
 	GetRegionPixelBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
 	GetRegionEdgeness(edgeMap, regions);
-	delete[] segment;
+	
 	int ZeroReg, RegSize(regions.size());
 
 
@@ -2762,7 +2762,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 
 	for (size_t i = 0; i < regions.size(); i++)
 	{
-		if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2) ||
+		if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2 && regions[i].size < 5) ||
 			regions[i].size == 1)
 		{
 			int regId = regions[i].id;
@@ -2770,8 +2770,12 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 			HandleHole(i, newLabels, spPoses, regions);
 			//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
 		}
-
 	}
+	GetRegionSegment(img.cols, img.rows, &computer, newLabels, segment);
+	//GetRegionBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
+	GetRegionPixelBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
+	GetRegionEdgeness(edgeMap, regions);
+	delete[] segment;
 	while (RegSize > 3)
 	{
 		AllRegionGrowing(img, outPath, edgeMap, computer, newLabels, regions, thresholdF, true);
@@ -3776,12 +3780,14 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 				avgColorDist += colorDist;
 				avgHogDist += hogDist;
 				//double dist = RegionDist(regions[i], regions[n]);
-				float borderLen = regions[i].borders[j];
-				float borderLenI = std::accumulate(regions[i].borders.begin(), regions[i].borders.end(), 0);
-				float borderLenN = std::accumulate(regions[n].borders.begin(), regions[n].borders.end(), 0);
+				float borderLen = regions[i].borderPixelNum[j];
+				float borderLenI = std::accumulate(regions[i].borderPixelNum.begin(), regions[i].borderPixelNum.end(), 0);
+				float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);
 				double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
 				double sizeDist = (regions[i].size + regions[n].size)*1.0 / spSize;
-				double edgeness = regions[i].edgeness[j] / regions[i].borders[j];
+				double edgeness = regions[i].edgeness[j] / regions[i].borderPixelNum[j];
+				double edgeness2 = regions[i].edgeness[j] / regions[i].borders[j];
+				//std::cout << edgeness << " edgeness2 " << edgeness2 << " ratio " <<edgeness2/edgeness<<"\n";
 				sizeDist = shapeDist;
 				avgSizeDist += sizeDist;
 				sum++;
@@ -3793,7 +3799,7 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 				rd.sizeDist = sizeDist;
 				rd.hogDist = hogDist;
 				rd.lbpDist = lbpDist;
-				rd.edgeness = edgeness;
+				rd.edgeness = edgeness2;
 				RegDists.push_back(rd);
 			}
 		}
@@ -3880,35 +3886,44 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 	int spSize = computer.GetSuperpixelSize();
 	for (int i = 0; i < regions.size(); i++)
 	{
+	
 		for (int j = 0; j < regions.size(); j++)
 		{
+			
 			int n = j;
 			if (regions[i].size > 0 && regions[j].size > 0 && i < n)
 			{
+				RegDist rd;
+				rd.sRid = i;
+				rd.bRid = n;
+				
 				double colorDist = cv::compareHist(regions[i].colorHist, regions[n].colorHist, CV_COMP_BHATTACHARYYA);
 				double hogDist = cv::compareHist(regions[i].hog, regions[n].hog, CV_COMP_BHATTACHARYYA);
 				double lbpDist = cv::compareHist(regions[i].lbpHist, regions[n].lbpHist, CV_COMP_BHATTACHARYYA);
 				avgColorDist += colorDist;
 				avgHogDist += hogDist;
 				//double dist = RegionDist(regions[i], regions[n]);
-				/*float borderLen = regions[i].borders[j];
-				float borderLenI = std::accumulate(regions[i].borders.begin(), regions[i].borders.end(), 0);
-				float borderLenN = std::accumulate(regions[n].borders.begin(), regions[n].borders.end(), 0);
-				double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);*/
-				double sizeDist = (regions[i].size + regions[n].size)*1.0 / spSize;
-				//double edgeness = regions[i].edgeness[j] / regions[i].borders[j];
-			/*	sizeDist = shapeDist;*/
-				avgSizeDist += sizeDist;
-				sum++;
-				RegDist rd;
-				rd.sRid = i;
-				rd.bRid = n;
-				float c = 0.6;
-				rd.colorDist = colorDist;
-				rd.sizeDist = sizeDist;
+				std::vector<int>::iterator itr = std::find(regions[i].neighbors.begin(), regions[i].neighbors.end(), j);
+				if (itr != regions[i].neighbors.end())
+				{
+					int nj = itr - regions[i].neighbors.begin();
+					float borderLen = regions[i].borders[nj];
+					float borderLenI = std::accumulate(regions[i].borders.begin(), regions[i].borders.end(), 0);
+					float borderLenN = std::accumulate(regions[j].borders.begin(), regions[j].borders.end(), 0);
+					double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
+					rd.sizeDist = (regions[i].size + regions[n].size)*1.0 / spSize;
+					double edgeness = regions[i].edgeness[nj] / regions[i].borders[nj];
+					rd.edgeness = edgeness;
+				}
+				else
+				{
+					rd.sizeDist = 1;
+					rd.edgeness = 0;
+				}
+						
+				rd.colorDist = colorDist;			
 				rd.hogDist = hogDist;
 				rd.lbpDist = lbpDist;
-				rd.edgeness = 0;
 				RegDists.push_back(rd);
 			}
 		}
@@ -3918,9 +3933,9 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 	avgSizeDist /= sum;
 	double cw, hw, sw;
 	double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;
-	cw = 1.0;
+	cw = 0.6;
 	hw = 0;
-	sw = 0;
+	sw = 0.4;
 	//std::cout << idx << ": avgColorDist= " << avgColorDist << ",avgHogDist= " << avgHogDist << ",avgSizeDist= " << avgSizeDist << "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
 	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw, hw, sw));
@@ -3975,7 +3990,10 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 		sprintf(name, "%s%dARegMergeF_%d.jpg", outPath, idx, RegSize);
 		cv::imwrite(name, rmask);
 	}
-
+	int* segment = new int[img.cols*img.rows];
+	GetRegionSegment(img.cols, img.rows, &computer, newLabels, segment);
+	GetRegionPixelBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
+	GetRegionEdgeness(edgeMap, regions);
 	idx++;
 
 }
