@@ -2829,11 +2829,14 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	std::vector<std::vector<uint2>> _spPoses;
 	computer.GetSuperpixelPoses(_spPoses);
 
+	if (debug)
+		std::cout << "IterativeRegionGrowing begin\n";
+
 	std::vector<int> nLabels;
 	std::vector<SPRegion> regions;
 	std::vector < std::vector<int>> neighbors;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 20);
+	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 20, true);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
@@ -3285,12 +3288,17 @@ void TestRegionMerging(int argc, char* argv[])
 	int step = atoi(argv[2]);
 	std::vector<std::string> fileNames;
 	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
+	std::sort(fileNames.begin(), fileNames.end());
 	char outPath[200];
 	sprintf(outPath, "%s\\Regions\\", path);
 	CreateDir(outPath);
-	for (size_t i = 0; i < fileNames.size(); i++)
+	int start = 0;
+	if (argc == 4)
+		start = atoi(argv[3]);
+	for (size_t i = start; i < fileNames.size(); i++)
 	{
-		RegionMerging(path, fileNames[i].c_str(), outPath, step);
+		std::cout <<i<<":"<< fileNames[i] << "\n";
+		RegionMerging(path, fileNames[i].c_str(), outPath, step, true);
 	}
 }
 	

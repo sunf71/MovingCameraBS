@@ -1712,9 +1712,13 @@ int HandleHole(int i, std::vector<int>& newLabels,
 	int regId = regions[i].id;
 	//处理空洞区域，将其合并到最接近的邻居中
 	float minDist(1e10);
-	int minId(-1);
+	int minId(0);
 	std::vector<int> INeighbors;
-	for (size_t n = 0; n < regions[i].neighbors.size(); n++)
+	int nid = regions[i].neighbors[0];
+	INeighbors.push_back(nid);
+	minDist = L1Distance(regions[i].color, regions[nid].color);
+	
+	for (size_t n = 1; n < regions[i].neighbors.size(); n++)
 	{
 		int nid = regions[i].neighbors[n];
 		INeighbors.push_back(nid);
@@ -1725,7 +1729,7 @@ int HandleHole(int i, std::vector<int>& newLabels,
 			minId = n;
 		}
 	}
-
+	
 	int j = regions[i].neighbors[minId];
 	//std::cout << "merge regions " << i << " " << j << std::endl;
 	MergeRegions(i, j, newLabels, spPoses, regions);
@@ -2697,7 +2701,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	//build historgram
 	HISTOGRAMS colorHist, gradHist, lbpHist;
 	//BuildHistogram(img, &computer, colorHist, gradHist);
-
+	
 	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist);
 	/*cv::Mat idx1i, _color3f, _colorNum;
 	double ratio = 0.95;
@@ -2755,33 +2759,35 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 
 	while (RegSize > regThreshold)
 	{
-		RegionGrowing(img, outPath, edgeMap, computer, newLabels, regions, thresholdF);
+		RegionGrowing(img, outPath, edgeMap, computer, newLabels, regions, thresholdF, true);
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 		RegSize = regions.size() - ZeroReg;
 	}
-
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2 && regions[i].size < 5) ||
-			regions[i].size == 1)
-		{
-			int regId = regions[i].id;
-			//处理空洞区域，将其合并到最接近的邻居中
-			HandleHole(i, newLabels, spPoses, regions);
-			//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
-		}
-	}
+	
+	//for (size_t i = 0; i < regions.size(); i++)
+	//{
+	//	if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2 && regions[i].size < 5) ||
+	//		regions[i].size == 1)
+	//	{
+	//		int regId = regions[i].id;
+	//		//处理空洞区域，将其合并到最接近的邻居中
+	//		HandleHole(i, newLabels, spPoses, regions);
+	//		//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
+	//	}
+	//}
 	GetRegionSegment(img.cols, img.rows, &computer, newLabels, segment);
 	//GetRegionBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
 	GetRegionPixelBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
 	GetRegionEdgeness(edgeMap, regions);
 	delete[] segment;
-	while (RegSize > 3)
-	{
-		AllRegionGrowing(img, outPath, edgeMap, computer, newLabels, regions, thresholdF, true);
-		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-		RegSize = regions.size() - ZeroReg;
-	}
+
+
+	//while (RegSize > 3)
+	//{
+	//	AllRegionGrowing(img, outPath, edgeMap, computer, newLabels, regions, thresholdF, true);
+	//	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	//	RegSize = regions.size() - ZeroReg;
+	//}
 	
 	
 	
@@ -3760,6 +3766,8 @@ int Quantize(cv::Mat& img3f, cv::Mat &idx1i, cv::Mat &_color3f, cv::Mat &_colorN
 
 void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug)
 {
+	if (debug)
+		std::cout << "region growing\n";
 	static int idx = 0;
 	std::vector<RegDist> RegDists;
 	float avgColorDist(0);
@@ -3815,7 +3823,12 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 	//std::cout << idx << ": avgColorDist= " << avgColorDist << ",avgHogDist= " << avgHogDist << ",avgSizeDist= " << avgSizeDist << "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
 	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw, hw, sw));
+	
+	int ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	int RegSize = regions.size() - ZeroReg;
+
 	int N = std::max(1, (int)(thresholdF*RegDists.size()));
+	N = std::min(RegSize - 5, N);
 
 	std::vector < std::vector<uint2>> spPoses;
 	computer.GetSuperpixelPoses(spPoses);
@@ -3853,8 +3866,8 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 	{
 		MergeRegions(regPairs[i].x, regPairs[i].y, newLabels, spPoses, regions);
 	}
-	int ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-	int RegSize = regions.size() - ZeroReg;
+	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	RegSize = regions.size() - ZeroReg;
 	
 	int* segment = new int[img.cols*img.rows];
 	GetRegionSegment(img.cols, img.rows, &computer, newLabels, segment);
@@ -3878,6 +3891,8 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug)
 {
 	static int idx = 0;
+	if (debug)
+		std::cout << "all Region growing" << idx << "\n";
 	std::vector<RegDist> RegDists;
 	float avgColorDist(0);
 	float avgHogDist(0);
@@ -3890,9 +3905,11 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 		for (int j = 0; j < regions.size(); j++)
 		{
 			
+			
 			int n = j;
 			if (regions[i].size > 0 && regions[j].size > 0 && i < n)
 			{
+				std::cout << i << " " << j << "\n";
 				RegDist rd;
 				rd.sRid = i;
 				rd.bRid = n;
@@ -3928,6 +3945,7 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 			}
 		}
 	}
+	std::cout << "regdists size "<<RegDists.size() << "\n";
 	avgColorDist /= sum;
 	avgHogDist /= sum;
 	avgSizeDist /= sum;
@@ -3943,7 +3961,8 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 	std::vector < std::vector<uint2>> spPoses;
 	computer.GetSuperpixelPoses(spPoses);
 
-
+	if (debug)
+		std::cout << " merge " << RegDists[0].bRid << " and " << RegDists[0].sRid << "\n";
 	std::vector<uint2> regPairs;
 	std::vector<int> sIds;
 	for (int i = 0; i < 1; i++)
