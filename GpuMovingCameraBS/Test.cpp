@@ -2773,11 +2773,11 @@ void TestMontonCode(cv::Mat& img)
 	cv::imshow("mtest", mask);
 	cv::waitKey();
 }
-void RegionMerging(const char* inputPath, const char* fileName, const char* outputPath, int step, bool debug = false)
+void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)
 {
 	nih::Timer timer;
 	char imgName[200];
-	sprintf(imgName, "%s\\%s.jpg", inputPath, fileName);
+	sprintf(imgName, "%s\\%s\\%s.jpg", workingPath, imgPath, fileName);
 	char outPath[200];
 	sprintf(outPath, "%s%s\\", outputPath, fileName);
 	
@@ -2791,7 +2791,7 @@ void RegionMerging(const char* inputPath, const char* fileName, const char* outp
 	cv::Scharr(gray, dx, CV_32F, 1, 0);
 	cv::Scharr(gray, dy, CV_32F, 0, 1);
 	cv::cartToPolar(dx, dy, _magImg, _angImg, true);
-	sprintf(imgName, "%s\\Edges\\%s_edge.png", inputPath, fileName);
+	sprintf(imgName, "%s\\Edges\\%s_edge.png", workingPath, fileName);
 	cv::Mat edgeMap = cv::imread(imgName, -1);
 	if (edgeMap.channels() == 3)
 		cv::cvtColor(edgeMap, edgeMap, CV_BGR2GRAY);
@@ -3284,8 +3284,11 @@ void TestRegionDist()
 }
 void TestRegionMerging(int argc, char* argv[])
 {
-	char* path = argv[1];
-	int step = atoi(argv[2]);
+	char* workingPath = argv[1];
+	char* imgFolder = argv[2];
+	int step = atoi(argv[3]);
+	char path[200];
+	sprintf(path, "%s\\%s\\", workingPath, imgFolder);
 	std::vector<std::string> fileNames;
 	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
 	std::sort(fileNames.begin(), fileNames.end());
@@ -3293,12 +3296,12 @@ void TestRegionMerging(int argc, char* argv[])
 	sprintf(outPath, "%s\\Regions\\", path);
 	CreateDir(outPath);
 	int start = 0;
-	if (argc == 4)
-		start = atoi(argv[3]);
+	if (argc == 5)
+		start = atoi(argv[4]);
 	for (size_t i = start; i < fileNames.size(); i++)
 	{
 		std::cout <<i<<":"<< fileNames[i] << "\n";
-		RegionMerging(path, fileNames[i].c_str(), outPath, step, true);
+		RegionMerging(workingPath, imgFolder, fileNames[i].c_str(), outPath, step);
 	}
 }
 	

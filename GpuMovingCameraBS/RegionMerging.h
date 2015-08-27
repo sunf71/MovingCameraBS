@@ -114,6 +114,16 @@ struct RegionWSizeCmp
 		return na.wsize > nb.wsize;
 	}
 };
+struct RegionWSizeDescCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+		if (na.size > 0 && nb.size > 0)
+			return na.wsize / na.size < nb.wsize / nb.size;
+		else
+			return na.wsize < nb.wsize;
+	}
+};
 struct RegionSizeZero
 {
 	bool operator()(const SPRegion &na)
