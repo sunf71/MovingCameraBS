@@ -7,7 +7,8 @@
 #include "HistComparer.h"
 #include "SuperpixelComputer.h"
 #include <math.h>
-
+const int HoleSize = 10;
+const int HoleNeighborsNum = 2;
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
 inline unsigned int expandBits(unsigned int v)
@@ -361,3 +362,7 @@ int Quantize(cv::Mat& img3f, cv::Mat &idx1i, cv::Mat &_color3f, cv::Mat &_colorN
 void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, cv::Mat& segmet);
 
 void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, int* segmet);
+
+void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, float ratio);
+
+void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap);
