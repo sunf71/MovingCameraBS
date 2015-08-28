@@ -2842,72 +2842,60 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
 
 	//求每个区域的中心距
-	cv::Mat momentMask;
-	momentMask.create(_height, _width, CV_32F);
-	std::vector<float> moments;
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		float dx(0),dy(0);
-		float d(0);
-		for (size_t j = 0; j < regions[i].spIndices.size(); j++)
-		{
-			int y = regions[i].spIndices[j] / spWidth;
-			int x = regions[i].spIndices[j] % spWidth;
-			dx += abs(x*1.0 / spWidth - 0.5);
-			dy += abs(y*1.0 / spHeight - 0.5);
-			d += dx + dy;
-		}
-		regions[i].moment = d/regions[i].size;
-		moments.push_back(regions[i].moment);
-		regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
-		//for (size_t j = 0; j < regions[i].spIndices.size(); j++)
-		//{
-		//	for (size_t s = 0; s < _spPoses[regions[i].spIndices[j]].size(); s++)
-		//	{
-		//		uint2 xy = _spPoses[regions[i].spIndices[j]][s];
+	//cv::Mat momentMask;
+	//momentMask.create(_height, _width, CV_32F);
+	//std::vector<float> moments;
+	//for (size_t i = 0; i < regions.size(); i++)
+	//{
+	//	float dx(0),dy(0);
+	//	float d(0);
+	//	for (size_t j = 0; j < regions[i].spIndices.size(); j++)
+	//	{
+	//		int y = regions[i].spIndices[j] / spWidth;
+	//		int x = regions[i].spIndices[j] % spWidth;
+	//		dx += abs(x*1.0 / spWidth - 0.5);
+	//		dy += abs(y*1.0 / spHeight - 0.5);
+	//		d += dx + dy;
+	//	}
+	//	regions[i].moment = d/regions[i].size;
+	//	moments.push_back(regions[i].moment);
+	//	regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
+	//	
+	//}
+	//normalize(moments, moments, 1.0, 0.0, cv::NORM_MINMAX);
+	//for (size_t i = 0; i < regions.size(); i++)
+	//{
+	//	for (size_t j = 0; j < regions[i].spIndices.size(); j++)
+	//	{
+	//		for (size_t s = 0; s < _spPoses[regions[i].spIndices[j]].size(); s++)
+	//		{
+	//			uint2 xy = _spPoses[regions[i].spIndices[j]][s];
 
-		//		int idx = xy.x + xy.y*_width;
-		//		//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
-		//		momentMask.at<float>(xy.y, xy.x) = regions[i].moment;
-		//		//*(float*)(mask.data + idx * 4) = minDist;
-		//		//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
-		//	}
-		//}
-	}
-	normalize(moments, moments, 1.0, 0.0, cv::NORM_MINMAX);
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		for (size_t j = 0; j < regions[i].spIndices.size(); j++)
-		{
-			for (size_t s = 0; s < _spPoses[regions[i].spIndices[j]].size(); s++)
-			{
-				uint2 xy = _spPoses[regions[i].spIndices[j]][s];
-
-				int idx = xy.x + xy.y*_width;
-				//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
-				momentMask.at<float>(xy.y, xy.x) = moments[i]*255;
-				//*(float*)(mask.data + idx * 4) = minDist;
-				//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
-			}
-		}
-	}
-	
-	//normalize(momentMask, momentMask, 1.0, 0, cv::NORM_MINMAX, CV_32F);
-	/*double min, max;
-	cv::minMaxLoc(mask, &min, &max);*/
-	//cv::threshold(mask, mask, 1.5, 255, CV_THRESH_BINARY);
-	momentMask.convertTo(momentMask, CV_8U, 255);
-	sprintf(imgName, "%smoment_%s.jpg", outputPath, fileName);
-	cv::imwrite(imgName, momentMask);
+	//			int idx = xy.x + xy.y*_width;
+	//			//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
+	//			momentMask.at<float>(xy.y, xy.x) = moments[i]*255;
+	//			//*(float*)(mask.data + idx * 4) = minDist;
+	//			//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
+	//		}
+	//	}
+	//}
+	//momentMask.convertTo(momentMask, CV_8U, 255);
+	//sprintf(imgName, "%smoment_%s.jpg", outputPath, fileName);
+	//cv::imwrite(imgName, momentMask);
 
 
 	cv::Mat salMap;	
-	GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
-	
-	sprintf(imgName, "%ssaliency_%s.jpg", outputPath, fileName);
+	//GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
+	PickSaliencyRegion(_width, _height, &computer, nLabels, regions, salMap);
+	sprintf(imgName, "%s%s_RM.png", outputPath, fileName);
 	cv::imwrite(imgName, salMap);
-	
-	cv::Mat sMask;
+	sprintf(imgName, "%s%s.jpg", outputPath, fileName);
+	cv::imwrite(imgName, img);
+	sprintf(imgName, "%s\\gt\\%s.png", workingPath, fileName);
+	cv::Mat gt = cv::imread(imgName);
+	sprintf(imgName, "%s\\%s\\%s.png", workingPath, imgPath, fileName);
+	cv::imwrite(imgName, gt);
+	/*cv::Mat sMask;
 	sMask.create(_height, _width, CV_32S);
 	std::vector<int> sortedLabels;	
 	for (size_t i = 0; i < nLabels.size(); i++)
@@ -2917,9 +2905,6 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 			sortedLabels.push_back(nLabels[i]);
 		}
 	}
-	
-
-	
 	int *pixSeg = new int[_width*_height];
 	for (int i = 0; i < _height; i++)
 	{
@@ -2933,11 +2918,11 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	memcpy(sMask.data, pixSeg, sizeof(int)*_width*_height);
 	delete[] pixSeg;
 	sprintf(imgName, "%ssegment_%s.bmp", outputPath, fileName);
-	cv::imwrite(imgName, sMask);
+	cv::imwrite(imgName, sMask);*/
 
 	cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask);
-	sprintf(imgName, "%sregion_%s_%d.jpg", outputPath, fileName, regions.size());
+	sprintf(imgName, "%s%s_region_%d.jpg", outputPath, fileName, regions.size());
 	cv::imwrite(imgName, rmask);
 }
 void SaliencyTest(const char* inputPath, const char* fileName, const char* outputPath, int step)
@@ -3293,7 +3278,7 @@ void TestRegionMerging(int argc, char* argv[])
 	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
 	std::sort(fileNames.begin(), fileNames.end());
 	char outPath[200];
-	sprintf(outPath, "%s\\Regions\\", path);
+	sprintf(outPath, "%s\\Regions\\", workingPath);
 	CreateDir(outPath);
 	int start = 0;
 	if (argc == 5)
@@ -3301,7 +3286,7 @@ void TestRegionMerging(int argc, char* argv[])
 	for (size_t i = start; i < fileNames.size(); i++)
 	{
 		std::cout <<i<<":"<< fileNames[i] << "\n";
-		RegionMerging(workingPath, imgFolder, fileNames[i].c_str(), outPath, step);
+		RegionMerging(workingPath, imgFolder, fileNames[i].c_str(), outPath, step, true);
 	}
 }
 	
