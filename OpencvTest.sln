@@ -23,6 +23,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MeanShiftSample", "MeanShif
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GpuMovingCameraBS", "GpuMovingCameraBS\GpuMovingCameraBS.vcxproj", "{B8790833-0766-4A98-80E1-A315A08CD11B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageSaliency", "ImageSaliency\ImageSaliency.vcxproj", "{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -95,6 +97,14 @@ Global
 		{B8790833-0766-4A98-80E1-A315A08CD11B}.Release|Win32.Build.0 = Release|Win32
 		{B8790833-0766-4A98-80E1-A315A08CD11B}.Release|x64.ActiveCfg = Release|x64
 		{B8790833-0766-4A98-80E1-A315A08CD11B}.Release|x64.Build.0 = Release|x64
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Debug|Win32.Build.0 = Debug|Win32
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Debug|x64.ActiveCfg = Debug|x64
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Debug|x64.Build.0 = Debug|x64
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Release|Win32.ActiveCfg = Release|Win32
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Release|Win32.Build.0 = Release|Win32
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Release|x64.ActiveCfg = Release|x64
+		{F596D58E-20A4-4AD7-A61C-4332EE1F07B5}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

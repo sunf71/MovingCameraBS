@@ -2891,7 +2891,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	{
 		CreateDir((char*)outPath);
 		cv::Mat rmask;
-		char name[100];
+		char name[200];
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
 		sprintf(name, "%sMerge1_%d.jpg", outPath, RegSize);
 		cv::imwrite(name, rmask);
@@ -2919,7 +2919,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	if (debug)
 	{
 		cv::Mat rmask;
-		char name[100];
+		char name[200];
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
 		sprintf(name, "%sMerge2_%d.jpg", outPath, RegSize);
 		cv::imwrite(name, rmask);
@@ -2929,7 +2929,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	}
 
 
-	while (RegSize > 3)
+	while (RegSize > 10)
 	{
 		GetRegionSegment(img.cols, img.rows, &computer, newLabels, segment);
 		//GetRegionBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
@@ -2950,7 +2950,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	if (debug)
 	{
 		cv::Mat rmask;
-		char name[100];
+		char name[200];
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
 		sprintf(name, "%sMerge3_%d.jpg", outPath, size);
 		cv::imwrite(name, rmask);
@@ -4008,7 +4008,7 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 		}
 
 	}
-	char name[100];
+	char name[200];
 	if (debug)
 	{
 		CreateDir((char*)outPath);
@@ -4145,7 +4145,7 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 		}
 
 	}
-	char name[100];
+	char name[200];
 	char path[200];
 	sprintf(path, "%s\\AllReggrowing\\", outPath);
 	if (debug)

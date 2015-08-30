@@ -262,9 +262,6 @@
     <ClCompile Include="BlockWarping.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="ASAPWarping.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="RTBackgroundSubtractor.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -276,6 +273,9 @@
     </ClCompile>
     <ClCompile Include="Dijkstra.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ASAPWarping.cpp">
+      <Filter>头文件</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

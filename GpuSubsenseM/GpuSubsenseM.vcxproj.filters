@@ -103,6 +103,12 @@
     <ClInclude Include="videoprocessor.h">
       <Filter>Cuda</Filter>
     </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\RegionMerging.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\SLIC.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="CudaSuperpixel.cu">
@@ -198,6 +204,12 @@
     </ClCompile>
     <ClCompile Include="BlockWarping.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\RegionMerging.cpp">
+      <Filter>头文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\SLIC.cpp">
+      <Filter>头文件</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
