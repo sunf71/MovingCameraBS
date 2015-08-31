@@ -76,11 +76,13 @@
     <ClCompile Include="..\GpuMovingCameraBS\Dijkstra.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\GpuMovingCameraBS\PictureHandler.cpp" />
     <ClCompile Include="Saliency.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\GpuMovingCameraBS\timer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\PictureHandler.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

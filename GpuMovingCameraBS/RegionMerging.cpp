@@ -4058,7 +4058,7 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 					wsize++;
 				}
 			}
-			regions[i].wsize = wsize/regions[i].size;
+			regions[i].wsize = wsize;
 		}
 		else
 			regions[i].wsize = 0;
@@ -4080,7 +4080,7 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 				RegDist rd;
 				rd.sRid = i;
 				rd.bRid = n;
-				float minBorder = abs(regions[i].wsize - regions[n].wsize);
+				float minBorder = abs(regions[i].wsize/regions[i].size - regions[n].wsize/regions[n].size);
 				rd.sizeDist = (regions[i].size + regions[n].size)*1.0 / spSize;
 				double colorDist = cv::compareHist(regions[i].colorHist, regions[n].colorHist, CV_COMP_BHATTACHARYYA);
 				double hogDist = cv::compareHist(regions[i].hog, regions[n].hog, CV_COMP_BHATTACHARYYA);
@@ -4111,15 +4111,31 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 			}
 		}
 	}
-	
+	int ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	int RegSize = regions.size() - ZeroReg;
+	for (size_t i = 0; i < RegDists.size(); i++)
+	{
+		size_t ri = RegDists[i].sRid;
+		size_t rj = RegDists[i].bRid;
+		{
+			float borderA = std::accumulate(regions[ri].borders.begin(), regions[ri].borders.end(), 0);
+			borderA += regions[ri].wsize;
+			float compactnessI = borderA*borderA / regions[ri].size;
+			borderA = std::accumulate(regions[rj].borders.begin(), regions[rj].borders.end(), 0);
+			borderA += regions[rj].wsize;
+			float compactnessJ = borderA*borderA / regions[rj].size;
+			RegDists[i].sizeDist = abs(compactnessI - compactnessJ) / 20;
+			std::cout <<idx<<": "<< ri<<" "<<rj<<" "<<RegDists[i].sizeDist << std::endl;
+		}
+	}
 	avgColorDist /= sum;
 	avgHogDist /= sum;
 	avgSizeDist /= sum;
 	double cw, hw, sw;
 	double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;
 	cw = 0.4;
-	hw = 0.6;
-	sw = 0;
+	hw = 0.3;
+	sw = 0.3;
 	//std::cout << idx << ": avgColorDist= " << avgColorDist << ",avgHogDist= " << avgHogDist << ",avgSizeDist= " << avgSizeDist << "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
 	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw, hw, sw));
@@ -4162,8 +4178,7 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 	{
 		MergeRegions(regPairs[i].x, regPairs[i].y, newLabels, spPoses, regions);
 	}
-	int ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-	int RegSize = regions.size() - ZeroReg;
+	RegSize--;
 
 	if (debug)
 	{
@@ -4172,18 +4187,7 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 		sprintf(name, "%s%dARegMergeF_%d.jpg", path, idx, RegSize);
 		cv::imwrite(name, rmask);
 	}
-	if (RegSize == 4)
-	{
-		for (size_t i = 0; i < regions.size(); i++)
-		{
-			if (regions[i].size > 0)
-			{
-				float borderA = std::accumulate(regions[i].borders.begin(), regions[i].borders.end(), 0);
-				float compactness = borderA*borderA / regions[i].size;
-				std::cout << i << " compactness " << compactness << "\n";
-			}
-		}
-	}
+	
 	idx++;
 
 }
