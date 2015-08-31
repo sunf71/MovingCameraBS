@@ -2929,7 +2929,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	}
 
 
-	while (RegSize > 10)
+	while (RegSize > 3)
 	{
 		GetRegionSegment(img.cols, img.rows, &computer, newLabels, segment);
 		//GetRegionBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
@@ -4172,7 +4172,18 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 		sprintf(name, "%s%dARegMergeF_%d.jpg", path, idx, RegSize);
 		cv::imwrite(name, rmask);
 	}
-	
+	if (RegSize == 4)
+	{
+		for (size_t i = 0; i < regions.size(); i++)
+		{
+			if (regions[i].size > 0)
+			{
+				float borderA = std::accumulate(regions[i].borders.begin(), regions[i].borders.end(), 0);
+				float compactness = borderA*borderA / regions[i].size;
+				std::cout << i << " compactness " << compactness << "\n";
+			}
+		}
+	}
 	idx++;
 
 }

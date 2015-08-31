@@ -164,18 +164,19 @@ void GetImgSaliency(int argc, char* argv[])
 {
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
-	int step = atoi(argv[3]);
+	char* outFolder = argv[3];
+	int step = atoi(argv[4]);
 	char path[200];
 	sprintf(path, "%s\\%s\\", workingPath, imgFolder);
 	std::vector<std::string> fileNames;
 	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
 	std::sort(fileNames.begin(), fileNames.end());
 	char outPath[200];
-	sprintf(outPath, "%s\\Regions\\", workingPath);
+	sprintf(outPath, "%s\\%s\\", workingPath, outFolder);
 	CreateDir(outPath);
 	int start = 0;
-	if (argc == 5)
-		start = atoi(argv[4]);
+	if (argc == 6)
+		start = atoi(argv[5]);
 	for (size_t i = start; i < fileNames.size(); i++)
 	{
 		std::cout << i << ":" << fileNames[i] << "\n";
