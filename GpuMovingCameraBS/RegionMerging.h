@@ -73,7 +73,14 @@ struct SPRegion
 	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){}
 	int id;
 	int size;
-	float wsize;
+	//区域边缘中是图像边缘的超像素数量
+	float edgeSpNum;
+	//区域的边缘中是图像边缘的像素数量
+	float edgePixNum;
+	//区域像素数量
+	float pixels;
+	//区域周长（像素数）
+	float regCircum;
 	float2 ad2c;
 	float4 color;
 	////邻居区域Id
@@ -112,7 +119,7 @@ struct RegionWSizeCmp
 {
 	bool operator()(const SPRegion &na, const SPRegion &nb)
 	{
-		return na.wsize > nb.wsize;
+		return na.edgeSpNum > nb.edgeSpNum;
 	}
 };
 struct RegionWSizeDescCmp
@@ -120,9 +127,9 @@ struct RegionWSizeDescCmp
 	bool operator()(const SPRegion &na, const SPRegion &nb)
 	{
 		if (na.size > 0 && nb.size > 0)
-			return na.wsize / na.size < nb.wsize / nb.size;
+			return na.edgeSpNum / na.size < nb.edgeSpNum / nb.size;
 		else
-			return na.wsize < nb.wsize;
+			return na.edgeSpNum < nb.edgeSpNum;
 	}
 };
 struct RegionSizeZero
@@ -153,6 +160,12 @@ typedef std::priority_queue<SPRegion, std::vector<SPRegion>, RegionDistCmp> SPRe
 
 struct RegDist
 {
+	friend std::ostream &  operator << (std::ostream & os, RegDist& rd)
+	{
+		os << rd.sRid << "," << rd.bRid << "\n";
+		os << "\t" << rd.colorDist << " " << rd.sizeDist << " " << rd.edgeness << "\n";
+		return os;
+	}
 	RegDist()
 	{
 		edgeness = colorDist = hogDist = sizeDist = lbpDist = 0;
@@ -366,3 +379,6 @@ void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std
 void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, float ratio);
 
 void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap);
+
+//更新区域的边界等信息
+void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
