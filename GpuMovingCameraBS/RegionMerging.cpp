@@ -4030,10 +4030,12 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 			int n = j;
 			if (regions[i].size > 0 && regions[j].size > 0 && i < n)
 			{				
+
+				
 				RegDist rd;
 				rd.sRid = i;
 				rd.bRid = n;
-				float minBorder = abs(regions[i].edgeSpNum - regions[n].edgeSpNum) / (computer.GetSPHeight() + computer.GetSPWidth());
+				float minBorder = abs(regions[i].edgeSpNum - regions[n].edgeSpNum) / (computer.GetSPHeight() + computer.GetSPWidth()) / 2;
 				rd.sizeDist = abs(regions[i].size - regions[n].size)*1.0 / spSize;
 				double colorDist = cv::compareHist(regions[i].colorHist, regions[n].colorHist, CV_COMP_BHATTACHARYYA);
 				double hogDist = cv::compareHist(regions[i].hog, regions[n].hog, CV_COMP_BHATTACHARYYA);
@@ -4041,7 +4043,19 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 				avgColorDist += colorDist;
 				avgHogDist += hogDist;
 				float avgcolorDist = L1Distance(regions[i].color,regions[n].color);
-				
+				std::vector<int>::iterator itr = std::find(regions[i].neighbors.begin(), regions[i].neighbors.end(), n);
+				if (itr != regions[i].neighbors.end())
+				{
+					float borderLen = regions[i].borderPixelNum[itr - regions[i].neighbors.begin()];
+					float borderLenI = regions[i].regCircum;
+					float borderLenN = regions[n].regCircum;
+					double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
+					rd.sizeDist = shapeDist;
+				}
+				else
+				{
+					rd.sizeDist = 1.0;
+				}
 				rd.edgeness = minBorder;
 				rd.colorDist = colorDist;
 				rd.hogDist = hogDist;

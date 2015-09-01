@@ -191,6 +191,7 @@ struct RegDistDescComparer
 	{
 		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist;
 		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist;
+		
 		return d1 < d2;
 	}
 };
