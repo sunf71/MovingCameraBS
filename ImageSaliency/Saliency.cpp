@@ -120,8 +120,8 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 
 
 	cv::Mat salMap;
-	GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
-	//PickSaliencyRegion(_width, _height, &computer, nLabels, regions, salMap);
+	//GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
+	PickSaliencyRegion(_width, _height, &computer, nLabels, regions, salMap, 0.4);
 	sprintf(imgName, "%s%s_RM.png", outputPath, fileName);
 	cv::imwrite(imgName, salMap);
 	sprintf(imgName, "%s%s.jpg", outputPath, fileName);

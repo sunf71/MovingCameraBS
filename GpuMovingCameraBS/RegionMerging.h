@@ -81,7 +81,10 @@ struct SPRegion
 	float pixels;
 	//区域周长（像素数）
 	float regCircum;
+	//区域超像素距离图像中心的平均距离
 	float2 ad2c;
+	//区域超像素距离区域中心的平均距离
+	float2 rad2c;
 	float4 color;
 	////邻居区域Id
 	std::vector<int> neighbors;
@@ -100,8 +103,8 @@ struct SPRegion
 	std::vector<float> colorHist;
 	std::vector<float> hog;
 	std::vector<float> lbpHist;
-	int cX;
-	int cY;
+	float cX;
+	float cY;
 	float dist;
 	//一阶中心距
 	float moment;
@@ -126,10 +129,7 @@ struct RegionWSizeDescCmp
 {
 	bool operator()(const SPRegion &na, const SPRegion &nb)
 	{
-		if (na.size > 0 && nb.size > 0)
-			return na.edgeSpNum / na.size < nb.edgeSpNum / nb.size;
-		else
-			return na.edgeSpNum < nb.edgeSpNum;
+		return na.edgeSpNum < nb.edgeSpNum;
 	}
 };
 struct RegionSizeZero
@@ -380,6 +380,8 @@ void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std
 void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, float ratio);
 
 void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap);
+
+float PickMostSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap);
 
 //更新区域的边界等信息
 void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
