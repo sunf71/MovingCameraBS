@@ -2756,8 +2756,10 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 float PickMostSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& mask)
 {
 	mask.create(height, width, CV_8UC3);
+	cv::Mat cimg = cv::Mat::zeros(height, width, CV_8U);
 	std::vector<std::vector<uint2>> spPoses;
 	computer->GetSuperpixelPoses(spPoses);
+	cv::vector<cv::Point> borders;
 	struct RegPrior
 	{
 		RegPrior(int Id, float Prior) :id(Id), prior(Prior){}
@@ -2768,7 +2770,7 @@ float PickMostSaliencyRegion(int width, int height, SuperpixelComputer* computer
 	{
 		bool operator()(RegPrior & a, RegPrior& b)
 		{
-			return a.prior > b.prior;
+			return a.prior < b.prior;
 		}
 	};
 	float edgeSPNum = 2 * (computer->GetSPWidth() + computer->GetSPHeight());
@@ -2784,38 +2786,51 @@ float PickMostSaliencyRegion(int width, int height, SuperpixelComputer* computer
 				contrast += cv::compareHist(regions[i].colorHist, regions[regions[i].neighbors[j]].colorHist, CV_COMP_BHATTACHARYYA);
 
 			}
-			contrast /= regions[i].neighbors.size();
-			/*float ad2c = sqrt(sqr(regions[i].ad2c.x) + sqr(regions[i].ad2c.y));
-			float relSize = 1 - regions[i].size*1.0 / computer->GetSuperpixelSize();*/
-			float edgeNum = 1 - regions[i].edgeSpNum / edgeSPNum;
+			//contrast /= regions[i].neighbors.size();
+			float ad2c = sqrt(sqr(regions[i].ad2c.x) + sqr(regions[i].ad2c.y));
+			float relSize = 1 - regions[i].size*1.0 / computer->GetSuperpixelSize();
+			float edgeNum = regions[i].edgeSpNum / edgeSPNum;
 			//float rad2c = sqrt(sqr(regions[i].rad2c.x) + sqr(regions[i].rad2c.y));
-			//float prior = ad2c + +relSize + edgeNum + contrast;
+			float prior = ad2c + +relSize + edgeNum;
 			//std::cout << "region "<<i<<":\n \tad2c=" << ad2c << ",rad2=" << rad2c << ",edgeNum=" << edgeNum << "\n\trelSize=" << relSize << ",contrast="<<contrast<<",prior=" << prior << "\n";
-			regs.push_back(RegPrior(i, edgeNum));
+			regs.push_back(RegPrior(i, prior));
 		}
 	}
 	std::sort(regs.begin(), regs.end(), RegPriorComparer());
 	regs[0].id;
-	float prior(0);
+	std::vector<int> salReg;
+	salReg.push_back(regs[0].id);
+	for (size_t i = 0; i < regions[regs[0].id].neighbors.size(); i++)
+	{
+		int nid = regions[regs[0].id].neighbors[i];
+		if (regions[nid].edgeSpNum <5)
+		{
+			salReg.push_back(nid);
+		}
+	}
+	
 	for (int i = 0; i < regions.size(); i++)
 	{
-		int order(0);
-		for (; order < regs.size(); order++)
+		bool flag(false);
+		if (std::find(salReg.begin(), salReg.end(), i) != salReg.end())
 		{
-			if (regs[order].id == i)
-				break;
+			flag = true;
+			for (size_t j = 0; j < regions[i].borderPixels.size(); j++)
+			{
+				for (size_t k = 0; k < regions[i].borderPixels[j].size(); k++)
+				{
+					borders.push_back(cv::Point(regions[i].borderPixels[j][k].x, regions[i].borderPixels[j][k].y));
+				}
+			}
 		}
-		if (order < 2)
-		{
-			prior += regs[order].prior;
-		}
+			
 		for (int j = 0; j < regions[i].spIndices.size(); j++)
 		{
 			for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
 			{
 				int c = spPoses[regions[i].spIndices[j]][k].x;
 				int r = spPoses[regions[i].spIndices[j]][k].y;
-				if (order >= 2)
+				if (!flag)
 				{
 					
 					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = (uchar)(regions[i].color.x);
@@ -2824,6 +2839,7 @@ float PickMostSaliencyRegion(int width, int height, SuperpixelComputer* computer
 				}
 				else
 				{
+					((uchar *)(cimg.data + r*cimg.step.p[0]))[c*cimg.step.p[1] + 0] = 255;
 					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = 0;
 					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 1] = 255;
 					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 2] = 0;
@@ -2832,7 +2848,12 @@ float PickMostSaliencyRegion(int width, int height, SuperpixelComputer* computer
 		}
 
 	}
-	return prior;
+	cv::vector<cv::Point> hull;
+	
+	cv::convexHull(cv::Mat(borders), hull,false);
+	
+	
+	return 0;
 }
 
 void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, float ratio)

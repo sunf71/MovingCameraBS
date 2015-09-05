@@ -160,6 +160,40 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	sprintf(imgName, "%s%s_region_%d.jpg", outputPath, fileName, regions.size());
 	cv::imwrite(imgName, rmask);
 }
+
+void EvaluateSaliency(cv::Mat& salMap)
+{
+	
+	using namespace cv;
+	std::vector<std::vector<cv::Point> > contours;
+	std::vector<cv::Vec4i> hierarchy;
+	cv::cvtColor(salMap, salMap, CV_BGR2GRAY);
+	cv::Mat outputImg;
+	cv::threshold(salMap, outputImg, 128, 255, CV_THRESH_BINARY);
+	/// Find contours
+	findContours(outputImg, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
+
+	/*/// Find the convex hull object for each contour
+	std::vector<std::vector<cv::Point> >hull(contours.size());
+	for (int i = 0; i < contours.size(); i++)
+	{
+	convexHull(cv::Mat(contours[i]), hull[i], false);
+	}*/
+
+	/// Draw contours + hull results
+	cv::Mat drawing = cv::Mat::zeros(salMap.size(), CV_8UC3);
+	cv::RNG rng(12345);
+
+	for (int i = 0; i< 1; i++)
+	{
+		cv::Scalar color = cv::Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+		cv::drawContours(drawing, contours, i, color, 1, 8, hierarchy, 0, cv::Point());
+		//cv::drawContours(drawing, hull, i, color, 1, 8, std::vector<cv::Vec4i>(), 0, cv::Point());
+	}
+	cv::imshow("drawing", drawing);
+	cv::waitKey(0);
+
+}
 void GetImgSaliency(int argc, char* argv[])
 {
 	char* workingPath = argv[1];
