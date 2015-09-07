@@ -77,6 +77,8 @@ struct SPRegion
 	float edgeSpNum;
 	//区域的边缘中是图像边缘的像素数量
 	float edgePixNum;
+	//区域的边缘中是图像边缘的像素
+	std::vector<cv::Point> borderEdgePixels;
 	//区域像素数量
 	float pixels;
 	//区域周长（像素数）
@@ -349,7 +351,7 @@ inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colo
 	return d;
 }
 
-void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15, bool debug = false);
+void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, cv::Mat& saliencyRst, int regThreshold = 15, bool debug = false);
 
 void IterativeRegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
 
@@ -381,7 +383,7 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 
 void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap);
 
-float PickMostSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap);
+float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, cv::Mat& dbgMap);
 
 //更新区域的边界等信息
 void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);

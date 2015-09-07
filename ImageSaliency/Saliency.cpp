@@ -70,8 +70,9 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector<int> nLabels;
 	std::vector<SPRegion> regions;
 	std::vector < std::vector<int>> neighbors;
+	cv::Mat salMap;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 20, true);
+	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, true);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
@@ -119,9 +120,9 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	//cv::imwrite(imgName, momentMask);
 
 
-	cv::Mat salMap;
+	
 	//GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
-	PickSaliencyRegion(_width, _height, &computer, nLabels, regions, salMap, 0.4);
+	//PickSaliencyRegion(_width, _height, &computer, nLabels, regions, salMap, 0.4);
 	sprintf(imgName, "%s%s_RM.png", outputPath, fileName);
 	cv::imwrite(imgName, salMap);
 	sprintf(imgName, "%s%s.jpg", outputPath, fileName);
