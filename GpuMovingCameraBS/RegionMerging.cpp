@@ -2794,19 +2794,28 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 				
 
 			}
-			for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+			if (neighborEdge < 1e-5)
 			{
-				float w = regions[regions[i].neighbors[j]].edgeSpNum / (neighborEdge+1e-5);
-				contrast += w*cv::compareHist(regions[i].colorHist, regions[regions[i].neighbors[j]].colorHist, CV_COMP_BHATTACHARYYA);
-
+				contrast = 1;
 			}
+			else
+			{
+				for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+				{
+					float w = regions[regions[i].neighbors[j]].edgeSpNum / (neighborEdge + 1e-5);
+					contrast += w*cv::compareHist(regions[i].colorHist, regions[regions[i].neighbors[j]].colorHist, CV_COMP_BHATTACHARYYA);
+
+				}
+			}
+			
 			contrast = 1 - contrast;
 			//contrast /= regions[i].neighbors.size();
 			float ad2c = sqrt(sqr(regions[i].ad2c.x) + sqr(regions[i].ad2c.y));
 			float uad2c = 0.2;
 			float urelSize = 0.2;
 			float k2 = 1;
-			float relSize = 1-1 / sqrt(M_2_PI*k2) *exp(-sqr(regions[i].size *1.0/ computer->GetSuperpixelSize() - urelSize) / 2/k2);
+			//float relSize = 1-1 / sqrt(M_2_PI*k2) *exp(-sqr(regions[i].size *1.0/ computer->GetSuperpixelSize() - urelSize) / 2/k2);
+			float relSize = 1-regions[i].size*1.0 / computer->GetSuperpixelSize();
 			
 			float edgeNum = regions[i].edgeSpNum / edgeSPNum;
 
@@ -2822,13 +2831,18 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 		}
 	}
 	std::sort(regs.begin(), regs.end(), RegPriorComparer());
-	regs[0].id;
+	
 	std::vector<int> salReg;
-	int threhold = (int)(0.3 * regNum);
-	threhold = std::max(threhold, 1);
-	for (size_t i = 0; i < 2; i++)
+	
+	salReg.push_back(regs[0].id);
+	float curSize(regions[regs[0].id].size);
+	for (size_t i = 0; i < regs.size(); i++)
 	{
 		std::cout << "\t prior = " << regs[i].prior << "\n";
+		curSize += regions[regs[i].id].size;		
+		
+		if (curSize / computer->GetSuperpixelSize() > 0.3)
+			break;
 		salReg.push_back(regs[i].id);
 	}
 	/*salReg.push_back(regs[0].id);
@@ -2920,10 +2934,10 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 	float p2 = exp(-sqr(relSize - 0.25) / 0.4);
 	float p3 = exp(-sqr(edgeR - uedgeNum) / 0.4);
 	float alpha = 0.5;
-	/*float saliency = alpha*fill + edgeR*(1 - alpha);
-	std::cout << "pfill=" << fill << " pedgeR= " << edgeR << " ptotal = " << saliency << "\n";*/
-	std::cout << p2 <<","<< p3 << "\n";
-	float saliency = (p2 + p3);
+	float saliency = alpha*fill + edgeR*(1 - alpha);
+	std::cout << "pfill=" << fill << " pedgeR= " << edgeR << " ptotal = " << saliency << "\n";
+	/*std::cout << p2 <<","<< p3 << "\n";
+	float saliency = (p2 + p3);*/
 	return saliency;
 	
 }
