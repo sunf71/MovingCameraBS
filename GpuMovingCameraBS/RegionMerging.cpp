@@ -2824,36 +2824,60 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 			//float p2 = exp(-sqr(relSize - urelSize) / 2);
 			//float p3 = exp(-sqr(edgeNum - uedgeNum) / 2);
 			////float rad2c = sqrt(sqr(regions[i].rad2c.x) + sqr(regions[i].rad2c.y));
-			float prior = contrast + ad2c + edgeNum;
+			float prior = (contrast + ad2c + edgeNum)/3;
 			//float prior = p1 + p2 + p3;
-			std::cout << "region " << i << ":\n relSize=" << relSize << ",contrast=" << contrast << ",ad2c=" << ad2c << ",edgeNum=" << edgeNum << "\n";
+			//std::cout << "region " << i << ":\n relSize=" << relSize << ",contrast=" << contrast << ",ad2c=" << ad2c << ",edgeNum=" << edgeNum << "\n";
+			std::cout << "region " << i << " "<<prior << "\n";
 			regs.push_back(RegPrior(i, prior));
 		}
 	}
 	std::sort(regs.begin(), regs.end(), RegPriorComparer());
-	
+	//cv::Mat fmask = cv::Mat::zeros(height, width, CV_32F);
+	//for (int i = 0; i < regions.size(); i++)
+	//{
+	//	
+
+	//	for (int j = 0; j < regions[i].spIndices.size(); j++)
+	//	{
+	//		for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
+	//		{
+	//			int c = spPoses[regions[i].spIndices[j]][k].x;
+	//			int r = spPoses[regions[i].spIndices[j]][k].y;
+	//			*((float *)(fmask.data + (r*width+c)*4) )= regs[i].prior;
+	//		}
+	//	}
+
+	//}
+	////cv::normalize(fmask, fmask, 0, 1, CV_MINMAX);
+	//fmask.convertTo(fmask, CV_8U, 255);
+	////cv::threshold(fmask, fmask, 128, 255, CV_THRESH_BINARY);
+	//
+	//cv::imshow("fmask", fmask);
+	//cv::waitKey(0);
 	std::vector<int> salReg;
-	
+	int threshold = 2;
+	/*if (regNum >= 15)
+		threshold = 5;
+	else if (regNum > 10)
+		threshold = 4;
+	else if (regNum > 4)
+		threshold = 3;
+	else if (regNum <= 3)
+		threshold = 1;*/
+
 	salReg.push_back(regs[0].id);
-	float curSize(regions[regs[0].id].size);
-	for (size_t i = 0; i < regs.size(); i++)
+	if (regNum > 2)
 	{
-		std::cout << "\t prior = " << regs[i].prior << "\n";
-		curSize += regions[regs[i].id].size;		
-		
-		if (curSize / computer->GetSuperpixelSize() > 0.3)
-			break;
-		salReg.push_back(regs[i].id);
+		if (std::find(regions[regs[0].id].neighbors.begin(), regions[regs[0].id].neighbors.end(), regs[1].id) != regions[regs[0].id].neighbors.end())
+			salReg.push_back(regs[1].id);
 	}
-	/*salReg.push_back(regs[0].id);
-	for (size_t i = 0; i < regions[regs[0].id].neighbors.size(); i++)
-	{
-		int nid = regions[regs[0].id].neighbors[i];
-		if (regions[nid].edgeSpNum / edgeSPNum < 0.1)
-		{
-			salReg.push_back(nid);
-		}
-	}*/
+	
+	//for (size_t i = 0; i < 1; i++)
+	//{
+	//	
+	//	salReg.push_back(regs[i].id);
+	//}
+	
 	float salEdgeSPNum(0);
 	for (int i = 0; i < regions.size(); i++)
 	{
@@ -2924,21 +2948,16 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 	//}
 	float area = cv::contourArea(convexContour[0]);
 	float fill = salPixels / area;
-	float edgeR = 1 - salEdgeSPNum / edgeSPNum;
+	float edgeR = salEdgeSPNum / edgeSPNum;
 	float relSize = salPixels / width / height;
-	float uFill = 0.85;
-	float uEdge = 0.1;
-	std::cout << "relSize=" << relSize << " edgeR= " << edgeR << "\n";
-	//fill = exp(-sqr(fill - uFill) / 2);
-	float urelSize = 0.25, uedgeNum = 0.88;
-	float p2 = exp(-sqr(relSize - 0.25) / 0.4);
-	float p3 = exp(-sqr(edgeR - uedgeNum) / 0.4);
-	float alpha = 0.5;
-	float saliency = alpha*fill + edgeR*(1 - alpha);
-	std::cout << "pfill=" << fill << " pedgeR= " << edgeR << " ptotal = " << saliency << "\n";
-	/*std::cout << p2 <<","<< p3 << "\n";
-	float saliency = (p2 + p3);*/
-	return saliency;
+	float fillMinThreshold = 0.2;
+	float edgeMaxThreshold = 0.15;
+	float sizeMinThreshold = 0.1;
+	if (fill > fillMinThreshold && edgeR < edgeMaxThreshold && relSize > sizeMinThreshold)
+		return 1;
+	else
+		return 0;
+	
 	
 }
 
@@ -3103,33 +3122,60 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	float maxSaliency(0);
 	cv::Mat mask, dbgMap;
 	saliencyRst = cv::Mat::zeros(height, width, CV_8U);
+	std::vector<float> weights;
+	std::vector<cv::Mat> salResults;
+	float totalWeights(0);
 	while (RegSize > 2)
 	{
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		AllRegionGrowing(img, outPath, edgeMap, computer, newLabels, regions, thresholdF, true);
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 		RegSize = regions.size() - ZeroReg;
+	
 		/*if (RegSize <= 10)*/
 		{
 			
 			
 			UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 			float saliency = PickMostSaliencyRegions(img.cols, img.rows, &computer, newLabels, regions, mask, dbgMap);
-			sprintf(name, "%sSaliency_%d.jpg", outPath, RegSize);
-			cv::imwrite(name, mask);
-			sprintf(name, "%sSaliencyDBG_%d.jpg", outPath, RegSize);
-			cv::imwrite(name, dbgMap);
-			if (saliency > maxSaliency)
+			if (saliency > 0)
 			{
-				maxSaliency = saliency;
+				sprintf(name, "%sSaliency_%d.jpg", outPath, RegSize);
+				cv::imwrite(name, mask);
+				sprintf(name, "%sSaliencyDBG_%d.jpg", outPath, RegSize);
+				cv::imwrite(name, dbgMap);
 				saliencyRst = mask.clone();
 			}
+			else
+			{
+				sprintf(name, "%sSaliency_%d.png", outPath, RegSize);
+				cv::imwrite(name, mask);
+				sprintf(name, "%sSaliencyDBG_%d.png", outPath, RegSize);
+				cv::imwrite(name, dbgMap);
+			}
+			
 			
 			
 		}
 		
 	}
+
 	
+	/*for (size_t r = 0; r < height; r++)
+	{
+		uchar* ptr = saliencyRst.ptr<uchar>(r);
+		for (size_t c = 0; c < width; c++)
+		{
+			int offset = r*width + c;
+			float sal(0);
+			for (size_t i = 0; i < weights.size(); i++)
+			{
+				sal += salResults[i].data[offset] * weights[i]/totalWeights;
+			}
+			ptr[c] = uchar(sal);
+		}
+	}
+	cv::threshold(saliencyRst, saliencyRst, 0, 255, CV_THRESH_OTSU);*/
 	delete[] segment;
 	
 	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
