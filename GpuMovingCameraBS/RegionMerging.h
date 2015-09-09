@@ -9,6 +9,7 @@
 #include <math.h>
 const int HoleSize = 10;
 const int HoleNeighborsNum = 2;
+const double ZERO = 1e-6;
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
 inline unsigned int expandBits(unsigned int v)
@@ -110,6 +111,37 @@ struct SPRegion
 	float dist;
 	//一阶中心距
 	float moment;
+};
+
+struct RegionSalInfo
+{
+	RegionSalInfo(){ wa = wr = wc = wb = 0.25; };
+	RegionSalInfo(float w1, float w2, float w3, float w4) :wa(w1), wr(w2), wc(w3), wb(w4){};
+	//区域Id
+	int id;
+	//区域距离图像中心的距离
+	float ad2c;
+	//区域的相对距离
+	float relSize;
+	//区域的对比度(与相邻区域的对比度)
+	float contrast;
+	//区域中包含的图像边缘占所有图像边缘的比例
+	float borderRatio;
+	//各项权值
+	float wa, wr, wc, wb;
+
+	float Saliency() const
+	{
+		return wa*ad2c + wr*(1-relSize) + wc*contrast + wb*(1-borderRatio);
+	}
+};
+struct RegionSalCmp
+{
+	bool operator()(const RegionSalInfo &na, const RegionSalInfo &nb)
+	{
+		
+		return na.Saliency() < nb.Saliency();
+	}
 };
 //结构体的比较方法 改写operator()  
 struct RegionSizeCmp
@@ -368,6 +400,8 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 
 void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
+void SalGuidedRegMergion(const cv::Mat& img, const char* outPath, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions,  bool debug = false);
+
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, cv::Mat1f& colorDist, float thresholdF);
@@ -387,6 +421,8 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap);
 
 float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, cv::Mat& dbgMap);
+
+void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo);
 
 //更新区域的边界等信息
 void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
