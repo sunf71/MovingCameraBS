@@ -328,6 +328,9 @@ void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS
 void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, HISTOGRAMS& lbpHist, int colorSpace = 0);
 void BuildQHistorgram(const cv::Mat& idxImg, int colorNum, SuperpixelComputer* computer, HISTOGRAMS& colorHist);
 
+//计算mask区域以及其他区域的直方图对比度，如果mask是正确的显著性对象，这个对比度应该更大
+float RegionContrast(const cv::Mat&img, const cv::Mat& mask, int colorSpace);
+
 inline double RegionDist(const SPRegion& ra, const SPRegion& rb)
 {
 	double colorDist =  cv::compareHist(ra.colorHist, rb.colorHist, CV_COMP_BHATTACHARYYA);

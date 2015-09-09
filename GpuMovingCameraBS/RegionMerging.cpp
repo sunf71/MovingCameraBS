@@ -2503,7 +2503,80 @@ void BuildQHistorgram(const cv::Mat& idxImg, int colorNum, SuperpixelComputer* c
 		cv::normalize(colorHists[i], colorHists[i], 1, 0, cv::NORM_L1);
 	}
 }
+float RegionContrast(const cv::Mat&img, const cv::Mat& mask, int colorSpace )
+{
+		
+	cv::Mat fimg, labImg;
+	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
+	cv::cvtColor(fimg, labImg, CV_BGR2Lab);
 
+	int _colorBins(16);
+	
+	int _totalColorBins = _colorBins*_colorBins*_colorBins;
+	
+	HISTOGRAMS _colorHists;
+	_colorHists.resize(2);
+
+	float _colorSteps[3], _colorMins[3];
+	if (colorSpace)
+	{
+		//lab color space
+		float labMax[3] = { 100.f, 98.2352f, 94.4758f };
+		float labMin[3] = { 0, -87, -108 };
+		for (size_t i = 0; i < 3; i++)
+		{
+			_colorMins[i] = labMin[i];
+			_colorSteps[i] = (labMax[i] - labMin[i]) / _colorBins;
+		}
+	}
+	else
+	{
+		//rgb color space
+		_colorSteps[0] = _colorSteps[1] = _colorSteps[2] = 1.0 / _colorBins;
+		_colorMins[0] = _colorMins[1] = _colorMins[2] = 0;
+	}
+	for (int i = 0; i < 2; i++)
+	{
+		_colorHists[i].resize(_totalColorBins);	
+		memset(&_colorHists[i][0], 0, sizeof(float)*_totalColorBins);
+	}
+#pragma omp parallel for
+	for (int m = 0; m < img.rows; m++)
+	{
+		cv::Vec3f* colorPtr;
+		if (colorSpace)
+		{
+			colorPtr = labImg.ptr<cv::Vec3f>(m);
+		}
+		else
+		{
+			colorPtr = fimg.ptr<cv::Vec3f>(m);
+		}
+		for (int n = 0; n < img.cols; n++)
+		{
+			
+			int  bin = 0;
+			int s = 1;
+			for (int c = 0; c < 3; c++)
+			{
+				bin += s*std::min<float>(floor((colorPtr[n][c] - _colorMins[c]) / _colorSteps[c]), _colorBins - 1);
+				s *= _colorBins;
+			}
+			if (mask.data[m*img.cols + n] == 0xff)
+				_colorHists[0][bin] ++;
+			else
+				_colorHists[1][bin] ++;
+		}
+		
+		
+	}
+
+	for (int i = 0; i < 2; i++)
+	{
+		cv::normalize(_colorHists[i], _colorHists[i], 1, 0, cv::NORM_L1);
+	}
+	return cv::compareHist(_colorHists[0], _colorHists[1], CV_COMP_BHATTACHARYYA);
+}
 void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& _colorHists, HISTOGRAMS& _HOGs, int colorSpace)
 {
 	cv::Mat fimg, gray, labImg, lbpImg;
@@ -2815,8 +2888,8 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 			float urelSize = 0.2;
 			float k2 = 1;
 			//float relSize = 1-1 / sqrt(M_2_PI*k2) *exp(-sqr(regions[i].size *1.0/ computer->GetSuperpixelSize() - urelSize) / 2/k2);
-			float relSize = 1-regions[i].size*1.0 / computer->GetSuperpixelSize();
-			
+			float relSize = regions[i].size*1.0 / computer->GetSuperpixelSize();
+			relSize = relSize < 0.05 ? 1 : 0;
 			float edgeNum = regions[i].edgeSpNum / edgeSPNum;
 
 			float uedgeNum = 0.1;
@@ -2824,10 +2897,10 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 			//float p2 = exp(-sqr(relSize - urelSize) / 2);
 			//float p3 = exp(-sqr(edgeNum - uedgeNum) / 2);
 			////float rad2c = sqrt(sqr(regions[i].rad2c.x) + sqr(regions[i].rad2c.y));
-			float prior = (contrast + ad2c + edgeNum)/3;
+			float prior = (contrast + ad2c + edgeNum + relSize ) / 4;
 			//float prior = p1 + p2 + p3;
 			//std::cout << "region " << i << ":\n relSize=" << relSize << ",contrast=" << contrast << ",ad2c=" << ad2c << ",edgeNum=" << edgeNum << "\n";
-			std::cout << "region " << i << " "<<prior << "\n";
+			//std::cout << "region " << i << " "<<prior << "\n";
 			regs.push_back(RegPrior(i, prior));
 		}
 	}
@@ -2866,10 +2939,21 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 		threshold = 1;*/
 
 	salReg.push_back(regs[0].id);
+	float salAd2cX = regions[regs[0].id].ad2c.x;
+	float salAd2cY = regions[regs[0].id].ad2c.y;
+	
 	if (regNum > 2)
 	{
 		if (std::find(regions[regs[0].id].neighbors.begin(), regions[regs[0].id].neighbors.end(), regs[1].id) != regions[regs[0].id].neighbors.end())
-			salReg.push_back(regs[1].id);
+		{
+			if (regs[0].prior / regs[1].prior > 0.8)
+			{
+				std::cout << "select two regions" << regs[0].prior << ">" << regs[1].prior << std::endl;
+				salReg.push_back(regs[1].id);
+			}
+			
+		}
+			
 	}
 	
 	//for (size_t i = 0; i < 1; i++)
@@ -2879,6 +2963,7 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 	//}
 	
 	float salEdgeSPNum(0);
+	
 	for (int i = 0; i < regions.size(); i++)
 	{
 		bool flag(false);
@@ -2951,10 +3036,13 @@ float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* compute
 	float edgeR = salEdgeSPNum / edgeSPNum;
 	float relSize = salPixels / width / height;
 	float fillMinThreshold = 0.2;
-	float edgeMaxThreshold = 0.15;
-	float sizeMinThreshold = 0.1;
-	if (fill > fillMinThreshold && edgeR < edgeMaxThreshold && relSize > sizeMinThreshold)
-		return 1;
+	float edgeMaxThreshold = 0.16;
+	float sizeMinThreshold = 0.05;
+	float sizeMaxThreshold = 0.75;
+	
+	std::cout << "F " << fill << " E " << edgeR << " S " << relSize << "\n";
+	if (fill > fillMinThreshold && edgeR < edgeMaxThreshold && relSize > sizeMinThreshold && relSize < sizeMaxThreshold)
+		return fill + 1 - edgeR + relSize;
 	else
 		return 0;
 	
@@ -3120,6 +3208,8 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	}
 
 	float maxSaliency(0);
+	float maxContrast(0);
+	
 	cv::Mat mask, dbgMap;
 	saliencyRst = cv::Mat::zeros(height, width, CV_8U);
 	std::vector<float> weights;
@@ -3144,7 +3234,16 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 				cv::imwrite(name, mask);
 				sprintf(name, "%sSaliencyDBG_%d.jpg", outPath, RegSize);
 				cv::imwrite(name, dbgMap);
-				saliencyRst = mask.clone();
+				float contrast = RegionContrast(img, mask, 0);
+				std::cout << "contrast " << contrast << "\n";
+				
+				saliency += contrast;
+				if (saliency > maxSaliency)
+				{
+					saliencyRst = mask.clone();
+					maxSaliency = saliency;
+				}
+					
 			}
 			else
 			{
