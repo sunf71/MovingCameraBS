@@ -132,7 +132,7 @@ struct RegionSalInfo
 
 	float Saliency() const
 	{
-		return wa*ad2c + wr*(1-relSize) + wc*contrast + wb*(1-borderRatio);
+		return wa*ad2c  + wb*(borderRatio);
 	}
 };
 struct RegionSalCmp
@@ -401,6 +401,8 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeM
 void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
 void SalGuidedRegMergion(const cv::Mat& img, const char* outPath, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions,  bool debug = false);
+
+void SalGuidedRegMergion2(const cv::Mat& img, const char* path, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, bool debug = false);
 
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
