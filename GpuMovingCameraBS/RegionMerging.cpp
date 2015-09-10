@@ -1756,7 +1756,7 @@ int HandleHole(int i, std::vector<int>& newLabels,
 	const int HoleSize = 10;
 	int ret = 0;
 	int regId = regions[i].id;
-	//处理空洞区域，将其合并到最接近的邻居中
+	//处理空洞区域或者小区域将其合并到最接近的邻居中
 	float minDist(1e10);
 	int minId(0);
 	std::vector<int> INeighbors;
@@ -1787,8 +1787,7 @@ int HandleHole(int i, std::vector<int>& newLabels,
 		
 		int nSize = regions[INeighbors[n]].neighbors.size();
 		//std::cout << INeighbors[n] << " neighbors " << nSize << std::endl;
-		if ((regions[INeighbors[n]].size>0 && nSize > 0 && nSize <= minN && regions[INeighbors[n]].size<HoleSize)
-			|| regions[INeighbors[n]].size == 1)
+		if ((regions[INeighbors[n]].size>0 && nSize > 0 && nSize <= minN && regions[INeighbors[n]].size<HoleSize))
 		{
 			//std::cout << "	handle hole " << INeighbors[n] << std::endl;
 			ret += HandleHole(INeighbors[n], newLabels, spPoses, regions);
@@ -3145,17 +3144,17 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	
 	int ZeroReg, RegSize(regions.size());
 
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2 && regions[i].size < HoleSize) ||
-			regions[i].size == 1)
-		{
-			int regId = regions[i].id;
-			//处理空洞区域，将其合并到最接近的邻居中
-			HandleHole(i, newLabels, spPoses, regions);
-			//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
-		}
-	}
+	//for (size_t i = 0; i < regions.size(); i++)
+	//{
+	//	if ((regions[i].size > 0 && regions[i].neighbors.size() <= 2 && regions[i].size < HoleSize) ||
+	//		regions[i].size == 1)
+	//	{
+	//		int regId = regions[i].id;
+	//		//处理空洞区域，将其合并到最接近的邻居中
+	//		HandleHole(i, newLabels, spPoses, regions);
+	//		//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
+	//	}
+	//}
 	
 	while (RegSize > regThreshold)
 	{
@@ -3182,7 +3181,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	for (size_t i = 0; i < regions.size(); i++)
 	{
 		if ((regions[i].size > 0 && regions[i].neighbors.size() <= HoleNeighborsNum && regions[i].size < HoleSize) ||
-			regions[i].size == 1)
+			(regions[i].size < 5 && regions[i].size > 0))
 		{
 			int regId = regions[i].id;
 			//处理空洞区域，将其合并到最接近的邻居中
