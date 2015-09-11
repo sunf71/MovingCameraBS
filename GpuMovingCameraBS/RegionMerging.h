@@ -115,7 +115,7 @@ struct SPRegion
 
 struct RegionSalInfo
 {
-	RegionSalInfo(){ wa = wr = wc = wb = 0.25; };
+	RegionSalInfo(){ wa = wr = wc = wb = 1; };
 	RegionSalInfo(float w1, float w2, float w3, float w4) :wa(w1), wr(w2), wc(w3), wb(w4){};
 	//区域Id
 	int id;
@@ -129,7 +129,7 @@ struct RegionSalInfo
 	float borderRatio;
 	//各项权值
 	float wa, wr, wc, wb;
-
+	
 	float Saliency() const
 	{
 		return wa*ad2c  + wb*(borderRatio);
