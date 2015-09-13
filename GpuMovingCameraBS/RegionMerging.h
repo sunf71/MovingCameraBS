@@ -7,7 +7,7 @@
 #include "HistComparer.h"
 #include "SuperpixelComputer.h"
 #include <math.h>
-const int HoleSize = 10;
+const int HoleSize = 5;
 const int HoleNeighborsNum = 2;
 const double ZERO = 1e-6;
 // Expands a 10-bit integer into 30 bits

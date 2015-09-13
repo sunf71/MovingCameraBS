@@ -1345,6 +1345,7 @@ void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segm
 
 	for (int i = 0; i < regions.size(); i++)
 	{
+		
 		for (int j = 0; j < regions[i].spIndices.size(); j++)
 		{
 			for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
@@ -1367,6 +1368,21 @@ void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segm
 		}
 		
 	}
+	
+	char text[20];
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		if (regions[i].size > 0)
+		{
+			sprintf(text, "%d", i);
+			int x = regions[i].cX * 16;
+			int y = regions[i].cY * 16;
+			x = x >= widht ? widht - 1 : x;
+			y = y >= height ? height - 1 : y;
+			cv::putText(mask, text, cv::Point(x,y), CV_FONT_ITALIC, 1, CV_RGB(255, 215, 0));
+		}
+	}
+	
 }
 void GetRegionMap(int _width, int _height, SuperpixelComputer* computer, int* segmented, std::vector<float4>& regColors, cv::Mat& mask)
 {
@@ -1740,7 +1756,7 @@ int HandleHoleDemo(int width, int height, int i, SuperpixelComputer* computer, s
 
 		int nSize = regions[INeighbors[n]].neighbors.size();
 		std::cout << INeighbors[n] << " neighbors " << nSize << std::endl;
-		if (regions[INeighbors[n]].size>0 && nSize > 0 && nSize < minN)
+		if (regions[INeighbors[n]].size>0 && regions[INeighbors[n]].size<HoleSize && nSize > 0 && nSize < minN)
 		{
 			std::cout << "	handle hole " << INeighbors[n] << std::endl;
 			ret += HandleHoleDemo(width, height, INeighbors[n], computer, spPoses, newLabels, regions);
@@ -3161,16 +3177,16 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);		
 		GetRegionEdgeness(edgeMap, regions);
 		RegionGrowing(img, outPath, edgeMap, computer, newLabels, regions, thresholdF, true);
-		for (size_t i = 0; i < regions.size(); i++)
-		{
-			if (regions[i].size > 0 && regions[i].neighbors.size() <= HoleNeighborsNum && regions[i].size < HoleSize)
-			{
-				int regId = regions[i].id;
-				//处理空洞区域，将其合并到最接近的邻居中
-				HandleHole(i, newLabels, spPoses, regions);
-				//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
-			}
-		}
+		//for (size_t i = 0; i < regions.size(); i++)
+		//{
+		//	if (regions[i].size > 0 && regions[i].neighbors.size() <= HoleNeighborsNum && regions[i].size < HoleSize)
+		//	{
+		//		int regId = regions[i].id;
+		//		//处理空洞区域，将其合并到最接近的邻居中
+		//		HandleHole(i, newLabels, spPoses, regions);
+		//		//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
+		//	}
+		//}
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 		RegSize = regions.size() - ZeroReg;
 	}
@@ -3190,13 +3206,13 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	int holeRegNum(0);
 	for (size_t i = 0; i < regions.size(); i++)
 	{
-		if ((regions[i].size > 0 && regions[i].neighbors.size() <= HoleNeighborsNum && regions[i].size < HoleSize) ||
-			(regions[i].size < 5 && regions[i].size > 0))
+		if ((regions[i].size > 0 && regions[i].neighbors.size() <= HoleNeighborsNum && regions[i].size < HoleSize) 
+			|| (regions[i].size < 5 && regions[i].size > 0))
 		{
 			int regId = regions[i].id;
 			//处理空洞区域，将其合并到最接近的邻居中
-			holeRegNum += HandleHole(i, newLabels, spPoses, regions);
-			//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
+			//holeRegNum += HandleHole(i, newLabels, spPoses, regions);
+			HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
 		}
 	}
 	//ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
@@ -3273,8 +3289,14 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		//}
 		
 	}
+	
+	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+	sprintf(name, "%sBkgMerged_%d.jpg", outPath, regInfos.size());
+	cv::imwrite(name, rmask);
 	//处理遮挡
-	while (regInfos.size() > 5)
+	float minDist(0);
+	float minDistThreshold = 0.52;
+	while (minDist < minDistThreshold)
 	{
 		std::vector<RegDist> RegDists;
 		for (size_t i = 0; i < regInfos.size()-1; i++)
@@ -3294,13 +3316,20 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 			}
 		}
 		std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(1, 0, 0));
+		minDist = RegDists[0].colorDist;
+		if (minDist > minDistThreshold)
+		{
+			break;
+		}
 		MergeRegions(RegDists[0].sRid, RegDists[0].bRid, newLabels, spPoses, regions);
 
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos);
 	}
 	
-
+	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+	sprintf(name, "%sOccHandled_%d.jpg", outPath, regInfos.size());
+	cv::imwrite(name, rmask);
 	int size = regInfos.size();
 	float maxN(0);
 	int maxNId(0);
@@ -3322,9 +3351,17 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	for (size_t i = 0; i < regions[salId].neighbors.size(); i++)
 	{
 		int nid = regions[salId].neighbors[i];
-		if (regions[nid].edgeSpNum < 5)
+		
+		//if (regions[nid].edgeSpNum < 5)
 		{
 			salIds.push_back(nid);
+			for (size_t j = 0; j < regInfos.size(); j++)
+			{
+				if (regInfos[j].id == nid)
+				{
+					std::cout << "add region " << nid << " neighbor to sal contrast = " << regInfos[j].contrast << std::endl;
+				}
+			}
 		}
 	}
 	for (size_t i = 0; i < salIds.size(); i++)
