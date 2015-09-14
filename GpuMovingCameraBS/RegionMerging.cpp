@@ -3335,12 +3335,63 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	int salId = maxNId;
 	std::vector<int> salIds;
 	salIds.push_back(salId);
+	cv::vector<cv::Point> hull;
+	cv::vector<cv::Point> borders;
+	for (size_t j = 0; j < regions[salId].borderPixels.size(); j++)
+	{
+		for (size_t k = 0; k < regions[salId].borderPixels[j].size(); k++)
+		{
+			borders.push_back(cv::Point(regions[salId].borderPixels[j][k].x, regions[salId].borderPixels[j][k].y));
+		}
+	}
+	for (size_t j = 0; j < regions[salId].borderEdgePixels.size(); j++)
+	{
+		borders.push_back(regions[salId].borderEdgePixels[j]);
+	}
+	cv::convexHull(cv::Mat(borders), hull, false);
+	cv::vector<cv::vector<cv::Point>> convexContour;  // Convex hull contour points   
+	convexContour.push_back(hull);
+	
+	float area = cv::contourArea(convexContour[0]);
+	float fill = regions[salId].pixels / area;
+	std::cout << "fill "<<fill << "\n";
 	for (size_t i = 0; i < regions[salId].neighbors.size(); i++)
 	{
 		int nid = regions[salId].neighbors[i];
-		if (regions[nid].edgeSpNum < 5)
+		float contrast(0);
+		size_t j = 0;
+		for (; j < regInfos.size(); j++)
 		{
-			salIds.push_back(nid);
+			if (regInfos[j].id == nid)
+			{
+				contrast = regInfos[j].contrast;
+				break;
+			}
+		}
+		float compactness = regions[nid].pixels / (sqr(regions[nid].regCircum/M_PI/2)*M_PI);
+		std::cout << "regions " << j << " contrast: " << contrast << "\n compactness " << compactness << "\n";
+		if (contrast > 0.5 && regions[nid].edgeSpNum < 5)
+		{
+			std::vector<cv::Point> rborders(borders);
+			for (size_t j = 0; j < regions[nid].borderPixels.size(); j++)
+			{
+				for (size_t k = 0; k < regions[nid].borderPixels[j].size(); k++)
+				{
+					rborders.push_back(cv::Point(regions[nid].borderPixels[j][k].x, regions[nid].borderPixels[j][k].y));
+				}
+			}
+			for (size_t j = 0; j < regions[nid].borderEdgePixels.size(); j++)
+			{
+				rborders.push_back(regions[nid].borderEdgePixels[j]);
+			}
+			cv::convexHull(cv::Mat(rborders), hull, false);
+			cv::vector<cv::vector<cv::Point>> convexContour;  // Convex hull contour points   
+			convexContour.push_back(hull);
+			float area = cv::contourArea(convexContour[0]);
+			float fillR = (regions[salId].pixels + regions[nid].pixels)/ area;
+			std::cout << "fill R " << fillR << "\n";
+			if (abs(fillR-fill) < 0.3)
+				salIds.push_back(nid);
 		}
 	}
 	for (size_t i = 0; i < salIds.size(); i++)
