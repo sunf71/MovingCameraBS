@@ -111,28 +111,61 @@ struct SPRegion
 	float dist;
 	//一阶中心距
 	float moment;
+	//形状紧凑min(width,height)/max(width,height)
+	float compactness;
 };
 
 struct RegionSalInfo
 {
+	
 	RegionSalInfo(){ wa = wr = wc = wb = 1; };
 	RegionSalInfo(float w1, float w2, float w3, float w4) :wa(w1), wr(w2), wc(w3), wb(w4){};
 	//区域Id
 	int id;
 	//区域距离图像中心的距离
 	float ad2c;
-	//区域的相对距离
+	//区域的相对大小
 	float relSize;
-	//区域的对比度(与相邻区域的对比度)
+	//区域的对比度(与背景区域的对比度)
 	float contrast;
 	//区域中包含的图像边缘占所有图像边缘的比例
 	float borderRatio;
+	//区域包含的邻居数占总区域数的比例
+	float neighRatio;
+	//区域的形状（区域的长宽比值min(len,width)/max(len,width)）
+	float compactness;
 	//各项权值
 	float wa, wr, wc, wb;
-	
+	float RegionSaliency() const
+	{
+		//区域显著性，越大越好
+		//return contrast + (1 - borderRatio) + ad2c + compactness;
+		return compactness;
+	}
+	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
+	{
+		os << "b " << rd.borderRatio << ",c " << rd.contrast << ",a " << rd.ad2c << ",co " << rd.compactness << "\n";
+		return os;
+	}
 	float Saliency() const
 	{
 		return wa*ad2c  + wb*(borderRatio);
+	}
+};
+struct RegionSalDescCmp
+{
+	bool operator()(const RegionSalInfo &na, const RegionSalInfo &nb)
+	{
+
+		return na.RegionSaliency() > nb.RegionSaliency();
+	}
+};
+struct RegionSalBorderCmp
+{
+	bool operator()(const RegionSalInfo &na, const RegionSalInfo &nb)
+	{
+
+		return na.borderRatio < nb.borderRatio;
 	}
 };
 struct RegionSalCmp
