@@ -3328,9 +3328,9 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	}
 	avgColorDist /= avgColorDistSize;
 	avgAd2cDis /= avgColorDistSize;
-	float wc = 0.5;
+	float wc = 1;
 	float wa = 0.5;
-	threshold = avgColorDist*wc + wa*avgAd2cDis;
+	threshold = avgColorDist*0.9;
 	std::wcout << "threshold = " << threshold << "\n";
 	
 	//´¦ÀíÕÚµ²
@@ -3387,23 +3387,14 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	sprintf(name, "%sRegion_%d.jpg", outPath, regInfos.size());
 	
 
-	int size = regInfos.size();
-	float maxN(0);
-	int maxNId(0);
-	for (size_t i = 0; i < regInfos.size(); i++)
-	{
-		float neiborRatio = regions[regInfos[i].id].neighbors.size()*1.0 / (regInfos.size() - 1);
-		float sal = neiborRatio + 1 - regInfos[i].Saliency() + regInfos[i].contrast;
-		if (sal > maxN)
-		{
-			maxN = sal;
-			maxNId = regInfos[i].id;
-		}
-	}
+	
 	saliencyRst.create(height, width, CV_8U);
 	saliencyRst = cv::Scalar(0);
-	int salId = maxNId;
+	std::sort(regInfos.begin(), regInfos.end(), RegionSalDescCmp());
+	for (size_t i = 0; i < regInfos.size(); i++)
+		std::cout << "region " << i << ":" << regInfos[i] << "\n";
 	std::vector<int> salIds;
+	int salId = regInfos[0].id;
 	salIds.push_back(salId);
 	cv::vector<cv::Point> hull;
 	cv::vector<cv::Point> borders;
@@ -3429,52 +3420,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	float fill = regions[salId].pixels / area;
 	std::cout << "sp size " << regions[salId].spIndices.size() << std::endl;
 	std::cout << "fill "<<fill << "\n";*/
-	float maxNSal(0);
-	int maxNSalId(0);
-	for (size_t i = 0; i < regions[salId].neighbors.size(); i++)
-	{
-		int nid = regions[salId].neighbors[i];
-		
-		float contrast(0);
-		size_t j = 0;
-		for (; j < regInfos.size(); j++)
-		{
-			if (regInfos[j].id == nid)
-			{
-				contrast = regInfos[j].contrast;
-				break;
-			}
-		}
-		float compactness = regions[nid].pixels / sqr(regions[nid].regCircum) * 4 * M_PI;
-		std::cout << "regions " << nid << " contrast: " << contrast << "\n compactness " << compactness << "\n";
 	
-		//std::vector<cv::Point> rborders(borders);
-		//for (size_t j = 0; j < regions[nid].borderPixels.size(); j++)
-		//{
-		//	for (size_t k = 0; k < regions[nid].borderPixels[j].size(); k++)
-		//	{
-		//		rborders.push_back(cv::Point(regions[nid].borderPixels[j][k].x, regions[nid].borderPixels[j][k].y));
-		//	}
-		//}
-		//for (size_t j = 0; j < regions[nid].borderEdgePixels.size(); j++)
-		//{
-		//	rborders.push_back(regions[nid].borderEdgePixels[j]);
-		//}
-		//cv::convexHull(cv::Mat(rborders), hull, false);
-		//cv::vector<cv::vector<cv::Point>> convexContour;  // Convex hull contour points   
-		//convexContour.push_back(hull);
-		//float area = cv::contourArea(convexContour[0]);
-		//float fillR = (regions[salId].pixels + regions[nid].pixels) / area;
-		//std::cout << "\tfill R " << fillR << "\n";
-	/*	
-		float nSal = fillR + contrast;
-		if (nSal > maxNSal)
-		{
-			maxNSalId = nid;
-			maxNSal = nSal;
-		}*/
-		
-	}
 	//salIds.push_back(maxNSalId);
 	for (size_t i = 0; i < salIds.size(); i++)
 	{
@@ -3522,7 +3468,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	delete[] segment;
 
 	std::sort(regions.begin(), regions.end(), RegionSizeCmp());
-	size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
+	int size = std::find_if(regions.begin(), regions.end(), RegionSizeZero()) - regions.begin();
 	regions.resize(size);
 
 	//PickSaliencyRegion(img.cols, img.rows, &computer, newLabels, regions, sal2, 0.4);
@@ -4934,9 +4880,9 @@ void RegionSaliency(int width, int height, const char* outputPath, SuperpixelCom
 			si.ad2c = ad2c;
 			si.relSize = relSize;
 			si.borderRatio = borderRatio;
-			si.compactness = exp(-sqr(regions[i].compactness - 0.5) / 0.2);
+			si.compactness = exp(-sqr(regions[i].compactness - 0.7) / 0.2);
 			si.id = i;
-			std::cout << si << "\n";
+			//std::cout << si << "\n";
 			regInfos.push_back(si);
 		}
 		

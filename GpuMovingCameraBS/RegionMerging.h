@@ -138,13 +138,14 @@ struct RegionSalInfo
 	float wa, wr, wc, wb;
 	float RegionSaliency() const
 	{
-		//区域显著性，越大越好
-		//return contrast + (1 - borderRatio) + ad2c + compactness;
-		return compactness;
+		//区域显著性越大越好
+		return contrast + (1 - borderRatio) + (1 - ad2c) + compactness;
+		//return compactness;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
-		os << "b " << rd.borderRatio << ",c " << rd.contrast << ",a " << rd.ad2c << ",co " << rd.compactness << "\n";
+		os << "b " << 1 - rd.borderRatio << ",c " << rd.contrast << ",a " << 1 - rd.ad2c << ",co " << rd.compactness << "\n";
+		os << rd.RegionSaliency() << "\n";
 		return os;
 	}
 	float Saliency() const
