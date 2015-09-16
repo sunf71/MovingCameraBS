@@ -134,17 +134,19 @@ struct RegionSalInfo
 	float neighRatio;
 	//区域的形状（区域的长宽比值min(len,width)/max(len,width)）
 	float compactness;
+	//区域的填充度，区域面积除以轮廓多边形的面积
+	float fillness;
 	//各项权值
 	float wa, wr, wc, wb;
 	float RegionSaliency() const
 	{
 		//区域显著性越大越好
-		return contrast + (1 - borderRatio) + (1 - ad2c) + compactness;
+		return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness;
 		//return compactness;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
-		os << "b " << 1 - rd.borderRatio << ",c " << rd.contrast << ",a " << 1 - rd.ad2c << ",co " << rd.compactness << "\n";
+		os << "b " << 1 - rd.borderRatio << ",c " << rd.contrast << ",a " << 1 - rd.ad2c << ",co " << rd.compactness << ",f " << rd.fillness << "\n";
 		os << rd.RegionSaliency() << "\n";
 		return os;
 	}
