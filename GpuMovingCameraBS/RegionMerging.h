@@ -141,7 +141,7 @@ struct RegionSalInfo
 	float RegionSaliency() const
 	{
 		//区域显著性越大越好
-		return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness;
+		return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
 		//return compactness;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)

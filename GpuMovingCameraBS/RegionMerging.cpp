@@ -3286,7 +3286,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	float wa = 0.5;
 	threshold = 0.65;
 	std::cout << "avgColorDist = " << avgColorDist << "\n";
-	threshold = avgColorDist*0.8;
+	threshold = avgColorDist*0.85;
 	//´¦ÀíÕÚµ²
 	while (regInfos.size() > 2 && minDist < threshold)
 	{
@@ -3326,28 +3326,34 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		pair.push_back(make_uint2(RegDists[0].sRid, RegDists[0].bRid));
 
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, pair, rmask);
-		sprintf(name, "%s%dMerge_%d_%d_Region_%2d_%d.jpg", outPath, idx, RegDists[0].sRid, RegDists[0].bRid, (int)(minDist*100),regInfos.size());
+		sprintf(name, "%s%dMerging_%d_%d_Region_%2d_%d.jpg", outPath, idx, RegDists[0].sRid, RegDists[0].bRid, (int)(minDist*100),regInfos.size());
 		idx++;
 		cv::imwrite(name, rmask);
 		if (minDist > threshold)
 			break;
 		MergeRegions(RegDists[0].sRid, RegDists[0].bRid, newLabels, spPoses, regions);
 
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1);
+		sprintf(name, "%s%dMerged_%d_%d_Region_%2d_%d.jpg", outPath, idx, RegDists[0].sRid, RegDists[0].bRid, (int)(minDist * 100), regInfos.size());
+		cv::imwrite(name, rmask);
+
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos);
 	}
+	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1);
+	sprintf(name, "%sOccHandled_%d.jpg", outPath, regInfos.size());
+	cv::imwrite(name, rmask);
 
-
-	float borderRatio = regInfos[regInfos.size() - 1].borderRatio;
+	float borderRatio = regInfos[regInfos.size() - 1].borderRatio + regInfos[regInfos.size() - 2].borderRatio;
 	std::vector<int> bgRegIds;
 
-	while (borderRatio < 0.7 && regInfos.size() > 3)
+	while (regInfos.size() > 2)
 	{
 		bgRegIds.push_back(regInfos[regInfos.size() - 1].id);
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, true);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos);
-		borderRatio = regInfos[regInfos.size() - 1].borderRatio;
+		borderRatio = regInfos[regInfos.size() - 1].borderRatio + regInfos[regInfos.size() - 2].borderRatio;
 		
 	}
 	
@@ -3365,7 +3371,12 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	std::vector<int> salIds;
 	int salId = regInfos[0].id;
 	salIds.push_back(salId);
-	
+	/*for (size_t i = 0; i < regions[salId].neighbors.size(); i++)
+	{
+		if (regions[salId].neighbors[i] != regInfos[regInfos.size() - 1].id
+			&& )
+			salIds.push_back(regions[salId].neighbors[i]);
+	}*/
 	
 	
 	
@@ -4585,7 +4596,7 @@ void SalGuidedRegMergion(const cv::Mat& img, const char* path, std::vector<Regio
 
 	if (debug && sregPairs.size()>0)
 	{
-		CreateDir(outpath);
+		
 		cv::Mat mask;
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, sregPairs, mask);
 
@@ -4595,7 +4606,7 @@ void SalGuidedRegMergion(const cv::Mat& img, const char* path, std::vector<Regio
 
 	for (int i = 0; i < sregPairs.size(); i++)
 	{
-		MergeRegions(regPairs[i].x, regPairs[i].y, newLabels, spPoses, regions);
+		MergeRegions(sregPairs[i].x, sregPairs[i].y, newLabels, spPoses, regions);
 	}
 
 
@@ -4606,6 +4617,7 @@ void SalGuidedRegMergion(const cv::Mat& img, const char* path, std::vector<Regio
 		sprintf(name, "%s%dSMergeF_%d.jpg", outpath, idx, regSalInfos.size() - 1);
 		cv::imwrite(name, rmask);
 	}
+	idx++;
 }
 void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug)
 {
@@ -4780,9 +4792,10 @@ void RegionSaliency(int width, int height, const char* outputPath, SuperpixelCom
 			si.relSize = relSize;
 			si.borderRatio = borderRatio;
 			si.contrast = 0;
-			si.compactness = exp(-sqr(regions[i].compactness - 0.7) / 0.2);
+			si.compactness = exp(-sqr(regions[i].compactness - 0.7) / 0.4);
 			si.id = i;
 			si.fillness = fill > 0.4 ? 1 : 0;
+			
 			//std::cout << si << "\n";
 			regInfos.push_back(si);
 		}
@@ -4790,10 +4803,13 @@ void RegionSaliency(int width, int height, const char* outputPath, SuperpixelCom
 	}
 	std::sort(regInfos.begin(), regInfos.end(), RegionSalBorderCmp());
 	std::vector<float>& bkgHist = regions[regInfos[regInfos.size() - 1].id].colorHist;
-	for (size_t i = 0; i < regInfos.size() - 1; i++)
+	for (size_t i = 0; i < regInfos.size(); i++)
 	{
-		regInfos[i].contrast = cv::compareHist(regions[regInfos[i].id].colorHist, bkgHist, CV_COMP_BHATTACHARYYA);
+		if (i < regInfos.size() - 1)
+			regInfos[i].contrast = cv::compareHist(regions[regInfos[i].id].colorHist, bkgHist, CV_COMP_BHATTACHARYYA);
+		regInfos[i].neighRatio = regions[i].neighbors.size()*1.0 / (regInfos.size() - 1);
 	}
+	
 	std::sort(regInfos.begin(), regInfos.end(), RegionSalDescCmp());
 
 	
