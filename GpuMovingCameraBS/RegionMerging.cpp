@@ -3375,7 +3375,13 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		borderRatio = regInfos[regInfos.size() - 1].borderRatio;		
 	}
 	
-
+	while (regInfos.size()>2)
+	{
+		SalGuidedRegMergion2(img, (char*)outPath, regInfos, computer, newLabels, regions, true);
+		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos);
+		
+	}
 	
 	saliencyRst.create(height, width, CV_8U);
 	saliencyRst = cv::Scalar(0);
@@ -4529,37 +4535,28 @@ void SalGuidedRegMergion2(const cv::Mat& img, const char* path, std::vector<Regi
 	static int idx = 0;
 	char name[200];
 	char outpath[200];
-	sprintf(outpath, "%s\\SGGrowing2\\", path);
+	sprintf(outpath, "%s\\SGGrowing\\", path);
 
 	std::vector<uint2> regPairs;
 	std::vector < std::vector<uint2>> spPoses;
 	computer.GetSuperpixelPoses(spPoses);
 
+	std::sort(regSalInfos.begin(), regSalInfos.end(), RegionSalDescCmp());
 	
-	std::vector<RegDist> regDists;
-	for (size_t i = 0; i < regSalInfos.size(); i++)
+	float t(0.85);
+	if (regSalInfos[1].RegionSaliency() > 0.85)
 	{
-	/*	if (regSalInfos[i].borderRatio > ZERO)
-			continue;*/
-		for (size_t j = i + 1; j < regSalInfos.size(); j++)
-		{
-		/*	if (regSalInfos[j].borderRatio > ZERO)
-				continue;*/
-
-			RegDist rd;
-			rd.sRid = regSalInfos[i].id;
-			rd.bRid = regSalInfos[j].id;
-			rd.colorDist = cv::compareHist(regions[rd.sRid].colorHist, regions[rd.bRid].colorHist, CV_COMP_BHATTACHARYYA);
-			rd.edgeness = abs(regSalInfos[i].Saliency() - regSalInfos[j].Saliency());
-			regDists.push_back(rd);
-			
-		}
+		std::cout << " adding salient region \n\t";
+		std::cout << regSalInfos[0]<<"\n\t"<<regSalInfos[1] << "\n";
+		regPairs.push_back(make_uint2(regSalInfos[0].id, regSalInfos[1].id));
 	}
-	if (regDists.size() == 0)
-		return;
-	std::sort(regDists.begin(), regDists.end(), RegDistDescComparer(0.5, 0.5, 0));
+	else
+	{
+		std::cout << " adding background region \n\t";
+		//std::cout << regSalInfos[regSalInfos.size()-1].id << "\n\t" << regSalInfos[1] << "\n";
+		regPairs.push_back(make_uint2(regSalInfos[regSalInfos.size() - 1].id, regSalInfos[1].id));
+	}
 	
-	regPairs.push_back(make_uint2(regDists[0].sRid, regDists[0].bRid));
 	if (debug)
 	{
 		CreateDir(outpath);
