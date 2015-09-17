@@ -118,8 +118,8 @@ struct SPRegion
 struct RegionSalInfo
 {
 	
-	RegionSalInfo(){ wa = wr = wc = wb = 1; };
-	RegionSalInfo(float w1, float w2, float w3, float w4) :wa(w1), wr(w2), wc(w3), wb(w4){};
+	RegionSalInfo(){ wp = 0.4,wc =0.35, ws = 0.25; };
+	RegionSalInfo(float w1, float w2, float w3) :wc(w1), wp(w2), ws(w3){};
 	//区域Id
 	int id;
 	//区域距离图像中心的距离
@@ -137,12 +137,12 @@ struct RegionSalInfo
 	//区域的填充度，区域面积除以轮廓多边形的面积
 	float fillness;
 	//各项权值
-	float wa, wr, wc, wb;
+	float wp, ws, wc;
 	float RegionSaliency() const
 	{
 		//区域显著性越大越好
-		return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
-		//return compactness;
+		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
+		return wc * contrast +wp*( (1 - borderRatio) + (1 - ad2c) )/2+  ws*(compactness + fillness)/2;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
@@ -152,7 +152,7 @@ struct RegionSalInfo
 	}
 	float Saliency() const
 	{
-		return wa*ad2c  + wb*(borderRatio);
+		return ad2c  + borderRatio;
 	}
 };
 struct RegionSalDescCmp
