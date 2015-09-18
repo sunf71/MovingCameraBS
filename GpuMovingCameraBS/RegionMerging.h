@@ -118,7 +118,7 @@ struct SPRegion
 struct RegionSalInfo
 {
 	
-	RegionSalInfo(){ wp = 0.4,wc =0.35, ws = 0.25; };
+	RegionSalInfo(){ wp = 2,wc =1, ws = 2; };
 	RegionSalInfo(float w1, float w2, float w3) :wc(w1), wp(w2), ws(w3){};
 	//区域Id
 	int id;
@@ -138,6 +138,7 @@ struct RegionSalInfo
 	float fillness;
 	//各项权值
 	float wp, ws, wc;
+	
 	float RegionSaliency() const
 	{
 		//区域显著性越大越好
@@ -153,6 +154,19 @@ struct RegionSalInfo
 	float Saliency() const
 	{
 		return ad2c  + borderRatio;
+	}
+
+	bool IsSaliency() const
+	{
+		float minContrast(0.7);
+		float maxAd2c(0.6);
+		float maxBorder(0.3);
+		float minCompactness(0.45);
+		return compactness > minCompactness &&
+			ad2c < maxAd2c &&
+			borderRatio < maxBorder &&
+			contrast > minContrast;
+		
 	}
 };
 struct RegionSalDescCmp
@@ -438,6 +452,8 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 
 void SalGuidedRegMergion(const cv::Mat& img, const char* outPath, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions,  bool debug = false);
 
+void SalGuidedRegMergion(const cv::Mat& img, const char* outPath, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<SPRegion>& BkgRegions, bool debug = false);
+
 void SalGuidedRegMergion2(const cv::Mat& img, const char* path, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, bool debug = false);
 
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
@@ -461,6 +477,7 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, cv::Mat& dbgMap);
 
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo);
+void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<SPRegion>& bkgRegions,  std::vector<RegionSalInfo>& regInfo);
 
 //更新区域的边界等信息
 void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
