@@ -72,7 +72,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector < std::vector<int>> neighbors;
 	cv::Mat salMap;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, true);
+	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
@@ -201,6 +201,8 @@ void GetImgSaliency(int argc, char* argv[])
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];
 	int step = atoi(argv[4]);
+	int debug(1);
+	
 	char path[200];
 	sprintf(path, "%s\\%s\\", workingPath, imgFolder);
 	std::vector<std::string> fileNames;
@@ -210,11 +212,15 @@ void GetImgSaliency(int argc, char* argv[])
 	sprintf(outPath, "%s\\%s\\", workingPath, outFolder);
 	CreateDir(outPath);
 	int start = 0;
+	if (argc == 7)
+		start = atoi(argv[6]);
 	if (argc == 6)
-		start = atoi(argv[5]);
+	{
+		debug = atoi(argv[5]);
+	}
 	for (size_t i = start; i < fileNames.size(); i++)
 	{
 		std::cout << i << ":" << fileNames[i] << "\n";
-		RegionMerging(workingPath, imgFolder, fileNames[i].c_str(), outPath, step, true);
+		RegionMerging(workingPath, imgFolder, fileNames[i].c_str(), outPath, step, debug);
 	}
 }

@@ -114,7 +114,12 @@ struct SPRegion
 	//形状紧凑min(width,height)/max(width,height)
 	float compactness;
 };
-
+struct RegionPartition
+{
+	std::vector<SPRegion> regions;
+	std::vector<int> bkgRegIds;
+	std::vector<std::vector<double>> minDistances;
+};
 struct RegionSalInfo
 {
 	
@@ -138,16 +143,17 @@ struct RegionSalInfo
 	float fillness;
 	//各项权值
 	float wp, ws, wc;
-	
+	std::vector<int> neighbors;
+
 	float RegionSaliency() const
 	{
 		//区域显著性越大越好
 		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
-		return wc * contrast +wp*( (1 - borderRatio) + (1 - ad2c) )/2+  ws*(compactness + fillness)/2;
+		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2 + neighRatio;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
-		os << "b " << 1 - rd.borderRatio << ",c " << rd.contrast << ",a " << 1 - rd.ad2c << ",co " << rd.compactness << ",f " << rd.fillness << "\n";
+		os << "id "<<rd.id<<" b "<< 1 - rd.borderRatio << ",c " << rd.contrast << ",a " << 1 - rd.ad2c << ",co " << rd.compactness << ",f " << rd.fillness <<" n "<<rd.neighRatio<< "\n";
 		os << rd.RegionSaliency() << "\n";
 		return os;
 	}
@@ -452,7 +458,7 @@ void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& ed
 
 void SalGuidedRegMergion(const cv::Mat& img, const char* outPath, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions,  bool debug = false);
 
-void SalGuidedRegMergion(const cv::Mat& img, const char* outPath, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<SPRegion>& BkgRegions, bool debug = false);
+void SalGuidedRegMergion(const cv::Mat& img, const char* outPath, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, RegionPartition& rp, bool debug = false);
 
 void SalGuidedRegMergion2(const cv::Mat& img, const char* path, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, bool debug = false);
 
@@ -476,8 +482,8 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 
 float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, cv::Mat& dbgMap);
 
-void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo);
-void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<SPRegion>& bkgRegions,  std::vector<RegionSalInfo>& regInfo);
+void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, bool debug = false);
+void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, RegionPartition & bkgRegions,  std::vector<RegionSalInfo>& regInfo);
 
 //更新区域的边界等信息
 void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
