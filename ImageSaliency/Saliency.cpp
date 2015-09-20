@@ -13,8 +13,14 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	nih::Timer timer;
 	char imgName[200];
 	sprintf(imgName, "%s\\%s\\%s.jpg", workingPath, imgPath, fileName);
-	char outPath[200];
-	sprintf(outPath, "%s%s\\", outputPath, fileName);
+	
+	if (debug)
+	{
+		char debugPath[200];
+		sprintf(debugPath, "%s%s\\", outputPath, fileName);
+		CreateDir(debugPath);
+	}
+	
 
 	cv::Mat img = cv::imread(imgName);
 	cv::Mat fimg, gray, labImg, lbpImg;
@@ -72,7 +78,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector < std::vector<int>> neighbors;
 	cv::Mat salMap;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
+	IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";

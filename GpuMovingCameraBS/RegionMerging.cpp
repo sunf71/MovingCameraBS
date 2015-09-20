@@ -3222,9 +3222,17 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 	cv::imwrite(name, rmask);
 }
 
-void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, cv::Mat& saliencyRst, int regThreshold, bool debug)
+void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* imgName, const char* outPutPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, cv::Mat& saliencyRst, int regThreshold, bool debug)
 {
+	
+	char outPath[300];
+	sprintf(outPath, "%s%s\\", outPutPath, imgName);
+	if (debug)
+	{
+		CreateDir(outPath);
 
+	}
+	
 	int width = img.cols, height = img.rows;
 	int spWidth = computer.GetSPWidth(), spHeight = computer.GetSPHeight();
 	int spSize(spWidth*spHeight);
@@ -3441,11 +3449,12 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		borderRatio = regInfos[regInfos.size() - 1].borderRatio;		
 	}
 	
-	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1);
-	sprintf(name, "%sRegion_%d.jpg", outPath, regInfos.size());
-	cv::imwrite(name, rmask);
+	
 
 	std::sort(regInfos.begin(), regInfos.end(), RegionSalDescCmp());
+	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1);
+	sprintf(name, "%sRegion_%d.jpg", outPutPath, regInfos.size());
+	cv::imwrite(name, rmask);
 	/*for (size_t i = 0; i < regInfos.size(); i++)
 		std::cout << regInfos[i] << "\n";*/
 
@@ -4012,6 +4021,7 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& 
 	
 	delete[] segment;
 
+	
 	cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
 	sprintf(name, "%s%dregMergeF_%d.jpg", outPath, idx,RegSize);
