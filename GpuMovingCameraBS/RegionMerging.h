@@ -350,7 +350,8 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	float threshold, float confidence = 0.6
 	);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask);
-void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0);
+void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool textflag = true);
+
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool txtflag = true);
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<float4>& regColors, cv::Mat& mask);
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<int>& regions, std::vector<float4>& regColors, cv::Mat& mask);
