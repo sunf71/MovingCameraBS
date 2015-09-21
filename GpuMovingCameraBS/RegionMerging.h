@@ -131,8 +131,10 @@ struct RegionSalInfo
 	float ad2c;
 	//区域的相对大小
 	float relSize;
-	//区域的对比度(与背景区域的对比度)
+	//区域的对比度(与背景区域的对比度global)
 	float contrast;
+	//局部对比度，与邻居区域的对比度
+	float localContrast;
 	//区域中包含的图像边缘占所有图像边缘的比例
 	float borderRatio;
 	//区域包含的邻居数占总区域数的比例
@@ -153,7 +155,7 @@ struct RegionSalInfo
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
-		os << "id "<<rd.id<<" b "<< 1 - rd.borderRatio << ",c " << rd.contrast << ",a " << 1 - rd.ad2c << ",co " << rd.compactness << ",f " << rd.fillness <<" n "<<rd.neighRatio<< "\n";
+		os << "id "<<rd.id<<" b "<< 1 - rd.borderRatio << ",c " << rd.contrast << ",a " << 1 - rd.ad2c << ",co " << rd.compactness << ",f " << rd.fillness <<" n "<<rd.neighRatio<< " lc "<<rd.localContrast<<"\n";
 		os << rd.RegionSaliency() << "\n";
 		return os;
 	}
@@ -168,10 +170,11 @@ struct RegionSalInfo
 		float maxAd2c(0.6);
 		float maxBorder(0.3);
 		float minCompactness(0.45);
-		return compactness > minCompactness &&
+		return borderRatio < maxBorder;
+		/*return compactness > minCompactness &&
 			ad2c < maxAd2c &&
 			borderRatio < maxBorder &&
-			contrast > minContrast;
+			contrast > minContrast;*/
 		
 	}
 };
@@ -266,6 +269,7 @@ struct RegDist
 	double hogDist;
 	double sizeDist;
 	double lbpDist;
+	double shapeDist;
 	double edgeness;
 };
 
@@ -273,14 +277,14 @@ struct RegDistDescComparer
 {
 	RegDistDescComparer()
 	{
-		colorW = hogW = sizeW = 1.0 / 3;
+		colorW = hogW = sizeW = shapeW = 1.0 / 4;
 	}
-	RegDistDescComparer(double cw, double hw, double sw) :colorW(cw), hogW(hw), sizeW(sw){};
-	double colorW, hogW, sizeW;
+	RegDistDescComparer(double cw, double hw, double shw, double siw) :colorW(cw), hogW(hw), sizeW(siw), shapeW(shw){};
+	double colorW, hogW, sizeW, shapeW;
 	bool operator()(const RegDist& rd1, const RegDist& rd2)
 	{
-		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist;
-		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist;
+		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist + shapeW* rd1.shapeDist;
+		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist + shapeW * rd2.shapeDist;
 		
 		return d1 < d2;
 	}
@@ -347,7 +351,7 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0);
-void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0);
+void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool txtflag = true);
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<float4>& regColors, cv::Mat& mask);
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<int>& regions, std::vector<float4>& regColors, cv::Mat& mask);
 void GetSaliencyMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<int>& regSizes, std::vector<std::vector<int>>& regIndices, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, cv::Mat& mask);
