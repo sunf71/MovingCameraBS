@@ -487,6 +487,7 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 
 float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, cv::Mat& dbgMap);
 
+void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, cv::Mat& salMap, bool debug = false);
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, bool debug = false);
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, RegionPartition & bkgRegions,  std::vector<RegionSalInfo>& regInfo);
 
