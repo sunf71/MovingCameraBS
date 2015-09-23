@@ -220,7 +220,7 @@ void GetImgSaliency(int argc, char* argv[])
 	int start = 0;
 	if (argc == 7)
 		start = atoi(argv[6]);
-	if (argc == 6)
+	if (argc >= 6)
 	{
 		debug = atoi(argv[5]);
 	}
