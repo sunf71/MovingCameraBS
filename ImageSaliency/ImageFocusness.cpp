@@ -1,6 +1,9 @@
 #include "ImageFocusness.h"
+#include <opencv\highgui.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
+
+
 
 void CalScale(cv::Mat& gray, cv::Mat& scaleMap)
 {
@@ -51,29 +54,25 @@ void CalScale(cv::Mat& gray, cv::Mat& scaleMap)
 		
 		
 		cv::Mat smoothIx, gradIy, smoothIy, gradIx, tmp;
-		cv::Mat pad(gray.size(), CV_32F);
+
 		cv::filter2D(gray, smoothIx, CV_32F, smoothFilter, cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);		
 		smoothIx(cv::Rect(w, 0, smoothIx.cols - 2 * w, smoothIx.rows)).copyTo(tmp);
 		cv::copyMakeBorder(tmp, smoothIx, 0, 0, w, w, cv::BORDER_REPLICATE);
-
-		cv::Mat fuck = smoothIx(cv::Rect(0, 0, 10, 10));
-		std::cout << fuck<< "\n";;
-
-
+		
 		cv::filter2D(smoothIx, gradIy, CV_32F, differFileter.t(), cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);
 	    gradIy(cv::Rect(0, w, smoothIx.cols, smoothIx.rows - 2 * w)).copyTo(tmp);
 		cv::copyMakeBorder(tmp, gradIy, w, w, 0, 0, cv::BORDER_REPLICATE);
-
+		
 
 		cv::filter2D(gray, smoothIy, CV_32F, smoothFilter.t(), cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);		
-		smoothIy(cv::Rect(w, 0, smoothIx.cols - 2 * w, smoothIx.rows)).copyTo(tmp);
-		cv::copyMakeBorder(tmp, smoothIy, 0, 0, w, w, cv::BORDER_REPLICATE);
-
+		smoothIy(cv::Rect(0, w, smoothIx.cols, smoothIx.rows - 2 * w)).copyTo(tmp);
+		cv::copyMakeBorder(tmp, smoothIy, w, w, 0, 0, cv::BORDER_REPLICATE);
+		
 		cv::filter2D(smoothIy, gradIx, CV_32F, differFileter, cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);
-		gradIx(cv::Rect(0, w, smoothIx.cols, smoothIx.rows - 2 * w)).copyTo(tmp);
-		cv::copyMakeBorder(tmp, gradIy, w, w, 0, 0, cv::BORDER_REPLICATE);
-		//std::cout << "gradIx"<<gradIx << "\n";
-		//std::cout << "gradIy" << gradIy << "\n";
+		gradIx(cv::Rect(w, 0, smoothIx.cols - 2 * w, smoothIx.rows)).copyTo(tmp);
+		cv::copyMakeBorder(tmp, gradIx, 0, 0, w, w, cv::BORDER_REPLICATE);
+
+		
 		
 		cv::pow(gradIx, 2, gradIx);
 		cv::pow(gradIy, 2, gradIy);
@@ -81,24 +80,26 @@ void CalScale(cv::Mat& gray, cv::Mat& scaleMap)
 		cv::add(gradIx, gradIy, gradI);
 		cv::pow(gradI, 0.5, gradI);
 
-		
+
 		
 		cv::Mat gradd = gradI - gradp;
 		cv::threshold(gradd, gradd, 0, 255, cv::THRESH_TOZERO);
-		cv::Mat p = gradd(cv::Rect(0, 0, 5, 5));
-		std::cout << p;
-		gradp = gradI;
+		/*std::cout << "--------\n";
+		tmp = gradd(cv::Rect(100, 100, 5, 5));
+		std::cout << tmp << "\n";*/
+
+		gradp = gradI.clone();
 
 		if (i > 1)
 		{
 			cv::Mat diff = gradd - graddp;
 			cv::threshold(diff, diff, 0, 255, cv::THRESH_BINARY);
-			diff.convertTo(diff, CV_8U);
+			diff.convertTo(diff, CV_8U);			
 			scaleMap.setTo(scale[i], diff);
 			
 		}
 
-		graddp = gradd;
+		graddp = gradd.clone();
 	}
 
 	
@@ -121,5 +122,13 @@ void CalScale(cv::Mat& gray, cv::Mat& scaleMap)
 			}
 		}
 	}
+
+}
+
+
+
+
+void CalRegionFocusness(const cv::Mat& img, const cv::Mat& scaleMap, const cv::Mat& edgeMap, std::vector<SPRegion>& regions, cv::Mat& rst)
+{
 
 }

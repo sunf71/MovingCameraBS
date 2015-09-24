@@ -176,8 +176,7 @@ void TestImageFocusness()
 	cv::Mat grayI, scaleMap;
 	cv::cvtColor(img, grayI, CV_BGR2GRAY);
 	CalScale(grayI, scaleMap);
-	cv::Mat p = scaleMap(cv::Rect(219, 9, 5, 5));
-	std::cout << p;
+	
 	cv::normalize(scaleMap, scaleMap, 255, 0, CV_MINMAX,CV_8U);
 	cv::imshow("scaleMap", scaleMap);
 	cv::waitKey();
