@@ -172,10 +172,7 @@ void TestImageFocusness()
 {
 	
 	cv::Mat img = cv::imread("0161.jpg");
-	cv::Mat bimg;
-	cv::copyMakeBorder(img, bimg, 0, 0, 20, 20, cv::BORDER_REPLICATE);
-	cv::imshow("scaleMap", bimg);
-	cv::waitKey();
+	
 	cv::Mat grayI, scaleMap;
 	cv::cvtColor(img, grayI, CV_BGR2GRAY);
 	CalScale(grayI, scaleMap);

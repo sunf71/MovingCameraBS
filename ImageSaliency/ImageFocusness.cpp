@@ -50,33 +50,28 @@ void CalScale(cv::Mat& gray, cv::Mat& scaleMap)
 		//std::cout << "smoothFilter" << smoothFilter << "\n\n";
 		
 		
-		cv::Mat smoothIx, gradIy, smoothIy, gradIx;
+		cv::Mat smoothIx, gradIy, smoothIy, gradIx, tmp;
 		cv::Mat pad(gray.size(), CV_32F);
-		cv::filter2D(gray, smoothIx, CV_32F, smoothFilter, cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);	
-		cv::Mat t = smoothIx(cv::Rect(0, 0, 10, 10));
-		std::cout << t<<"\nend\n";
-		cv::Mat ts = smoothIx(cv::Rect(w, 0, smoothIx.cols - 2 * w, smoothIx.rows));
-		t = ts(cv::Rect(0, 0, 10, 10));
-		std::cout << t << "\nend\n";
+		cv::filter2D(gray, smoothIx, CV_32F, smoothFilter, cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);		
+		smoothIx(cv::Rect(w, 0, smoothIx.cols - 2 * w, smoothIx.rows)).copyTo(tmp);
+		cv::copyMakeBorder(tmp, smoothIx, 0, 0, w, w, cv::BORDER_REPLICATE);
 
-		cv::copyMakeBorder(ts, pad, 0, 0, w, w, cv::BORDER_CONSTANT);
-
-		cv::Mat fuck = pad(cv::Rect(0, 0, 10, 10));
+		cv::Mat fuck = smoothIx(cv::Rect(0, 0, 10, 10));
 		std::cout << fuck<< "\n";;
 
 
 		cv::filter2D(smoothIx, gradIy, CV_32F, differFileter.t(), cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);
-		ts = gradIy(cv::Rect(0, w, smoothIx.cols, smoothIx.rows - 2 * w));
-		cv::copyMakeBorder(ts, gradIy, w, w, 0, 0, cv::BORDER_REPLICATE);
+	    gradIy(cv::Rect(0, w, smoothIx.cols, smoothIx.rows - 2 * w)).copyTo(tmp);
+		cv::copyMakeBorder(tmp, gradIy, w, w, 0, 0, cv::BORDER_REPLICATE);
 
 
 		cv::filter2D(gray, smoothIy, CV_32F, smoothFilter.t(), cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);		
-		ts = smoothIy(cv::Rect(w, 0, smoothIx.cols - 2 * w, smoothIx.rows));
-		cv::copyMakeBorder(ts, smoothIy, 0, 0, w, w, cv::BORDER_REPLICATE);
+		smoothIy(cv::Rect(w, 0, smoothIx.cols - 2 * w, smoothIx.rows)).copyTo(tmp);
+		cv::copyMakeBorder(tmp, smoothIy, 0, 0, w, w, cv::BORDER_REPLICATE);
 
 		cv::filter2D(smoothIy, gradIx, CV_32F, differFileter, cv::Point(-1, -1), 0, cv::BORDER_CONSTANT);
-		ts = gradIx(cv::Rect(0, w, smoothIx.cols, smoothIx.rows - 2 * w));
-		cv::copyMakeBorder(ts, gradIy, w, w, 0, 0, cv::BORDER_REPLICATE);
+		gradIx(cv::Rect(0, w, smoothIx.cols, smoothIx.rows - 2 * w)).copyTo(tmp);
+		cv::copyMakeBorder(tmp, gradIy, w, w, 0, 0, cv::BORDER_REPLICATE);
 		//std::cout << "gradIx"<<gradIx << "\n";
 		//std::cout << "gradIy" << gradIy << "\n";
 		
