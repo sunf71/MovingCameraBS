@@ -170,6 +170,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="..\GpuMovingCameraBS\RegionMerging.h" />
     <ClInclude Include="..\GpuMovingCameraBS\SLIC.h" />
     <ClInclude Include="..\GpuMovingCameraBS\timer.h" />
+    <ClInclude Include="ImageFocusness.h" />
     <ClInclude Include="Saliency.h" />
   </ItemGroup>
   <ItemGroup>
@@ -181,6 +182,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="..\GpuMovingCameraBS\SLIC.cpp" />
     <ClCompile Include="..\GpuMovingCameraBS\SuperpixelComputer.cpp" />
     <ClCompile Include="..\GpuMovingCameraBS\timer.cpp" />
+    <ClCompile Include="ImageFocusness.cpp" />
     <ClCompile Include="Saliency.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

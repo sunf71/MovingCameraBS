@@ -6,7 +6,7 @@
 #include "../GpuMovingCameraBS/common.h"
 #include "../GpuMovingCameraBS/RegionMerging.h"
 #include "../GpuMovingCameraBS/timer.h"
-
+#include "ImageFocusness.h"
 
 void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)
 {
@@ -168,9 +168,27 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	cv::imwrite(imgName, rmask);
 }
 
-void EvaluateSaliency(cv::Mat& salMap)
+void TestImageFocusness()
 {
 	
+	cv::Mat img = cv::imread("0161.jpg");
+	cv::Mat bimg;
+	cv::copyMakeBorder(img, bimg, 0, 0, 20, 20, cv::BORDER_REPLICATE);
+	cv::imshow("scaleMap", bimg);
+	cv::waitKey();
+	cv::Mat grayI, scaleMap;
+	cv::cvtColor(img, grayI, CV_BGR2GRAY);
+	CalScale(grayI, scaleMap);
+	cv::Mat p = scaleMap(cv::Rect(219, 9, 5, 5));
+	std::cout << p;
+	cv::normalize(scaleMap, scaleMap, 255, 0, CV_MINMAX,CV_8U);
+	cv::imshow("scaleMap", scaleMap);
+	cv::waitKey();
+
+}
+
+void EvaluateSaliency(cv::Mat& salMap)
+{
 	using namespace cv;
 	std::vector<std::vector<cv::Point> > contours;
 	std::vector<cv::Vec4i> hierarchy;
@@ -203,6 +221,7 @@ void EvaluateSaliency(cv::Mat& salMap)
 }
 void GetImgSaliency(int argc, char* argv[])
 {
+	TestImageFocusness();
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];

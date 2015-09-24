@@ -48,6 +48,9 @@
     <ClInclude Include="..\GpuMovingCameraBS\timer.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="ImageFocusness.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu">
@@ -83,6 +86,9 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\GpuMovingCameraBS\PictureHandler.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageFocusness.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
