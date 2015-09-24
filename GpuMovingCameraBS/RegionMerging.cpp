@@ -1788,11 +1788,12 @@ void HandleHoles(int idx, int width, int height, const char* outPath, Superpixel
 	cv::Mat mask;
 	char name[200];
 
-	
+	int holeSize = idx > 10 ? 3 : 0;
 
 	for (size_t i = 0; i < regions.size(); i++)
 	{
-		if (regions[i].size > 0 && regions[i].size < holeSizeThreshold && regions[i].neighbors.size() < holeNThreshold)
+		if ((regions[i].size > 0 && regions[i].size < holeSizeThreshold && regions[i].neighbors.size() <= holeNThreshold) ||
+			(regions[i].size < holeSize && regions[i].size > 0) )
 		{
 			//std::cout << "neighbors size " << regions[i].neighbors.size() << "\n";
 			float minDist(1e10);
@@ -1810,10 +1811,10 @@ void HandleHoles(int idx, int width, int height, const char* outPath, Superpixel
 				float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);*/
 				float borderLenI = regions[i].regCircum;
 				float borderLenN = regions[n].regCircum;
-				double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
+				double shapeDist = 1 - (borderLen) / (ZERO + std::min(borderLenI, borderLenN));
 				
 				double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[n] + ZERO);
-				double edgeness2 = regions[i].edgeness[n] / regions[i].borders[n];
+				//double edgeness2 = regions[i].edgeness[n] / regions[i].borders[n];
 				float dist = colorDist*cw + shapeDist*shw + edgeness*ew;
 				//std::cout << colorDist << "," << shapeDist << "," << edgeness << "\n";
 				if (dist < minDist)
@@ -1886,7 +1887,7 @@ void SmartHoleHandling(int width, int height, const char* outPath, SuperpixelCom
 			if (regions[i].size>0 && regions[i].size < holeSizeThreshold)
 			{
 				float minDist(1e10);
-				int minId(-1);
+				int minId(0);
 				std::vector<int> INeighbors;
 				for (size_t n = 0; n < regions[i].neighbors.size(); n++)
 				{
@@ -1900,10 +1901,10 @@ void SmartHoleHandling(int width, int height, const char* outPath, SuperpixelCom
 					float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);*/
 					float borderLenI = regions[i].regCircum;
 					float borderLenN = regions[n].regCircum;
-					double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
+					double shapeDist = 1 - (borderLen) / (ZERO+std::min(borderLenI, borderLenN));
 
 					double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[n]+ZERO);
-					double edgeness2 = regions[i].edgeness[n] / (regions[i].borders[n] + ZERO);
+					//double edgeness2 = regions[i].edgeness[n] / (regions[i].borders[n] + ZERO);
 					float dist = colorDist*cw + shapeDist*shw + edgeness*ew;
 					if (dist < minDist)
 					{
@@ -4698,10 +4699,12 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	float avgColorDist(0);
 	float avgHogDist(0);
 	float avgSizeDist(0);
+	float avgRegSize(0);
 	int sum(0);
 	int spSize = computer.GetSuperpixelSize();
 	for (int i = 0; i < regions.size(); i++)
 	{
+
 		for (int j = 0; j < regions[i].neighbors.size(); j++)
 		{
 			int n = regions[i].neighbors[j];
