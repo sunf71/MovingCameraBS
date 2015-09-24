@@ -3695,7 +3695,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 			salIds.push_back(regions[salId].neighbors[i]);
 	}*/
 
-	/*for (size_t i = 0; i < salIds.size(); i++)
+	for (size_t i = 0; i < salIds.size(); i++)
 	{
 		int regId = salIds[i];
 		for (size_t j = 0; j < regions[regId].spIndices.size(); j++)
@@ -3709,13 +3709,13 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 
 			}
 		}
-	}*/
-	saliencyRst = cv::Mat::zeros(height, width, CV_32F);
+	}
+	/*saliencyRst = cv::Mat::zeros(height, width, CV_32F);
 	for (size_t i = 0; i < salMaps.size(); i++)
 	{
 		cv::add(saliencyRst, salMaps[i], saliencyRst);
 	}
-	cv::normalize(saliencyRst, saliencyRst, 0, 255, CV_MINMAX, CV_8U);
+	cv::normalize(saliencyRst, saliencyRst, 0, 255, CV_MINMAX, CV_8U);*/
 	//cv::threshold(saliencyRst, saliencyRst, regInfos[0].RegionSaliency()*0.96, 255, CV_8U);
 	delete[] segment;
 
