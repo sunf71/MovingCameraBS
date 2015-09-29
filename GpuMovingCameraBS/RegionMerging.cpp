@@ -6,6 +6,8 @@
 #include "Dijkstra.h"
 #include "LBP.h"
 #include "Common.h"
+#include "../ImageSaliency/ImageFocusness.h"
+
 const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
 double sqr(double a)
@@ -1196,6 +1198,21 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::
 
 
 }
+void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, const cv::Mat& gradMap, const cv::Mat& scaleMap, const cv::Mat& edgemap, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment)
+{
+	GetRegionSegment(width, height, computer, nLabels, segment);
+	//GetRegionBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
+	GetRegionPixelBorder(width, height, computer, nLabels, regions, segment);
+
+	GetRegionEdgeness(edgemap, regions);
+	cv::Mat focus;
+	std::vector<std::vector<uint2>> spPoses;
+	computer->GetSuperpixelPoses(spPoses);
+	CalRegionFocusness(gradMap, scaleMap, edgemap, spPoses, regions, focus);
+	cv::imshow("focus", focus);
+	cv::waitKey();
+}
+
 void GetRegionSegment(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, int* segmet)
 {
 	int * labels;
@@ -1338,6 +1355,77 @@ void GetRegionMap(int _width, int _height, SuperpixelComputer* computer, std::ve
 
 			}
 		}
+	}
+	delete[] pixSeg;
+}
+void GetRegionMap(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<int>& flagRegs, cv::Mat& mask)
+{
+	mask.create(_height, _width, CV_8UC3);
+	int * labels;
+	SLICClusterCenter* centers;
+	int _spSize;
+	computer->GetSuperpixelResult(_spSize, labels, centers);
+	std::vector<std::vector<uint2>> spPoses;
+	computer->GetSuperpixelPoses(spPoses);
+
+	int *pixSeg = new int[_width*_height];
+	for (int i = 0; i < _height; i++)
+	{
+		for (int j = 0; j < _width; j++)
+		{
+			int idx = i*_width + j;
+			pixSeg[idx] = nLabels[labels[idx]];
+		}
+	}
+	std::vector<int> color(_spSize);
+	CvRNG rng = cvRNG(cvGetTickCount());
+	for (int i = 0; i < _spSize; i++)
+		color[i] = cvRandInt(&rng);
+	for (int i = 0; i < regions.size(); i++)
+	{
+		for (int j = 0; j < regions[i].spIndices.size(); j++)
+		{
+			for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
+			{
+				int c = spPoses[regions[i].spIndices[j]][k].x;
+				int r = spPoses[regions[i].spIndices[j]][k].y;
+
+				{
+					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = (uchar)(regions[i].color.x);
+					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 1] = (uchar)(regions[i].color.y);
+					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 2] = (uchar)(regions[i].color.z);
+				}
+
+			}
+		}
+	}
+	for (size_t i = 0; i < flagRegs.size(); i++)
+	{
+		int ri = flagRegs[i];
+
+
+		for (int k = 0; k < spPoses[ri].size(); k++)
+		{
+			int c = spPoses[ri][k].x;
+			int r = spPoses[ri][k].y;
+			if (i == 0)
+			{
+				((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 2] = 0xff;
+				((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 1] = 0;
+				((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = 0;
+			}
+			else
+			{
+				((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = 0xff;
+				((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 1] = 0;
+				((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 2] = 0;
+			}
+
+
+
+		}
+		
+		
 	}
 	delete[] pixSeg;
 }
@@ -3406,7 +3494,15 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		CreateDir(outPath);
 
 	}
-	
+	cv::Mat gray;
+	cv::cvtColor(img, gray, CV_BGR2GRAY);
+	cv::Mat scaleMap,gradMap;
+	CalScale(gray, scaleMap);
+	cv::Mat scaleMapS;
+	cv::normalize(scaleMap, scaleMapS, 255, 0, CV_MINMAX, CV_8U);
+	cv::imshow("scaleMap", scaleMapS);
+	cv::waitKey();
+	DogGradMap(gray, gradMap);
 	int width = img.cols, height = img.rows;
 	int spWidth = computer.GetSPWidth(), spHeight = computer.GetSPHeight();
 	int spSize(spWidth*spHeight);
@@ -3497,8 +3593,10 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	int iter(0);
 	while (RegSize > regThreshold)
 	{
-		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
-		GetRegionEdgeness(edgeMap, regions);
+	/*	UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+		GetRegionEdgeness(edgeMap, regions);*/
+		//UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, cv::Mat& gradMap, cv::Mat& scaleMap, cv::Mat& edgemap, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment)
+		UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
 		int needToMerge = (RegSize - regThreshold) / 2;
 		needToMerge = std::max(1, needToMerge);
 		RegionGrowing(iter++, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
@@ -3572,7 +3670,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos,debug);
 	
 	HandleOcculusion(img, computer, outPath, newLabels, regInfos, regions, segment, debug);
-	
+	UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
 	if (debug)
 	{
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, debug);
@@ -3982,12 +4080,9 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& 
 	avgColorDist /= sum;
 	avgHogDist /= sum;
 	avgSizeDist /= sum;
-	double cw, hw, siw,shw;
+	
 	double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;
-	cw = 0.6;
-	hw = 0.1;
-	shw = 0.15;
-	siw = 0.15;
+	
 	//std::cout << idx << ": avgColorDist= " << avgColorDist << ",avgHogDist= " << avgHogDist << ",avgSizeDist= " << avgSizeDist << "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
 	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw, hw, siw,shw));
@@ -4353,6 +4448,7 @@ void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector
 	float avgHogDist(0);
 	float avgSizeDist(0);
 	int sum(0);
+	
 	int spSize = computer.GetSuperpixelSize();
 	for (int i = 0; i < regions.size(); i++)
 	{
@@ -4371,16 +4467,17 @@ void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector
 				float borderLenN = std::accumulate(regions[n].borders.begin(), regions[n].borders.end(), 0);
 				double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
 				double sizeDist = (regions[i].size + regions[n].size)*1.0 / spSize;
+				double edgeness = regions[i].edgeness[j] / regions[i].borderPixelNum[j];
 				sizeDist = shapeDist;
 				avgSizeDist += sizeDist;
 				sum++;
 				RegDist rd;
 				rd.sRid = i;
 				rd.bRid = n;
-				float c = 0.6;
+				rd.edgeness = edgeness;
 				rd.colorDist = colorDist;
 				rd.sizeDist = sizeDist;
-				rd.hogDist = hogDist;
+				rd.shapeDist = shapeDist;
 				RegDists.push_back(rd);
 			}
 		}
@@ -4388,14 +4485,10 @@ void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector
 	avgColorDist /= sum;
 	avgHogDist /= sum;
 	avgSizeDist /= sum;
-	double cw, hw, shw;
+	
 	double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;
-	cw = 0.5;
-	hw = 0;
-	shw = 0.5;
-	std::cout << idx<<": avgColorDist= " << avgColorDist << ",avgHogDist= " << avgHogDist << ",avgSizeDist= " << avgSizeDist << "\n";
-	std::cout << cw << "," << hw << "," << shw << "\n";
-	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw,hw,shw,0));
+	
+	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw,hw,shw,siw));
 	int N = std::max(1,(int)(thresholdF*RegDists.size()));
 
 	std::vector < std::vector<uint2>> spPoses;
@@ -4419,11 +4512,11 @@ void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector
 		}
 			
 	}
-	cv::Mat mask;
-	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, regPairs, mask);
-	char name[100];
-	sprintf(name, "%dregMergeB.jpg", idx);
-	cv::imwrite(name, mask);
+	//cv::Mat mask;
+	//GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, regPairs, mask);
+	//char name[100];
+	//sprintf(name, "%dregMergeB.jpg", idx);
+	//cv::imwrite(name, mask);
 	for (int i = 0; i < regPairs.size(); i++)
 	{
 		MergeRegions(regPairs[i].x, regPairs[i].y, newLabels, spPoses, regions);
@@ -4449,22 +4542,15 @@ void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector
 	//		MergeRegions(i, nId, newLabels, spPoses, regions);
 	//	}
 	//}
-	int* segment = new int[img.cols*img.rows];
-	GetRegionSegment(img.cols, img.rows, &computer, newLabels, segment);
-	GetRegionBorder(img.cols, img.rows, &computer, newLabels, regions, segment);
-	delete[] segment;
+	
 
-	cv::Mat rmask;
+	/*cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
 	sprintf(name, "%dregMergeF.jpg", idx);
 	cv::imwrite(name, rmask);
-	idx++;
-	
-	/*std::sort(regions.begin(), regions.end(), RegionSizeCmp());*/
-	//int size = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	idx++;*/
 	
 	
-
 }
 
 void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, cv::Mat1f& colorDist, float thresholdF)
@@ -4745,12 +4831,9 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	avgColorDist /= sum;
 	avgHogDist /= sum;
 	avgSizeDist /= sum;
-	double cw, hw, shw, siw;
+
 	double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;
-	cw = 0.5;
-	hw = 0.1;
-	shw = 0.2;
-	siw = 0.2;
+
 	//std::cout << idx << ": avgColorDist= " << avgColorDist << ",avgHogDist= " << avgHogDist << ",avgSizeDist= " << avgSizeDist << "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
 	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw, hw, shw, siw));

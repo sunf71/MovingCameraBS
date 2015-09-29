@@ -7,6 +7,7 @@
 #include "../GpuMovingCameraBS/RegionMerging.h"
 #include "../GpuMovingCameraBS/timer.h"
 #include "ImageFocusness.h"
+#include "RegionObjectness.h"
 
 void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)
 {
@@ -167,19 +168,190 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	sprintf(imgName, "%s%s_region_%d.jpg", outputPath, fileName, regions.size());
 	cv::imwrite(imgName, rmask);
 }
+void TestImageRegionObjectness()
+{
+	cv::Mat img = cv::imread("0161.jpg");
+	cv::Mat edgeMap = cv::imread("0161_edge.png", -1);
+	cv::Mat scaleMap;
+
+	cv::Mat fimg, gray, labImg, lbpImg;
+	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
+	cv::cvtColor(fimg, labImg, CV_BGR2Lab);
+	cv::cvtColor(img, gray, CV_BGR2GRAY);
+	cv::GaussianBlur(gray, gray, cv::Size(3, 3), 0);
+	cv::Mat dx, dy, _angImg, _magImg;
+	cv::Scharr(gray, dx, CV_32F, 1, 0);
+	cv::Scharr(gray, dy, CV_32F, 0, 1);
+	cv::cartToPolar(dx, dy, _magImg, _angImg, true);
+
+	if (edgeMap.channels() == 3)
+		cv::cvtColor(edgeMap, edgeMap, CV_BGR2GRAY);
+	edgeMap.convertTo(edgeMap, CV_32F, 1.0 / 255);
+
+	int _width = img.cols;
+	int _height = img.rows;
+	cv::Mat simg;
+
+	SuperpixelComputer computer(_width, _height, 16, 0.55);
+	computer.ComputeSuperpixel(img);
+
+
+
+	//计算每个超像素与周围超像素的差别
+	int spHeight = computer.GetSPHeight();
+	int spWidth = computer.GetSPWidth();
+	int* labels;
+	SLICClusterCenter* centers = NULL;
+	int _spSize(0);
+	computer.GetSuperpixelResult(_spSize, labels, centers);
+	//每个超像素中包含的像素以及位置	
+	std::vector<std::vector<uint2>> _spPoses;
+	computer.GetSuperpixelPoses(_spPoses);
+
+
+	//build historgram
+	HISTOGRAMS colorHist, gradHist, lbpHist;
+	std::vector<int> nLabels;
+	std::vector<SPRegion> regions;
+	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist);
+
+	nLabels.resize(_spSize);
+	//init regions 
+	for (int i = 0; i < _spSize; i++)
+	{
+		nLabels[i] = i;
+		SPRegion region;
+		region.cX = i%spWidth;
+		region.cY = i / spWidth;
+		region.color = centers[i].rgb;
+		region.colorHist = colorHist[i];
+		region.hog = gradHist[i];
+		region.lbpHist = lbpHist[i];
+		region.size = 1;
+		region.dist = 0;
+		region.id = i;
+		region.neighbors = computer.GetNeighbors4(i);
+		region.spIndices.push_back(i);
+		regions.push_back(region);
+
+	}
+
+	int * segment = new int[img.cols*img.rows];
+	
+	int zeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	int size = regions.size()  - zeroReg;
+	while (size > 100)
+	{
+		UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
+		GetRegionEdgeness(edgeMap, regions);
+		RegionGrowing(img, computer, nLabels, regions, 0.4);
+		int zeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+		size = regions.size() - zeroReg;
+	}
+	
+	cv::Mat rmask;
+	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
+	cv::imshow("region", rmask);
+	UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
+	delete[] segment;
+	int trid = 179;
+	std::vector<int> borderSPs;
+	borderSPs.push_back(trid);
+	RegionOutBorder(trid, regions);
+	for (size_t i = 0; i < regions[trid].outBorderSPs.size(); i++)
+	{
+		borderSPs.push_back(regions[trid].outBorderSPs[i]);
+	}
+
+	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
+	cv::imshow("region border",rmask);
+	cv::waitKey();
+
+}
 
 void TestImageFocusness()
 {
 	
-	cv::Mat img = cv::imread("0161.jpg");
+	cv::Mat img = cv::imread("0161.jpg");	
+	cv::Mat edgeMap = cv::imread("0161_edge.png", -1);
+	cv::Mat scaleMap;
 	
-	cv::Mat grayI, scaleMap;
-	cv::cvtColor(img, grayI, CV_BGR2GRAY);
-	CalScale(grayI, scaleMap);
+	cv::Mat fimg, gray, labImg, lbpImg;
+	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
+	cv::cvtColor(fimg, labImg, CV_BGR2Lab);
+	cv::cvtColor(img, gray, CV_BGR2GRAY);
+	cv::GaussianBlur(gray, gray, cv::Size(3, 3), 0);
+	cv::Mat dx, dy, _angImg, _magImg;
+	cv::Scharr(gray, dx, CV_32F, 1, 0);
+	cv::Scharr(gray, dy, CV_32F, 0, 1);
+	cv::cartToPolar(dx, dy, _magImg, _angImg, true);
 	
-	cv::normalize(scaleMap, scaleMap, 255, 0, CV_MINMAX,CV_8U);
-	cv::imshow("scaleMap", scaleMap);
+	if (edgeMap.channels() == 3)
+		cv::cvtColor(edgeMap, edgeMap, CV_BGR2GRAY);
+	edgeMap.convertTo(edgeMap, CV_32F, 1.0 / 255);
+
+	int _width = img.cols;
+	int _height = img.rows;
+	cv::Mat simg;
+
+	SuperpixelComputer computer(_width, _height, 16, 0.55);	
+	computer.ComputeSuperpixel(img);
+	
+	
+
+	//计算每个超像素与周围超像素的差别
+	int spHeight = computer.GetSPHeight();
+	int spWidth = computer.GetSPWidth();
+	int* labels;
+	SLICClusterCenter* centers = NULL;
+	int _spSize(0);
+	computer.GetSuperpixelResult(_spSize, labels, centers);
+	//每个超像素中包含的像素以及位置	
+	std::vector<std::vector<uint2>> _spPoses;
+	computer.GetSuperpixelPoses(_spPoses);
+
+	
+	//build historgram
+	HISTOGRAMS colorHist, gradHist, lbpHist;
+	std::vector<int> nLabels;
+	std::vector<SPRegion> regions;
+	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist);
+	
+	nLabels.resize(_spSize);
+	//init regions 
+	for (int i = 0; i < _spSize; i++)
+	{
+		nLabels[i] = i;
+		SPRegion region;
+		region.cX = i%spWidth;
+		region.cY = i / spWidth;
+		region.color = centers[i].rgb;
+		region.colorHist = colorHist[i];
+		region.hog = gradHist[i];
+		region.lbpHist = lbpHist[i];
+		region.size = 1;
+		region.dist = 0;
+		region.id = i;
+		region.neighbors = computer.GetNeighbors4(i);
+		region.spIndices.push_back(i);
+		regions.push_back(region);
+
+	}
+	
+	int * segment = new int[img.cols*img.rows];
+	UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
+	delete[] segment;
+	GetRegionEdgeness(edgeMap, regions);
+	RegionGrowing(img, computer, nLabels, regions, 0.4);
+	cv::Mat rmask;
+	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
+	cv::Mat focus;
+	CalScale(gray, scaleMap);
+	CalRegionFocusness(gray, scaleMap, edgeMap, _spPoses, regions, focus);
+	cv::imshow("regions", rmask);
+	cv::imshow("focusness", focus);
 	cv::waitKey();
+	
 
 }
 
@@ -217,7 +389,9 @@ void EvaluateSaliency(cv::Mat& salMap)
 }
 void GetImgSaliency(int argc, char* argv[])
 {
-	TestImageFocusness();
+	TestImageRegionObjectness();
+	/*TestImageFocusness();*/
+	return;
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];

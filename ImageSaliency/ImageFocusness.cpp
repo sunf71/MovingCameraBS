@@ -127,8 +127,80 @@ void CalScale(cv::Mat& gray, cv::Mat& scaleMap)
 
 
 
-
-void CalRegionFocusness(const cv::Mat& img, const cv::Mat& scaleMap, const cv::Mat& edgeMap, std::vector<SPRegion>& regions, cv::Mat& rst)
+void DogGradMap(cv::Mat& grayImg, cv::Mat& grad)
 {
+	
+	//float sigmaBig = 70.0 / 10.0f;
+	//float sigmaSmall = 60.0 / 100.0f;
+	int ksize = 7;
+	float sigmaSmall = 0.3*((ksize - 1)*0.5 - 1) + 0.8;
+	float sigmaBig = sigmaSmall * 70 / 6;
+	//int ksize = ceilf((sigmaBig - 0.8f) / 0.3f) * 2 + 3;
+	
+	cv::Mat gauBig = cv::getGaussianKernel(ksize, sigmaBig, CV_32F);
+	cv::Mat gauSmall = cv::getGaussianKernel(ksize, sigmaSmall, CV_32F);
 
+	cv::Mat DoG = gauSmall - gauBig;
+	cv::filter2D(grayImg, grad, CV_32F, DoG.t());
+	grad = cv::abs(grad);
+	cv::Mat gradGray;
+	cv::normalize(grad, gradGray, 255, 0, CV_MINMAX, CV_8U);
+	cv::imshow("dog", gradGray);
+	cv::waitKey();
+
+}
+void CalRegionFocusness(const cv::Mat& grad, const cv::Mat& scaleMap, const cv::Mat& edgeMap, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, cv::Mat& rst)
+{
+	float threshold = 128;
+	
+	rst = cv::Mat::zeros(grad.size(), CV_32F);
+
+
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		if (regions[i].size > 0)
+		{
+
+			float gradSum(0);
+			float scaleMapSum(0);
+			for (size_t j = 0; j < regions[i].borderPixels.size(); j++)
+			{
+				for (size_t k = 0; k < regions[i].borderPixels[j].size(); k++)
+				{
+					gradSum += grad.at<float>(cv::Point(regions[i].borderPixels[j][k].x, regions[i].borderPixels[j][k].y));
+					scaleMapSum += scaleMap.at<float>(cv::Point(regions[i].borderPixels[j][k].x, regions[i].borderPixels[j][k].y));
+
+				}
+			}
+			int edgeNum(0);
+
+			for (size_t j = 0; j < regions[i].spIndices.size(); j++)
+			{
+				for (size_t m = 0; m < spPoses[regions[i].spIndices[j]].size(); m++)
+				{
+					uint2 pos = spPoses[regions[i].spIndices[j]][m];
+					cv::Point point(pos.x, pos.y);
+					if (edgeMap.at<float>(point) > threshold)
+					{
+						edgeNum++;
+						scaleMapSum += scaleMap.at<float>(point);
+					}
+				}
+			}
+			float regFocusness = gradSum / regions[i].borderPixels.size()*exp(1.0 / (gradSum + edgeNum) / scaleMapSum);
+			regions[i].focusness = regFocusness;
+			for (size_t j = 0; j < regions[i].spIndices.size(); j++)
+			{
+				for (size_t m = 0; m < spPoses[regions[i].spIndices[j]].size(); m++)
+				{
+					uint2 pos = spPoses[regions[i].spIndices[j]][m];
+					cv::Point point(pos.x, pos.y);
+					rst.at<float>(point) = regFocusness;
+				}
+			}
+		}
+		else
+			regions[i].focusness = 0;
+	}
+	cv::normalize(rst, rst, 255, 0, CV_MINMAX, CV_8U);
 }

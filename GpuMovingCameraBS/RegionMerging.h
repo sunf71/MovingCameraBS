@@ -10,6 +10,12 @@
 const int HoleSize = 5;
 const int HoleNeighborsNum = 2;
 const double ZERO = 1e-6;
+
+const float cw = 0.5;
+const float hw = 0.1;
+const float shw = 0.2;
+const float siw = 0.2;
+
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
 inline unsigned int expandBits(unsigned int v)
@@ -97,6 +103,8 @@ struct SPRegion
 	std::vector<std::vector<int>> borderSpIndices;
 	//与每个邻居区域的边界像素数
 	std::vector<int> borderPixelNum;
+	//外边界超像素Id
+	std::vector<int> outBorderSPs;
 	//与每个邻居的边界像素
 	std::vector<std::vector<uint2>> borderPixels;
 	//与每个邻居的边界像素中是边缘的像素个数
@@ -113,6 +121,8 @@ struct SPRegion
 	float moment;
 	//形状紧凑min(width,height)/max(width,height)
 	float compactness;
+
+	float focusness;
 };
 struct RegionPartition
 {
@@ -350,6 +360,7 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	float threshold, float confidence = 0.6
 	);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask);
+void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<int>& flagSPs, cv::Mat& mask);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool textflag = true);
 
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool txtflag = true);
@@ -493,3 +504,8 @@ void RegionSaliency(int width, int height, const char* outputPath, SuperpixelCom
 
 //更新区域的边界等信息
 void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
+
+void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, const cv::Mat& gradMap, const cv::Mat& scaleMap, const cv::Mat& edgemap, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
+
+
+void GetRegionEdgeness(const cv::Mat& edgeMap, std::vector<SPRegion>& regions);
