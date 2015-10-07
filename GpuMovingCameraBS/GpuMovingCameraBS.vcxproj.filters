@@ -277,6 +277,12 @@
     <ClCompile Include="ASAPWarping.cpp">
       <Filter>头文件</Filter>
     </ClCompile>
+    <ClCompile Include="..\ImageSaliency\ImageFocusness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ImageSaliency\RegionObjectness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu">

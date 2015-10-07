@@ -97,6 +97,8 @@
     <ClInclude Include="WarpBackgroundSubtractor.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\ImageSaliency\ImageFocusness.cpp" />
+    <ClCompile Include="..\ImageSaliency\RegionObjectness.cpp" />
     <ClCompile Include="ASAPWarping.cpp" />
     <ClCompile Include="BlockWarping.cpp" />
     <ClCompile Include="ComSuperpixel.cpp" />
@@ -219,7 +221,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>saliencyTest</TargetName>
+    <TargetName>TestFeaturesRefine</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='OpencvD|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -243,7 +245,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <TargetName>saliencyTest</TargetName>
+    <TargetName>TestFeaturesRefine</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>GpuSubsenseM</TargetName>

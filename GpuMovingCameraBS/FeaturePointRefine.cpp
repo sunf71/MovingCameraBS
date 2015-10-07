@@ -1069,7 +1069,7 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 		cv::imshow(title, rstImg);
 		cv::waitKey(0);
 	}
-	std::cout << "inlier pct " << inlierNum / inliers.size() << "\n";
+	//std::cout << "inlier pct " << inlierNum / inliers.size() << "\n";
 }
 
 void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title, int anchorId)
@@ -1113,7 +1113,7 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 		cv::imshow(title, rstImg);
 		cv::waitKey(0);
 	}
-	std::cout << "inlier pct " << inlierNum / inliers.size() << "\n";
+	//std::cout << "inlier pct " << inlierNum / inliers.size() << "\n";
 }
 
 void BlockRelFlowRefine::Init()

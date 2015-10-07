@@ -22,6 +22,7 @@
 #include <numeric>
 #include "Dijkstra.h"
 #include "FileNameHelper.h"
+
 void testCudaGpu()
 {
 	try
@@ -2048,7 +2049,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 	int method = atoi(argv[5]);
 	char* path = argv[6];
 	char* outPath = argv[7];
+	
 	CreateDir(outPath);
+	
 	int dBinNum(10), aBinNum(90);
 	float threshold(1.0);
 	if (method == 3 && argc == 10)
@@ -2064,6 +2067,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 	{
 		aBinNum = atoi(argv[8]);
 	}
+	
 	cv::Size size2(width * 2, height);
 	char fileName[200];
 	cv::Mat img0, gray0, img1, gray1, gtImg;
@@ -2071,14 +2075,15 @@ void TestFeaturesRefine(int argc, char* argv[])
 	std::vector<uchar> inliers;
 	double warpErr(0);
 	char methodName[20];
-
+	float Pe(0);
 	for (int i = start; i <= end; i++)
 	{
 		sprintf(fileName, "%s//in%06d.jpg", path, i);
 		img1 = imread(fileName);
-		/*sprintf(fileName,"%s//groundtruth//gt%06d.png",path,i);
+		sprintf(fileName, "%s//groundtruth//gt%06d.png", path, i);
 		gtImg = imread(fileName);
-		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);*/
+		
+		cv::cvtColor(gtImg,gtImg,CV_BGR2GRAY);
 		cv::cvtColor(img1, gray1, CV_BGR2GRAY);
 		if (gray0.empty())
 		{
@@ -2089,7 +2094,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		timer.start();
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500, 0.05, 10);
 		timer.stop();
-		std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
+		//std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
 
 		BlockRelFlowRefine BRFR(width, height, 2);
 
@@ -2132,33 +2137,50 @@ void TestFeaturesRefine(int argc, char* argv[])
 		}
 
 		timer.stop();
-		std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
+		/*std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";*/
 		sprintf(fileName, "%s\\%s%d.jpg", outPath, methodName, i);
-		if (method == 2 || method == 4)
-		{
-			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), anchorId);
-		}
-		else
-		{
-			/*ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName));
-			sprintf(fileName, "%s\\%s%dL.jpg", outPath, methodName, i);
-			ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), true);*/
+		
 
-			ShowFeatureRefineSingle(img1, features1, img0, features0, inliers, fileName);
-		}
-
-
+		float errorNum(0);
 		int k(0);
-		for (size_t i = 0; i < inliers.size(); i++)
+		
+		for (size_t ii = 0; ii < inliers.size(); ii++)
 		{
-			if (inliers[i] == 1)
+			if (inliers[ii] == 1)
 			{
-				features1[k] = features1[i];
-				features0[k] = features0[i];
+				features1[k] = features1[ii];
+				features0[k] = features0[ii];
+				if (i > 1)
+				{
+					int x = features1[k].x + 0.5;
+					int y = features1[k].y + 0.5;
+					if (gtImg.data[y*width + x] == 0xff)
+					{
+						errorNum++;
+					}
+				}
+				
 				k++;
 			}
 
 		}
+		if (errorNum > 0)
+		{
+			if (method == 2 || method == 4)
+			{
+				ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), anchorId);
+			}
+			else
+			{
+				/*ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName));
+				sprintf(fileName, "%s\\%s%dL.jpg", outPath, methodName, i);
+				ShowFeatureRefine(img1, features1, img0, features0, inliers, std::string(fileName), true);*/
+
+				ShowFeatureRefineSingle(img1, features1, img0, features0, inliers, fileName);
+			}
+		}
+		errorNum /= inliers.size();
+		Pe += errorNum;
 		features0.resize(k);
 		features1.resize(k);
 		//findHomographyDLT(features1, features0, homo);
@@ -2174,13 +2196,13 @@ void TestFeaturesRefine(int argc, char* argv[])
 		cv::absdiff(wimg0, img0, diff);
 		sprintf(fileName, "%s\\%sDiff%d.jpg", outPath, methodName, i);
 		double wr = cv::sum(cv::sum(diff))[0];
-		std::cout << "total diff " << wr << " \n";
+		//std::cout << "total diff " << wr << " \n";
 		warpErr += wr;
-		cv::imwrite(fileName, diff);
+		/*cv::imwrite(fileName, diff);*/
 		cv::swap(img0, img1);
 		cv::swap(gray0, gray1);
 	}
-
+	std::cout << "Pe " << Pe * 100 / (end - start + 1) << "\n";
 	std::cout << "warp err " << warpErr / (end - start + 1);
 }
 //测试直方图投票的方式选取背景特征点
@@ -2835,8 +2857,9 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector<int> nLabels;
 	std::vector<SPRegion> regions;
 	std::vector < std::vector<int>> neighbors;
+	cv::Mat salMap;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, outPath, computer, nLabels, regions, neighbors, 0.2, 20, true);
+	IterativeRegionGrowing(img, edgeMap, (const char*)imgName, (const char*)outPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, true);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
@@ -2884,7 +2907,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	//cv::imwrite(imgName, momentMask);
 
 
-	cv::Mat salMap;	
+	
 	//GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
 	PickSaliencyRegion(_width, _height, &computer, nLabels, regions, salMap);
 	sprintf(imgName, "%s%s_RM.png", outputPath, fileName);
