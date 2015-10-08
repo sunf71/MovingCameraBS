@@ -2110,7 +2110,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 			break;
 		case 2:
 			sprintf(methodName, "RelFlow");
-			RelFlowRefine(features1, features0, inliers, anchorId);
+			RelFlowRefine(features1, features0, inliers, anchorId, 1.f);
 			//RelFlowRefine(width, height, features1, features0, inliers, anchorId);
 			break;
 		case 3:
@@ -2138,7 +2138,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 
 		timer.stop();
 		/*std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";*/
-		sprintf(fileName, "%s\\%s%d.jpg", outPath, methodName, i);
+		sprintf(fileName, "%s%s%d.jpg", outPath, methodName, i);
 		
 
 		float errorNum(0);
