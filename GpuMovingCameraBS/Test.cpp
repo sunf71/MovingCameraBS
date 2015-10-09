@@ -2106,11 +2106,11 @@ void TestFeaturesRefine(int argc, char* argv[])
 		{
 		case 1:
 			sprintf(methodName, "Ransac");
-			cv::findHomography(features1, features0, inliers, CV_RANSAC, 0.1);
+			cv::findHomography(features1, features0, inliers, CV_RANSAC, threshold);
 			break;
 		case 2:
 			sprintf(methodName, "RelFlow");
-			RelFlowRefine(features1, features0, inliers, anchorId, 1.f);
+			RelFlowRefine(features1, features0, inliers, anchorId, threshold);
 			//RelFlowRefine(width, height, features1, features0, inliers, anchorId);
 			break;
 		case 3:
@@ -2132,7 +2132,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 			break;
 		default:
 			sprintf(methodName, "Ransac");
-			cv::findHomography(features1, features0, inliers, CV_RANSAC, 0.1);
+			cv::findHomography(features1, features0, inliers, CV_RANSAC, threshold);
 			break;
 		}
 
@@ -2150,7 +2150,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 			{
 				features1[k] = features1[ii];
 				features0[k] = features0[ii];
-				if (i > 1)
+				if (i > start)
 				{
 					int x = features1[k].x + 0.5;
 					int y = features1[k].y + 0.5;
@@ -2179,7 +2179,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 				ShowFeatureRefineSingle(img1, features1, img0, features0, inliers, fileName);
 			}
 		}
-		errorNum /= inliers.size();
+		errorNum /= k;
 		Pe += errorNum;
 		features0.resize(k);
 		features1.resize(k);
