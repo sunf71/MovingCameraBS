@@ -15,7 +15,7 @@
 class RTBackgroundSubtractor: public cv::BackgroundSubtractor 
 {
 public:
-	RTBackgroundSubtractor(float mthreshold = 1.0, float spAlpha = 0.9, int warpId = 1):_mThreshold(mthreshold),_frameIdx(0),_spStep(20),_warpId(warpId),_spAlpha(spAlpha),_hogBins(36),_colorBins(12)
+	RTBackgroundSubtractor(float mthreshold = 1.0, float spAlpha = 0.9, int warpId = 1):_mThreshold(mthreshold),_frameIdx(0),_spStep(40),_warpId(warpId),_spAlpha(spAlpha),_hogBins(36),_colorBins(12)
 	{
 		_totalColorBins = _colorBins*_colorBins*_colorBins;
 		_hogStep = 360.0/_hogBins;

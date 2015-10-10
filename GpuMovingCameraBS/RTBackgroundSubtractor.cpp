@@ -47,7 +47,7 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 		memset(&_colorHists[i][0],0,sizeof(float)*_totalColorBins);
 	}
 
-	_dFeatureDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(500,0.05,20);
+	_dFeatureDetector = new cv::gpu::GoodFeaturesToTrackDetector_GPU(500,0.05,10);
 	
 	switch (_warpId)
 	{

@@ -183,7 +183,8 @@ public:
 	{
 		
 	};
-
+	//检查一致性, 若分块中包含特征点，则比较该分块以及周围各分块的矩阵的一致性
+	void CheckConsistence();
 	//calculate homographies for each block,multi blocks may share one homographies
 	virtual void Solve();
 	virtual void Reset()

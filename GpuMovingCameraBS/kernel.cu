@@ -3,14 +3,14 @@
 int main (int argc, char* argv[])
 {
 	//TestGpuKLT();
-	//TestRTBS(argc,argv);
+	TestRTBS(argc,argv);
 	//TestLBP();
 	//TestQuantize();
 	//TestSaliency(argc,argv);
 	//TestRegionMerging(argc, argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
-	TestFeaturesRefine(argc, argv);
+	//TestFeaturesRefine(argc, argv);
 	//TestFeaturesRefineHistogram(argc,argv);
 	//TestSuperpixelDownSample();
 	//TestSuperpielxComputer();
