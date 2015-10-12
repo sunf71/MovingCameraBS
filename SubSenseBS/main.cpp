@@ -125,6 +125,8 @@ void TestCVSolve()
 }
 void MovieMakeMain(int argc, char* argv[])
 {
+	BGSMovieMaker::MakeMovie(argv[1], argv[2], argv[3], argv[4], argv[5], cv::Size(atoi(argv[6]), atoi(argv[7])), atoi(argv[8]), atoi(argv[9]), argv[10], 0, 0, 5);
+	return;
 	if (argc == 8)
 	{
 		BGSMovieMaker::MakeMovie(argv[1],argv[2],cv::Size(atoi(argv[3]),atoi(argv[4])),atoi(argv[5]),atoi(argv[6]),argv[7]);
