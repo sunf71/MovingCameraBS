@@ -234,7 +234,9 @@ void BlockWarping::SetFeaturePoints(Points& features1, Points& features0)
 	//将特征点归入到分块中
 	for(int i=0; i< features1.size(); i++)
 	{
-		int idx = blockId(features1[i]);
+		int idx = blockId(features1[0]);
+		if (idx > _cells.size() - 1 || idx < 0)
+			continue;
 		_cells[idx].points0.push_back(features1[i]);
 		_cells[idx].points1.push_back(features0[i]);
 		_cells[idx].idx = idx;
@@ -516,6 +518,116 @@ void NBlockWarping::Solve()
 					}
 					
 				}				
+				r++;
+			}
+			findHomographyEqa(f1, f2, homo);
+			invHomo = homo.inv();
+			//std::cout << "combination:";
+			for (size_t i = 0; i < blockIds.size(); i++)
+			{
+				int id = blockIds[i];
+				memcpy(&_blkHomoVec[_cells[id].idx * 8], homo.data, 64);
+				memcpy(&_blkInvHomoVec[_cells[id].idx * 8], invHomo.data, 64);
+				blkFlags[id] = true;
+				//std::cout << id << ",";
+			}
+			//std::cout << "\n";
+		}
+	}
+}
+
+//若周围块已经有有变换矩阵，将周围块的边界点加入特征点集合
+void NCBlockWarping::AddBorderFeaturePoints(Points& f1, Points&f2, std::vector<bool>& blkFlags, int i)
+{
+	int x = i%_quadStep;
+	int y = i / _quadStep;
+	int r = 1;
+	Point2f c0 = BlkCenter(i);
+	for (int k=0; k < _blkNeighbors[i].size(); k++)
+	{
+		int nid = _blkNeighbors[i][k];
+		if (blkFlags[nid])
+		{
+			Point2f  c1 = BlkCenter(nid);
+			Point2f mid = cv::Point2f((c1.x + c0.x) / 2, (c1.y + c0.y) / 2);
+		
+			f1.push_back(mid);
+			MatrixTimesPoint(&_blkHomoVec[_cells[nid].idx * 8], mid);
+			f2.push_back(mid);
+		}
+		
+		
+	}
+}
+void NCBlockWarping::Solve()
+{
+	std::vector<bool> blkFlags(_blkSize);
+	memset(&blkFlags[0], 0, sizeof(blkFlags));
+
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		if (blkFlags[i])
+			continue;
+
+		cv::Mat homo, invHomo;
+		Points f1, f2;
+		AddFeaturePoints(f1, f2, i);
+		AddBorderFeaturePoints(f1, f2, blkFlags, i);
+
+		//if the block hasn't got a homo and the features are enough, just calculate
+		if (f1.size() > _minNumForHomo)
+		{
+
+			findHomographyEqa(f1, f2, homo);
+			invHomo = homo.inv();
+			memcpy(&_blkHomoVec[_cells[i].idx * 8], homo.data, 64);
+			memcpy(&_blkInvHomoVec[_cells[i].idx * 8], invHomo.data, 64);
+			//std::cout << i << " direct calculated\n";
+			blkFlags[i] = true;
+		}
+		else
+		{
+			int x = i%_quadStep;
+			int y = i / _quadStep;
+			//accumulate the neighbors untill get the minimum feature number
+			int r = 1;
+			std::vector<int> blockIds;
+			blockIds.push_back(i);
+			while (f1.size() < _minNumForHomo)
+			{
+				for (int k = y - r; k <= y + r; k++)
+				{
+					if (k < 0 || k >= _quadStep)
+						continue;
+					if (k == y - r || k == y + r)
+					{
+						for (int j = x - r; j <= x + r; j++)
+						{
+							if (j < 0 || j >= _quadStep)
+								continue;
+							int idx = k*_quadStep + j;
+							AddFeaturePoints(f1, f2, idx);
+							blockIds.push_back(idx);
+						}
+					}
+					else
+					{
+						if (x - r >= 0 && x - r < _quadStep)
+						{
+							int idx = k*_quadStep + x - r;
+							AddFeaturePoints(f1, f2, idx);
+							blockIds.push_back(idx);
+
+						}
+						if (x + r >= 0 && x + r < _quadStep)
+						{
+							int idx = k*_quadStep + x + r;
+							AddFeaturePoints(f1, f2, idx);
+							blockIds.push_back(idx);
+						}
+					}
+
+				}
 				r++;
 			}
 			findHomographyEqa(f1, f2, homo);

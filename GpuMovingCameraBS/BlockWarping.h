@@ -157,6 +157,90 @@ private:
 		std::vector<float> _blkErrors;
 		std::vector<int> _emptyBlkIdx1, _emptyBlkIdx0;
 protected:
+	cv::Point2f BlkCenter(int idx)
+	{
+		return cv::Point2f((idx + 0.5)*_blkWidth, (idx + 0.5)*_blkHeight);
+	}
+	void SetBlkNeighbors()
+	{
+		_blkNeighbors.resize(_blkSize);
+		for (size_t j = 1; j < _quadStep - 1; j++)
+		{
+			int i = 0;
+			int idx = j + i*_quadStep;
+			_blkNeighbors[idx].push_back(idx - 1);
+			_blkNeighbors[idx].push_back(idx + 1);
+			_blkNeighbors[idx].push_back(idx + _quadStep);
+			_blkNeighbors[idx].push_back(idx - 1 + _quadStep);
+			_blkNeighbors[idx].push_back(idx + _quadStep + 1);
+			
+			i = _quadStep - 1;
+			idx = j + i*_quadStep;
+			_blkNeighbors[idx].push_back(idx - 1);
+			_blkNeighbors[idx].push_back(idx + 1);
+			_blkNeighbors[idx].push_back(idx - 1 - _quadStep);
+			_blkNeighbors[idx].push_back(idx - _quadStep + 1);
+			_blkNeighbors[idx].push_back(idx - _quadStep);
+			
+		}
+		for (size_t i = 1; i < _quadStep - 1; i++)
+		{
+			int j = 0;
+			int idx = j + i*_quadStep;
+			_blkNeighbors[idx].push_back(idx + 1);
+			_blkNeighbors[idx].push_back(idx + _quadStep);
+			_blkNeighbors[idx].push_back(idx + 1 + _quadStep);
+			_blkNeighbors[idx].push_back(idx - _quadStep + 1);
+			_blkNeighbors[idx].push_back(idx - _quadStep);
+			
+			j = _quadStep - 1;
+			idx = j + i*_quadStep;
+			_blkNeighbors[idx].push_back(idx - 1);
+			_blkNeighbors[idx].push_back(idx + _quadStep);
+			_blkNeighbors[idx].push_back(idx - 1 + _quadStep);
+			_blkNeighbors[idx].push_back(idx - _quadStep - 1);
+			_blkNeighbors[idx].push_back(idx - _quadStep);
+			
+		}
+		for (size_t i = 1; i < _quadStep - 1; i++)
+		{
+			for (size_t j = 1; j < _quadStep - 1; j++)
+			{
+				int idx = j + i*_quadStep;
+				_blkNeighbors[idx].push_back(idx - 1);
+				_blkNeighbors[idx].push_back(idx + 1);
+				_blkNeighbors[idx].push_back(idx + _quadStep);
+				_blkNeighbors[idx].push_back(idx - 1 + _quadStep);
+				_blkNeighbors[idx].push_back(idx + 1 + _quadStep);
+				_blkNeighbors[idx].push_back(idx - _quadStep - 1);
+				_blkNeighbors[idx].push_back(idx - _quadStep);
+				_blkNeighbors[idx].push_back(idx - _quadStep + 1);
+
+			}
+		}
+		_blkNeighbors[0].push_back(1);
+		_blkNeighbors[0].push_back(_quadStep);
+		_blkNeighbors[0].push_back(_quadStep + 1);
+
+
+
+		_blkNeighbors[_quadStep - 1].push_back(_quadStep - 2);
+		_blkNeighbors[_quadStep - 1].push_back(2 * _quadStep - 1);
+		_blkNeighbors[_quadStep - 1].push_back(2 * _quadStep - 2);
+
+
+		int idx = _quadStep*_quadStep - 1;
+		_blkNeighbors[idx].push_back(idx - _quadStep);
+		_blkNeighbors[idx].push_back(idx - 1);
+		_blkNeighbors[idx].push_back(idx - _quadStep - 1);
+
+
+		idx -= (_quadStep - 1);
+		_blkNeighbors[idx].push_back(idx - _quadStep);
+		_blkNeighbors[idx].push_back(idx + 1);
+		_blkNeighbors[idx].push_back(idx - _quadStep + 1);
+
+	}
 	int _width;
 	int _height;
 	int _quadStep;
@@ -173,7 +257,7 @@ protected:
 	int _minNumForHomo;
 	
 	double* _dBlkHomoVec,*_dBlkInvHomoVec;
-
+	std::vector<std::vector<int>> _blkNeighbors;
 };
 
 class NBlockWarping :public BlockWarping
@@ -182,9 +266,7 @@ public:
 	NBlockWarping(int width, int height, int quad) :BlockWarping(width,height,quad)
 	{
 		
-	};
-	//检查一致性, 若分块中包含特征点，则比较该分块以及周围各分块的矩阵的一致性
-	void CheckConsistence();
+	};	
 	//calculate homographies for each block,multi blocks may share one homographies
 	virtual void Solve();
 	virtual void Reset()
@@ -211,3 +293,17 @@ protected:
 	}
 };
 
+
+class NCBlockWarping : public NBlockWarping
+{
+public:
+
+	NCBlockWarping(int width, int height, int quad) :NBlockWarping(width, height, quad)
+	{
+		SetBlkNeighbors();
+	};
+	void AddBorderFeaturePoints(Points& f1, Points&f2, std::vector<bool>& blkFlag, int bid);
+	
+	//calculate homographies for each block,multi blocks may share one homographies
+	virtual void Solve();
+};

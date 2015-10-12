@@ -63,6 +63,9 @@ void RTBackgroundSubtractor::Initialize(cv::InputArray image)
 	case 4:
 		_imgWarper = new GlobalWarping(_width, _height);
 		break;
+	case 5:
+		_imgWarper = new NCBlockWarping(_width, _height, 8);
+		break;
 	default:
 		_imgWarper = new ASAPWarping(_width, _height, 8, 1.0);
 		break;
