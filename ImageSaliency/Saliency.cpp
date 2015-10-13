@@ -84,48 +84,6 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
 
-	//求每个区域的中心距
-	//cv::Mat momentMask;
-	//momentMask.create(_height, _width, CV_32F);
-	//std::vector<float> moments;
-	//for (size_t i = 0; i < regions.size(); i++)
-	//{
-	//	float dx(0),dy(0);
-	//	float d(0);
-	//	for (size_t j = 0; j < regions[i].spIndices.size(); j++)
-	//	{
-	//		int y = regions[i].spIndices[j] / spWidth;
-	//		int x = regions[i].spIndices[j] % spWidth;
-	//		dx += abs(x*1.0 / spWidth - 0.5);
-	//		dy += abs(y*1.0 / spHeight - 0.5);
-	//		d += dx + dy;
-	//	}
-	//	regions[i].moment = d/regions[i].size;
-	//	moments.push_back(regions[i].moment);
-	//	regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
-	//	
-	//}
-	//normalize(moments, moments, 1.0, 0.0, cv::NORM_MINMAX);
-	//for (size_t i = 0; i < regions.size(); i++)
-	//{
-	//	for (size_t j = 0; j < regions[i].spIndices.size(); j++)
-	//	{
-	//		for (size_t s = 0; s < _spPoses[regions[i].spIndices[j]].size(); s++)
-	//		{
-	//			uint2 xy = _spPoses[regions[i].spIndices[j]][s];
-
-	//			int idx = xy.x + xy.y*_width;
-	//			//mask.at<cv::Vec3b>(xy.y, xy.x) = color;
-	//			momentMask.at<float>(xy.y, xy.x) = moments[i]*255;
-	//			//*(float*)(mask.data + idx * 4) = minDist;
-	//			//mask.at<float>(xy.y, xy.x) = (regions[minId].color.x + regions[minId].color.y + regions[minId].color.z) / 3 / 255;
-	//		}
-	//	}
-	//}
-	//momentMask.convertTo(momentMask, CV_8U, 255);
-	//sprintf(imgName, "%smoment_%s.jpg", outputPath, fileName);
-	//cv::imwrite(imgName, momentMask);
-
 
 	
 	//GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
@@ -172,6 +130,9 @@ void TestImageRegionObjectness()
 {
 	cv::Mat img = cv::imread("0161.jpg");
 	cv::Mat edgeMap = cv::imread("0161_edge.png", -1);
+	cv::Mat gtSal = cv::imread("0161.png", -1);
+	if (gtSal.channels() == 3)
+		cv::cvtColor(gtSal, gtSal, CV_BGR2GRAY);
 	cv::Mat scaleMap;
 
 	cv::Mat fimg, gray, labImg, lbpImg;
@@ -211,50 +172,72 @@ void TestImageRegionObjectness()
 
 	//build historgram
 	HISTOGRAMS colorHist, gradHist, lbpHist;
-	std::vector<int> nLabels;
-	std::vector<SPRegion> regions;
+	
+	std::vector<SPRegion> regions(2);
 	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist);
-
-	nLabels.resize(_spSize);
-	//init regions 
-	for (int i = 0; i < _spSize; i++)
-	{
-		nLabels[i] = i;
-		SPRegion region;
-		region.cX = i%spWidth;
-		region.cY = i / spWidth;
-		region.color = centers[i].rgb;
-		region.colorHist = colorHist[i];
-		region.hog = gradHist[i];
-		region.lbpHist = lbpHist[i];
-		region.size = 1;
-		region.dist = 0;
-		region.id = i;
-		region.neighbors = computer.GetNeighbors4(i);
-		region.spIndices.push_back(i);
-		regions.push_back(region);
-
-	}
-
-	int * segment = new int[img.cols*img.rows];
+	float threshold = 0.5;
+	//根据gtmask 分成2个区域
+	std::vector<int> nLabels(_spSize);
+	int* segment = new int[_width*_height];
+	float4 c0, c1;
+	c0 = make_float4(0, 0, 0,0);
+	c1 = c0;
 	
-	int zeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-	int size = regions.size()  - zeroReg;
-	while (size > 100)
+	std::vector<float> bgHist(colorHist[0].size(), 0);
+	std::vector<float> fgHist(colorHist[0].size(), 0);
+
+	for (size_t i = 0; i < _spSize; i++)
 	{
-		UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
-		GetRegionEdgeness(edgeMap, regions);
-		RegionGrowing(img, computer, nLabels, regions, 0.4);
-		int zeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-		size = regions.size() - zeroReg;
+		float salP(0);
+		float4 avgColor = make_float4(0, 0, 0,0);
+		for (size_t j = 0; j < _spPoses[i].size(); j++)
+		{
+			int pos = _spPoses[i][j].x + _spPoses[i][j].y*_width;
+			avgColor.x += *(char*)(img.data + pos * 3);
+			avgColor.y += *(char*)(img.data + pos * 3 +1);
+			avgColor.z += *(char*)(img.data + pos * 3+2 );
+			if (gtSal.data[pos] == 255)
+				salP++;
+		}
+		avgColor = avgColor * (1.0 / _spPoses[i].size());
+		if (salP > threshold*_spPoses[i].size())
+		{
+			regions[0].spIndices.push_back(i);
+			nLabels[i] = 0;
+			c0 = c0 + avgColor;
+			for (size_t j = 0; j < colorHist[i].size(); j++)
+			{
+				fgHist[j] += colorHist[i][j];
+			}
+		}
+		else
+		{
+			regions[1].spIndices.push_back(i);
+			nLabels[i] = 1;
+			c1 = c1 + avgColor;
+			for (size_t j = 0; j < colorHist[i].size(); j++)
+			{
+				bgHist[j] += colorHist[i][j];
+			}
+		}
 	}
-	
+	regions[0].size = regions[0].spIndices.size();
+	regions[0].color = c0 * (1.0/regions[0].size);
+	regions[0].neighbors.push_back(1);
+	regions[1].neighbors.push_back(0);
+	regions[1].size = regions[1].spIndices.size();
+	regions[1].color = c1 * (1.0 / regions[1].size);
+	cv::normalize(fgHist, fgHist, 1, 0, cv::NORM_L1);
+	cv::normalize(bgHist, bgHist, 1, 0, cv::NORM_L1);
+	regions[0].colorHist = fgHist;
+	regions[1].colorHist = bgHist;
 	cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
 	cv::imshow("region", rmask);
+	
 	UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
 	delete[] segment;
-	int trid = 179;
+	int trid = 0;
 	std::vector<int> borderSPs;
 	borderSPs.push_back(trid);
 	RegionOutBorder(trid, regions);
@@ -262,7 +245,18 @@ void TestImageRegionObjectness()
 	{
 		borderSPs.push_back(regions[trid].outBorderSPs[i]);
 	}
-
+	std::vector<float> borderHist(colorHist[0].size(), 0);
+	for (size_t i = 0; i < regions[trid].outBorderSPs.size(); i++)
+	{
+		int id = regions[trid].outBorderSPs[i];
+		for (size_t j = 0; j < colorHist[id].size(); j++)
+		{
+			borderHist[j] += colorHist[id][j];
+		}
+	}
+	cv::normalize(borderHist, borderHist, 1, 0, cv::NORM_L1);
+	double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
+	std::cout << dist << "\n";
 	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
 	cv::imshow("region border",rmask);
 	cv::waitKey();
@@ -389,9 +383,9 @@ void EvaluateSaliency(cv::Mat& salMap)
 }
 void GetImgSaliency(int argc, char* argv[])
 {
-	TestImageRegionObjectness();
-	/*TestImageFocusness();*/
-	return;
+	//TestImageRegionObjectness();
+	///*TestImageFocusness();*/
+	//return;
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];
