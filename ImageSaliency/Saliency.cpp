@@ -278,14 +278,16 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			}
 			cv::normalize(borderHist, borderHist, 1, 0, cv::NORM_L1);
 			double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
-			std::cout << dist << "\n";
+			//std::cout << dist << "\n";
 			if (dist > maxObjectness)
 			{
 				maxObjectness = dist;
 				maxId = j;
 			}
-				
-			GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
+			
+			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s_%d.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str(),(int)(dist*100));
+			cv::imwrite(imgName, gtSal);
+			//GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
 			//cv::imshow("region border", rmask);
 			//cv::waitKey();
 		}
@@ -420,7 +422,7 @@ void EvaluateSaliency(cv::Mat& salMap)
 void GetImgSaliency(int argc, char* argv[])
 {
 	TestImageRegionObjectness(argv[1], argv[2], argv[3]);
-	//TestImageRegionObjectness();
+	
 	///*TestImageFocusness();*/
 	return;
 	char* workingPath = argv[1];
