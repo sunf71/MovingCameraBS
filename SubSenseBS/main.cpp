@@ -126,7 +126,7 @@ void TestCVSolve()
 
 void BigMovie(int argc, char* argv[])
 {
-	BGSMovieMaker::MakeMovie(argv[1], argv[2], argv[3], argv[4], argv[5], cv::Size(atoi(argv[6]), atoi(argv[7])), atoi(argv[8]), atoi(argv[9]), argv[10], 0, 0, 5);
+	BGSMovieMaker::MakeMovie(argv[1], argv[2], argv[3], argv[4], argv[5], cv::Size(atoi(argv[6]), atoi(argv[7])), atoi(argv[8]), atoi(argv[9]), argv[10], 0, 1, 5);
 
 }
 void MovieMakeMain(int argc, char* argv[])

@@ -3750,10 +3750,12 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	sprintf(name, "%s%s_region_%d.jpg", outPutPath, imgName, regInfos.size());
 	cv::imwrite(name, rmask);
 	char fileName[200];
-	std::cout << outPath << std::endl;
+	char spath[200];
+	sprintf(spath, "%s//saliency//", outPath);
+	CreateDir(spath);
 	for (size_t i = 0; i < salMaps.size(); i++)
 	{
-		sprintf(fileName, "%s%dSaliency.jpg", outPath, i);
+		sprintf(fileName, "%s%dSaliency.jpg", spath, i);
 		cv::imwrite(fileName, salMaps[i]);
 	}
 	
