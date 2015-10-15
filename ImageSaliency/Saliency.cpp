@@ -135,12 +135,13 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 	std::sort(fileNames.begin(), fileNames.end());
 	for (size_t i = 0; i < fileNames.size(); i++)
 	{
+		std::cout << i << " " << fileNames[i] << "\n";
 		char imgName[200];
 		sprintf(imgName, "%s\\%s\\%s.jpg", workingPath, imgFolder, fileNames[i].c_str());
 		cv::Mat img = cv::imread(imgName);
-		sprintf(imgName, "%s\\%s\\%s.png", workingPath, "edges", fileNames[i].c_str());
+		sprintf(imgName, "%s\\%s\\%s_edge.png", workingPath, "edges", fileNames[i].c_str());
 		cv::Mat edgeMap = cv::imread(imgName, -1);
-		
+	
 		cv::Mat scaleMap;
 
 		cv::Mat fimg, gray, labImg, lbpImg;
@@ -186,13 +187,19 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 
 		std::vector<std::string> salFileNames;
 		sprintf(imgName, "%s\\%s\\%s\\saliency", workingPath, rstFolder, fileNames[i].c_str());
-		FileNameHelper::GetAllFormatFiles(imgName, salFileNames, "*.jpg");
+		FileNameHelper::GetAllFormatFiles(imgName, salFileNames, "*.png");
 		float maxObjectness(0);
 		int maxId(0);
 		int* segment = new int[_width*_height];
+		std::vector<float> weights(salFileNames.size());
+		cv::Mat saliencyMap = cv::Mat::zeros(img.size(), CV_32F);
+		cv::Mat focus,gradMap;
+		CalScale(gray, scaleMap);
+		DogGradMap(gray, gradMap);
+		
 		for (size_t j= 0; j < salFileNames.size(); j++)
 		{
-			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str());
+			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s.png", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str());
 			cv::Mat gtSal = cv::imread(imgName, -1);
 			if (gtSal.channels() == 3)
 				cv::cvtColor(gtSal, gtSal, CV_BGR2GRAY);
@@ -279,22 +286,27 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			cv::normalize(borderHist, borderHist, 1, 0, cv::NORM_L1);
 			double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
 			//std::cout << dist << "\n";
+			weights[j] = dist;
+			cv::Mat distMap(saliencyMap.size(), CV_32F, cv::Scalar(dist));
+			cv::add(saliencyMap, distMap, saliencyMap, gtSal);
 			if (dist > maxObjectness)
 			{
 				maxObjectness = dist;
 				maxId = j;
 			}
-			
+			CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
 			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s_%d.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str(),(int)(dist*100));
 			cv::imwrite(imgName, gtSal);
-			//GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
-			//cv::imshow("region border", rmask);
-			//cv::waitKey();
+			GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
+			cv::imshow("region border", rmask);
+			cv::imshow("focusness", focus);
+			cv::waitKey();
 		}
-		sprintf(imgName, "%s\\%s\\%s\\saliency\\%s.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[maxId].c_str());
-		cv::Mat gtSal = cv::imread(imgName, -1);
+	/*	sprintf(imgName, "%s\\%s\\%s\\saliency\\%s.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[maxId].c_str());
+		cv::Mat gtSal = cv::imread(imgName, -1);*/
+		cv::normalize(saliencyMap, saliencyMap, 0, 255, CV_MINMAX, CV_8U); 
 		sprintf(imgName, "%s\\%s\\%s_RM.png", workingPath, rstFolder, fileNames[i].c_str());
-		cv::imwrite(imgName, gtSal);
+		cv::imwrite(imgName, saliencyMap);
 		delete[] segment;
 	}
 	
@@ -377,9 +389,10 @@ void TestImageFocusness()
 	RegionGrowing(img, computer, nLabels, regions, 0.4);
 	cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
-	cv::Mat focus;
+	cv::Mat focus,gradMap;
 	CalScale(gray, scaleMap);
-	CalRegionFocusness(gray, scaleMap, edgeMap, _spPoses, regions, focus);
+	DogGradMap(gray, gradMap);
+	CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
 	cv::imshow("regions", rmask);
 	cv::imshow("focusness", focus);
 	cv::waitKey();
@@ -423,7 +436,7 @@ void GetImgSaliency(int argc, char* argv[])
 {
 	TestImageRegionObjectness(argv[1], argv[2], argv[3]);
 	
-	///*TestImageFocusness();*/
+	/*TestImageFocusness();*/
 	return;
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];

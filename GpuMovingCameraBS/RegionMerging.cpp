@@ -3725,14 +3725,15 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	float borderRatio = regInfos[regInfos.size() - 1].borderRatio;
 	std::vector<int> bgRegIds;
 	float rmThreshold = 0.75;
-	std::vector<cv::Mat> salMaps;
+	std::vector<cv::Mat> salMaps;	
 	while (regInfos.size()>2)
 	{		
 		cv::Mat salMap;
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
-		salMaps.push_back(salMap.clone());
+		if (regInfos.size() < 5 || borderRatio > 0.75)
+			salMaps.push_back(salMap.clone());
 		borderRatio = regInfos[regInfos.size() - 1].borderRatio;		
 		if (debug)
 		{
@@ -3755,12 +3756,9 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	CreateDir(spath);
 	for (size_t i = 0; i < salMaps.size(); i++)
 	{
-		sprintf(fileName, "%s%dSaliency.jpg", spath, i);
+		sprintf(fileName, "%s%dSaliency.png", spath, i+1);
 		cv::imwrite(fileName, salMaps[i]);
 	}
-	
-
-	
 	
 	while (regInfos.size()>2)
 	{
