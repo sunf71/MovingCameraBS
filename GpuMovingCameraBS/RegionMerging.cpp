@@ -1079,7 +1079,7 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 	computer->GetSuperpixelPoses(spPoses);
 	int spWidth = computer->GetSPWidth();
 	int spHeight = computer->GetSPHeight();
-
+	
 	for (size_t i = 0; i < regions.size(); i++)
 	{
 		float minX(spWidth), maxX(0), minY(spHeight), maxY(0);
@@ -1184,10 +1184,23 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 		regions[i].pixels = regPixels;
 		regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
 		regions[i].rad2c = make_float2(rdx / regions[i].size , rdy / regions[i].size );
+		regions[i].compactness = std::min(width, height) / std::max(width, height);
+		int step = computer->GetSuperpixelStep();
+		minX = (minX-0.5)*step;
+		maxX = (maxX + 1)*step;
+		maxY = (maxY + 1)*step;
+		minY = (minY - 0.5)*step;
+		minX = std::max(0.f, minX);
+		minY = std::max(0.f, minY);
+		maxX = std::min(width*1.f, maxX);
+		maxY = std::min(height*1.f, maxY);
+
 		float width = maxX - minX;
 		float height = maxY - minY;
+		
 
-		regions[i].compactness = std::min(width, height) / std::max(width, height);
+		regions[i].Bbox = cv::Rect(minX, minY, width, height);
+		
 	}
 }
 void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int* segment)
@@ -1303,8 +1316,10 @@ void GetRegionMap(int _width, int _height, SuperpixelComputer* computer, std::ve
 	CvRNG rng = cvRNG(cvGetTickCount());
 	for (int i = 0; i < _spSize; i++)
 		color[i] = cvRandInt(&rng);
+	
 	for (int i = 0; i < regions.size(); i++)
 	{
+		
 		for (int j = 0; j < regions[i].spIndices.size(); j++)
 		{
 			for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
@@ -1467,7 +1482,6 @@ void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segm
 				}				
 			}
 		}
-		
 	}
 	if (txtflag)
 	{
@@ -3732,7 +3746,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
-		if (regInfos.size() < 5 || borderRatio > 0.75)
+		if (regInfos.size() < 8 || borderRatio > 0.75)
 			salMaps.push_back(salMap.clone());
 		borderRatio = regInfos[regInfos.size() - 1].borderRatio;		
 		if (debug)

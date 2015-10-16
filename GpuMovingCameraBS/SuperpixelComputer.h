@@ -34,6 +34,10 @@ public:
 	  {
 		  return _nPixels;
 	  }
+	  int GetSuperpixelStep()
+	  {
+		  return _step;
+	  }
 	  void ComputeSuperpixel(const cv::Mat& img);
 	  void ComputeSLICSuperpixel(const cv::Mat& img);
 	  void ComputeBigSuperpixel(uchar4* d_rgbaBuffer);

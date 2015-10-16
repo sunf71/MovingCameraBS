@@ -121,7 +121,8 @@ struct SPRegion
 	float moment;
 	//ÐÎ×´½ô´Õmin(width,height)/max(width,height)
 	float compactness;
-
+	//°üÎ§ºÐ
+	cv::Rect Bbox;
 	float focusness;
 };
 struct RegionPartition
