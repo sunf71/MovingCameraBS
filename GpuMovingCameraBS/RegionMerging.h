@@ -123,6 +123,7 @@ struct SPRegion
 	float compactness;
 	//АќЮЇКа
 	cv::Rect Bbox;
+	cv::Rect spBbox;
 	float focusness;
 };
 struct RegionPartition

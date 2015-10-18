@@ -1185,6 +1185,7 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 		regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
 		regions[i].rad2c = make_float2(rdx / regions[i].size , rdy / regions[i].size );
 		regions[i].compactness = std::min(width, height) / std::max(width, height);
+		regions[i].spBbox = cv::Rect(minX, minY, maxX - minX, maxY - minY);
 		int step = computer->GetSuperpixelStep();
 		minX = (minX-0.5)*step;
 		maxX = (maxX + 1)*step;
@@ -1198,7 +1199,7 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 		float width = maxX - minX;
 		float height = maxY - minY;
 		
-
+		
 		regions[i].Bbox = cv::Rect(minX, minY, width, height);
 		
 	}

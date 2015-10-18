@@ -271,6 +271,9 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
 			cv::imshow("region", rmask);
 			cv::waitKey();*/
+
+			if (regions[0].size*1.0 / _spSize > 0.7 || regions[0].Bbox.height > 0.9*_height || regions[0].Bbox.width > 0.9*_width)
+				continue;
 			int trid = 0;
 			std::vector<int> borderSPs;
 			borderSPs.push_back(trid);
@@ -289,8 +292,27 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 				}
 			}
 			std::cout << j << ":" << regions[0].size*1.0 / _spSize << std::endl;
-			if (regions[0].size*1.0 / _spSize > 0.7 || regions[0].Bbox.height > 0.9*_height || regions[0].Bbox.width > 0.9*_width)
-				continue;
+			//boerder objectness
+			cv::Rect spBbox = regions[0].spBbox;
+			std::vector<float> boxBorderHist(colorHist[0].size(), 0);
+			for (size_t m = spBbox.x; m < spBbox.x + spBbox.width; m++)
+			{
+				for (size_t n = spBbox.y; n < spBbox.y+spBbox.height; n++)
+				{
+					int id = m*spWidth + n;
+					if (nLabels[id] == 1)
+					{
+						for (size_t k = 0; k < colorHist[id].size(); k++)
+						{
+							boxBorderHist[k] += colorHist[id][k];
+						}
+					}
+				}
+
+			}
+			cv::normalize(boxBorderHist, boxBorderHist, 1, 0, cv::NORM_L1);
+			double boxdist = cv::compareHist(boxBorderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
+			
 			cv::normalize(borderHist, borderHist, 1, 0, cv::NORM_L1);
 			double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
 			//std::cout << dist << "\n";
@@ -322,7 +344,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			}
 			
 			//CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
-			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s_%d.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str(),(int)(dist*100));
+			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s_%d_%d.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str(),(int)(dist*100),(int)(boxdist*100));
 			cv::imwrite(imgName, gtSal);
 			//GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
 			//cv::imshow("region border", rmask);
