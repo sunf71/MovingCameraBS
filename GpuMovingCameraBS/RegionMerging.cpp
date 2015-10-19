@@ -1184,8 +1184,11 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 		regions[i].pixels = regPixels;
 		regions[i].ad2c = make_float2(dx / regions[i].size, dy / regions[i].size);
 		regions[i].rad2c = make_float2(rdx / regions[i].size , rdy / regions[i].size );
-		regions[i].compactness = std::min(width, height) / std::max(width, height);
+		
 		regions[i].spBbox = cv::Rect(minX, minY, maxX - minX, maxY - minY);
+		float width = maxX - minX;
+		float height = maxY - minY;
+		regions[i].compactness = std::min(width, height) / std::max(width, height);
 		int step = computer->GetSuperpixelStep();
 		minX = (minX-0.5)*step;
 		maxX = (maxX + 1)*step;
@@ -1196,8 +1199,8 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 		maxX = std::min(width*1.f, maxX);
 		maxY = std::min(height*1.f, maxY);
 
-		float width = maxX - minX;
-		float height = maxY - minY;
+		width = maxX - minX;
+		height = maxY - minY;
 		
 		
 		regions[i].Bbox = cv::Rect(minX, minY, width, height);
@@ -3748,8 +3751,12 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
-		if (regInfos.size() < 8 || borderRatio > 0.65)
+		if (regInfos[regInfos.size() - 1].neighbors.size() == regInfos.size() - 1||
+			regInfos[regInfos.size() - 1].borderRatio > 0.85)
 			salMaps.push_back(salMap.clone());
+		
+		/*if (regInfos.size() < 8 || borderRatio > 0.80)
+			salMaps.push_back(salMap.clone());*/
 		borderRatio = regInfos[regInfos.size() - 1].borderRatio;		
 		if (debug)
 		{
@@ -5525,6 +5532,8 @@ void RegionSaliency(int width, int height, const char* outputPath, SuperpixelCom
 			si.fillness = fill > 0.4 ? 1 : 0;
 			//si.compactness = regions[i].compactness > 0.4 ? 1 : 0;
 			//std::cout << si << "\n";
+			
+			si.neighbors = regions[i].neighbors;
 			regInfos.push_back(si);
 		}
 		
