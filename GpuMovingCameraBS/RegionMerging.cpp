@@ -1196,13 +1196,13 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 		minY = (minY - 0.5)*step;
 		minX = std::max(0.f, minX);
 		minY = std::max(0.f, minY);
-		maxX = std::min(width*1.f, maxX);
-		maxY = std::min(height*1.f, maxY);
+		
 
 		width = maxX - minX;
 		height = maxY - minY;
 		
-		
+		maxX = std::min(width*1.f, maxX);
+		maxY = std::min(height*1.f, maxY);
 		regions[i].Bbox = cv::Rect(minX, minY, width, height);
 		
 	}
@@ -3751,8 +3751,9 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
-		if (regInfos[regInfos.size() - 1].neighbors.size() == regInfos.size() - 1||
-			regInfos[regInfos.size() - 1].borderRatio > 0.85)
+		if ((regInfos[regInfos.size() - 1].neighbors.size() == regInfos.size() - 1 &&
+			regInfos[regInfos.size() - 1].borderRatio > 0.65 )||			
+			(regInfos[regInfos.size() - 1].borderRatio > 0.85) )
 			salMaps.push_back(salMap.clone());
 		
 		/*if (regInfos.size() < 8 || borderRatio > 0.80)
@@ -5155,11 +5156,16 @@ void SalGuidedRegMergion(const cv::Mat& img, const char* path, std::vector<Regio
 	}
 	
 
+	
+
 	if (debug)
 	{
+	
+
+		float bkBorderRatio = regSalInfos[regSalInfos.size() - 1].borderRatio + regSalInfos[regSalInfos.size() - 2].borderRatio;
 		cv::Mat rmask;
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
-		sprintf(name, "%s%dBKMergeF_%d.jpg", outpath, idx, regSalInfos.size() - 1);
+		sprintf(name, "%s%dBKMergeF_%d_%d.jpg", outpath, idx, regSalInfos.size() - 1, (int)(bkBorderRatio * 100));
 		cv::imwrite(name, rmask);
 	}
 	idx++;

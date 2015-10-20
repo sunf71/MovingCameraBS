@@ -200,7 +200,12 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		cv::Mat focus,gradMap;
 		//CalScale(gray, scaleMap);
 		//DogGradMap(gray, gradMap);
-		
+		float avgSize(0);
+		std::vector<float> objectVec;
+		std::vector<float> fillnessVec;
+		std::vector<float> compactnessVec;
+		std::vector<float> sizeVec;
+		std::vector<cv::Mat> proposals;
 		for (size_t j = 0; j < salFileNames.size(); j++)
 		{
 			regions[0].spIndices.clear();
@@ -209,7 +214,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			cv::Mat gtSal = cv::imread(imgName, -1);
 			if (gtSal.channels() == 3)
 				cv::cvtColor(gtSal, gtSal, CV_BGR2GRAY);
-
+			proposals.push_back(gtSal.clone());
 			float threshold = 0.5;
 			//根据gtmask 分成2个区域
 			std::vector<int> nLabels(_spSize);
@@ -256,6 +261,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 					}
 				}
 			}
+			
 			regions[0].size = regions[0].spIndices.size();
 			regions[0].color = c0 * (1.0 / regions[0].size);
 			regions[0].neighbors.push_back(1);
@@ -266,8 +272,8 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			cv::normalize(bgHist, bgHist, 1, 0, cv::NORM_L1);
 			regions[0].colorHist = fgHist;
 			regions[1].colorHist = bgHist;
-
-
+			avgSize += regions[0].size;
+			sizeVec.push_back(regions[0].size);
 			UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
 			/*cv::Mat rmask;
 			GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
@@ -297,13 +303,65 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			}
 			std::cout << j << ":" << regions[0].size*1.0 / _spSize << std::endl;
 			//boerder objectness
+			//kernel 与border的面积比最小值
+			float theta = 0.5;
 			cv::Rect spBbox = regions[0].spBbox;
+			cv::Rect _spBbox = spBbox;
+			float hw = spBbox.width*1.0 / spBbox.height;
+			float w = sqrt(regions[0].size / theta*hw);
+			cv::Rect oRect = regions[0].Bbox;
+			if (w > spBbox.width)
+			{
+				float spWidth = computer.GetSPWidth();
+				float spHeight = computer.GetSPHeight();
+
+				_spBbox.x = spBbox.x - (w - spBbox.width) / 2 + 0.5;
+				if (_spBbox.x < 0)
+					_spBbox.x = 0;
+				if (_spBbox.x > spWidth)
+					_spBbox.x = spWidth - 1;
+
+				_spBbox.y = spBbox.y - (w - spBbox.width) / 2 / hw + 0.5;
+				if (_spBbox.y < 0)
+					_spBbox.y = 0;
+				if (_spBbox.y > spHeight)
+					_spBbox.y = spHeight - 1;
+
+				if (_spBbox.x + w > spWidth)
+					_spBbox.width = spWidth - _spBbox.x + 0.5;
+				else
+					_spBbox.width = w+0.5;
+
+				int  _spHeight = _spBbox.width / hw + 0.5;
+				if (_spBbox.y + _spHeight > spHeight)
+					_spBbox.height = spHeight - _spBbox.y + 0.5;
+				else
+					_spBbox.height = _spHeight;
+
+				int step = computer.GetSuperpixelStep();
+				float minX = (_spBbox.x - 0.5)*step;
+				float maxX = (_spBbox.x + _spBbox.width + 1)*step;
+				float maxY = (_spBbox.y + _spBbox.height + 1)*step;
+				float minY = (_spBbox.y - 0.5)*step;
+				minX = std::max(0.f, minX);
+				minY = std::max(0.f, minY);
+
+
+				float width = maxX - minX;
+				float height = maxY - minY;
+
+				maxX = std::min(width*1.f, maxX);
+				maxY = std::min(height*1.f, maxY);
+				oRect = cv::Rect(minX, minY, width, height);
+			}
+			
+			
 			std::vector<float> boxBorderHist(colorHist[0].size(), 0);
 			for (size_t m = spBbox.x; m < spBbox.x + spBbox.width; m++)
 			{
-				for (size_t n = spBbox.y; n < spBbox.y+spBbox.height; n++)
+				for (size_t n = spBbox.y; n < _spBbox.y+spBbox.height; n++)
 				{
-					int id = m*spWidth + n;
+					int id = n*spWidth + m;
 					if (id < computer.GetSuperpixelSize() && nLabels[id] == 1)
 					{
 						for (size_t k = 0; k < colorHist[id].size(); k++)
@@ -321,63 +379,29 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
 			//std::cout <<"dist"<< dist << "\n";
 			double fillness = regions[0].pixels / regions[0].Bbox.area();
-			
+			if (fillness > 0.4)
+				fillness = 1;
+			double compactness = std::min(regions[0].Bbox.width, regions[0].Bbox.height)*1.0 / std::max(regions[0].Bbox.width, regions[0].Bbox.height);
+			if (compactness > 0.15)
+				compactness = 1;
 			double sizePrior;
-			double salPrior = fillness + dist;
-			if (boxdist > maxObjectness)
-			{
-				if (estSize < 1)
-				{
-					estSize = regions[0].size;
-					maxObjectness = boxdist;
-					maxId = j;
-					saliencyMap = gtSal.clone();
-				}					
-				else
-				{
-					std::cout << "size change " << regions[0].size / estSize << "\n";
-					/*if (regions[0].size / estSize > 0.5)*/
-					{
-						
-						estSize = (estSize + regions[0].size) / 2;
-						maxObjectness = boxdist;
-						maxId = j;
-						saliencyMap = gtSal.clone();
-					}
-					
-				}
-
-				//std::cout << estSize << "\n";
-				//std::cout << "size change " << regions[0].size / estSize << "\n";
-			}
-			else if (boxdist < minObjectness)
-			{
-				minObjectness = boxdist;
-				minId = j;
-			}
-			/*for (size_t m = 0; m < regions[trid].spIndices.size(); m++)
-			{
-				for (size_t n = 0; n < _spPoses[regions[trid].spIndices[m]].size(); n++)
-				{
-					uint2 pos = _spPoses[regions[trid].spIndices[m]][n];
-					float* ptr = (float*)(saliencyMap.data + (pos.y*_width + pos.x) * 4);
-				
-					if (*ptr < dist)
-					{
-						*ptr = dist;
-						
-					}
-					
-					
-				}
-			}*/
+			fillnessVec.push_back(fillness);
+			compactnessVec.push_back(compactness);
+			objectVec.push_back(boxdist);
+			
+			
 			
 			//CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
 			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s_%d_%d.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str(),(int)(dist*100),(int)(boxdist*100));
 			cv::imwrite(imgName, gtSal);
+		
+			
+			//cv::Mat rmask;
 			//GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, borderSPs, rmask);
+			//cv::rectangle(rmask, regions[0].Bbox, cv::Scalar(0, 255, 0));
+			////cv::rectangle(rmask, oRect, cv::Scalar(255, 255, 0));
 			//cv::imshow("region border", rmask);
-			////cv::imshow("focusness", focus);
+			//////cv::imshow("focusness", focus);
 			//cv::waitKey();
 			
 		}
@@ -387,7 +411,23 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		//saliencyMap.convertTo(saliencyMap, CV_8U, 255.0);
 	/*	float threshold = (maxObjectness + minObjectness) / 2;
 		cv::threshold(saliencyMap, saliencyMap, threshold, 255, CV_THRESH_BINARY);*/
-		
+		avgSize /= salFileNames.size();
+		float maxScore(0);
+		maxId = 0;
+		for (size_t i = 0; i < objectVec.size(); i++)
+		{
+			float objectness = objectVec[i];
+			float compactness = compactnessVec[i];
+			float fillness = fillnessVec[i];
+			float sizePrior = sizeVec[i] / std::max(avgSize, sizeVec[i]) < 0.5 ? 0 : 1;
+			float score = objectness + compactness + fillness + sizePrior;
+			if (score > maxScore)
+			{
+				maxScore = score;
+				maxId = i;
+			}
+		}
+		saliencyMap = proposals[maxId];
 		sprintf(imgName, "%s\\%s\\%s_RM.png", workingPath, rstFolder, fileNames[i].c_str());
 		cv::imwrite(imgName, saliencyMap);
 		delete[] segment;
