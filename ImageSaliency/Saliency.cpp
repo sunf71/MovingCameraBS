@@ -188,6 +188,14 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		std::vector<std::string> salFileNames;
 		sprintf(imgName, "%s\\%s\\%s\\saliency", workingPath, rstFolder, fileNames[i].c_str());
 		FileNameHelper::GetAllFormatFiles(imgName, salFileNames, "*.png");
+		std::vector<std::string> oldRstFileNames;
+		FileNameHelper::GetAllFormatFiles(imgName, oldRstFileNames, "*.jpg");
+		for (size_t j = 0; j < oldRstFileNames.size(); j++)
+		{
+			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s.jpg", workingPath, rstFolder, fileNames[i].c_str(), oldRstFileNames[j].c_str());
+			remove(imgName);
+
+		}
 		float maxObjectness(0);
 		int maxId(0);
 		float minObjectness(1);
@@ -205,6 +213,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		std::vector<float> fillnessVec;
 		std::vector<float> compactnessVec;
 		std::vector<float> sizeVec;
+		int validPropNum(0);
 		std::vector<cv::Mat> proposals;
 		for (size_t j = 0; j < salFileNames.size(); j++)
 		{
@@ -214,7 +223,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			cv::Mat gtSal = cv::imread(imgName, -1);
 			if (gtSal.channels() == 3)
 				cv::cvtColor(gtSal, gtSal, CV_BGR2GRAY);
-			proposals.push_back(gtSal.clone());
+			
 			float threshold = 0.5;
 			//根据gtmask 分成2个区域
 			std::vector<int> nLabels(_spSize);
@@ -272,7 +281,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			cv::normalize(bgHist, bgHist, 1, 0, cv::NORM_L1);
 			regions[0].colorHist = fgHist;
 			regions[1].colorHist = bgHist;
-			avgSize += regions[0].size;
+			proposals.push_back(gtSal.clone());
 			sizeVec.push_back(regions[0].size);
 			UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
 			/*cv::Mat rmask;
@@ -280,10 +289,9 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			cv::imshow("region", rmask);
 			cv::waitKey();*/
 
-		/*	if (regions[0].size*1.0 / _spSize > 0.7 || 
-				regions[0].Bbox.height > 0.95*_height || 
+			if (regions[0].Bbox.height > 0.95*_height || 
 				regions[0].Bbox.width > 0.95*_width)
-				continue;*/
+				continue;
 			int trid = 0;
 			std::vector<int> borderSPs;
 			borderSPs.push_back(trid);
@@ -355,11 +363,11 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 				oRect = cv::Rect(minX, minY, width, height);
 			}
 			
-			
+			spBbox = _spBbox;
 			std::vector<float> boxBorderHist(colorHist[0].size(), 0);
 			for (size_t m = spBbox.x; m < spBbox.x + spBbox.width; m++)
 			{
-				for (size_t n = spBbox.y; n < _spBbox.y+spBbox.height; n++)
+				for (size_t n = spBbox.y; n < spBbox.y+spBbox.height; n++)
 				{
 					int id = n*spWidth + m;
 					if (id < computer.GetSuperpixelSize() && nLabels[id] == 1)
@@ -384,7 +392,12 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			double compactness = std::min(regions[0].Bbox.width, regions[0].Bbox.height)*1.0 / std::max(regions[0].Bbox.width, regions[0].Bbox.height);
 			if (compactness > 0.15)
 				compactness = 1;
-			double sizePrior;
+			if (fillness > 0.4 && compactness > 0.15)
+			{
+				avgSize += regions[0].size;
+				validPropNum++;
+			}
+				
 			fillnessVec.push_back(fillness);
 			compactnessVec.push_back(compactness);
 			objectVec.push_back(boxdist);
@@ -411,7 +424,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		//saliencyMap.convertTo(saliencyMap, CV_8U, 255.0);
 	/*	float threshold = (maxObjectness + minObjectness) / 2;
 		cv::threshold(saliencyMap, saliencyMap, threshold, 255, CV_THRESH_BINARY);*/
-		avgSize /= salFileNames.size();
+		avgSize /= validPropNum;
 		float maxScore(0);
 		maxId = 0;
 		for (size_t i = 0; i < objectVec.size(); i++)
@@ -557,9 +570,9 @@ void EvaluateSaliency(cv::Mat& salMap)
 }
 void GetImgSaliency(int argc, char* argv[])
 {
-	//TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
-	////TestImageFocusness();
-	//return;
+	TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
+	//TestImageFocusness();
+	return;
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];

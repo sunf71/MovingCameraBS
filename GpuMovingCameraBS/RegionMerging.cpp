@@ -3662,7 +3662,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 	RegSize = regions.size() - ZeroReg;
 	//RegSize -= holeRegNum;
 
-	PickSaliencyRegion(img.cols, img.rows, &computer, newLabels, regions, sal1, 0.6);
+	//PickSaliencyRegion(img.cols, img.rows, &computer, newLabels, regions, sal1, 0.6);
 	if (debug)
 	{
 		cv::Mat rmask;
@@ -3751,9 +3751,8 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
-		if ((regInfos[regInfos.size() - 1].neighbors.size() == regInfos.size() - 1 &&
-			regInfos[regInfos.size() - 1].borderRatio > 0.65 )||			
-			(regInfos[regInfos.size() - 1].borderRatio > 0.85) )
+		if ((regInfos[regInfos.size() - 1].borderRatio > 0.8 && regInfos.size() < 8 )||
+			regInfos.size() < 5 )
 			salMaps.push_back(salMap.clone());
 		
 		/*if (regInfos.size() < 8 || borderRatio > 0.80)
