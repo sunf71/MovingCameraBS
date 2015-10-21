@@ -203,7 +203,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		float estSize(0);
 
 		int* segment = new int[_width*_height];
-		std::vector<float> weights(salFileNames.size());
+		std::vector<float> weights;
 		cv::Mat saliencyMap;
 		cv::Mat focus,gradMap;
 		//CalScale(gray, scaleMap);
@@ -281,17 +281,20 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			cv::normalize(bgHist, bgHist, 1, 0, cv::NORM_L1);
 			regions[0].colorHist = fgHist;
 			regions[1].colorHist = bgHist;
-			proposals.push_back(gtSal.clone());
+			
 			sizeVec.push_back(regions[0].size);
 			UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
 			/*cv::Mat rmask;
 			GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
 			cv::imshow("region", rmask);
 			cv::waitKey();*/
-
-			if (regions[0].Bbox.height > 0.95*_height || 
-				regions[0].Bbox.width > 0.95*_width)
+			float sizeThreshold = 10;
+			if (regions[0].Bbox.height > 0.99*_height || 
+				regions[0].Bbox.width > 0.99*_width ||
+				regions[0].size < sizeThreshold)
 				continue;
+
+			proposals.push_back(gtSal.clone());
 			int trid = 0;
 			std::vector<int> borderSPs;
 			borderSPs.push_back(trid);
@@ -309,7 +312,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 					borderHist[j] += colorHist[id][j];
 				}
 			}
-			std::cout << j << ":" << regions[0].size*1.0 / _spSize << std::endl;
+			
 			//boerder objectness
 			//kernel 与border的面积比最小值
 			float theta = 0.5;
@@ -389,9 +392,13 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			double fillness = regions[0].pixels / regions[0].Bbox.area();
 			if (fillness > 0.4)
 				fillness = 1;
+			else
+				fillness = 0;
 			double compactness = std::min(regions[0].Bbox.width, regions[0].Bbox.height)*1.0 / std::max(regions[0].Bbox.width, regions[0].Bbox.height);
 			if (compactness > 0.15)
 				compactness = 1;
+			else
+				compactness = 0;
 			if (fillness > 0.4 && compactness > 0.15)
 			{
 				avgSize += regions[0].size;
@@ -427,22 +434,58 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		avgSize /= validPropNum;
 		float maxScore(0);
 		maxId = 0;
+		float smaxScore(0);
+		int smaxId(0);
+		float avgObjectNess(0);
 		for (size_t i = 0; i < objectVec.size(); i++)
 		{
+
 			float objectness = objectVec[i];
+			avgObjectNess += objectness;
 			float compactness = compactnessVec[i];
 			float fillness = fillnessVec[i];
 			float sizePrior = sizeVec[i] / std::max(avgSize, sizeVec[i]) < 0.5 ? 0 : 1;
-			float score = objectness + compactness + fillness + sizePrior;
+			float score = objectness+compactness+fillness;
 			if (score > maxScore)
 			{
+				smaxScore = maxScore;
+				smaxId = maxId;
 				maxScore = score;
 				maxId = i;
+				
+			}
+			else if (score > smaxScore)
+			{
+				smaxScore = score;
+				smaxId = i;
 			}
 		}
-		saliencyMap = proposals[maxId];
+		avgObjectNess /= objectVec.size();
+		
+		float weightSum;
+		for (size_t i = 0; i < objectVec.size(); i++)
+		{
+			if (objectVec[i] > avgObjectNess)
+			{
+				weights.push_back(objectVec[i]);
+				weightSum += objectVec[i];
+			}
+		}
+		for (size_t i = 0; i < objectVec.size()-1; i+=2)
+		{
+			cv::addWeighted(proposals[i], weights[i]/weightSum, proposals[i+1], weights[i+1]/weightSum, 0, saliencyMap, CV_32F);
+		}
+		cv::normalize(saliencyMap, saliencyMap, 0, 255, CV_MINMAX, CV_8U);
+	/*	float w1 = maxScore / (maxScore + smaxScore);
+		float w2 = smaxScore / (maxScore + smaxScore);
+		cv::addWeighted(proposals[maxId],w1,proposals[smaxId],w2,0,saliencyMap,CV_8U);*/
+		
 		sprintf(imgName, "%s\\%s\\%s_RM.png", workingPath, rstFolder, fileNames[i].c_str());
 		cv::imwrite(imgName, saliencyMap);
+		sprintf(imgName, "%s\\%s\\%s\\saliency\\max.jpg", workingPath, rstFolder, fileNames[i].c_str());
+		cv::imwrite(imgName, proposals[maxId]);
+		sprintf(imgName, "%s\\%s\\%s\\saliency\\smax.jpg", workingPath, rstFolder, fileNames[i].c_str());
+		cv::imwrite(imgName, proposals[smaxId]);
 		delete[] segment;
 	}
 

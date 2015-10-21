@@ -3751,7 +3751,7 @@ void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const ch
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
-		if ((regInfos[regInfos.size() - 1].borderRatio > 0.8 && regInfos.size() < 8 )||
+		if ((regInfos[regInfos.size() - 1].borderRatio > 0.8 && regInfos.size() < 8 ) ||
 			regInfos.size() < 5 )
 			salMaps.push_back(salMap.clone());
 		
