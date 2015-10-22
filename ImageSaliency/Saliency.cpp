@@ -632,10 +632,10 @@ void EvaluateSaliency(cv::Mat& salMap)
 }
 void GetImgSaliency(int argc, char* argv[])
 {
-	////DataSetStatics(argv[1], argv[2], "gt");
-	TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
+	//DataSetStatics(argv[1], argv[2], "gt");
+	//TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
 	//TestImageFocusness();
-	return;
+	//return;
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];
@@ -649,9 +649,7 @@ void GetImgSaliency(int argc, char* argv[])
 	std::vector<std::string> fileNames;
 	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
 	std::sort(fileNames.begin(), fileNames.end());
-	char outPath[200];
-	sprintf(outPath, "%s\\%s\\", workingPath, outFolder);
-	CreateDir(outPath);
+	char outPath[200];	
 	int start = 0;
 	if (argc == 7)
 		start = atoi(argv[6]);
