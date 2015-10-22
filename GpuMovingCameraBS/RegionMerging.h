@@ -16,6 +16,10 @@ const float hw = 0.1;
 const float shw = 0.2;
 const float siw = 0.2;
 
+static double sqr(double a)
+{
+	return a*a;
+}
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
 inline unsigned int expandBits(unsigned int v)

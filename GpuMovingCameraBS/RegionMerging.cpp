@@ -10,10 +10,7 @@
 
 const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
-double sqr(double a)
-{
-	return a*a;
-}
+
 void SuperPixelRegionMerging(int width, int height, int step, const int*  labels, const SLICClusterCenter* centers,
 	std::vector<std::vector<uint2>>& pos,
 	std::vector<std::vector<float>>& histograms,

@@ -98,3 +98,5 @@ void DrawHistogram(std::vector<T>& histogram, int size, const std::string name)
 	cv::imshow(name, img);
 	//cv::waitKey();
 }
+
+

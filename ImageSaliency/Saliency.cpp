@@ -126,8 +126,70 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	sprintf(imgName, "%s%s_region_%d.jpg", outputPath, fileName, regions.size());
 	cv::imwrite(imgName, rmask);
 }
+void DataSetStatics(const char* workingPath, const char* imgFolder, const char* gtFoler)
+{
+	char path[200];
+	sprintf(path, "%s\\%s\\", workingPath, gtFoler);
+	std::vector<std::string> fileNames;
+	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.png");
+	std::sort(fileNames.begin(), fileNames.end());
+	float avgRelSize(0);
+	float avgFillness(0);
+	for (size_t i = 0; i < fileNames.size(); i++)
+	{
+		std::cout << i << " " << fileNames[i] << "\n";
+		char imgName[200];
+		sprintf(imgName, "%s\\%s\\%s.png", workingPath, gtFoler, fileNames[i].c_str());
+		cv::Mat img = cv::imread(imgName);
+		if (img.channels() == 3)
+		{
+			cv::cvtColor(img, img, CV_BGR2GRAY);
+			
+		}
+		cv::threshold(img, img, 128, 1, CV_THRESH_BINARY);
+		float size = cv::sum(img)[0]*1.0/img.size().area();
+		avgRelSize += size;
+		std::vector<std::vector<cv::Point> > contours;
+		std::vector<cv::Vec4i> hierarchy;
+		std::vector<cv::Point> borders;
+		/// Find contours
+		findContours(img, contours, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
+		for (size_t i = 0; i < contours.size(); i++)
+		{
+			for (size_t j = 0; j < contours[i].size(); j++)
+				borders.push_back(contours[i][j]);
+		}
+		cv::Rect box = cv::boundingRect(borders);
+		/*cv::rectangle(img, box, cv::Scalar(255));
+		cv::imshow("box", img);
+		cv::waitKey();*/
+		float fillness = size / box.area();
+		avgFillness += fillness;
+	}
+	avgRelSize /= fileNames.size();
+	avgFillness /= fileNames.size();
+	std::cout << "avg size " << avgRelSize << "Pixels\n";
+	std::cout << "avg fillNess " << avgFillness << " \n";
+}
+
+struct PropScore
+{
+	int id;
+	float score;
+};
+struct PropScoreCmp
+{
+	bool operator() (const PropScore& a, const PropScore& b)
+	{
+		return a.score > b.score;
+	}
+};
 void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, const char* rstFolder)
 {
+	const float meanRelSize = 0.235;
+	const float meanFillness = 0.558;
+	const float thetaSize = 0.25;
+	const float thetaFill = 0.11;
 	char path[200];
 	sprintf(path, "%s\\%s\\", workingPath, imgFolder);
 	std::vector<std::string> fileNames;
@@ -198,13 +260,11 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		}
 		float maxObjectness(0);
 		int maxId(0);
-		float minObjectness(1);
-		int minId(0);
-		float estSize(0);
+	
 
 		int* segment = new int[_width*_height];
 		std::vector<float> weights;
-		cv::Mat saliencyMap;
+		cv::Mat saliencyMap = cv::Mat::zeros(img.size(), CV_32F);
 		cv::Mat focus,gradMap;
 		//CalScale(gray, scaleMap);
 		//DogGradMap(gray, gradMap);
@@ -212,9 +272,11 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		std::vector<float> objectVec;
 		std::vector<float> fillnessVec;
 		std::vector<float> compactnessVec;
-		std::vector<float> sizeVec;
-		int validPropNum(0);
+		std::vector<float> sizeVec;	
 		std::vector<cv::Mat> proposals;
+		float weightSum(0);
+		
+		std::vector<PropScore> propScores;
 		for (size_t j = 0; j < salFileNames.size(); j++)
 		{
 			regions[0].spIndices.clear();
@@ -288,11 +350,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
 			cv::imshow("region", rmask);
 			cv::waitKey();*/
-			float sizeThreshold = 10;
-			if (regions[0].Bbox.height > 0.99*_height || 
-				regions[0].Bbox.width > 0.99*_width ||
-				regions[0].size < sizeThreshold)
-				continue;
+			
 
 			proposals.push_back(gtSal.clone());
 			int trid = 0;
@@ -390,29 +448,31 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
 			//std::cout <<"dist"<< dist << "\n";
 			double fillness = regions[0].pixels / regions[0].Bbox.area();
-			if (fillness > 0.4)
-				fillness = 1;
-			else
-				fillness = 0;
+			double size = regions[0].pixels/_width/_height;
 			double compactness = std::min(regions[0].Bbox.width, regions[0].Bbox.height)*1.0 / std::max(regions[0].Bbox.width, regions[0].Bbox.height);
-			if (compactness > 0.15)
-				compactness = 1;
-			else
-				compactness = 0;
-			if (fillness > 0.4 && compactness > 0.15)
+			float weightF = exp(-sqr(fillness - meanFillness) / thetaFill);
+			float weightS = exp(-sqr(size - meanRelSize) / thetaSize);
+			float weightO = boxdist > 0.9 ? 0.9 : boxdist;
+			float weight = weightF * weightS + weightO;
+			PropScore ps;
+			ps.id = j;
+			ps.score = weight;
+			propScores.push_back(ps);
+			weightSum += weight;
+			weights.push_back(weight);
+			if (weight > maxObjectness)
 			{
-				avgSize += regions[0].size;
-				validPropNum++;
+				maxObjectness = weight;
+				maxId = j;
 			}
 				
 			fillnessVec.push_back(fillness);
 			compactnessVec.push_back(compactness);
 			objectVec.push_back(boxdist);
-			
-			
+		
 			
 			//CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
-			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s_%d_%d.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str(),(int)(dist*100),(int)(boxdist*100));
+			sprintf(imgName, "%s\\%s\\%s\\saliency\\%s_%d_%d_%d.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[j].c_str(), (int)(weightF * 100), (int)(weightS* 100), (int)(boxdist * 100));
 			cv::imwrite(imgName, gtSal);
 		
 			
@@ -425,67 +485,26 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			//cv::waitKey();
 			
 		}
-	/*	sprintf(imgName, "%s\\%s\\%s\\saliency\\%s.jpg", workingPath, rstFolder, fileNames[i].c_str(), salFileNames[maxId].c_str());
-		cv::Mat gtSal = cv::imread(imgName, -1);*/
-		//cv::normalize(saliencyMap, saliencyMap, 0, 255, CV_MINMAX, CV_8U); 
-		//saliencyMap.convertTo(saliencyMap, CV_8U, 255.0);
-	/*	float threshold = (maxObjectness + minObjectness) / 2;
-		cv::threshold(saliencyMap, saliencyMap, threshold, 255, CV_THRESH_BINARY);*/
-		avgSize /= validPropNum;
-		float maxScore(0);
-		maxId = 0;
-		float smaxScore(0);
-		int smaxId(0);
-		float avgObjectNess(0);
-		for (size_t i = 0; i < objectVec.size(); i++)
+		std::sort(propScores.begin(), propScores.end(), PropScoreCmp());
+		weightSum = 0;
+		for (size_t i = 0; i < propScores.size() / 2; i++)
 		{
-
-			float objectness = objectVec[i];
-			avgObjectNess += objectness;
-			float compactness = compactnessVec[i];
-			float fillness = fillnessVec[i];
-			float sizePrior = sizeVec[i] / std::max(avgSize, sizeVec[i]) < 0.5 ? 0 : 1;
-			float score = objectness+compactness+fillness;
-			if (score > maxScore)
-			{
-				smaxScore = maxScore;
-				smaxId = maxId;
-				maxScore = score;
-				maxId = i;
-				
-			}
-			else if (score > smaxScore)
-			{
-				smaxScore = score;
-				smaxId = i;
-			}
+			weightSum += propScores[i].score;
 		}
-		avgObjectNess /= objectVec.size();
-		
-		float weightSum;
-		for (size_t i = 0; i < objectVec.size(); i++)
+		for (size_t i = 0; i < propScores.size()/2; i++)
 		{
-			if (objectVec[i] > avgObjectNess)
-			{
-				weights.push_back(objectVec[i]);
-				weightSum += objectVec[i];
-			}
+			cv::addWeighted(proposals[propScores[i].id], weights[propScores[i].id] / weightSum, saliencyMap, 1, 0, saliencyMap, CV_32F);
 		}
-		for (size_t i = 0; i < objectVec.size()-1; i+=2)
-		{
-			cv::addWeighted(proposals[i], weights[i]/weightSum, proposals[i+1], weights[i+1]/weightSum, 0, saliencyMap, CV_32F);
-		}
-		cv::normalize(saliencyMap, saliencyMap, 0, 255, CV_MINMAX, CV_8U);
-	/*	float w1 = maxScore / (maxScore + smaxScore);
-		float w2 = smaxScore / (maxScore + smaxScore);
-		cv::addWeighted(proposals[maxId],w1,proposals[smaxId],w2,0,saliencyMap,CV_8U);*/
+		cv::normalize(saliencyMap, saliencyMap, 0, 255, CV_MINMAX, CV_8U); 
+		cv::threshold(saliencyMap, saliencyMap, 128, 255, CV_THRESH_BINARY);
+	
 		
 		sprintf(imgName, "%s\\%s\\%s_RM.png", workingPath, rstFolder, fileNames[i].c_str());
 		cv::imwrite(imgName, saliencyMap);
-		sprintf(imgName, "%s\\%s\\%s\\saliency\\max.jpg", workingPath, rstFolder, fileNames[i].c_str());
+		sprintf(imgName, "%s\\%s\\%s_MAX.png", workingPath, rstFolder, fileNames[i].c_str());
 		cv::imwrite(imgName, proposals[maxId]);
-		sprintf(imgName, "%s\\%s\\%s\\saliency\\smax.jpg", workingPath, rstFolder, fileNames[i].c_str());
-		cv::imwrite(imgName, proposals[smaxId]);
+		/*sprintf(imgName, "%s\\%s\\%s\\saliency\\smax.jpg", workingPath, rstFolder, fileNames[i].c_str());
+		cv::imwrite(imgName, proposals[smaxId]);*/
 		delete[] segment;
 	}
 
@@ -613,6 +632,7 @@ void EvaluateSaliency(cv::Mat& salMap)
 }
 void GetImgSaliency(int argc, char* argv[])
 {
+	////DataSetStatics(argv[1], argv[2], "gt");
 	TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
 	//TestImageFocusness();
 	return;
