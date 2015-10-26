@@ -79,7 +79,8 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector < std::vector<int>> neighbors;
 	cv::Mat salMap;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
+	//IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
+	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, 20, debug);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
@@ -121,10 +122,10 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	sprintf(imgName, "%ssegment_%s.bmp", outputPath, fileName);
 	cv::imwrite(imgName, sMask);*/
 
-	cv::Mat rmask;
+	/*cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask);
 	sprintf(imgName, "%s%s_region_%d.jpg", outputPath, fileName, regions.size());
-	cv::imwrite(imgName, rmask);
+	cv::imwrite(imgName, rmask);*/
 }
 void DataSetStatics(const char* workingPath, const char* imgFolder, const char* gtFoler)
 {

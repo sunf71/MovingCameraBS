@@ -88,3 +88,4 @@ GpuSubsenseM/GpuSubsenseM.rar.baiduyun.uploading.cfg
 *.bmp
 *.bat
 *.deps
+*.cu.deps
