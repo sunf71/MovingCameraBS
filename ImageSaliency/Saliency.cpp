@@ -172,24 +172,10 @@ void DataSetStatics(const char* workingPath, const char* imgFolder, const char* 
 	std::cout << "avg fillNess " << avgFillness << " \n";
 }
 
-struct PropScore
-{
-	int id;
-	float score;
-};
-struct PropScoreCmp
-{
-	bool operator() (const PropScore& a, const PropScore& b)
-	{
-		return a.score > b.score;
-	}
-};
+
 void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, const char* rstFolder)
 {
-	const float meanRelSize = 0.235;
-	const float meanFillness = 0.558;
-	const float thetaSize = 0.25;
-	const float thetaFill = 0.11;
+	
 	char path[200];
 	sprintf(path, "%s\\%s\\", workingPath, imgFolder);
 	std::vector<std::string> fileNames;
@@ -650,6 +636,7 @@ void GetImgSaliency(int argc, char* argv[])
 	FileNameHelper::GetAllFormatFiles(path, fileNames, "*.jpg");
 	std::sort(fileNames.begin(), fileNames.end());
 	char outPath[200];	
+	sprintf(outPath, "%s\\%s\\", workingPath, outFolder);
 	int start = 0;
 	if (argc == 7)
 		start = atoi(argv[6]);

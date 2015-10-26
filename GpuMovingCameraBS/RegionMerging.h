@@ -464,6 +464,8 @@ inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colo
 	return d;
 }
 
+void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder, const char* rstFolder, const char* imgName, const cv::Mat& img, const cv::Mat& edgeMap, SuperpixelComputer& computer, int regThreshold = 15, bool debug = false);
+
 void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* imgName, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, cv::Mat& saliencyRst, int regThreshold = 15, bool debug = false);
 
 void IterativeRegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, int regThreshold = 15);
