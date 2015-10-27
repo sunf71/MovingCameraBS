@@ -3499,8 +3499,32 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 	sprintf(name, "%sOccHandled_%d.jpg", outPath, regInfos.size());
 	cv::imwrite(name, rmask);
 }
+float RegionBorderLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int trid, HISTOGRAMS& colorHist)
+{
+	std::vector<int> borderSPs;
 
-float RegionBoxLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int rid, HISTOGRAMS& colorHist, float theta = 0.5)
+	RegionOutBorder(trid, regions);
+	for (size_t i = 0; i < regions[trid].outBorderSPs.size(); i++)
+	{
+		borderSPs.push_back(regions[trid].outBorderSPs[i]);
+	}
+	std::vector<float> borderHist(colorHist[0].size(), 0);
+	for (size_t i = 0; i < regions[trid].outBorderSPs.size(); i++)
+	{
+		int id = regions[trid].outBorderSPs[i];
+		for (size_t j = 0; j < colorHist[id].size(); j++)
+		{
+			borderHist[j] += colorHist[id][j];
+		}
+	}
+
+
+
+	cv::normalize(borderHist, borderHist, 1, 0, cv::NORM_L1);
+	double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
+	return dist;
+}
+float RegionBoxLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int rid, HISTOGRAMS& colorHist, float theta)
 {
 	float spWidth = computer.GetSPWidth();
 	float spHeight = computer.GetSPHeight();
@@ -3572,6 +3596,7 @@ float RegionBoxLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLa
 	}
 	cv::normalize(boxBorderHist, boxBorderHist, 1, 0, cv::NORM_L1);
 	double boxdist = cv::compareHist(boxBorderHist, regions[rid].colorHist, CV_COMP_BHATTACHARYYA);
+	return boxdist;
 }
 void GetSaliencyProposalMap(const char* outPath, const cv::Mat& img, std::vector<SPRegion>& regions, SuperpixelComputer& computer, HISTOGRAMS& colorHist, std::vector<int>& nLabels, std::vector<PropScore>& propScores, std::vector<cv::Mat>& proposals)
 {
@@ -3580,98 +3605,9 @@ void GetSaliencyProposalMap(const char* outPath, const cv::Mat& img, std::vector
 	int spHeight = computer.GetSPHeight();
 	int spWidth = computer.GetSPWidth();
 	int trid = 1;
-	std::vector<int> borderSPs;
 	
-	RegionOutBorder(trid, regions);
-	for (size_t i = 0; i < regions[trid].outBorderSPs.size(); i++)
-	{
-		borderSPs.push_back(regions[trid].outBorderSPs[i]);
-	}
-	std::vector<float> borderHist(colorHist[0].size(), 0);
-	for (size_t i = 0; i < regions[trid].outBorderSPs.size(); i++)
-	{
-		int id = regions[trid].outBorderSPs[i];
-		for (size_t j = 0; j < colorHist[id].size(); j++)
-		{
-			borderHist[j] += colorHist[id][j];
-		}
-	}
 
-	//boerder objectness
-	//kernel 与border的面积比最小值
-	float theta = 0.5;
-	cv::Rect spBbox = regions[1].spBbox;
-	cv::Rect _spBbox = spBbox;
-	float hw = spBbox.width*1.0 / spBbox.height;
-	float w = sqrt(regions[1].size / theta*hw);
-	cv::Rect oRect = regions[1].Bbox;
-	if (w > spBbox.width)
-	{
-		float spWidth = computer.GetSPWidth();
-		float spHeight = computer.GetSPHeight();
-
-		_spBbox.x = spBbox.x - (w - spBbox.width) / 2 + 0.5;
-		if (_spBbox.x < 0)
-			_spBbox.x = 0;
-		if (_spBbox.x > spWidth)
-			_spBbox.x = spWidth - 1;
-
-		_spBbox.y = spBbox.y - (w - spBbox.width) / 2 / hw + 0.5;
-		if (_spBbox.y < 0)
-			_spBbox.y = 0;
-		if (_spBbox.y > spHeight)
-			_spBbox.y = spHeight - 1;
-
-		if (_spBbox.x + w > spWidth)
-			_spBbox.width = spWidth - _spBbox.x + 0.5;
-		else
-			_spBbox.width = w + 0.5;
-
-		int  _spHeight = _spBbox.width / hw + 0.5;
-		if (_spBbox.y + _spHeight > spHeight)
-			_spBbox.height = spHeight - _spBbox.y + 0.5;
-		else
-			_spBbox.height = _spHeight;
-
-		int step = computer.GetSuperpixelStep();
-		float minX = (_spBbox.x - 0.5)*step;
-		float maxX = (_spBbox.x + _spBbox.width + 1)*step;
-		float maxY = (_spBbox.y + _spBbox.height + 1)*step;
-		float minY = (_spBbox.y - 0.5)*step;
-		minX = std::max(0.f, minX);
-		minY = std::max(0.f, minY);
-
-
-		float width = maxX - minX;
-		float height = maxY - minY;
-
-		maxX = std::min(width*1.f, maxX);
-		maxY = std::min(height*1.f, maxY);
-		oRect = cv::Rect(minX, minY, width, height);
-	}
-
-	spBbox = _spBbox;
-	std::vector<float> boxBorderHist(colorHist[0].size(), 0);
-	for (size_t m = spBbox.x; m < spBbox.x + spBbox.width; m++)
-	{
-		for (size_t n = spBbox.y; n < spBbox.y + spBbox.height; n++)
-		{
-			int id = n*spWidth + m;
-			if (id < computer.GetSuperpixelSize() && nLabels[id] == 0)
-			{
-				for (size_t k = 0; k < colorHist[id].size(); k++)
-				{
-					boxBorderHist[k] += colorHist[id][k];
-				}
-			}
-		}
-
-	}
-	cv::normalize(boxBorderHist, boxBorderHist, 1, 0, cv::NORM_L1);
-	double boxdist = cv::compareHist(boxBorderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
-
-	cv::normalize(borderHist, borderHist, 1, 0, cv::NORM_L1);
-	double dist = cv::compareHist(borderHist, regions[trid].colorHist, CV_COMP_BHATTACHARYYA);
+	float boxdist = RegionBoxLocalContrast(computer, nLabels, regions, trid, colorHist);
 	//std::cout <<"dist"<< dist << "\n";
 	double fillness = regions[1].pixels / regions[1].Bbox.area();
 	double size = regions[1].pixels / _width / _height;
@@ -3881,11 +3817,12 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, debug);
 
 	HandleOcculusion(img, computer, outPath, newLabels, regInfos, regions, segment, debug);
+	
 	UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+	RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, debug);
 	//UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
 	if (debug)
-	{
-		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, debug);
+	{		
 		std::cout << "After Occulusion handling" << regInfos.size() << " regions remains\n";
 		std::sort(regInfos.begin(), regInfos.end(), RegionSalDescCmp());
 		for (size_t i = 0; i < regInfos.size(); i++)
@@ -5493,7 +5430,7 @@ void SalGuidedRegMergion(const cv::Mat& img, const char* path, std::vector<Regio
 	std::sort(regSalInfos.begin(), regSalInfos.end(), RegionSalDescCmp());
 	regPairs.push_back(make_uint2(regSalInfos[regSalInfos.size() - 1].id, regSalInfos[regSalInfos.size() - 2].id));
 	/*if (regSalInfos.size() > 4)
-	{
+	{ 
 	sregPairs.push_back(make_uint2(regSalInfos[0].id, regSalInfos[1].id));
 	}*/
 	bool flag(true);
@@ -5974,9 +5911,9 @@ void RegionSaliencyL(int width, int height, HISTOGRAMS& colorHists, const char* 
 	{
 		if (regions[i].size > 0)
 		{
-			float localContrast = RegionContrast();
+			float localContrast = RegionBoxLocalContrast(*computer, nLabels, regions, i, colorHists);
 
-			//contrast /= regions[i].neighbors.size();
+			
 			float ad2c = sqrt(sqr(regions[i].ad2c.x) + sqr(regions[i].ad2c.y));
 			float relSize = regions[i].size*1.0 / computer->GetSuperpixelSize();
 			float borderRatio = regions[i].edgeSpNum / edgeSPNum;
@@ -6009,11 +5946,11 @@ void RegionSaliencyL(int width, int height, HISTOGRAMS& colorHists, const char* 
 			si.ad2c = ad2c;
 			si.relSize = relSize;
 			si.borderRatio = borderRatio;
-			si.contrast = 0;
+			si.localContrast = localContrast;
 			//si.compactness = exp(-sqr(regions[i].compactness - compactnessMean) / compactnessTheta);
 			si.compactness = regions[i].compactness > 0.15 ? 1 : 0;
 			si.id = i;
-			si.localContrast = localContrast;
+			//si.localContrast = localContrast;
 			si.fillness = fill > 0.4 ? 1 : 0;
 			//si.compactness = regions[i].compactness > 0.4 ? 1 : 0;
 			//std::cout << si << "\n";

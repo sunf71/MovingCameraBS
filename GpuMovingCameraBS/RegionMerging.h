@@ -167,7 +167,7 @@ struct RegionSalInfo
 	{
 		//区域显著性越大越好
 		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
-		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
+		return wc * (contrast + localContrast) / 2 + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
@@ -463,6 +463,8 @@ inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colo
 
 	return d;
 }
+
+float RegionBoxLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int rid, HISTOGRAMS& colorHist, float theta = 0.5);
 
 void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder, const char* rstFolder, const char* imgName, const cv::Mat& img, const cv::Mat& edgeMap, SuperpixelComputer& computer, cv::Mat& salMap, int regThreshold = 15, bool debug = false);
 
