@@ -575,9 +575,8 @@ void TestImageFocusness()
 	cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
 	cv::Mat focus,gradMap;
-	CalScale(gray, scaleMap);
-	DogGradMap(gray, gradMap);
-	CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
+
+	CalRegionFocusness(gray, edgeMap, _spPoses, regions, focus);
 	cv::imshow("regions", rmask);
 	cv::imshow("focusness", focus);
 	cv::waitKey();
@@ -621,8 +620,8 @@ void GetImgSaliency(int argc, char* argv[])
 {
 	//DataSetStatics(argv[1], argv[2], "gt");
 	//TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
-	//TestImageFocusness();
-	//return;
+	/*TestImageFocusness();
+	return;*/
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];

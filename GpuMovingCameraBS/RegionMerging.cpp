@@ -3495,9 +3495,11 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos,debug);
 	}
+	
 	GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1);
 	sprintf(name, "%sOccHandled_%d.jpg", outPath, regInfos.size());
 	cv::imwrite(name, rmask);
+	std::cout << name << "\n";
 }
 float RegionBorderLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int trid, HISTOGRAMS& colorHist)
 {
@@ -3703,7 +3705,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	cDistCache1f[i][j] = cDistCache1f[j][i] = vecDist<float, 3>(pColor[i], pColor[j]);
 	}
 	}*/
+	
 
+	
 	int * labels(NULL);
 	SLICClusterCenter* centers(NULL);
 	computer.GetSuperpixelResult(spSize, labels, centers);
@@ -3845,7 +3849,10 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			}
 		}
 	}
-
+	cv::Mat focus;
+	CalRegionFocusness(gray, edgeMap, spPoses, regions, focus);
+	cv::imshow("focus", focus);
+	cv::waitKey();
 
 	float borderRatio = regInfos[regInfos.size() - 1].borderRatio;
 	std::vector<int> bgRegIds;
@@ -3868,7 +3875,11 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		cv::Mat salMap;
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
-		RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
+		//RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
+		RegionSaliencyL(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
+		std::cout << "----------------------\n";
+		for (size_t i = 0; i < regInfos.size(); i++)
+			std::cout << regInfos[i] << "\n";
 		if ((regInfos[regInfos.size() - 1].borderRatio > 0.8 && regInfos.size() < 8) ||
 			regInfos.size() < 5)
 		{

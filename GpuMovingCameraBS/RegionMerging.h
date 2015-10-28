@@ -167,7 +167,8 @@ struct RegionSalInfo
 	{
 		//区域显著性越大越好
 		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
-		return wc * (contrast + localContrast) / 2 + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
+		//return wc * (contrast + contrast) / 2 + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
+		return wc * std::min(contrast,localContrast) + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
