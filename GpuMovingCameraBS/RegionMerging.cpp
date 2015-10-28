@@ -5339,10 +5339,13 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 		sprintf(name, "%s%dregMergeB.jpg", outPath, idx);
 		cv::imwrite(name, mask);
 	}
-	
+	float minColorDist(1);
 	for (int i = 0; i < regPairs.size(); i++)
 	{
 		MergeRegions(regPairs[i].x, regPairs[i].y, newLabels, spPoses, regions);
+		float colorDist = cv::compareHist(regions[regPairs[i].x].colorHist, regions[regPairs[i].y].colorHist, CV_COMP_BHATTACHARYYA);
+		if (colorDist < minColorDist)
+			minColorDist = colorDist;
 	}
 	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 	RegSize = regions.size() - ZeroReg;
@@ -5353,7 +5356,7 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	{
 		cv::Mat rmask;
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, false, false);
-		sprintf(name, "%s%dregMergeF_%d.jpg", outPath, idx, RegSize);
+		sprintf(name, "%s%dregMergeF_%d_%2d.jpg", outPath, idx, RegSize,(int)(minColorDist*100));
 		cv::imwrite(name, rmask);
 	}
 	HandleHoles(idx, img.cols, img.rows, (const char*)outPath, &computer, regions, newLabels, HoleNeighborsNum, HoleSize, true);
