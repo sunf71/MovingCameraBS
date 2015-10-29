@@ -3775,7 +3775,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	{
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		GetRegionEdgeness(edgeMap, regions);
-		int rm = RegionGrowingN(idx, img, outputPath, edgeMap, computer, newLabels, regions, 0.7, debug);
+		int rm = RegionGrowingN(idx, img, outputPath, edgeMap, computer, newLabels, regions, 0.75, debug);
 		if (rm == 0)
 			break;
 	}
@@ -3814,6 +3814,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	if (debug)
 	{
 		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+		RegSize = regions.size() - ZeroReg;
 		sprintf(fileName, "%sMerge1_%d.jpg", outPath, RegSize);
 		cv::imwrite(fileName, rmask);
 
