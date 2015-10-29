@@ -14,7 +14,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	nih::Timer timer;
 	char imgName[200];
 	sprintf(imgName, "%s\\%s\\%s.jpg", workingPath, imgPath, fileName);
-	
+	CreateDir((char*)outputPath);
 	if (debug)
 	{
 		char debugPath[200];

@@ -122,10 +122,10 @@ void CalScale(const cv::Mat& gray, cv::Mat& scaleMap)
 			}
 		}
 	}
-	cv::Mat gradScale;
+	/*cv::Mat gradScale;
 	cv::normalize(scaleMap, gradScale, 255, 0, CV_MINMAX, CV_8U);
 	cv::imshow("scale", gradScale);
-	cv::waitKey();
+	cv::waitKey();*/
 }
 
 
@@ -146,10 +146,10 @@ void DogGradMap(const cv::Mat& grayImg, cv::Mat& grad)
 	cv::Mat DoG = gauSmall - gauBig;
 	cv::filter2D(grayImg, grad, CV_32F, DoG.t());
 	grad = cv::abs(grad);
-	cv::Mat gradGray;
+	/*cv::Mat gradGray;
 	cv::normalize(grad, gradGray, 255, 0, CV_MINMAX, CV_8U);
 	cv::imshow("dog", gradGray);
-	cv::waitKey();
+	cv::waitKey();*/
 
 }
 void CalRegionFocusness(const cv::Mat& gray, const cv::Mat& edgeMap, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, cv::Mat& rst)
@@ -223,7 +223,7 @@ void CalRegionFocusness(const cv::Mat& gray, const cv::Mat& edgeMap, std::vector
 		else
 			regions[i].focusness = 0;
 	}
-	cv::normalize(rst, rst, 255, 0, CV_MINMAX, CV_8U);
+	/*cv::normalize(rst, rst, 255, 0, CV_MINMAX, CV_8U);
 	cv::imshow("border", img);
-	cv::waitKey();
+	cv::waitKey();*/
 }

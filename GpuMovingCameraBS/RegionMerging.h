@@ -80,11 +80,11 @@ struct RegInfoCmp
 };
 struct SPRegion
 {
-	SPRegion(){ size = 0; }
+	SPRegion(){ size = 0; regFlag = false; }
 	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){}
 	int id;
 	int size;
-	//区域边缘中是图像边缘的超像素数量
+	//区域边缘中是图像边缘的超像素数
 	float edgeSpNum;
 	//区域的边缘中是图像边缘的像素数量
 	float edgePixNum;
@@ -129,6 +129,8 @@ struct SPRegion
 	cv::Rect Bbox;
 	cv::Rect spBbox;
 	float focusness;
+	//区域是否是合并遮挡时得到的
+	bool regFlag;
 };
 struct RegionPartition
 {
@@ -168,7 +170,7 @@ struct RegionSalInfo
 		//区域显著性越大越好
 		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
 		//return wc * (contrast + contrast) / 2 + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
-		return wc * std::min(contrast,localContrast) + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
+		return wc * std::min(contrast, contrast) + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
@@ -247,6 +249,19 @@ struct RegionSizeZero
 	bool operator()(const SPRegion &na)
 	{
 		return na.size == 0;
+	}
+};
+struct RegionSizeSmall
+{
+	int threshold;
+	RegionSizeSmall(int _threshold):threshold(_threshold){};
+	RegionSizeSmall()
+	{
+		threshold = 0;
+	}
+	bool operator()(const SPRegion &na)
+	{
+		return na.size <= threshold;
 	}
 };
 struct RegionColorCmp
@@ -480,6 +495,8 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& 
 void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& spSaliency, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
 void RegionGrowing(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
+
+int RegionGrowingN(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
 void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
