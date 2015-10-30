@@ -1761,7 +1761,8 @@ void MergeRegions(int i, int j,
 	regions[i].neighbors.clear();
 	int size0 = regions[j].size;
 	int size1 = regions[i].size;
-	regions[j].color = (regions[j].color * size0 + regions[i].color * size1)*(1.0 / (size0 + size1));
+	if (regions[i].pixels != 0)
+		regions[j].color = (regions[j].color * size0 + regions[i].color * size1)*(1.0 / (size0 + size1));
 	regions[j].cX = (regions[j].cX * size0 + regions[i].cX * size1)*(1.0 / (size0 + size1));
 	regions[j].cY = (regions[j].cY * size0 + regions[i].cY * size1)*(1.0 / (size0 + size1));
 	for (size_t s = 0; s < regions[i].spIndices.size(); s++)
@@ -1956,8 +1957,11 @@ void HandleHoles(int idx, int width, int height, const char* outPath, Superpixel
 	}
 }
 
-void SmartHoleHandling(int width, int height, const char* outPath, SuperpixelComputer* computer, std::vector<SPRegion>& regions, std::vector<int>& newLabels, int holeNThreshold, int holeSizeThreshold, bool debug = false)
+void SmartHoleHandling(int width, int height, const char* outDir, SuperpixelComputer* computer, std::vector<SPRegion>& regions, std::vector<int>& newLabels, int holeNThreshold, int holeSizeThreshold, bool debug = false)
 {
+	char outPath[200];
+	sprintf(outPath, "%s\\HoleHandling\\", outDir);
+	
 	float cw(0.5), shw(0.3), ew(0.2);
 	int idx(0);
 	std::vector<std::vector<uint2>> spPoses;
@@ -1970,21 +1974,25 @@ void SmartHoleHandling(int width, int height, const char* outPath, SuperpixelCom
 			idx++;
 
 			std::list<int> stack;
-			stack.push_back(i);
-			//merge all the hole regions that connected to i to a new region
+			for (size_t k = 0; k < regions[i].neighbors.size(); k++)
+			{
+				stack.push_back(regions[i].neighbors[k]);
+			}
+			
+			//merge all the hole regions that connected to i into i
 			while (!stack.empty())
 			{
 				int id = *stack.begin();
 				stack.pop_front();
-				for (size_t j = 0; j < regions[id].neighbors.size(); j++)
+				if (regions[id].size > 0 && regions[id].size < holeNThreshold)
 				{
-					int nid = regions[i].neighbors[j];
-					if (regions[nid].size > 0 && regions[nid].size < holeNThreshold)
+					for (size_t k = 0; k < regions[id].neighbors.size(); k++)
 					{
-						stack.push_back(nid);
-						MergeRegions(nid, id, newLabels, spPoses, regions);
+						stack.push_back(regions[id].neighbors[k]);
 					}
-				}
+					//stack.push_back(nid);
+					MergeRegions(id, i, newLabels, spPoses, regions);
+				}				
 			}
 			//if this region is still  a hole, merge it to the closet neighbor
 			if (regions[i].size>0 && regions[i].size < holeSizeThreshold)
@@ -1996,19 +2004,19 @@ void SmartHoleHandling(int width, int height, const char* outPath, SuperpixelCom
 				{
 					int nid = regions[i].neighbors[n];
 
-					double colorDist = cv::compareHist(regions[i].colorHist, regions[nid].colorHist, CV_COMP_BHATTACHARYYA);
+					double dist = cv::compareHist(regions[i].colorHist, regions[nid].colorHist, CV_COMP_BHATTACHARYYA);
 
-					//double dist = RegionDist(regions[i], regions[n]);
-					float borderLen = regions[i].borderPixelNum[n];
-					/*float borderLenI = std::accumulate(regions[i].borderPixelNum.begin(), regions[i].borderPixelNum.end(), 0);
-					float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);*/
-					float borderLenI = regions[i].regCircum;
-					float borderLenN = regions[n].regCircum;
-					double shapeDist = 1 - (borderLen) / (ZERO + std::min(borderLenI, borderLenN));
+					////double dist = RegionDist(regions[i], regions[n]);
+					//float borderLen = regions[i].borderPixelNum[n];
+					///*float borderLenI = std::accumulate(regions[i].borderPixelNum.begin(), regions[i].borderPixelNum.end(), 0);
+					//float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);*/
+					//float borderLenI = regions[i].regCircum;
+					//float borderLenN = regions[n].regCircum;
+					//double shapeDist = 1 - (borderLen) / (ZERO + std::min(borderLenI, borderLenN));
 
-					double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[n] + ZERO);
-					//double edgeness2 = regions[i].edgeness[n] / (regions[i].borders[n] + ZERO);
-					float dist = colorDist*cw + shapeDist*shw + edgeness*ew;
+					//double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[n] + ZERO);
+					////double edgeness2 = regions[i].edgeness[n] / (regions[i].borders[n] + ZERO);
+					//float dist = colorDist*cw + shapeDist*shw + edgeness*ew;
 					if (dist < minDist)
 					{
 						minDist = dist;
@@ -2019,6 +2027,7 @@ void SmartHoleHandling(int width, int height, const char* outPath, SuperpixelCom
 				int j = regions[i].neighbors[minId];
 				if (debug)
 				{
+					CreateDir(outPath);
 					char name[300];
 					cv::Mat mask;
 					//std::cout << "merge regions " << i << " " << j << std::endl;
@@ -3744,83 +3753,139 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		region.id = i;
 		region.neighbors = computer.GetNeighbors4(i);
 		region.spIndices.push_back(i);
+		region.pixels = spPoses[i].size();
 		regions.push_back(region);
 
 	}
-
+	int minPixels = sqr(computer.GetSuperpixelStep() )/ 2;
 	//处理边缘
-	if (spPoses[spWidth - 1].size() < 10)
+	//top
+	for (size_t i = 0; i < spWidth; i++)
 	{
-		for (size_t i = 0; i < spHeight; i++)
+		if (regions[i].pixels < minPixels )
 		{
-			MergeRegions(spWidth*i - 1, spWidth*i - 2, newLabels, spPoses, regions);
+			for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+			{
+				int nid = regions[i].neighbors[j];
+				if (regions[nid].pixels + regions[i].pixels > minPixels)
+				{
+					MergeRegions(i, nid, newLabels, spPoses, regions);
+				}
+			}
 		}
 	}
-	if (spPoses[(spHeight - 1)*spWidth].size() < 10)
+	//bottom
+	for (size_t i = spWidth*(spHeight - 1); i < spWidth*spHeight - 1; i++)
 	{
-		for (size_t i = 0; i < spWidth; i++)
+		if (regions[i].pixels < minPixels)
 		{
-			MergeRegions((spHeight - 1)*spWidth + i, (spHeight - 2)*spWidth + i, newLabels, spPoses, regions);
+			for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+			{
+				int nid = regions[i].neighbors[j];
+				if (regions[nid].pixels + regions[i].pixels > minPixels)
+				{
+					MergeRegions(i, nid, newLabels, spPoses, regions);
+				}
+			}
 		}
 	}
-
+	//left
+	for (size_t i = 0; i <= spWidth*(spHeight-1); i+=spWidth)
+	{
+		if (regions[i].pixels < minPixels)
+		{
+			for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+			{
+				int nid = regions[i].neighbors[j];
+				if (regions[nid].pixels + regions[i].pixels > minPixels)
+				{
+					MergeRegions(i, nid, newLabels, spPoses, regions);
+				}
+			}
+		}
+	}
+	//right
+	for (size_t i = spWidth-1; i < spHeight*spWidth -1; i += spWidth)
+	{
+		if (regions[i].pixels < minPixels)
+		{
+			for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+			{
+				int nid = regions[i].neighbors[j];
+				if (regions[nid].pixels + regions[i].pixels > minPixels)
+				{
+					MergeRegions(i, nid, newLabels, spPoses, regions);
+				}
+			}
+		}
+	}
+	
 
 	int* segment = new int[img.cols*img.rows];
-
-
 	int ZeroReg, RegSize(regions.size());
+	cv::Mat rmask;
 
-	int idx(0);
+	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	RegSize = regions.size() - ZeroReg;
+	if (debug)
+	{
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 0, false);
+	
+		sprintf(fileName, "%sInitRegion_%d.jpg", outPath, RegSize);
+		cv::imwrite(fileName, rmask);
+	}
+	
+	/*int idx(0);
 	while (true)
 	{
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		GetRegionEdgeness(edgeMap, regions);
-		int rm = RegionGrowingN(idx, img, outputPath, edgeMap, computer, newLabels, regions, 0.75, debug);
+		int rm = RegionGrowingN(idx, img, outPath, edgeMap, computer, newLabels, regions, 0.75, debug);
 		if (rm == 0)
 			break;
+	}*/
+
+	int iter(0);
+	while (RegSize > regThreshold && iter < 20)
+	{
+		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+		GetRegionEdgeness(edgeMap, regions);
+
+		//UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
+		int needToMerge = (RegSize - regThreshold) / 2;
+		needToMerge = std::max(1, needToMerge);
+		//int needToMerge = RegSize * 0.2;
+		RegionGrowing(iter++, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
+
+		//for (size_t i = 0; i < regions.size(); i++)
+		//{
+		//	if (regions[i].size > 0 && regions[i].neighbors.size() <= HoleNeighborsNum && regions[i].size < HoleSize)
+		//	{
+		//		int regId = regions[i].id;
+		//		//处理空洞区域，将其合并到最接近的邻居中
+		//		HandleHole(i, newLabels, spPoses, regions);
+		//		//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
+		//	}
+		//}
+		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+		
+		RegSize = regions.size() - ZeroReg;
+		
 	}
 
-	//int iter(0);
-	//while (RegSize > regThreshold)
-	//{
-	//	UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
-	//	GetRegionEdgeness(edgeMap, regions);
+	
 
-	//	//UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
-	//	int needToMerge = (RegSize - regThreshold) / 2;
-	//	needToMerge = std::max(1, needToMerge);
-	//	RegionGrowing(iter++, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
-
-	//	//for (size_t i = 0; i < regions.size(); i++)
-	//	//{
-	//	//	if (regions[i].size > 0 && regions[i].neighbors.size() <= HoleNeighborsNum && regions[i].size < HoleSize)
-	//	//	{
-	//	//		int regId = regions[i].id;
-	//	//		//处理空洞区域，将其合并到最接近的邻居中
-	//	//		HandleHole(i, newLabels, spPoses, regions);
-	//	//		//HandleHoleDemo(width, height, i, &computer, spPoses, newLabels, regions);
-	//	//	}
-	//	//}
-	//	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-	//	
-	//	RegSize = regions.size() - ZeroReg;
-	//	/*int validReg = regions.size() - std::count_if(regions.begin(), regions.end(), RegionSizeSmall(iter / 10));
-	//	std::cout << "regSize " << RegSize << " valid size " << validReg << "\n";*/		
-	//}
-
-	cv::Mat sal1, sal2;
-
-	cv::Mat rmask;
+	
 	if (debug)
 	{
-		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask,0,false);
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 		RegSize = regions.size() - ZeroReg;
 		sprintf(fileName, "%sMerge1_%d.jpg", outPath, RegSize);
 		cv::imwrite(fileName, rmask);
 
 	}
-	SmartHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, HoleSize, true);
+	SmartHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, HoleSize, debug);
 
 	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 	RegSize = regions.size() - ZeroReg;
@@ -3900,7 +3965,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	//UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
 	RegionSaliencyL(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, salPropose, debug);
 	
-	while (regInfos.size() >= 2)
+	while (1)
 	{
 	
 		if (debug)
@@ -3956,13 +4021,14 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			GetSaliencyProposalMap(outPath, salPropose, tmpRegions, computer, colorHist, nLabels, propScores, proposals);
 		}
 
-		
+		if (regInfos.size() == 2)
+			break;
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		//RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
 		RegionSaliencyL(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, salPropose, debug);
 
-
+		
 
 
 	}
