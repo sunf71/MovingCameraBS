@@ -3834,7 +3834,27 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		sprintf(fileName, "%sInitRegion_%d.jpg", outPath, RegSize);
 		cv::imwrite(fileName, rmask);
 	}
-	
+	//求相邻超像素之间的平均颜色直方图距离
+	float avgColorHistDist(0);
+	int num(0);
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		if (regions[i].size > 0)
+		{
+			for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+			{
+				int nid = regions[i].neighbors[j];
+				float dist = cv::compareHist(regions[i].colorHist, regions[nid].colorHist, CV_COMP_BHATTACHARYYA);
+				avgColorHistDist += dist;
+				num++;
+			}
+		}
+	}
+	avgColorHistDist /= num;
+	if (debug)
+	{
+		std::cout << "avg color dist " << avgColorHistDist << std::endl;
+	}
 	/*int idx(0);
 	while (true)
 	{
