@@ -15,11 +15,30 @@ const float cw = 0.5;
 const float hw = 0.1;
 const float shw = 0.2;
 const float siw = 0.2;
-
+typedef std::vector<float> HISTOGRAM;
+typedef std::vector<HISTOGRAM> HISTOGRAMS;
 static double sqr(double a)
 {
 	return a*a;
 }
+static double HistogramVariance(const HISTOGRAM&  hist)
+{
+	double avg(0);
+	for (size_t i = 0; i < hist.size(); i++)
+	{
+		avg += hist[i];
+	}
+	avg /= hist.size();
+	double Variance(0);
+	for (size_t i = 0; i < hist.size(); i++)
+	{
+		Variance += sqr(hist[i] - avg);
+	}
+	//Variance /= hist.size();
+	return Variance;
+}
+
+
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
 inline unsigned int expandBits(unsigned int v)
@@ -131,7 +150,13 @@ struct SPRegion
 	float focusness;
 	//区域是否是合并遮挡时得到的
 	bool regFlag;
+	//颜色直方图方差
+	float colorHistV;
 };
+
+double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1);
+
+
 struct RegionPartition
 {
 	std::vector<SPRegion> regions;
@@ -381,7 +406,7 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	int*& segmented,
 	float threshold, float confidence = 0.6
 	);
-void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask);
+void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask, int flag = 0);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<int>& flagSPs, cv::Mat& mask);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool textflag = true);
 
@@ -448,8 +473,7 @@ void MergeRegions(int i, int nRegId,
 
 void GetContrastMap(int widht, int height, SuperpixelComputer* computer, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors,cv::Mat& mask);
 
-typedef std::vector<float> HISTOGRAM;
-typedef std::vector<HISTOGRAM> HISTOGRAMS;
+
 void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, int colorSpace = 0);
 void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, HISTOGRAMS& lbpHist, int colorSpace = 0);
 void BuildQHistorgram(const cv::Mat& idxImg, int colorNum, SuperpixelComputer* computer, HISTOGRAMS& colorHist);
