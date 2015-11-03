@@ -223,6 +223,7 @@ void CalRegionFocusness(const cv::Mat& gray, const cv::Mat& edgeMap, std::vector
 		else
 			regions[i].focusness = 0;
 	}
+	cv::normalize(rst, rst, 1, 0, CV_MINMAX, CV_32F);
 	/*cv::normalize(rst, rst, 255, 0, CV_MINMAX, CV_8U);
 	cv::imshow("border", img);
 	cv::waitKey();*/
