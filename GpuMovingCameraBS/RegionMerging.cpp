@@ -3907,7 +3907,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		int needToMerge = (RegSize - regThreshold) / 2;
 		needToMerge = std::max(1, needToMerge);
 		//int needToMerge = RegSize * 0.2;
-		RegionGrowing(iter++, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
+		RegionGrowing(iter, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
 
 		//for (size_t i = 0; i < regions.size(); i++)
 		//{
@@ -3921,8 +3921,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		//}
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());		
 		RegSize = regions.size() - ZeroReg;
-		//int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(iter / 8));
-		validSize = RegSize;
+		int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(log(iter*1.0)));
+		validSize = RegSize-smallReg;
+		iter++;
 	}
 
 	
@@ -5633,7 +5634,7 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	}
 
 	std::vector<uint2> holeRegs;
-	float holeThreshold = idx*1.0 / 8;
+	float holeThreshold = log(idx*1.0);
 	for (size_t i = 0; i < regions.size(); i++)
 	{
 		if (regions[i].size > 0 && regions[i].size < holeThreshold)

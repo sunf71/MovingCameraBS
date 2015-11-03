@@ -279,14 +279,14 @@ struct RegionSizeZero
 struct RegionSizeSmall
 {
 	int threshold;
-	RegionSizeSmall(int _threshold):threshold(_threshold){};
+	RegionSizeSmall(float _threshold):threshold(_threshold){};
 	RegionSizeSmall()
 	{
 		threshold = 0;
 	}
 	bool operator()(const SPRegion &na)
 	{
-		return na.size <= threshold;
+		return na.size < threshold && na.size>0;
 	}
 };
 struct RegionColorCmp

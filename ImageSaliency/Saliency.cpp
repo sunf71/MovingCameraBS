@@ -440,7 +440,8 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			float weightF = exp(-sqr(fillness - meanFillness) / thetaFill);
 			float weightS = exp(-sqr(size - meanRelSize) / thetaSize);
 			float weightO = boxdist > 0.9 ? 0.9 : boxdist;
-			float weight = weightF * weightS + weightO;
+			float alpha = 0.7;
+			float weight = (weightF * weightS)*(1-alpha) + alpha*weightO;
 			PropScore ps;
 			ps.id = j;
 			ps.score = weight;
@@ -486,7 +487,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 		cv::threshold(saliencyMap, saliencyMap, 128, 255, CV_THRESH_BINARY);
 	
 		
-		sprintf(imgName, "%s\\%s\\%s_RM.png", workingPath, rstFolder, fileNames[i].c_str());
+		sprintf(imgName, "%s\\%s\\%s_RRM.png", workingPath, rstFolder, fileNames[i].c_str());
 		cv::imwrite(imgName, saliencyMap);
 		sprintf(imgName, "%s\\%s\\%s_MAX.png", workingPath, rstFolder, fileNames[i].c_str());
 		cv::imwrite(imgName, proposals[maxId]);
@@ -619,9 +620,9 @@ void EvaluateSaliency(cv::Mat& salMap)
 void GetImgSaliency(int argc, char* argv[])
 {
 	//DataSetStatics(argv[1], argv[2], "gt");
-	//TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
-	/*TestImageFocusness();
-	return;*/
+	TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
+	//TestImageFocusness();
+	return;
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];
