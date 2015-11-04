@@ -1077,6 +1077,7 @@ void GetRegionEdgeness(const cv::Mat& edgeMap, std::vector<SPRegion>& regions)
 }
 
 
+
 //pixel-level border
 void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int* segment)
 {
@@ -1385,9 +1386,9 @@ void GetRegionMap(int _width, int _height, SuperpixelComputer* computer, std::ve
 				int r = spPoses[regions[rj].spIndices[j]][k].y;
 
 				{
-					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = (uchar)(color[i]) & 255;
-					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 1] = (uchar)(color[i] >> 8) & 255;
-					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 2] = (uchar)(color[i] >> 16) & 255;
+					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = (uchar)(((color[i]) & 255)*0.8);
+					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 1] = (uchar)(((color[i] >> 8) & 255)*0.8);
+					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 2] = (uchar)(((color[i] >> 16) & 255)*0.8);
 				}
 
 			}
@@ -1760,24 +1761,88 @@ void MergeRegions(int i, int j,
 	std::vector<std::vector<uint2>>& spPoses,
 	std::vector<SPRegion>& regions)
 {
-	//std::cout << "merge " << i << " to " << j << "\n";
+	typedef std::vector<int>::iterator IntVecIter;
+	std::cout << "merge " << i << " to " << j << "\n";
 
 	for (size_t n = 0; n < regions[i].neighbors.size(); n++)
 	{
-		SPRegion& reg = regions[regions[i].neighbors[n]];
 		int Idx = regions[i].neighbors[n];
-		//对i的所有邻居n，在邻居中删除i
-		std::vector<int>::iterator itr = std::find(reg.neighbors.begin(),
-			reg.neighbors.end(), i);
-		if (itr != reg.neighbors.end())
-			reg.neighbors.erase(itr);
-		//在邻居中加入j
-		if (reg.id != j && std::find(reg.neighbors.begin(), reg.neighbors.end(), j) == reg.neighbors.end())
-			reg.neighbors.push_back(j);
-		//在合并后的区域nRegId的邻居中加入n
-		if (reg.id != j && std::find(regions[j].neighbors.begin(), regions[j].neighbors.end(), reg.id) == regions[j].neighbors.end())
-			regions[j].neighbors.push_back(reg.id);
+		//对i的所有邻居reg
+		SPRegion& reg = regions[Idx];
+		
+
+		if (reg.id == j)
+		{
+			//若j和i是邻居,删除j中关于与i的边界的信息
+			IntVecIter itr = std::find(reg.neighbors.begin(),
+				reg.neighbors.end(), i);
+			if (itr != reg.neighbors.end())
+			{
+				int id = itr - reg.neighbors.begin();
+				reg.borderPixelNum.erase(reg.borderPixelNum.begin() + id);
+				reg.borderPixels.erase(reg.borderPixels.begin() + id);
+				reg.borders.erase(reg.borders.begin() + id);
+				reg.borderSpIndices.erase(reg.borderSpIndices.begin() + id);
+				reg.edgeness.erase(reg.edgeness.begin() + id);
+			}
+		}
+		else if (!isNeighbor(regions, Idx, j))
+		{
+			//若reg不是j的邻居,更新邻居信息,将i改为j
+			IntVecIter itr = std::find(reg.neighbors.begin(),
+				reg.neighbors.end(), i);
+			if (itr != reg.neighbors.end())
+			{
+				*itr = j;
+				int id = itr - reg.neighbors.begin();
+				//在合并后的区域nRegId的邻居中加入n
+				regions[j].neighbors.push_back(reg.id);
+				regions[j].edgeness.push_back(reg.edgeness[id]);
+				regions[j].borderPixelNum.push_back(reg.borderPixelNum[id]);
+				regions[j].borders.push_back(reg.borders[id]);
+				regions[j].borderPixels.push_back(reg.borderPixels[id]);
+				regions[j].borderSpIndices.push_back(reg.borderSpIndices[id]);
+			}
+
+		}
+		else
+		{
+			//reg同时也是j的邻居
+			IntVecIter itr = std::find(reg.neighbors.begin(), reg.neighbors.end(), i);
+			int Idx_i = itr - reg.neighbors.begin();
+
+			IntVecIter jItr = std::find(reg.neighbors.begin(), reg.neighbors.end(), j);
+			int Idx_j = jItr - reg.neighbors.begin();
+
+			if (itr != reg.neighbors.end() && jItr != reg.neighbors.end())
+			{
+
+
+				reg.edgeness[Idx_j] += reg.edgeness[Idx_i];
+				reg.borderPixelNum[Idx_j] += reg.borderPixelNum[Idx_i];
+				for (size_t m = 0; m < reg.borderPixels[Idx_i].size(); m++)
+					reg.borderPixels[Idx_j].push_back(reg.borderPixels[Idx_i][m]);
+				for (size_t m = 0; m < reg.borderSpIndices[Idx_i].size(); m++)
+					reg.borderSpIndices[Idx_j].push_back(reg.borderSpIndices[Idx_i][m]);
+				reg.borders[Idx_j] += reg.borders[Idx_i];
+
+				reg.neighbors.erase(itr);
+				reg.edgeness.erase(reg.edgeness.begin() + Idx_i);
+				reg.borderPixelNum.erase(reg.borderPixelNum.begin() + Idx_i);
+				reg.borderSpIndices.erase(reg.borderSpIndices.begin() + Idx_i);
+				reg.borders.erase(reg.borders.begin() + Idx_i);
+				reg.borderPixels.erase(reg.borderPixels.begin() + Idx_i);
+
+			}
+
+
+		}
+
+
 	}
+
+
+
 	regions[i].neighbors.clear();
 	int size0 = regions[j].size;
 	int size1 = regions[i].size;
@@ -1807,6 +1872,13 @@ void MergeRegions(int i, int j,
 	}
 	cv::normalize(regions[j].lbpHist, regions[j].lbpHist, 1, 0, cv::NORM_L1);
 	regions[j].size = size0 + size1;
+	regions[j].edgePixNum += regions[i].edgePixNum;
+	regions[j].edgeSpNum += regions[i].edgeSpNum;
+	regions[j].ad2c.x = (regions[i].ad2c.x*size1 + regions[j].ad2c.x*size0) / (regions[j].size);
+	regions[j].ad2c.y = (regions[i].ad2c.y*size1 + regions[j].ad2c.y*size0) / (regions[j].size);
+	regions[j].rad2c.x = (regions[i].rad2c.x*size1 + regions[j].rad2c.x*size0) / (regions[j].size);
+	regions[j].rad2c.y = (regions[i].rad2c.y*size1 + regions[j].rad2c.y*size0) / (regions[j].size);
+	regions[j].regCircum =  std::accumulate(regions[j].borderPixelNum.begin(), regions[j].borderPixelNum.end(), regions[j].edgePixNum);
 	regions[i].size = 0;
 	regions[i].spIndices.clear();
 }
@@ -1997,7 +2069,7 @@ void MFHoleHandling(int width, int height, const char* outDir, SuperpixelCompute
 		for (size_t n = 0; n < regions[i].neighbors.size(); n++)
 		{
 			int nid = regions[i].neighbors[n];
-
+			//double colorDist = L1Distance(regions[i].color, regions[nid].color);
 			double colorDist = cv::compareHist(regions[i].colorHist, regions[nid].colorHist, CV_COMP_BHATTACHARYYA);
 
 			//double dist = RegionDist(regions[i], regions[n]);
@@ -2008,7 +2080,7 @@ void MFHoleHandling(int width, int height, const char* outDir, SuperpixelCompute
 			float borderLenN = regions[nid].regCircum;
 			double shapeDist = 1 - (borderLen) / (ZERO + std::min(borderLenI, borderLenN));
 
-			double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[nid] + ZERO);
+			double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[n] + ZERO);
 			//double edgeness2 = regions[i].edgeness[n] / (regions[i].borders[n] + ZERO);
 			float dist = colorDist*cw + shapeDist*shw + edgeness*ew;
 			if (dist < minDist)
@@ -3862,6 +3934,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		regions.push_back(region);
 
 	}
+	int* segment = new int[img.cols*img.rows];
+	UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+	GetRegionEdgeness(edgeMap, regions);
 	int minPixels = sqr(computer.GetSuperpixelStep() )/ 2;
 	//处理边缘
 	//top
@@ -3926,7 +4001,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	}
 	
 
-	int* segment = new int[img.cols*img.rows];
+	
 	int ZeroReg, RegSize(regions.size());
 	cv::Mat rmask;
 
@@ -3975,8 +4050,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	float holeSize(5);
 	while (validSize > regThreshold)
 	{
-		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
-		GetRegionEdgeness(edgeMap, regions);
+		/*UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+		GetRegionEdgeness(edgeMap, regions);*/
 
 		//UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
 		/*int needToMerge = (RegSize - regThreshold) / 2;
@@ -4007,7 +4082,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	
 	if (debug)
 	{
-		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 0, false);
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 		RegSize = regions.size() - ZeroReg;
 		sprintf(fileName, "%sMerge1_%d.jpg", outPath, RegSize);
@@ -4054,7 +4129,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	float totalWeights(0);
 
 	std::vector<RegionSalInfo> regInfos;
-	UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+	//UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 	RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, debug);
 
 	if (regInfos.size() > 2)
@@ -4118,7 +4193,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	}
 	cv::Mat salPropose;
-	UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+	//UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 	//RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, debug);
 	//UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
 	RegionSaliencyL(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, salPropose, debug);
@@ -4182,7 +4257,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		if (regInfos.size() == 2)
 			break;
 		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
-		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
+		//UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		//RegionSaliency(img.cols, img.rows, outPath, &computer, newLabels, regions, regInfos, salMap, debug);
 		RegionSaliencyL(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, salPropose, debug);
 
@@ -5729,6 +5804,7 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	
 	for (int i = 0; i < regPairs.size(); i++)
 	{
+		std::cout << regPairs[i].x << "," << regPairs[i].y << "\n";
 		MergeRegions(regPairs[i].x, regPairs[i].y, newLabels, spPoses, regions);	
 	}
 
@@ -5759,10 +5835,7 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	idx++;
 
 }
-bool isNeighbor(std::vector<SPRegion>& regions, int i, int j)
-{
-	return std::find(regions[i].neighbors.begin(), regions[i].neighbors.end(), j) != regions[i].neighbors.end();
-}
+
 void SalGuidedRegMergion2(const cv::Mat& img, const char* path, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, bool debug)
 {
 	static int idx = 0;

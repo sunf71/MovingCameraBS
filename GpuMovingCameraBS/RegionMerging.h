@@ -156,7 +156,11 @@ struct SPRegion
 
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1);
 
-
+static inline bool isNeighbor(std::vector<SPRegion>& regions, int i, int j)
+{
+	assert(i < regions.size() && j < regions.size() && i >= 0 && j >= 0);
+	return std::find(regions[i].neighbors.begin(), regions[i].neighbors.end(), j) != regions[i].neighbors.end();
+}
 struct RegionPartition
 {
 	std::vector<SPRegion> regions;
