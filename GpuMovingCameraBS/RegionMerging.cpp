@@ -1935,7 +1935,7 @@ void HandleHoles(int idx, int width, int height, const char* outPath, Superpixel
 				/*float borderLenI = std::accumulate(regions[i].borderPixelNum.begin(), regions[i].borderPixelNum.end(), 0);
 				float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);*/
 				float borderLenI = regions[i].regCircum;
-				float borderLenN = regions[n].regCircum;
+				float borderLenN = regions[nid].regCircum;
 				double shapeDist = 1 - (borderLen) / (ZERO + std::min(borderLenI, borderLenN));
 
 				double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[n] + ZERO);
@@ -1977,7 +1977,81 @@ void HandleHoles(int idx, int width, int height, const char* outPath, Superpixel
 	}
 }
 
+void MFHoleHandling(int width, int height, const char* outDir, SuperpixelComputer* computer, std::vector<SPRegion>& regions, std::vector<int>& newLabels, float holeNThreshold, float holeSizeThreshold, bool debug = false)
+{
+	char outPath[200];
+	sprintf(outPath, "%s\\HoleHandling\\", outDir);
 
+	float cw(0.5), shw(0.3), ew(0.2);
+	int idx(0);
+	std::vector<std::vector<uint2>> spPoses;
+	computer->GetSuperpixelPoses(spPoses);
+	std::vector<SPRegion>::iterator itr;
+	itr = std::find_if(regions.begin(), regions.end(), RegionSizeSmall(holeSizeThreshold));
+	while (itr != regions.end())
+	{
+		SPRegion region = *itr;
+		int i = region.id;
+		double minDist(1);
+		int minId(0);
+		for (size_t n = 0; n < regions[i].neighbors.size(); n++)
+		{
+			int nid = regions[i].neighbors[n];
+
+			double colorDist = cv::compareHist(regions[i].colorHist, regions[nid].colorHist, CV_COMP_BHATTACHARYYA);
+
+			//double dist = RegionDist(regions[i], regions[n]);
+			float borderLen = regions[i].borderPixelNum[n];
+			/*float borderLenI = std::accumulate(regions[i].borderPixelNum.begin(), regions[i].borderPixelNum.end(), 0);
+			float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);*/
+			float borderLenI = regions[i].regCircum;
+			float borderLenN = regions[nid].regCircum;
+			double shapeDist = 1 - (borderLen) / (ZERO + std::min(borderLenI, borderLenN));
+
+			double edgeness = regions[i].edgeness[n] / (regions[i].borderPixelNum[nid] + ZERO);
+			//double edgeness2 = regions[i].edgeness[n] / (regions[i].borders[n] + ZERO);
+			float dist = colorDist*cw + shapeDist*shw + edgeness*ew;
+			if (dist < minDist)
+			{
+				minDist = dist;
+				minId = n;
+			}
+		}
+
+		int j = regions[i].neighbors[minId];
+		if (debug)
+		{
+			CreateDir(outPath);
+			char name[300];
+			cv::Mat mask;
+			//std::cout << "merge regions " << i << " " << j << std::endl;
+			std::vector<uint2> spParis;
+			spParis.push_back(make_uint2(i, j));
+
+			GetRegionMap(width, height, computer, newLabels, regions, spParis, mask);
+
+			sprintf(name, "%s%dregMergeH%d_%d.jpg", outPath, idx, i, j);
+			cv::imwrite(name, mask);
+		}
+		/*	double colorDist = L1Distance(regions[i].color, regions[j].color) / 255;
+		double confidence = exp(-v);
+		double wdist = confidence*minDist + (1 - confidence)*colorDist;*/
+		MergeRegions(j, i, newLabels, spPoses, regions);
+
+		if (debug)
+		{
+			char name[300];
+			cv::Mat mask;
+			GetRegionMap(width, height, computer, newLabels, regions, mask, 0, false);
+			sprintf(name, "%s%dregMergeHF%d_%d.jpg", outPath, idx, i, j);
+			cv::imwrite(name, mask);
+
+		}
+		itr = std::find_if(regions.begin(), regions.end(), RegionSizeSmall(holeSizeThreshold));
+		idx++;
+	}
+	
+}
 void SmartHoleHandling(int width, int height, const char* outDir, SuperpixelComputer* computer, std::vector<SPRegion>& regions, std::vector<int>& newLabels, int holeNThreshold, int holeSizeThreshold, bool debug = false)
 {
 	char outPath[200];
@@ -3898,15 +3972,16 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	int iter(1);
 	int validSize = RegSize;
+	float holeSize(5);
 	while (validSize > regThreshold)
 	{
 		UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 		GetRegionEdgeness(edgeMap, regions);
 
 		//UpdateRegionInfo(img.cols, img.rows, &computer, gradMap, scaleMap, edgeMap, newLabels, regions, segment);
-		int needToMerge = (RegSize - regThreshold) / 2;
-		needToMerge = std::max(1, needToMerge);
-		//int needToMerge = RegSize * 0.2;
+		/*int needToMerge = (RegSize - regThreshold) / 2;
+		needToMerge = std::max(1, needToMerge);*/
+		int needToMerge = RegSize * 0.2;
 		RegionGrowing(iter, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
 
 		//for (size_t i = 0; i < regions.size(); i++)
@@ -3921,7 +3996,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		//}
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());		
 		RegSize = regions.size() - ZeroReg;
-		int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(log(iter*1.0)));
+		holeSize = iter / 6.0;
+		int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(holeSize));
 		validSize = RegSize-smallReg;
 		iter++;
 	}
@@ -3954,7 +4030,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		sprintf(fileName, "%sMerge1V_%d.jpg", outPath, RegSize);
 		cv::imwrite(fileName, vmap);*/
 	}
-	SmartHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, HoleSize, debug);
+	//SmartHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, HoleSize, debug);
+	MFHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, holeSize, debug);
 
 	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 	RegSize = regions.size() - ZeroReg;
@@ -4010,10 +4087,14 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			}
 		}
 	}
-	cv::Mat focus;
-	CalRegionFocusness(gray, edgeMap, spPoses, regions, focus);
+	
+	/*std::vector<RegionSalInfo> curRegion(regInfos);
+	std::vector<std::vector<int>> propIds;*/
+
 	if (debug)
 	{
+		cv::Mat focus;
+		CalRegionFocusness(gray, edgeMap, spPoses, regions, focus);
 		cv::Mat focusMap;
 		focus.convertTo(focusMap, CV_8U, 255);
 		sprintf(fileName, "%sFocus.jpg", outPath);
@@ -5633,16 +5714,8 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 
 	}
 
-	std::vector<uint2> holeRegs;
-	float holeThreshold = log(idx*1.0);
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		if (regions[i].size > 0 && regions[i].size < holeThreshold)
-		{
-			holeRegs.push_back(make_uint2(i, i));
-		}
-	}
-
+	
+	
 	char name[200];
 	if (debug)
 	{
@@ -5662,7 +5735,16 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 	RegSize = regions.size() - ZeroReg;
 
-
+	std::vector<uint2> holeRegs;
+	float holeThreshold = idx / 6.0;
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		if (regions[i].size > 0 && regions[i].size < holeThreshold)
+		{
+			holeRegs.push_back(make_uint2(i, i));
+		}
+		
+	}
 
 	if (debug)
 	{
@@ -5672,7 +5754,7 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 		sprintf(name, "%s%dregMergeF_%d_%2d.jpg", outPath, idx, RegSize, RegSize-holeRegs.size());
 		cv::imwrite(name, rmask);
 	}
-
+	
 	//HandleHoles(idx, img.cols, img.rows, (const char*)outPath, &computer, regions, newLabels, HoleNeighborsNum, HoleSize, true);
 	idx++;
 

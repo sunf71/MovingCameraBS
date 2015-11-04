@@ -278,7 +278,7 @@ struct RegionSizeZero
 };
 struct RegionSizeSmall
 {
-	int threshold;
+	float threshold;
 	RegionSizeSmall(float _threshold):threshold(_threshold){};
 	RegionSizeSmall()
 	{

@@ -620,9 +620,9 @@ void EvaluateSaliency(cv::Mat& salMap)
 void GetImgSaliency(int argc, char* argv[])
 {
 	//DataSetStatics(argv[1], argv[2], "gt");
-	TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
+	//TestImageRegionObjectness(argv[1], argv[2], argv[3]);	
 	//TestImageFocusness();
-	return;
+	//return;
 	char* workingPath = argv[1];
 	char* imgFolder = argv[2];
 	char* outFolder = argv[3];
