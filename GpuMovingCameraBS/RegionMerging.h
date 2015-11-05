@@ -566,3 +566,16 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, const
 
 
 void GetRegionEdgeness(const cv::Mat& edgeMap, std::vector<SPRegion>& regions);
+
+
+static inline cv::Rect MergeBox(cv::Rect& boxi, cv::Rect& boxj)
+{
+	cv::Rect box;
+	box.x = std::min(boxi.x, boxj.x);
+	box.y = std::min(boxi.y, boxj.y);
+	int maxX = std::max(boxi.x + boxi.width, boxj.x + boxj.width);
+	int maxY = std::max(boxi.y + boxi.height, boxj.y + boxj.height);
+	box.width = maxX - box.x;
+	box.height = maxY - box.y;
+	return box;
+}
