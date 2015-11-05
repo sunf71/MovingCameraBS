@@ -324,6 +324,7 @@ struct RegDist
 	{
 		edgeness = colorDist = hogDist = sizeDist = lbpDist = 0;
 	}
+	int id;
 	int sRid;
 	int bRid;
 	double colorDist;
