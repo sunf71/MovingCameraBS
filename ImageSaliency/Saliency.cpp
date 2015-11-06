@@ -80,7 +80,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	cv::Mat salMap;
 	timer.start();
 	//IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
-	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, 20, debug);
+	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, 15, debug);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";

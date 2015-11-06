@@ -100,7 +100,7 @@ struct RegInfoCmp
 struct SPRegion
 {
 	SPRegion(){ size = 0; regFlag = false; }
-	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){}
+	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){ size = 0; regFlag = false; }
 	int id;
 	int size;
 	//ÇøÓò±ßÔµÖÐÊÇÍ¼Ïñ±ßÔµµÄ³¬ÏñËØÊý
@@ -413,6 +413,7 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask, int flag = 0);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<int>& flagSPs, cv::Mat& mask);
+void GetRegionSaliencyMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int bkgRegId, cv::Mat& mask);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool textflag = true);
 
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool txtflag = true);
@@ -580,3 +581,8 @@ static inline cv::Rect MergeBox(cv::Rect& boxi, cv::Rect& boxj)
 	box.height = maxY - box.y;
 	return box;
 }
+
+
+void ShowRegionBorder(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, int regId, cv::Mat rmask);
+
+void ShowRegionBorder(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, cv::Mat rmask);
