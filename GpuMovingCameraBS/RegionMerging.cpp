@@ -4161,7 +4161,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	char outPath[300];
 	char fileName[300];
 	sprintf(outPath, "%s\\%s\\", outputPath, imgName);
-	if (debug)
+	//if (debug)
 	{
 		CreateDir(outPath);
 
@@ -4388,7 +4388,15 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		cv::imwrite(fileName, rmask);
 
 	}
-	
+	//if (debug)
+	{
+		cv::Mat focus;
+		CalRegionFocusness(gray, edgeMap, spPoses, regions, focus);
+		cv::Mat focusMap;
+		focus.convertTo(focusMap, CV_8U, 255);
+		sprintf(fileName, "%sFocus.jpg", outPath);
+		cv::imwrite(fileName, focusMap);
+	}
 	cv::Mat mask, dbgMap;
 
 	std::vector<PropScore> propScores;
@@ -4456,15 +4464,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	/*std::vector<RegionSalInfo> curRegion(regInfos);
 	std::vector<std::vector<int>> propIds;*/
 
-	if (debug)
-	{
-		cv::Mat focus;
-		CalRegionFocusness(gray, edgeMap, spPoses, regions, focus);
-		cv::Mat focusMap;
-		focus.convertTo(focusMap, CV_8U, 255);
-		sprintf(fileName, "%sFocus.jpg", outPath);
-		cv::imwrite(fileName, focusMap);
-	}
+	
 	
 
 	float borderRatio = regInfos[regInfos.size() - 1].borderRatio;
@@ -4545,7 +4545,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			//float weightF = fillness > 0.15 ? 1 : 0;
 			float weightS = exp(-sqr(size - meanRelSize) / thetaSize);
 			float weightO = boxdist;
-			float weight = weightF + weightS + weightO;
+			float weight = 0.05*weightF + 0.65*weightS + 0.3*weightO;
 			
 		
 			PropScore ps;
