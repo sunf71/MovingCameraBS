@@ -99,7 +99,7 @@ struct RegInfoCmp
 };
 struct SPRegion
 {
-	SPRegion(){ size = 0; regFlag = false; }
+	SPRegion(){ size = 0; regFlag = false;  filleness = 0;  }
 	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){ size = 0; regFlag = false; }
 	int id;
 	int size;
@@ -129,7 +129,7 @@ struct SPRegion
 	//外边界超像素Id
 	std::vector<int> outBorderSPs;
 	//与每个邻居的边界像素
-	std::vector<std::vector<uint2>> borderPixels;
+	std::vector<std::vector<cv::Point>> borderPixels;
 	//与每个邻居的边界像素中是边缘的像素个数
 	std::vector<float> edgeness;
 	//区域中所有超像素的Id
@@ -148,8 +148,9 @@ struct SPRegion
 	cv::Rect Bbox;
 	cv::Rect spBbox;
 	float focusness;
-	//区域是否是合并遮挡时得到的
+	//区域是否是合并遮挡时得到的(两个不相邻区域合并而来)
 	bool regFlag;
+	float filleness;
 	//颜色直方图方差
 	float colorHistV;
 };
@@ -582,6 +583,7 @@ static inline cv::Rect MergeBox(cv::Rect& boxi, cv::Rect& boxj)
 	return box;
 }
 
+void GetRegionBorder(SPRegion& reg, std::vector<cv::Point>& borders);
 
 void ShowRegionBorder(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, int regId, cv::Mat rmask);
 
