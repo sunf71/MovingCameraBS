@@ -1419,18 +1419,20 @@ void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer,
 		color[i] = cvRandInt(&rng);
 	for (int i = 0; i < regions.size(); i++)
 	{
-		for (int j = 0; j < regions[i].spIndices.size(); j++)
+		if (regions[i].size > 0 && regions[i].id != bkgRegId)
 		{
-			for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
+			for (int j = 0; j < regions[i].spIndices.size(); j++)
 			{
-				int c = spPoses[regions[i].spIndices[j]][k].x;
-				int r = spPoses[regions[i].spIndices[j]][k].y;
-				if (regions[i].id != bkgRegId)
+				for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
 				{
+					int c = spPoses[regions[i].spIndices[j]][k].x;
+					int r = spPoses[regions[i].spIndices[j]][k].y;
+
 					((uchar *)(mask.data + r*mask.step.p[0]))[c*mask.step.p[1] + 0] = 0xff;
-				
+
+
+
 				}
-				
 			}
 		}
 	}
@@ -4494,6 +4496,12 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		candiRegions.push_back(regions[regInfos[i].id]);
 	}
 	std::vector<std::vector<int>> proposalIds;
+	char outDir[200];
+	sprintf(outDir, "%s\\saliency\\", outPath);
+	CreateDir(outDir);
+
+	sprintf(fileName, "%sbox.txt",outDir);
+	std::ofstream outFile(fileName);
 	while (1)
 	{
 	
@@ -4553,16 +4561,15 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			ps.score = weight;
 			
 			char imgName[300];
-			char outDir[200];
-			sprintf(outDir, "%s\\saliency\\", outPath);
-			CreateDir(outDir);
+			
 			GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos[regInfos.size() - 1].id, rmask);
 			proposals.push_back(rmask.clone());
 			//CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
 			sprintf(imgName, "%s%dSaliency_%d_%d_%d.png", outDir, regInfos.size(), (int)(weightF * 100), (int)(weightS * 100), (int)(boxdist * 100));
 			cv::imwrite(imgName, rmask);
 			propScores.push_back(ps);
-
+			
+			outFile << propScores.size() << "\t" << box.x << "\t" << box.y << "\t" << box.width << "\t" << box.height << "\n";
 			/*proposals.push_back(salPropose.clone());
 			std::vector<int> nLabels(spSize);
 			memset(&nLabels[0], sizeof(int)*spSize, 0);
@@ -4608,9 +4615,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 		if (regInfos.size() == 2)
 			break;
-		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);
-
-	
+		SalGuidedRegMergion(img, (char*)outPath, regInfos, computer, newLabels, regions, debug);	
 		//UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
 
 
@@ -4624,6 +4629,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 
 	}
+	outFile.close();
 	salMap = cv::Mat::zeros(img.size(), CV_32F);
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
 	Saliency(outPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);

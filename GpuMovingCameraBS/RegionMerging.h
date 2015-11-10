@@ -284,6 +284,8 @@ struct RegionSizeZero
 struct RegionSizeSmall
 {
 	float threshold;
+	const static int minNeighbors = 3;
+	const static int maxHoleSize = 5;
 	RegionSizeSmall(float _threshold):threshold(_threshold){};
 	RegionSizeSmall()
 	{
@@ -291,7 +293,7 @@ struct RegionSizeSmall
 	}
 	bool operator()(const SPRegion &na)
 	{
-		return na.size < threshold && na.size>0;
+		return (na.size < threshold && na.size>0) || (na.neighbors.size() < minNeighbors && na.size > 0 && na.size < maxHoleSize);
 	}
 };
 struct RegionColorCmp
