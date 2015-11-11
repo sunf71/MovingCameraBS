@@ -1410,6 +1410,7 @@ void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer,
 		if (regions[i].size > 0 && regions[i].id != bkgRegId)
 		{
 			float weight = exp(-9.0 * (sqr(regions[i].ad2c.x) + sqr(regions[i].ad2c.y)));
+			
 			for (int j = 0; j < regions[i].spIndices.size(); j++)
 			{
 				for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
