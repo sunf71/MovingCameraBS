@@ -2,6 +2,7 @@
 #include <fstream>
 #include <time.h>       /* time */
 #include <numeric>
+#include <queue>
 #include "DistanceUtils.h"
 #include "Dijkstra.h"
 #include "LBP.h"
@@ -2140,7 +2141,8 @@ void MergeRegions(int i, int j,
 		regions[j].borderEdgePixels.push_back(regions[i].borderEdgePixels[b]);
 	}*/
 	regions[j].borderEdgePixels.resize(regions[j].edgePixNum + regions[i].edgePixNum);
-	memcpy(&regions[j].borderEdgePixels[regions[j].edgePixNum], &regions[i].borderEdgePixels[0], sizeof(cv::Point)*regions[i].edgePixNum);
+	if (regions[i].edgePixNum > 0)
+		memcpy(&regions[j].borderEdgePixels[regions[j].edgePixNum], &regions[i].borderEdgePixels[0], sizeof(cv::Point)*regions[i].edgePixNum);
 	regions[j].edgePixNum += regions[i].edgePixNum;
 	regions[j].edgeSpNum += regions[i].edgeSpNum;
 	regions[j].pixels += regions[i].pixels;
@@ -4497,6 +4499,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		timer.start();
 	}
 #endif
+	Queue RegNPairs;
+	std::vector<float> regAges;
+	PrepareForRegionGrowing(spSize, regions, RegNPairs, regAges);
 	int iter(1);
 	int validSize = RegSize;
 	float holeSize(5);
@@ -4504,8 +4509,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	{
 		
 		int needToMerge = RegSize * 0.2;
-		RegionGrowing(iter, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
-
+		//RegionGrowing(iter, img, outPath, edgeMap, computer, newLabels, regions, needToMerge, debug);
+		FastRegionGrowing(iter, img, outPath, computer, RegNPairs, regAges, newLabels, regions, needToMerge, debug);
 		
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());		
 		RegSize = regions.size() - ZeroReg;
@@ -6246,6 +6251,156 @@ int RegionGrowingN(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	idx++;
 	return regPairs.size();
 }
+void PrepareForRegionGrowing(int spSize, std::vector<SPRegion>& regions, Queue& RegNPairs, std::vector<float>& regAges)
+{
+	int ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	int RegSize = regions.size() - ZeroReg;
+	regAges.resize(RegSize);
+	memset(&regAges[0], 0, sizeof(float)*RegSize);
+
+	for (int i = 0; i < regions.size(); i++)
+	{
+		if (regions[i].size == 0)
+			continue;
+		for (int j = 0; j < regions[i].neighbors.size(); j++)
+		{
+			int n = regions[i].neighbors[j];
+			if (regions[n].size == 0)
+				continue;
+			if (i < n)
+			{
+
+				//double colorDist = cv::compareHist(regions[i].colorHist, regions[n].colorHist, CV_COMP_BHATTACHARYYA);
+				double colorDist = RegionColorDist(regions[i], regions[n]);
+				double hogDist = cv::compareHist(regions[i].hog, regions[n].hog, CV_COMP_BHATTACHARYYA);
+				double lbpDist = cv::compareHist(regions[i].lbpHist, regions[n].lbpHist, CV_COMP_BHATTACHARYYA);
+
+				float borderLen = regions[i].borderPixelNum[j];
+
+				float borderLenI = regions[i].regCircum;
+				float borderLenN = regions[n].regCircum;
+				double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
+				double sizeDist = (regions[i].size + regions[n].size)*1.0 / spSize;
+
+				double edgeness = regions[i].edgeness[j] / regions[i].borderPixelNum[j];
+				double edgeness2 = regions[i].edgeness[j] / regions[i].borders[j];
+
+
+				RegDist rd;
+				rd.sRid = i;
+				rd.bRid = n;
+				rd.colorDist = colorDist;
+				rd.shapeDist = shapeDist;
+				rd.sizeDist = sizeDist;
+				rd.hogDist = hogDist;
+				rd.lbpDist = lbpDist;
+				rd.edgeness = edgeness2;
+				rd.sRidAge = 0;
+				rd.bRidAge = 0;
+				RegNPairs.push(rd);
+			}
+		}
+	}
+}
+
+void FastRegionGrowing(int iter, const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, Queue& RegNPairs, std::vector<float>& regAges, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug)
+{
+	int merged = 0;
+	std::vector<std::vector<uint2>> spPoses;
+	computer.GetSuperpixelPoses(spPoses);
+	int spSize = computer.GetSuperpixelSize();
+	while (merged < thresholdF)
+	{
+		RegDist rd = RegNPairs.top();
+		RegNPairs.pop();
+		if (rd.sRidAge >= regAges[rd.sRid] && rd.bRidAge >= regAges[rd.bRid])
+		{
+			if (debug)
+			{
+				std::vector<uint2> regPairs;
+				regPairs.push_back(make_uint2(rd.sRid, rd.bRid));
+				CreateDir((char*)outPath);
+				cv::Mat mask;
+				GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, regPairs, mask);
+				char name[200];
+				sprintf(name, "%s%dregMergeB.jpg", outPath, iter);
+				cv::imwrite(name, mask);
+
+			}
+			
+
+			MergeRegions(rd.bRid, rd.sRid, newLabels, spPoses, regions);
+			merged++;
+			regAges[rd.bRid]++;
+			regAges[rd.sRid]++;
+
+			for (int j = 0; j < regions[rd.sRid].neighbors.size(); j++)
+			{
+				int i = rd.sRid;
+				int n = regions[rd.sRid].neighbors[j];
+				if (regions[n].size == 0)
+					continue;
+
+
+				//double colorDist = cv::compareHist(regions[i].colorHist, regions[n].colorHist, CV_COMP_BHATTACHARYYA);
+				double colorDist = RegionColorDist(regions[i], regions[n]);
+				double hogDist = cv::compareHist(regions[i].hog, regions[n].hog, CV_COMP_BHATTACHARYYA);
+				double lbpDist = cv::compareHist(regions[i].lbpHist, regions[n].lbpHist, CV_COMP_BHATTACHARYYA);
+
+				//double dist = RegionDist(regions[i], regions[n]);
+				float borderLen = regions[i].borderPixelNum[j];
+				/*float borderLenI = std::accumulate(regions[i].borderPixelNum.begin(), regions[i].borderPixelNum.end(), 0);
+				float borderLenN = std::accumulate(regions[n].borderPixelNum.begin(), regions[n].borderPixelNum.end(), 0);*/
+				float borderLenI = regions[i].regCircum;
+				float borderLenN = regions[n].regCircum;
+				double shapeDist = 1 - (borderLen) / std::min(borderLenI, borderLenN);
+				double sizeDist = (regions[i].size + regions[n].size)*1.0 / spSize;
+
+				double edgeness = regions[i].edgeness[j] / regions[i].borderPixelNum[j];
+				double edgeness2 = regions[i].edgeness[j] / regions[i].borders[j];
+				//std::cout << edgeness << " edgeness2 " << edgeness2 << " ratio " <<edgeness2/edgeness<<"\n";
+
+
+				RegDist nrd;
+				nrd.sRid = std::min(rd.sRid, n);
+				nrd.bRid = std::max(rd.sRid, n);
+				nrd.colorDist = colorDist;
+				nrd.shapeDist = shapeDist;
+				nrd.sizeDist = sizeDist;
+				nrd.hogDist = hogDist;
+				nrd.lbpDist = lbpDist;
+				nrd.edgeness = edgeness2;
+				RegNPairs.push(nrd);
+
+			}
+			if (debug)
+			{
+				int ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+				int RegSize = regions.size() - ZeroReg;
+
+				char name[200];
+				std::vector<uint2> holeRegs;
+				float holeThreshold = iter / 6.0;
+				for (size_t i = 0; i < regions.size(); i++)
+				{
+					if (regions[i].size > 0 && regions[i].size < holeThreshold)
+					{
+						holeRegs.push_back(make_uint2(i, i));
+					}
+
+				}
+				cv::Mat rmask;
+				//GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, false, false);
+				GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, holeRegs, rmask);
+				sprintf(name, "%s%dregMergeF_%d_%2d.jpg", outPath, iter, RegSize, RegSize - holeRegs.size());
+				cv::imwrite(name, rmask);
+			}
+
+		}
+	}
+}
+	
+
 
 void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug)
 {

@@ -317,12 +317,27 @@ typedef std::priority_queue<SPRegion, std::vector<SPRegion>, RegionDistCmp> SPRe
 
 struct RegDist
 {
+	
+	
 	friend std::ostream &  operator << (std::ostream & os, RegDist& rd)
 	{
 		os << rd.sRid << "," << rd.bRid << "\n";
 		os << "\t" << rd.colorDist << " " << rd.sizeDist << " " << rd.edgeness << "\n";
 		return os;
 	}
+	friend bool operator< (const RegDist& rd1,const RegDist& rd2)
+	{
+		const static double colorW = 0.25;
+		const static double hogW = 0.25;
+		const static double sizeW = 0.25;
+		const static double shapeW = 0.25;
+		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist + shapeW* rd1.shapeDist;
+		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist + shapeW * rd2.shapeDist;
+
+		return d1 < d2;
+	}
+
+
 	RegDist()
 	{
 		edgeness = colorDist = hogDist = sizeDist = lbpDist = 0;
@@ -336,6 +351,10 @@ struct RegDist
 	double lbpDist;
 	double shapeDist;
 	double edgeness;
+	
+	//Region age, how many times region has been merged
+	int sRidAge;
+	int bRidAge;
 };
 
 struct RegDistDescComparer
@@ -351,7 +370,7 @@ struct RegDistDescComparer
 		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist + shapeW* rd1.shapeDist;
 		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist + shapeW * rd2.shapeDist;
 		
-		return d1 < d2;
+		return d1 > d2;
 	}
 };
 inline float4 operator * (float4& a, float n)
@@ -528,6 +547,12 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& 
 void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& spSaliency, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
 void RegionGrowing(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
+
+
+typedef std::priority_queue<RegDist, std::vector<RegDist>, RegDistDescComparer> Queue;
+void PrepareForRegionGrowing(int spSize, std::vector<SPRegion>& regions, Queue& RegNParis, std::vector<float>& regAges);
+
+void FastRegionGrowing(int iter, const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, Queue& RegNPairs, std::vector<float>& regAges, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
 int RegionGrowingN(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
