@@ -81,9 +81,8 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	timer.start();
 	//IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
 	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, 15, debug);
-	timer.stop();
-	if (debug)
-		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
+	timer.stop();	
+	std::cout << "SaliencyGuidedRegionMerging " << timer.seconds() * 1000 << "ms\n";
 
 
 	
@@ -332,7 +331,7 @@ void TestImageRegionObjectness(const char* workingPath, const char* imgFolder, c
 			regions[1].colorHist = bgHist;
 			
 			sizeVec.push_back(regions[0].size);
-			UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
+			UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, edgeMap, regions);
 			/*cv::Mat rmask;
 			GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);
 			cv::imshow("region", rmask);
@@ -567,11 +566,8 @@ void TestImageFocusness()
 		regions.push_back(region);
 
 	}
-	
-	int * segment = new int[img.cols*img.rows];
-	UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, regions, segment);
-	delete[] segment;
-	GetRegionEdgeness(edgeMap, regions);
+	UpdateRegionInfo(img.cols, img.rows, &computer, nLabels, edgeMap, regions);
+
 	RegionGrowing(img, computer, nLabels, regions, 0.4);
 	cv::Mat rmask;
 	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask, 0, false);

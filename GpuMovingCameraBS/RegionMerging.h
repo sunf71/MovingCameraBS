@@ -416,7 +416,7 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask, int flag = 0);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<int>& flagSPs, cv::Mat& mask);
-void GetRegionSaliencyMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int bkgRegId, cv::Mat& mask);
+void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, cv::Mat& mask);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool textflag = true);
 
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool txtflag = true);
@@ -565,7 +565,7 @@ void RegionSaliency(int width, int height, const char* outputPath, SuperpixelCom
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, RegionPartition & bkgRegions,  std::vector<RegionSalInfo>& regInfo);
 bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, bool debug = false);
 //更新区域的边界等信息
-void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
+void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, const  cv::Mat& edgeMap, std::vector<SPRegion>& regions);
 
 void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, const cv::Mat& gradMap, const cv::Mat& scaleMap, const cv::Mat& edgemap, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
 
@@ -584,6 +584,10 @@ static inline cv::Rect MergeBox(cv::Rect& boxi, cv::Rect& boxj)
 	box.height = maxY - box.y;
 	return box;
 }
+
+//merge reg1 to reg2
+void MergeRegionHist(const SPRegion& reg1, SPRegion& reg2);
+
 
 void GetRegionBorder(SPRegion& reg, std::vector<cv::Point>& borders);
 
