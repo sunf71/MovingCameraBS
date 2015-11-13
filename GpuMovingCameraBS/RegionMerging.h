@@ -356,7 +356,22 @@ struct RegDist
 	int sRidAge;
 	int bRidAge;
 };
+struct RegDistAcsdComparer
+{
+	RegDistAcsdComparer()
+	{
+		colorW = hogW = sizeW = shapeW = 1.0 / 4;
+	}
+	RegDistAcsdComparer(double cw, double hw, double shw, double siw) :colorW(cw), hogW(hw), sizeW(siw), shapeW(shw){};
+	double colorW, hogW, sizeW, shapeW;
+	bool operator()(const RegDist& rd1, const RegDist& rd2)
+	{
+		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist + shapeW* rd1.shapeDist;
+		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist + shapeW * rd2.shapeDist;
 
+		return d1 > d2;
+	}
+};
 struct RegDistDescComparer
 {
 	RegDistDescComparer()
@@ -370,7 +385,7 @@ struct RegDistDescComparer
 		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist + shapeW* rd1.shapeDist;
 		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist + shapeW * rd2.shapeDist;
 		
-		return d1 > d2;
+		return d1 < d2;
 	}
 };
 inline float4 operator * (float4& a, float n)
@@ -549,7 +564,7 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& 
 void RegionGrowing(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
 
-typedef std::priority_queue<RegDist, std::vector<RegDist>, RegDistDescComparer> Queue;
+typedef std::priority_queue<RegDist, std::vector<RegDist>, RegDistAcsdComparer> Queue;
 void PrepareForRegionGrowing(int spSize, std::vector<SPRegion>& regions, Queue& RegNParis, std::vector<float>& regAges);
 
 void FastRegionGrowing(int iter, const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, Queue& RegNPairs, std::vector<float>& regAges, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
