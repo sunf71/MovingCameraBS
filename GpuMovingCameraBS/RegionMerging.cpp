@@ -4681,6 +4681,28 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	{
 		candiRegions.push_back(regions[regInfos[i].id]);
 	}
+	RegionSaliency(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, debug);
+	int bkgId = regInfos[regInfos.size() - 1].id;
+	cv::Mat bkgSal = cv::Mat::zeros(height, width, CV_32F);
+	for (size_t i = 0; i < regions[bkgId].spIndices.size(); i++)
+	{
+		for (int k = 0; k < spPoses[regions[bkgId].spIndices[i]].size(); k++)
+		{
+			int c = spPoses[regions[bkgId].spIndices[i]][k].x;
+			int r = spPoses[regions[bkgId].spIndices[i]][k].y;
+			//*(float*)(bkgSal.data + 4 * (r*width + c)) = cv::compareHist(colorHists[regions[bkgId].spIndices[i]], bkgHist, CV_COMP_BHATTACHARYYA);
+			*(float*)(bkgSal.data + 4 * (r*width + c)) = L1Distance(regions[bkgId].color, centers[regions[bkgId].spIndices[i]].rgb);
+
+
+		}
+	}
+	cv::normalize(bkgSal, bkgSal, 0, 0.49, CV_MINMAX, CV_32F);
+	cv::threshold(bkgSal, bkgSal, 0.28, 0.49, CV_THRESH_TOZERO);
+	
+	bkgSal.convertTo(bkgSal, CV_8U, 255);
+	//cv::imshow("bkg sal", bkgSal);
+	/*cv::waitKey();*/
+
 	std::vector<std::vector<int>> proposalIds;
 	char outDir[200];
 	sprintf(outDir, "%s\\saliency\\", outPath);
@@ -4814,7 +4836,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	salMap = cv::Mat::zeros(img.size(), CV_32F);
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
 	Saliency(outPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);
-
+	cv::add(salMap, bkgSal, salMap);
 #if (TEST_SPEED)
 	{
 		timer.stop();
@@ -7101,6 +7123,10 @@ bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* o
 	regInfos.clear();
 	std::vector<std::vector<uint2>> spPoses;
 	computer->GetSuperpixelPoses(spPoses);
+	SLICClusterCenter* centers;
+	int* labels;
+	int spSize;
+	computer->GetSuperpixelResult(spSize, labels, centers);
 	bool compactFlag(true);
 	for (size_t i = 0; i < regions.size(); i++)
 	{
@@ -7155,10 +7181,10 @@ bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* o
 	}
 
 	std::sort(regInfos.begin(), regInfos.end(), RegionSalBorderCmp());
+	int bkgId = regInfos[regInfos.size() - 1].id;
 
-
-	std::vector<float>& bkgHist = regions[regInfos[regInfos.size() - 1].id].colorHist;
-	float4 bkgColor = regions[regInfos[regInfos.size() - 1].id].color;
+	std::vector<float>& bkgHist = regions[bkgId].colorHist;
+	float4 bkgColor = regions[bkgId].color;
 	for (size_t i = 0; i < regInfos.size(); i++)
 	{
 		if (i < regInfos.size() - 1)
@@ -7198,20 +7224,7 @@ bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* o
 		sprintf(fileName, "%s\\regionSal_%d.jpg", outputPath, regInfos.size());
 		cv::imwrite(fileName, salMap);
 	}
-	cv::Mat bkgSal = cv::Mat::zeros(height, width, CV_32F);
-	for (size_t i = 0; i < regions[regInfos.size()-1].spIndices.size(); i++)
-	{
-		for (int k = 0; k < spPoses[regions[regInfos.size() - 1].spIndices[i]].size(); k++)
-		{
-			int c = spPoses[regions[regInfos.size() - 1].spIndices[i]][k].x;
-			int r = spPoses[regions[regInfos.size() - 1].spIndices[i]][k].y;
-			*(float*)(bkgSal.data + 4*(r*width + c)) = cv::compareHist(colorHists[regions[regInfos.size() - 1].spIndices[i]], bkgHist, CV_COMP_BHATTACHARYYA);
-
-		}
-	}
-	cv::normalize(bkgSal, bkgSal, 0, 255, CV_MINMAX, CV_8U);
-	cv::imshow("bkg sal", bkgSal);
-	cv::waitKey();
+	
 	//bool borderFlag = (regInfos[regInfos.size() - 1].borderRatio > 0.8 && regInfos.size() < 8) ||
 	//	regInfos.size() < 5;
 	//return compactFlag && borderFlag;
