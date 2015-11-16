@@ -4132,11 +4132,11 @@ void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& 
 	else
 	{
 		float weightSum = 0;
-		for (size_t i = 0; i < propScores.size() / 2; i++)
+		for (size_t i = 0; i < propScores.size(); i++)
 		{
 			weightSum += propScores[i].score;
 		}
-		for (size_t i = 0; i < propScores.size() / 2; i++)
+		for (size_t i = 0; i < propScores.size(); i++)
 		{
 			cv::addWeighted(proposals[propScores[i].id], propScores[i].score / weightSum, saliencyMap, 1, 0, saliencyMap, CV_32F);
 		}
@@ -4146,7 +4146,7 @@ void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& 
 	char fileName[200];
 	sprintf(fileName, "%s\\saliency\\%s_RM.png", outPath, imgName);
 	cv::imwrite(fileName, saliencyMap);
-	cv::threshold(saliencyMap, saliencyMap, 128, 255, CV_THRESH_BINARY);
+	//cv::threshold(saliencyMap, saliencyMap, 0, 255, CV_THRESH_BINARY);
 }
 void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& propScores, std::vector<cv::Mat>& proposals, cv::Mat& saliencyMap)
 {
@@ -7198,9 +7198,24 @@ bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* o
 		sprintf(fileName, "%s\\regionSal_%d.jpg", outputPath, regInfos.size());
 		cv::imwrite(fileName, salMap);
 	}
-	bool borderFlag = (regInfos[regInfos.size() - 1].borderRatio > 0.8 && regInfos.size() < 8) ||
-		regInfos.size() < 5;
-	return compactFlag && borderFlag;
+	cv::Mat bkgSal = cv::Mat::zeros(height, width, CV_32F);
+	for (size_t i = 0; i < regions[regInfos.size()-1].spIndices.size(); i++)
+	{
+		for (int k = 0; k < spPoses[regions[regInfos.size() - 1].spIndices[i]].size(); k++)
+		{
+			int c = spPoses[regions[regInfos.size() - 1].spIndices[i]][k].x;
+			int r = spPoses[regions[regInfos.size() - 1].spIndices[i]][k].y;
+			*(float*)(bkgSal.data + 4*(r*width + c)) = cv::compareHist(colorHists[regions[regInfos.size() - 1].spIndices[i]], bkgHist, CV_COMP_BHATTACHARYYA);
+
+		}
+	}
+	cv::normalize(bkgSal, bkgSal, 0, 255, CV_MINMAX, CV_8U);
+	cv::imshow("bkg sal", bkgSal);
+	cv::waitKey();
+	//bool borderFlag = (regInfos[regInfos.size() - 1].borderRatio > 0.8 && regInfos.size() < 8) ||
+	//	regInfos.size() < 5;
+	//return compactFlag && borderFlag;
+	return true;
 }
 void RegionSaliencyL(int width, int height, HISTOGRAMS& colorHists, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, cv::Mat& salMap, bool debug)
 {
