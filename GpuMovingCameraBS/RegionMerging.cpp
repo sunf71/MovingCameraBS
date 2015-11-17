@@ -10,6 +10,8 @@
 #include "timer.h"
 #include "../ImageSaliency/ImageFocusness.h"
 #include "../ImageSaliency/RegionObjectness.h"
+#include "GCoptimization.h"
+
 
 const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
@@ -1537,7 +1539,7 @@ void GetRegionMap(int _width, int _height, SuperpixelComputer* computer, std::ve
 	delete[] pixSeg;
 }
 
-void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, cv::Mat& mask)
+void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, int candiRegSize, cv::Mat& mask)
 {
 	int bkgRegId = regInfos[regInfos.size() - 1].id;
 	mask= cv::Mat::zeros(_height, _width, CV_32F);
@@ -1571,7 +1573,9 @@ void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer,
 		}
 
 	}
-	mask.convertTo(mask, CV_8U, 255);
+	//mask.mul(mask, (1 - (regInfos.size() - 1.0) / candiRegSize));
+	cv::normalize(mask, mask, 0, 1, CV_MINMAX, CV_32F);
+	//mask.convertTo(mask, CV_8U, 255);
 	
 }
 
@@ -4132,21 +4136,31 @@ void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& 
 	else
 	{
 		float weightSum = 0;
-		for (size_t i = 0; i < propScores.size(); i++)
+		for (size_t i = 0; i < propScores.size() / 2; i++)
 		{
 			weightSum += propScores[i].score;
 		}
-		for (size_t i = 0; i < propScores.size(); i++)
+		for (size_t i = 0; i < propScores.size() / 2; i++)
 		{
 			cv::addWeighted(proposals[propScores[i].id], propScores[i].score / weightSum, saliencyMap, 1, 0, saliencyMap, CV_32F);
 		}
-		cv::normalize(saliencyMap, saliencyMap, 0, 255, CV_MINMAX, CV_8U);
+		
 	}
-
+	double min, max;
+	cv::minMaxLoc(saliencyMap, &min, &max);
+	std::cout << "max saliency " << max << " min saliency " << min << "\n";
+	//cv::threshold(saliencyMap, saliencyMap, 1, 1, CV_THRESH_TRUNC);
+	cv::GaussianBlur(saliencyMap, saliencyMap, cv::Size(3, 3), 0);
+	cv::normalize(saliencyMap, saliencyMap, 0, 255, CV_MINMAX, CV_8U);
 	char fileName[200];
-	sprintf(fileName, "%s\\saliency\\%s_RM.png", outPath, imgName);
+	sprintf(fileName, "%s\\%s_RMN.png", outPath, imgName);
 	cv::imwrite(fileName, saliencyMap);
-	//cv::threshold(saliencyMap, saliencyMap, 0, 255, CV_THRESH_BINARY);
+	cv::Mat salMax = proposals[propScores[0].id];
+	cv::normalize(salMax, salMax, 0, 255, CV_MINMAX);
+	sprintf(fileName, "%s\\%s_MAX.png", outPath, imgName);
+	cv::imwrite(fileName, salMax);
+	cv::threshold(saliencyMap, saliencyMap, 128, 255, CV_THRESH_BINARY);
+	
 }
 void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& propScores, std::vector<cv::Mat>& proposals, cv::Mat& saliencyMap)
 {
@@ -4176,6 +4190,19 @@ void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& 
 	cv::threshold(saliencyMap, saliencyMap, 128, 255, CV_THRESH_BINARY);
 
 
+
+}
+
+void GCOptimization(const cv::Mat& img, const cv::Mat& salImg, cv::Mat& optRst)
+{
+	SuperpixelComputer* spComputer = new SuperpixelComputer(img.cols, img.rows, 5);
+	spComputer->ComputeSuperpixel(img);
+	SLICClusterCenter* centers;
+	int spNum, *labels;
+	spComputer->GetSuperpixelResult(spNum, labels, centers);
+	typedef Graph<float, float, float> GraphType;
+	GraphType *g;
+	g = new GraphType(/*estimated # of nodes*/ spNum, /*estimated # of edges*/ spNum*4);
 
 }
 
@@ -4681,25 +4708,25 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	{
 		candiRegions.push_back(regions[regInfos[i].id]);
 	}
-	RegionSaliency(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, debug);
-	int bkgId = regInfos[regInfos.size() - 1].id;
-	cv::Mat bkgSal = cv::Mat::zeros(height, width, CV_32F);
-	for (size_t i = 0; i < regions[bkgId].spIndices.size(); i++)
-	{
-		for (int k = 0; k < spPoses[regions[bkgId].spIndices[i]].size(); k++)
-		{
-			int c = spPoses[regions[bkgId].spIndices[i]][k].x;
-			int r = spPoses[regions[bkgId].spIndices[i]][k].y;
-			//*(float*)(bkgSal.data + 4 * (r*width + c)) = cv::compareHist(colorHists[regions[bkgId].spIndices[i]], bkgHist, CV_COMP_BHATTACHARYYA);
-			*(float*)(bkgSal.data + 4 * (r*width + c)) = L1Distance(regions[bkgId].color, centers[regions[bkgId].spIndices[i]].rgb);
+	//RegionSaliency(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, debug);
+	//int bkgId = regInfos[regInfos.size() - 1].id;
+	//cv::Mat bkgSal = cv::Mat::zeros(height, width, CV_32F);
+	//for (size_t i = 0; i < regions[bkgId].spIndices.size(); i++)
+	//{
+	//	for (int k = 0; k < spPoses[regions[bkgId].spIndices[i]].size(); k++)
+	//	{
+	//		int c = spPoses[regions[bkgId].spIndices[i]][k].x;
+	//		int r = spPoses[regions[bkgId].spIndices[i]][k].y;
+	//		//*(float*)(bkgSal.data + 4 * (r*width + c)) = cv::compareHist(colorHists[regions[bkgId].spIndices[i]], bkgHist, CV_COMP_BHATTACHARYYA);
+	//		*(float*)(bkgSal.data + 4 * (r*width + c)) = L1Distance(regions[bkgId].color, centers[regions[bkgId].spIndices[i]].rgb);
 
 
-		}
-	}
-	cv::normalize(bkgSal, bkgSal, 0, 0.49, CV_MINMAX, CV_32F);
-	cv::threshold(bkgSal, bkgSal, 0.28, 0.49, CV_THRESH_TOZERO);
-	
-	bkgSal.convertTo(bkgSal, CV_8U, 255);
+	//	}
+	//}
+	//cv::normalize(bkgSal, bkgSal, 0, 0.49, CV_MINMAX, CV_32F);
+	//cv::threshold(bkgSal, bkgSal, 0.28, 0.49, CV_THRESH_TOZERO);
+	//
+	//bkgSal.convertTo(bkgSal, CV_8U, 255);
 	//cv::imshow("bkg sal", bkgSal);
 	/*cv::waitKey();*/
 
@@ -4713,7 +4740,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	while (1)
 	{
 	
-		if (RegionSaliency(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, debug))
+		if (RegionSaliency(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos,  debug))
 		{
 			std::vector<int> ids;
 			std::vector<float> fgCHist(colorHist[0].size(), 0);
@@ -4767,13 +4794,20 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			ps.id = proposals.size();
 			ps.score = weight;
 			
-			char imgName[300];
 			
-			GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos, rmask);
+			
+			GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos, candiRegions.size(), rmask);
 			proposals.push_back(rmask.clone());
 			//CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
-			sprintf(imgName, "%s%dSaliency_%d_%d_%d.png", outDir, regInfos.size(), (int)(weightF * 100), (int)(weightS * 100), (int)(boxdist * 100));
-			cv::imwrite(imgName, rmask);
+			if (debug)
+			{
+				char imgName[300];
+				rmask.convertTo(rmask, CV_8U, 255);
+				sprintf(imgName, "%s%dSaliency_%d_%d_%d.png", outDir, regInfos.size(), (int)(weightF * 100), (int)(weightS * 100), (int)(boxdist * 100));
+				cv::imwrite(imgName, rmask);
+
+			}
+			
 			propScores.push_back(ps);
 			
 			outFile << propScores.size() << "\t" << box.x << "\t" << box.y << "\t" << box.width << "\t" << box.height << "\n";
@@ -4835,8 +4869,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	outFile.close();
 	salMap = cv::Mat::zeros(img.size(), CV_32F);
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
-	Saliency(outPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);
-	cv::add(salMap, bkgSal, salMap);
+	Saliency(outputPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);
+	//cv::add(salMap, bkgSal, salMap);
 #if (TEST_SPEED)
 	{
 		timer.stop();
