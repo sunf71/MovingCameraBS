@@ -76,7 +76,7 @@ public:
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg);
 	  void GetSuperpixelDownSampleImg(const int* labels, const SLICClusterCenter* centers, const cv::Mat& srcColorImg, const cv::Mat& srcMapXImg, const cv::Mat& srcMapYImg, const cv::Mat& srcInvMapXImg, const cv::Mat& srcInvMapYImg, 
 		  cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg, cv::Mat& dstInvMapXImg,  cv::Mat& dstInvMapYImg );
-
+	  void GetSuperpixelPoints(std::vector<std::vector<cv::Point>>& poses);
 	  void GetSuperpixelPoses(std::vector<std::vector<uint2>>& poses);
 	  ~SuperpixelComputer()
 	  {
@@ -131,4 +131,7 @@ private:
 	int * _bgLabels;
 	char* _visited;
 	char* _segmented;
+
+	std::vector<std::vector<uint2>> _spPoses;
+	std::vector<std::vector<cv::Point>> _spPoints;
 };

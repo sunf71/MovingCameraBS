@@ -99,4 +99,3 @@ void DrawHistogram(std::vector<T>& histogram, int size, const std::string name)
 	//cv::waitKey();
 }
 
-

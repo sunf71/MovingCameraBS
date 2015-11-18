@@ -111,6 +111,9 @@ void SuperpixelComputer::init()
 	_neighbors8[idx].push_back(idx - _spWidth + 1);
 	_neighbors4[idx].push_back(idx - _spWidth);
 	_neighbors4[idx].push_back(idx + 1);
+
+	_spPoints.clear();
+	_spPoses.clear();
 }
 
 void SuperpixelComputer::release()
@@ -153,6 +156,8 @@ void SuperpixelComputer::ComputeSuperpixel(uchar4* d_rgbaBuffer, int& num, int*&
 		memcpy(_preLabels,_labels,sizeof(int)*_imgSize);
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
+	_spPoints.clear();
+	_spPoses.clear();
 }
 void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img, int& num, int*& labels, SLICClusterCenter*& centers)
 {
@@ -168,6 +173,8 @@ void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img, int& num, int*& l
 		memcpy(_preLabels,_labels,sizeof(int)*_imgSize);
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
+	_spPoints.clear();
+	_spPoses.clear();
 }
 void SuperpixelComputer::ComputeBigSuperpixel(uchar4* d_rgbaBuffer)
 {
@@ -180,6 +187,8 @@ void SuperpixelComputer::ComputeBigSuperpixel(uchar4* d_rgbaBuffer)
 		memcpy(_preLabels,_labels,sizeof(int)*_imgSize);
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
+	_spPoints.clear();
+	_spPoses.clear();
 }
 void SuperpixelComputer::ComputeBigSuperpixel(const cv::Mat& img)
 {
@@ -194,6 +203,8 @@ void SuperpixelComputer::ComputeBigSuperpixel(const cv::Mat& img)
 		memcpy(_preLabels,_labels,sizeof(int)*_imgSize);
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
+	_spPoints.clear();
+	_spPoses.clear();
 }
 void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img)
 {
@@ -208,11 +219,54 @@ void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img)
 		memcpy(_preLabels,_labels,sizeof(int)*_imgSize);
 		memcpy(_preCenters,_centers,sizeof(SLICClusterCenter)*_nPixels);
 	}
+	_spPoints.clear();
+	_spPoses.clear();
 }
-void SuperpixelComputer::GetSuperpixelPoses(std::vector<std::vector<uint2>>& _spPoses)
+void SuperpixelComputer::GetSuperpixelPoints(std::vector<std::vector<cv::Point>>& poses)
 {
 	if (_labels == NULL)
 		return;
+	if (_spPoints.size() > 0)
+	{
+		poses = _spPoints;
+		return;
+	}
+		
+	int _spSize = _spWidth*_spHeight;
+	_spPoints.clear();
+	_spPoints.resize(_spSize);
+	for (int i = 0; i < _spSize; i++)
+	{
+		_spPoints[i].clear();
+		int x = int(_centers[i].xy.x + 0.5);
+		int y = int(_centers[i].xy.y + 0.5);
+		for (int m = -_step + y; m <= _step + y; m++)
+		{
+			if (m < 0 || m >= _height)
+				continue;
+			for (int n = -_step + x; n <= _step + x; n++)
+			{
+				if (n < 0 || n >= _width)
+					continue;
+				int id = m*_width + n;
+				if (_labels[id] == i)
+				{
+					_spPoints[i].push_back(cv::Point(n, m));
+				}
+			}
+		}
+	}
+	poses = _spPoints;
+}
+void SuperpixelComputer::GetSuperpixelPoses(std::vector<std::vector<uint2>>& spPoses)
+{
+	if (_labels == NULL)
+		return;
+	if (_spPoses.size() > 0)
+	{
+		spPoses = _spPoses;
+		return;
+	}
 	int _spSize = _spWidth*_spHeight;
 	_spPoses.clear();
 	_spPoses.resize(_spSize);
@@ -237,6 +291,7 @@ void SuperpixelComputer::GetSuperpixelPoses(std::vector<std::vector<uint2>>& _sp
 			}
 		}	
 	}
+	spPoses = _spPoses;
 }
 void SuperpixelComputer::ComputeSLICSuperpixel(const cv::Mat& img)
 {

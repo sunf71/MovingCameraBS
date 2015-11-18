@@ -1550,13 +1550,16 @@ void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer,
 	std::vector<std::vector<uint2>> spPoses;
 	computer->GetSuperpixelPoses(spPoses);
 
-
+	//std::cout << "Get saliency map-------------\n";
 	for (int id = 0; id < regInfos.size()-1; id++)
 	{
 		int i = regInfos[id].id;
 				
-		float weight = regInfos[id].contrast*exp(-9.0*sqr(regInfos[id].ad2c));
-
+		float weight = regInfos[id].contrast; 
+		if (regInfos[id].borderRatio > 0)
+			weight *= exp(-9.0*sqr(regInfos[id].ad2c));
+		
+		//std::cout << "\treg " << i << " contrast " << regInfos[id].contrast << " ad2c " << exp(-9.0*sqr(regInfos[id].ad2c)) << std::endl;
 		for (int j = 0; j < regions[i].spIndices.size(); j++)
 		{
 			for (int k = 0; k < spPoses[regions[i].spIndices[j]].size(); k++)
@@ -4126,6 +4129,10 @@ void GetSaliencyProposalMap(const char* outPath, const cv::Mat& img, std::vector
 	
 
 }
+
+
+
+
 void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& propScores, std::vector<SPRegion>& candidateRegs, std::vector<std::vector<int>>& proposalIds, std::vector<cv::Mat>& proposals, cv::Mat& saliencyMap)
 {
 	std::sort(propScores.begin(), propScores.end(), PropScoreCmp());
@@ -4200,10 +4207,22 @@ void GCOptimization(const cv::Mat& img, const cv::Mat& salImg, cv::Mat& optRst)
 	SLICClusterCenter* centers;
 	int spNum, *labels;
 	spComputer->GetSuperpixelResult(spNum, labels, centers);
+	std::vector<std::vector<cv::Point> > spPoints;
+	spComputer->GetSuperpixelPoints(spPoints);
 	typedef Graph<float, float, float> GraphType;
 	GraphType *g;
-	g = new GraphType(/*estimated # of nodes*/ spNum, /*estimated # of edges*/ spNum*4);
-
+	g = new GraphType(/*estimated # of nodes*/ spNum, /*estimated # of edges*/ spNum*2);
+	for (size_t i = 0; i < spNum; i++)
+	{
+		g->add_node();
+		float num(0);
+		for (size_t j = 0; j < spPoints[i].size(); j++)
+		{
+			
+			num += salImg.at<float>(spPoints[i][j]);
+		}
+	
+	}
 }
 
 void GetRegionBorder(SPRegion& reg, std::vector<cv::Point>& borders)
@@ -4617,6 +4636,24 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	if (regInfos.size() > 2)
 		HandleOcculusion(img, computer, outPath, newLabels, regInfos, regions, segment, debug);
 
+	
+	/*for (size_t i = 0; i < regInfos.size(); i++)
+	{
+		regInfos[i].neighbors.clear();
+		for (size_t j = 0; j < regions[regInfos[i].id].neighbors.size(); j++)
+		{
+			int regId = regions[regInfos[i].id].neighbors[j];
+			for (size_t k = 0; k < regInfos.size(); k++)
+			{
+				if (regInfos[k].id == regId)
+				{
+					regInfos[i].neighbors.push_back(k);
+					break;
+				}
+			}
+		}
+	}*/
+	
 #if (TEST_SPEED)
 	{
 		timer.stop();
@@ -4658,22 +4695,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		}*/
 	}
 
-	/*for (size_t i = 0; i < regInfos.size(); i++)
-	{
-		regInfos[i].neighbors.clear();
-		for (size_t j = 0; j < regions[regInfos[i].id].neighbors.size(); j++)
-		{
-			int regId = regions[regInfos[i].id].neighbors[j];
-			for (size_t k = 0; k < regInfos.size(); k++)
-			{
-				if (regInfos[k].id == regId)
-				{
-					regInfos[i].neighbors.push_back(k);
-					break;
-				}
-			}
-		}
-	}*/
+	
 
 
 	
@@ -4871,6 +4893,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
 	Saliency(outputPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);
 	//cv::add(salMap, bkgSal, salMap);
+	
 #if (TEST_SPEED)
 	{
 		timer.stop();
