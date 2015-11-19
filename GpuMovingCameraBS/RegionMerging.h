@@ -99,8 +99,8 @@ struct RegInfoCmp
 };
 struct SPRegion
 {
-	SPRegion(){ size = 0; regFlag = false;  filleness = 0;  }
-	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){ size = 0; regFlag = false; }
+	SPRegion(){ size = 0; regFlag = false;  filleness = 0; regSalScore = 0; }
+	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){ size = 0; regFlag = false; regSalScore = 0; }
 	int id;
 	int size;
 	//区域边缘中是图像边缘的超像素数
@@ -153,6 +153,7 @@ struct SPRegion
 	float filleness;
 	//颜色直方图方差
 	float colorHistV;
+	float regSalScore;
 };
 
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1);
@@ -279,6 +280,15 @@ struct RegionSizeZero
 	bool operator()(const SPRegion &na)
 	{
 		return na.size == 0;
+	}
+};
+struct RegionIdLocate
+{
+	int _id;
+	RegionIdLocate(int id) :_id(id){};
+	bool operator()(const SPRegion &na)
+	{
+		return na.id == _id;
 	}
 };
 struct RegionSizeSmall
