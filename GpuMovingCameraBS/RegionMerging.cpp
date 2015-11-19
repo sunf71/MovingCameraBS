@@ -4770,7 +4770,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 #endif
 
 	std::vector<SPRegion> candiRegions;
-	
+	std::vector<RegionSalInfo> candiRegSalInfo(regInfos);
 	for (size_t i = 0; i < regInfos.size(); i++)
 	{
 		candiRegions.push_back(regions[regInfos[i].id]);
@@ -4943,6 +4943,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		}
 
 	}
+
+	
+
 	
 	for (size_t i = 0; i < candiRegions.size(); i++)
 	{
@@ -4958,12 +4961,62 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			}
 		}
 	}
+	
 	cv::GaussianBlur(salMap, salMap, cv::Size(3, 3), 0);
 	cv::normalize(salMap, salMap, 0, 255, CV_MINMAX, CV_8U);
 	
 	sprintf(fileName, "%s\\%s_RMN.png", outputPath, imgName);
 	cv::imwrite(fileName, salMap);
 	
+	cv::Mat smSalMap = cv::Mat::zeros(salMap.size(), CV_32F);
+	//smooth by neighbors
+	for (int i = 0; i < candiRegions.size() - 1; i++)
+	{
+		float salScore = candiRegions[i].regSalScore;
+		float avgSal(salScore);
+		int avgCount(1);
+		for (size_t j = 0; j < candiRegions[i].neighbors.size(); j++)
+		{
+			int nid = candiRegions[i].neighbors[j];
+			nid = std::find_if(candiRegions.begin(), candiRegions.end(), RegionIdLocate(nid)) - candiRegions.begin();
+			
+			if (candiRegions[nid].regSalScore > salScore)
+			{
+				avgCount++;
+				avgSal += candiRegions[nid].regSalScore;
+				
+			}
+			if (candiRegSalInfo[i].ad2c > sqrt(0.5))
+			{
+				candiRegions[i].regSalScore = avgSal / avgCount;
+			}
+			
+		}
+	}
+
+	for (size_t i = 0; i < candiRegions.size(); i++)
+	{
+		for (int j = 0; j < candiRegions[i].spIndices.size(); j++)
+		{
+			for (int k = 0; k < spPoses[candiRegions[i].spIndices[j]].size(); k++)
+			{
+				int c = spPoses[candiRegions[i].spIndices[j]][k].x;
+				int r = spPoses[candiRegions[i].spIndices[j]][k].y;
+
+				*(float*)(smSalMap.data + (r*width + c) * 4) = candiRegions[i].regSalScore;
+
+			}
+		}
+	}
+	cv::GaussianBlur(smSalMap, smSalMap, cv::Size(3, 3), 0);
+	cv::normalize(smSalMap, smSalMap, 0, 255, CV_MINMAX, CV_8U);
+
+	sprintf(fileName, "%s\\%s_RMS.png", outputPath, imgName);
+	cv::imwrite(fileName, smSalMap);
+	cv::threshold(smSalMap, smSalMap, 128, 255, CV_THRESH_BINARY);
+	sprintf(fileName, "%s\\%s_RMSB.png", outputPath, imgName);
+	cv::imwrite(fileName, smSalMap);
+
 	cv::threshold(salMap, salMap, 128, 255, CV_THRESH_BINARY);
 
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
