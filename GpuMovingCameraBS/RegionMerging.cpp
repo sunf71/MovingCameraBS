@@ -18,42 +18,42 @@ const float compactnessMean = 0.7;
 
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
-	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
-	static int idx = 0;
-	double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
-	double avgDist = L1Distance(reg0.color, reg1.color) / 255;
-	double reg0V = HistogramVariance(reg0.colorHist);
-	double reg1V = HistogramVariance(reg1.colorHist);
-	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
-	if (avgDist < 0.1 && std::max(reg0V, reg1V)  > 0.1)
-	{
-		/*int width = 400;
-		int height = 200;
-		cv::Mat map(height, width, CV_8UC3);
-		for (int i = 0; i < height; i++)
-		{
-			uchar3* ptr = map.ptr<uchar3>(i);
-			for (int j = 0; j < width / 2; j++)
-			{
-				ptr[j].x = (uchar)reg0.color.x;
-				ptr[j].y = (uchar)reg0.color.y;
-				ptr[j].z = (uchar)reg0.color.z;
-			}
-			for (int j = width / 2; j < width; j++)
-			{
-				ptr[j].x = (uchar)reg1.color.x;
-				ptr[j].y = (uchar)reg1.color.y;
-				ptr[j].z = (uchar)reg1.color.z;
-			}
-		}
-		char name[100];
-		sprintf(name, "%dimg_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100));
-		cv::imwrite(name, map);
-		idx++;*/
-		return avgDist;
-	}
-	else
-		return histDist;
+	return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	//static int idx = 0;
+	//double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	//double avgDist = L1Distance(reg0.color, reg1.color) / 255;
+	//double reg0V = HistogramVariance(reg0.colorHist);
+	//double reg1V = HistogramVariance(reg1.colorHist);
+	////处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
+	//if (avgDist < 0.1 && std::max(reg0V, reg1V)  > 0.1)
+	//{
+	//	/*int width = 400;
+	//	int height = 200;
+	//	cv::Mat map(height, width, CV_8UC3);
+	//	for (int i = 0; i < height; i++)
+	//	{
+	//		uchar3* ptr = map.ptr<uchar3>(i);
+	//		for (int j = 0; j < width / 2; j++)
+	//		{
+	//			ptr[j].x = (uchar)reg0.color.x;
+	//			ptr[j].y = (uchar)reg0.color.y;
+	//			ptr[j].z = (uchar)reg0.color.z;
+	//		}
+	//		for (int j = width / 2; j < width; j++)
+	//		{
+	//			ptr[j].x = (uchar)reg1.color.x;
+	//			ptr[j].y = (uchar)reg1.color.y;
+	//			ptr[j].z = (uchar)reg1.color.z;
+	//		}
+	//	}
+	//	char name[100];
+	//	sprintf(name, "%dimg_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100));
+	//	cv::imwrite(name, map);
+	//	idx++;*/
+	//	return avgDist;
+	//}
+	//else
+	//	return histDist;
 	
 }
 
@@ -4826,6 +4826,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	/*cv::waitKey();*/
 
 	std::vector<std::vector<int>> proposalIds;
+	std::vector<std::vector<int>> cproposalIds;
 	std::vector<std::vector<float>> regScores;
 	std::vector<cv::Mat> proposals;
 	char outDir[200];
@@ -4841,6 +4842,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		if (RegionSaliency(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, debug))
 		{
 			std::vector<int> ids;
+			std::vector<int> cids;
 			std::vector<float> scores;
 			std::vector<float> fgCHist(colorHist[0].size(), 0);
 			std::vector<float> boxBorderHist(colorHist[0].size(), 0);
@@ -4850,10 +4852,11 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			for (size_t i = 0; i < regInfos.size() - 1; i++)
 			{
 				int id = regInfos[i].id;
-				float weight = regInfos[i].contrast;
+				ids.push_back(id);
+				float weight = regInfos[i].contrast * exp(-9.0*sqr(regInfos[i].ad2c));
 				scores.push_back(weight);
 				int cid = std::find_if(candiRegions.begin(), candiRegions.end(), RegionIdLocate(id)) - candiRegions.begin();
-				ids.push_back(cid);
+				cids.push_back(cid);
 				for (size_t j = 0; j < colorHist[0].size(); j++)
 				{
 					fgCHist[j] += regions[regInfos[i].id].colorHist[j];
@@ -4883,6 +4886,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			cv::normalize(boxBorderHist, boxBorderHist, 1, 0, cv::NORM_L1);
 			double boxdist = cv::compareHist(boxBorderHist, fgCHist, CV_COMP_BHATTACHARYYA);
 			proposalIds.push_back(ids);
+			cproposalIds.push_back(cids);
 			regScores.push_back(scores);
 
 			double fillness = pixels / box.area();
@@ -4901,7 +4905,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			totalWeights += weight;
 			//CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
 			GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos, candiRegions.size(), rmask);
-			proposals.push_back(rmask);
+			proposals.push_back(rmask.clone());
 			/*if (!debug)*/
 			{
 				char imgName[300];
@@ -4969,22 +4973,19 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	std::sort(propScores.begin(), propScores.end(), PropScoreCmp());
 	for (size_t i = 0; i < propScores.size()/2; i++)
 	{
-		for (size_t j = 0; j < proposalIds[propScores[i].id].size(); j++)
+		for (size_t j = 0; j < cproposalIds[propScores[i].id].size(); j++)
 		{
 			float weight = propScores[i].score * regScores[propScores[i].id][j];
-			candiRegions[proposalIds[propScores[i].id][j]].regSalScore += weight;
-			totalWeights += weight;
+			candiRegions[cproposalIds[propScores[i].id][j]].regSalScore += weight;
+			totalWeights += propScores[i].score;
 		}
 
 	}
 
-	
-	std::sort(propScores.begin(), propScores.end(), PropScoreCmp());
-	
 	for (size_t i = 0; i < candiRegions.size(); i++)
 	{
 		float sal = candiRegions[i].regSalScore / totalWeights;
-		//*exp(-9.0*(sqr(candiRegions[i].ad2c.x) + sqr(candiRegions[i].ad2c.y)))
+		//
 		for (int j = 0; j < candiRegions[i].spIndices.size(); j++)
 		{
 			for (int k = 0; k < spPoses[candiRegions[i].spIndices[j]].size(); k++)
@@ -5011,7 +5012,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
 	Saliency(outputPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);
 	//cv::add(salMap, bkgSal, salMap);
-	cv::threshold(salMap, salMap, 128, 255, CV_THRESH_BINARY);
+	cv::threshold(salMap, salMap, 127, 255, CV_THRESH_BINARY);
 #if (TEST_SPEED)
 	{
 		timer.stop();
