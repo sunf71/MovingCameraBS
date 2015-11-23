@@ -17,6 +17,9 @@ const float shw = 0.2;
 const float siw = 0.2;
 typedef std::vector<float> HISTOGRAM;
 typedef std::vector<HISTOGRAM> HISTOGRAMS;
+//global color dist used for  quantitized histogram distance
+extern cv::Mat1f gColorDist;
+
 static double sqr(double a)
 {
 	return a*a;
@@ -155,6 +158,36 @@ struct SPRegion
 	float colorHistV;
 	float regSalScore;
 };
+inline double RegionDist(const HISTOGRAM& rah, const HISTOGRAM& rbh, cv::Mat1f& colorDist)
+{
+	double d(0);
+	for (int i = 0; i < rah.size(); i++)
+	{
+		for (int j = 0; j < rbh.size(); j++)
+		{
+			float dist = colorDist[i][j];
+			d += rah[i] * rbh[j] * (dist);
+		}
+	}
+
+	return d;
+}
+inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colorDist)
+{
+	double d(0);
+	for (int i = 0; i < ra.colorHist.size(); i++)
+	{
+		for (int j = 0; j < rb.colorHist.size(); j++)
+		{
+			float dist = colorDist[i][j];
+			d += ra.colorHist[i] * rb.colorHist[j] * (dist);
+		}
+	}
+
+	return d;
+}
+
+double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1 = make_float4(0, 0, 0, 0), float4 avgc2 = make_float4(0, 0, 0, 0));
 
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1);
 
@@ -542,20 +575,7 @@ inline double RegionDist(const SPRegion& ra, const SPRegion& rb)
 	return colorDist/*+gradDist*/;
 }
 
-inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colorDist)
-{
-	double d(0);
-	for (int i = 0; i < ra.colorHist.size(); i++)
-	{
-		for (int j = 0; j < rb.colorHist.size(); j++)
-		{
-			float dist = colorDist[i][j];
-			d += ra.colorHist[i] * rb.colorHist[j] * (dist);
-		}
-	}
 
-	return d;
-}
 
 float RegionBoxLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int rid, HISTOGRAMS& colorHist, float theta = 0.5);
 

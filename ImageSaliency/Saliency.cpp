@@ -8,6 +8,8 @@
 #include "../GpuMovingCameraBS/timer.h"
 #include "ImageFocusness.h"
 #include "RegionObjectness.h"
+cv::Mat1f gColorDist;
+
 
 void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)
 {

@@ -15,46 +15,66 @@
 
 const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
+double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, float4 avgc2 )
+{
+	//return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
+	double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 
+	double reg0V = HistogramVariance(h1);
+	double reg1V = HistogramVariance(h2);
+	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
+	double avgDist = L1Distance(avgc1, avgc2) / 255;
+	if (std::max(reg0V, reg1V)  > 0.1&&avgDist<0.1)
+	{
+		
+		return avgDist;
+	}
+	else
+		return histDist;
+	//return RegionDist(h1, h2, gColorDist);
+}
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
-	return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
-	//static int idx = 0;
-	//double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
-	//double avgDist = L1Distance(reg0.color, reg1.color) / 255;
-	//double reg0V = HistogramVariance(reg0.colorHist);
-	//double reg1V = HistogramVariance(reg1.colorHist);
-	////处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
-	//if (avgDist < 0.1 && std::max(reg0V, reg1V)  > 0.1)
-	//{
-	//	/*int width = 400;
-	//	int height = 200;
-	//	cv::Mat map(height, width, CV_8UC3);
-	//	for (int i = 0; i < height; i++)
-	//	{
-	//		uchar3* ptr = map.ptr<uchar3>(i);
-	//		for (int j = 0; j < width / 2; j++)
-	//		{
-	//			ptr[j].x = (uchar)reg0.color.x;
-	//			ptr[j].y = (uchar)reg0.color.y;
-	//			ptr[j].z = (uchar)reg0.color.z;
-	//		}
-	//		for (int j = width / 2; j < width; j++)
-	//		{
-	//			ptr[j].x = (uchar)reg1.color.x;
-	//			ptr[j].y = (uchar)reg1.color.y;
-	//			ptr[j].z = (uchar)reg1.color.z;
-	//		}
-	//	}
-	//	char name[100];
-	//	sprintf(name, "%dimg_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100));
-	//	cv::imwrite(name, map);
-	//	idx++;*/
-	//	return avgDist;
-	//}
-	//else
-	//	return histDist;
+	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
 	
+	//static int idx = 0;
+	double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	double avgDist = L1Distance(reg0.color, reg1.color) / 255;
+	double reg0V = HistogramVariance(reg0.colorHist);
+	double reg1V = HistogramVariance(reg1.colorHist);
+	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
+	if (avgDist < 0.1 && std::max(reg0V, reg1V)  > 0.1)
+	{
+		/*int width = 400;
+		int height = 200;
+		cv::Mat map(height, width, CV_8UC3);
+		for (int i = 0; i < height; i++)
+		{
+			uchar3* ptr = map.ptr<uchar3>(i);
+			for (int j = 0; j < width / 2; j++)
+			{
+				ptr[j].x = (uchar)reg0.color.x;
+				ptr[j].y = (uchar)reg0.color.y;
+				ptr[j].z = (uchar)reg0.color.z;
+			}
+			for (int j = width / 2; j < width; j++)
+			{
+				ptr[j].x = (uchar)reg1.color.x;
+				ptr[j].y = (uchar)reg1.color.y;
+				ptr[j].z = (uchar)reg1.color.z;
+			}
+		}
+		char name[100];
+		sprintf(name, "%dimg_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100));
+		cv::imwrite(name, map);
+		idx++;*/
+		return avgDist;
+	}
+	else
+		return histDist;
+	
+
+	//return RegionDist(reg0, reg1, gColorDist);
 }
 
 
@@ -4391,7 +4411,8 @@ void CombineRegion(int i, int j, std::vector<SPRegion>& regions, std::vector<int
 	{
 		regions[j].lbpHist[b] = regions[j].lbpHist[b] * size0 + size1*regions[i].lbpHist[b];
 	}
-	cv::normalize(regions[j].lbpHist, regions[j].lbpHist, 1, 0, cv::NORM_L1);
+	if (regions[j].lbpHist.size() > 0)
+		cv::normalize(regions[j].lbpHist, regions[j].lbpHist, 1, 0, cv::NORM_L1);
 	
 	regions[j].pixels = regions[i].pixels + regions[j].pixels;
 
@@ -4456,7 +4477,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	}
 #endif
 
-	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist);
+	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist, 1);
 	/*cv::Mat idx1i, _color3f, _colorNum;
 	double ratio = 0.95;
 	const int clrNums[3] = { 12, 12, 12 };
@@ -4469,12 +4490,14 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	cv::Mat_<float> cDistCache1f = cv::Mat::zeros(_color3f.cols, _color3f.cols, CV_32F); {
 	cv::Vec3f* pColor = (cv::Vec3f*)_color3f.data;
 	for (int i = 0; i < cDistCache1f.rows; i++)
-	for (int j = i + 1; j < cDistCache1f.cols; j++)
-	{
-	float dist = vecDist<float, 3>(pColor[i], pColor[j]);
-	cDistCache1f[i][j] = cDistCache1f[j][i] = vecDist<float, 3>(pColor[i], pColor[j]);
+		for (int j = i + 1; j < cDistCache1f.cols; j++)
+		{
+			float dist = vecDist<float, 3>(pColor[i], pColor[j]);
+			cDistCache1f[i][j] = cDistCache1f[j][i] = vecDist<float, 3>(pColor[i], pColor[j]);
+		}
 	}
-	}*/
+	gColorDist = cDistCache1f;*/
+
 #if (TEST_SPEED)
 	{
 		timer.stop();
@@ -4510,7 +4533,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		regions[i].color = centers[i].rgb;
 		regions[i].colorHist = colorHist[i];
 		regions[i].hog = gradHist[i];
-		regions[i].lbpHist = lbpHist[i];
+		//regions[i].lbpHist = lbpHist[i];
 		regions[i].size = 1;
 		regions[i].dist = 0;
 		regions[i].id = i;
@@ -4846,6 +4869,10 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			std::vector<float> scores;
 			std::vector<float> fgCHist(colorHist[0].size(), 0);
 			std::vector<float> boxBorderHist(colorHist[0].size(), 0);
+			float4 fgAvgColor = make_float4(0, 0, 0, 0);
+			float4 boxBorderAvgColor = make_float4(0, 0, 0, 0);
+			float fgSpNum(0);
+			float boxBorderSpNum(0);
 			float pixels(0);
 			cv::Rect box = regions[regInfos[0].id].Bbox;
 			cv::Rect spBbox = regions[regInfos[0].id].spBbox;
@@ -4853,15 +4880,17 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			{
 				int id = regInfos[i].id;
 				ids.push_back(id);
-				float weight = regInfos[i].contrast * exp(-9.0*sqr(regInfos[i].ad2c));
+				float weight = 1; 
 				scores.push_back(weight);
 				int cid = std::find_if(candiRegions.begin(), candiRegions.end(), RegionIdLocate(id)) - candiRegions.begin();
 				cids.push_back(cid);
 				for (size_t j = 0; j < colorHist[0].size(); j++)
 				{
-					fgCHist[j] += regions[regInfos[i].id].colorHist[j];
+					fgCHist[j] += regions[id].colorHist[j];
 
 				}
+				fgAvgColor = fgAvgColor +  regions[id].color*regions[id].size;
+				fgSpNum += regions[id].size;
 				pixels += regions[regInfos[i].id].pixels;
 				box = MergeBox(box, regions[regInfos[i].id].Bbox);
 				spBbox = MergeBox(spBbox, regions[regInfos[i].id].spBbox);
@@ -4874,6 +4903,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 					int id = n*spWidth + m;
 					if (id < computer.GetSuperpixelSize() && newLabels[id] == regInfos[regInfos.size() - 1].id)
 					{
+						boxBorderSpNum++;
+						boxBorderAvgColor = boxBorderAvgColor + centers[id].rgb;
 						for (size_t k = 0; k < colorHist[id].size(); k++)
 						{
 							boxBorderHist[k] += colorHist[id][k];
@@ -4882,9 +4913,13 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 				}
 
 			}
+			boxBorderAvgColor = boxBorderAvgColor*(1.0 / boxBorderSpNum);
+			fgAvgColor = fgAvgColor*(1.0 / fgSpNum);
+
 			cv::normalize(fgCHist, fgCHist, 1, 0, cv::NORM_L1);
 			cv::normalize(boxBorderHist, boxBorderHist, 1, 0, cv::NORM_L1);
-			double boxdist = cv::compareHist(boxBorderHist, fgCHist, CV_COMP_BHATTACHARYYA);
+			//double boxdist = cv::compareHist(boxBorderHist, fgCHist, CV_COMP_BHATTACHARYYA);
+			double boxdist = RegionColorDist(boxBorderHist, fgCHist, boxBorderAvgColor, fgAvgColor);
 			proposalIds.push_back(ids);
 			cproposalIds.push_back(cids);
 			regScores.push_back(scores);
@@ -4984,7 +5019,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	for (size_t i = 0; i < candiRegions.size(); i++)
 	{
-		float sal = candiRegions[i].regSalScore / totalWeights;
+		float sal = candiRegions[i].regSalScore / totalWeights*exp(-9.0*(sqr(candiRegions[i].ad2c.x) + sqr(candiRegions[i].ad2c.y)));
 		//
 		for (int j = 0; j < candiRegions[i].spIndices.size(); j++)
 		{
@@ -6637,10 +6672,10 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 				
 				//double colorDist = cv::compareHist(regions[i].colorHist, regions[n].colorHist, CV_COMP_BHATTACHARYYA);
 				double colorDist = RegionColorDist(regions[i], regions[n]);
-				double hogDist = cv::compareHist(regions[i].hog, regions[n].hog, CV_COMP_BHATTACHARYYA);
-				double lbpDist = cv::compareHist(regions[i].lbpHist, regions[n].lbpHist, CV_COMP_BHATTACHARYYA);
+				/*double hogDist = cv::compareHist(regions[i].hog, regions[n].hog, CV_COMP_BHATTACHARYYA);
+				double lbpDist = cv::compareHist(regions[i].lbpHist, regions[n].lbpHist, CV_COMP_BHATTACHARYYA);*/
 				avgColorDist += colorDist;
-				avgHogDist += hogDist;
+				//avgHogDist += hogDist;
 				//double dist = RegionDist(regions[i], regions[n]);
 				float borderLen = regions[i].borderPixelNum[j];
 				/*float borderLenI = std::accumulate(regions[i].borderPixelNum.begin(), regions[i].borderPixelNum.end(), 0);
@@ -6662,18 +6697,18 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 				rd.colorDist = colorDist;
 				rd.shapeDist = shapeDist;
 				rd.sizeDist = sizeDist;
-				rd.hogDist = hogDist;
-				rd.lbpDist = lbpDist;
+			/*	rd.hogDist = hogDist;
+				rd.lbpDist = lbpDist;*/
 				rd.edgeness = edgeness2;
 				RegDists.push_back(rd);
 			}
 		}
 	}
 	avgColorDist /= sum;
-	avgHogDist /= sum;
+	/*avgHogDist /= sum;
 	avgSizeDist /= sum;
 
-	double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;
+	double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;*/
 
 	//std::cout << idx << ": avgColorDist= " << avgColorDist << ",avgHogDist= " << avgHogDist << ",avgSizeDist= " << avgSizeDist << "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
