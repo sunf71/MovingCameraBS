@@ -18,63 +18,63 @@ const float compactnessMean = 0.7;
 double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, float4 avgc2 )
 {
 	//return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
-	double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
+	//double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 
-	double reg0V = HistogramVariance(h1);
-	double reg1V = HistogramVariance(h2);
-	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
-	double avgDist = L1Distance(avgc1, avgc2) / 255;
-	if (std::max(reg0V, reg1V)  > 0.1&&avgDist<0.1)
-	{
-		
-		return avgDist;
-	}
-	else
-		return histDist;
-	//return RegionDist(h1, h2, gColorDist);
+	//double reg0V = HistogramVariance(h1);
+	//double reg1V = HistogramVariance(h2);
+	////处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
+	//double avgDist = L1Distance(avgc1, avgc2) / 255;
+	//if (std::max(reg0V, reg1V)  > 0.1&&avgDist<0.1)
+	//{
+	//	
+	//	return avgDist;
+	//}
+	//else
+	//	return histDist;
+	return RegionDist(h1, h2, gColorDist);
 }
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
 	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
 	
 	//static int idx = 0;
-	double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
-	double avgDist = L1Distance(reg0.color, reg1.color) / 255;
-	double reg0V = HistogramVariance(reg0.colorHist);
-	double reg1V = HistogramVariance(reg1.colorHist);
-	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
-	if (avgDist < 0.1 && std::max(reg0V, reg1V)  > 0.1)
-	{
-		/*int width = 400;
-		int height = 200;
-		cv::Mat map(height, width, CV_8UC3);
-		for (int i = 0; i < height; i++)
-		{
-			uchar3* ptr = map.ptr<uchar3>(i);
-			for (int j = 0; j < width / 2; j++)
-			{
-				ptr[j].x = (uchar)reg0.color.x;
-				ptr[j].y = (uchar)reg0.color.y;
-				ptr[j].z = (uchar)reg0.color.z;
-			}
-			for (int j = width / 2; j < width; j++)
-			{
-				ptr[j].x = (uchar)reg1.color.x;
-				ptr[j].y = (uchar)reg1.color.y;
-				ptr[j].z = (uchar)reg1.color.z;
-			}
-		}
-		char name[100];
-		sprintf(name, "%dimg_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100));
-		cv::imwrite(name, map);
-		idx++;*/
-		return avgDist;
-	}
-	else
-		return histDist;
+	//double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	//double avgDist = L1Distance(reg0.color, reg1.color) / 255;
+	//double reg0V = HistogramVariance(reg0.colorHist);
+	//double reg1V = HistogramVariance(reg1.colorHist);
+	////处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
+	//if (avgDist < 0.1 && std::max(reg0V, reg1V)  > 0.1)
+	//{
+	//	/*int width = 400;
+	//	int height = 200;
+	//	cv::Mat map(height, width, CV_8UC3);
+	//	for (int i = 0; i < height; i++)
+	//	{
+	//		uchar3* ptr = map.ptr<uchar3>(i);
+	//		for (int j = 0; j < width / 2; j++)
+	//		{
+	//			ptr[j].x = (uchar)reg0.color.x;
+	//			ptr[j].y = (uchar)reg0.color.y;
+	//			ptr[j].z = (uchar)reg0.color.z;
+	//		}
+	//		for (int j = width / 2; j < width; j++)
+	//		{
+	//			ptr[j].x = (uchar)reg1.color.x;
+	//			ptr[j].y = (uchar)reg1.color.y;
+	//			ptr[j].z = (uchar)reg1.color.z;
+	//		}
+	//	}
+	//	char name[100];
+	//	sprintf(name, "%dimg_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100));
+	//	cv::imwrite(name, map);
+	//	idx++;*/
+	//	return avgDist;
+	//}
+	//else
+	//	return histDist;
 	
 
-	//return RegionDist(reg0, reg1, gColorDist);
+	return RegionDist(reg0, reg1, gColorDist);
 }
 
 
@@ -4465,7 +4465,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	int spWidth = computer.GetSPWidth(), spHeight = computer.GetSPHeight();
 	int spSize(spWidth*spHeight);
 	//build historgram
-	HISTOGRAMS colorHist, gradHist, lbpHist;
+	HISTOGRAMS colorHist, gradHist, lbpHist, hColorHist;
 	//BuildHistogram(img, &computer, colorHist, gradHist);
 
 	nih::Timer timer;
@@ -4477,8 +4477,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	}
 #endif
 
-	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist, 1);
-	/*cv::Mat idx1i, _color3f, _colorNum;
+	BuildHistogram(img, &computer, hColorHist, gradHist, lbpHist, 1);
+	cv::Mat idx1i, _color3f, _colorNum;
 	double ratio = 0.95;
 	const int clrNums[3] = { 12, 12, 12 };
 	cv::Mat fimg;
@@ -4496,7 +4496,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			cDistCache1f[i][j] = cDistCache1f[j][i] = vecDist<float, 3>(pColor[i], pColor[j]);
 		}
 	}
-	gColorDist = cDistCache1f;*/
+	gColorDist = cDistCache1f;
 
 #if (TEST_SPEED)
 	{
@@ -4505,8 +4505,25 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	}
 #endif
-
-
+	float avgQDist(0), avgDist(0); float avgQHR(0);
+	int count(0);
+	for (int i = 0; i < spSize; i++)
+	{
+		std::vector<int> neighbors = computer.GetNeighbors4(i);
+		for (int j = 0; j < neighbors.size(); j++)
+		{
+			count++;
+			float qdist = RegionColorDist(colorHist[i], colorHist[j]);
+			float dist = cv::compareHist(hColorHist[i], hColorHist[j],CV_COMP_BHATTACHARYYA);
+			avgQDist += qdist;
+			avgDist += dist;
+			avgQHR += qdist/(dist+1e-6);
+		}
+	}
+	avgQDist /= count;
+	avgDist /= count;
+	avgQHR /= count;
+	std::cout << "histogram dist: " << avgQDist << "." << avgDist << "," << avgQHR << "\n";
 #if(TEST_SPEED)
 	{
 		timer.start();
