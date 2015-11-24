@@ -17,7 +17,7 @@ const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
 double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, float4 avgc2 )
 {
-	//return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
+	return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 	//double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 
 	//double reg0V = HistogramVariance(h1);
@@ -35,7 +35,7 @@ double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, f
 }
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
-	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
 	
 	//static int idx = 0;
 	//double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
@@ -3528,6 +3528,8 @@ void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS
 	cv::cartToPolar(dx, dy, _magImg, _angImg, true);
 	LBPGRAY(gray, lbpImg);
 
+	
+	
 	int _width = img.cols;
 	int _height = img.rows;
 
@@ -3556,8 +3558,8 @@ void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS
 	if (colorSpace)
 	{
 		//lab color space
-		float labMax[3] = { 100.f, 98.2352f, 94.4758f };
-		float labMin[3] = { 0, -87, -108 };
+		float labMax[3] = { 100.f, 127.f, 127.f };
+		float labMin[3] = { 0, -127, -127 };
 		for (size_t i = 0; i < 3; i++)
 		{
 			_colorMins[i] = labMin[i];
@@ -4477,7 +4479,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	}
 #endif
 
-	BuildHistogram(img, &computer, hColorHist, gradHist, lbpHist, 1);
+	//BuildHistogram(img, &computer, colorHist, gradHist, lbpHist, 1);
 	cv::Mat idx1i, _color3f, _colorNum;
 	double ratio = 0.95;
 	const int clrNums[3] = { 12, 12, 12 };
@@ -4492,8 +4494,12 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	for (int i = 0; i < cDistCache1f.rows; i++)
 		for (int j = i + 1; j < cDistCache1f.cols; j++)
 		{
-			float dist = vecDist<float, 3>(pColor[i], pColor[j]);
-			cDistCache1f[i][j] = cDistCache1f[j][i] = vecDist<float, 3>(pColor[i], pColor[j]);
+		
+			float distL = (pColor[i][0] - pColor[j][0]) ;
+			float distA = (pColor[i][1] - pColor[j][1]) ;
+			float distB = (pColor[i][2] - pColor[j][2]);
+			float dist = sqrt(sqr(distL) + sqr(distA) + sqr(distB));
+			cDistCache1f[i][j] = cDistCache1f[j][i] = dist;
 		}
 	}
 	gColorDist = cDistCache1f;
@@ -4505,7 +4511,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	}
 #endif
-	float avgQDist(0), avgDist(0); float avgQHR(0);
+	/*float avgQDist(0), avgDist(0); float avgQHR(0);
 	int count(0);
 	for (int i = 0; i < spSize; i++)
 	{
@@ -4523,7 +4529,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	avgQDist /= count;
 	avgDist /= count;
 	avgQHR /= count;
-	std::cout << "histogram dist: " << avgQDist << "." << avgDist << "," << avgQHR << "\n";
+	std::cout << "histogram dist: " << avgQDist << "," << avgDist << "," << avgQHR << "\n";*/
 #if(TEST_SPEED)
 	{
 		timer.start();
@@ -4843,6 +4849,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	for (size_t i = 0; i < regInfos.size(); i++)
 	{
 		candiRegions.push_back(regions[regInfos[i].id]);
+		candiRegions[i].regContrast = regInfos[i].contrast;
 	}
 	
 	//RegionSaliency(img.cols, img.rows, colorHist, outPath, &computer, newLabels, regions, regInfos, debug);
@@ -4897,7 +4904,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			{
 				int id = regInfos[i].id;
 				ids.push_back(id);
-				float weight = 1; 
+				float weight = regInfos[i].contrast; 
 				scores.push_back(weight);
 				int cid = std::find_if(candiRegions.begin(), candiRegions.end(), RegionIdLocate(id)) - candiRegions.begin();
 				cids.push_back(cid);
@@ -5038,6 +5045,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	{
 		float sal = candiRegions[i].regSalScore / totalWeights*exp(-9.0*(sqr(candiRegions[i].ad2c.x) + sqr(candiRegions[i].ad2c.y)));
 		//
+		candiRegions[i].regSalScore = sal;
 		for (int j = 0; j < candiRegions[i].spIndices.size(); j++)
 		{
 			for (int k = 0; k < spPoses[candiRegions[i].spIndices[j]].size(); k++)
@@ -5057,9 +5065,57 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	sprintf(fileName, "%s\\%s_RMF.png", outputPath, imgName);
 	cv::imwrite(fileName, salMap);
 	
-	
-	
-	
+	//smooth by neighbors
+	salMap = cv::Mat::zeros(img.size(), CV_32F);
+	float lmd = 0.8;
+	std::sort(candiRegions.begin(), candiRegions.end(), RegionSalscoreCmp());
+	for (size_t i = 0; i < candiRegions.size() - 1; i++)
+	{
+		if (candiRegions[i].regSalScore < 1e-6)
+			continue;
+		float sumScore(0), sumContrast(1e-6);
+		candiRegions[i].regContrast;
+		for (size_t j = 0; j < candiRegions[i].neighbors.size(); j++)
+		{
+		
+			
+			int nid = std::find_if(candiRegions.begin(), candiRegions.end(), RegionIdLocate(candiRegions[i].neighbors[j])) - candiRegions.begin();
+			if (nid != candiRegions.size() - 1)
+			{
+				float contrastDist = candiRegions[nid].regContrast - candiRegions[i].regContrast;
+				
+				sumScore += candiRegions[nid].regSalScore*exp(-sqr(contrastDist)*9.0);
+				sumContrast += 1;
+			}
+			
+		}
+		//std::cout << candiRegions[i].id << "contrast " << candiRegions[i].regContrast << " score " << candiRegions[i].regSalScore << " update to ";
+		candiRegions[i].regSalScore = lmd*candiRegions[i].regSalScore + (1 - lmd)*sumScore / sumContrast;
+		//std::cout << candiRegions[i].regSalScore << "\n";
+	}
+	for (size_t i = 0; i < candiRegions.size(); i++)
+	{
+		for (int j = 0; j < candiRegions[i].spIndices.size(); j++)
+		{
+			for (int k = 0; k < spPoses[candiRegions[i].spIndices[j]].size(); k++)
+			{
+				int c = spPoses[candiRegions[i].spIndices[j]][k].x;
+				int r = spPoses[candiRegions[i].spIndices[j]][k].y;
+
+				*(float*)(salMap.data + (r*width + c) * 4) = candiRegions[i].regSalScore;
+
+			}
+		}
+	}
+	cv::GaussianBlur(salMap, salMap, cv::Size(3, 3), 0);
+	cv::normalize(salMap, salMap, 0, 255, CV_MINMAX, CV_8U);
+
+	sprintf(fileName, "%s\\%s_RMS.png", outputPath, imgName);
+	cv::imwrite(fileName, salMap);
+	cv::threshold(salMap, salMap, 127, 255, CV_THRESH_BINARY);
+	sprintf(fileName, "%s\\%s_RMSB.png", outputPath, imgName);
+	cv::imwrite(fileName, salMap);
+
 	salMap = cv::Mat::zeros(img.size(), CV_32F);
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
 	Saliency(outputPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);

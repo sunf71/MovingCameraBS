@@ -157,6 +157,8 @@ struct SPRegion
 	//颜色直方图方差
 	float colorHistV;
 	float regSalScore;
+	//与背景的对比度
+	float regContrast;
 };
 inline double RegionDist(const HISTOGRAM& rah, const HISTOGRAM& rbh, cv::Mat1f& colorDist)
 {
@@ -283,6 +285,14 @@ struct RegionSalCmp
 	{
 		
 		return na.Saliency() < nb.Saliency();
+	}
+};
+struct RegionSalscoreCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+
+		return na.regSalScore > nb.regSalScore;
 	}
 };
 //结构体的比较方法 改写operator()  
@@ -615,7 +625,7 @@ void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector
 
 void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, cv::Mat1f& colorDist, float thresholdF);
 
-template<class T, int D> inline T vecSqrDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { T s = 0; for (int i = 0; i < D; i++) s += sqrt((v1[i] - v2[i])*(v1[i] - v2[i])*1.0f); return s; } // out of range risk for T = byte, ...
+template<class T, int D> inline T vecSqrDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { T s = 0; for (int i = 0; i < D; i++) s += sqr(v1[i] - v2[i]); return s; } // out of range risk for T = byte, ...
 template<class T, int D> inline T    vecDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { return sqrt(vecSqrDist(v1, v2)); } // out of range risk for T = byte, ...
 int Quantize(cv::Mat& img3f, cv::Mat &idx1i, cv::Mat &_color3f, cv::Mat &_colorNum, double ratio, const int clrNums[3]);
 
