@@ -19,7 +19,7 @@ typedef std::vector<float> HISTOGRAM;
 typedef std::vector<HISTOGRAM> HISTOGRAMS;
 //global color dist used for  quantitized histogram distance
 extern cv::Mat1f gColorDist;
-
+extern double gMaxDist;
 static double sqr(double a)
 {
 	return a*a;
@@ -230,7 +230,10 @@ struct RegionSalInfo
 	//各项权值
 	float wp, ws, wc;
 	std::vector<int> neighbors;
-
+	float RegionSaliency(float wc, float wp, float ws)
+	{
+		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) + ws*(compactness + fillness);
+	}
 	float RegionSaliency() const
 	{
 		//区域显著性越大越好
@@ -271,6 +274,18 @@ struct RegionSalDescCmp
 		return na.RegionSaliency() > nb.RegionSaliency();
 	}
 };
+
+struct WRegionSalDescCmp
+{
+	WRegionSalDescCmp(float wc, float wp, float ws) :_wc(wc), _wp(wp), _ws(ws){};
+	float _wc, _wp, _ws;
+	bool operator()(RegionSalInfo &na, RegionSalInfo &nb)
+	{
+
+		return na.RegionSaliency(_wc, _wp, _ws) > nb.RegionSaliency(_wc, _wp, _ws);
+	}
+};
+
 struct RegionSalBorderCmp
 {
 	bool operator()(const RegionSalInfo &na, const RegionSalInfo &nb)
