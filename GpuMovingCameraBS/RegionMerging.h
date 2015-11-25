@@ -232,7 +232,7 @@ struct RegionSalInfo
 	std::vector<int> neighbors;
 	float RegionSaliency(float wc, float wp, float ws)
 	{
-		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) + ws*(compactness + fillness);
+		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c))/2 + ws*(compactness + fillness)/2;
 	}
 	float RegionSaliency() const
 	{
