@@ -4681,14 +4681,14 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());		
 		RegSize = regions.size() - ZeroReg;
-		holeSize = iter / 6.0;
-		int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(holeSize));
-		validSize = RegSize-smallReg;
-	/*	if (validSize < regThreshold)
-			MFHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, holeSize, debug);*/
+	//	holeSize = iter / 6.0;
+	//	int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(holeSize));
+	//	validSize = RegSize-smallReg;
+	///*	if (validSize < regThreshold)
+	//		MFHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, holeSize, debug);*/
 
-		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-		RegSize = regions.size() - ZeroReg;
+	//	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+	//	RegSize = regions.size() - ZeroReg;
 		iter++;
 	}
 
@@ -4765,17 +4765,32 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	if (regInfos.size() > 2)
 		HandleOcculusion(img, computer, outPath, newLabels, regInfos, regions, segment, debug);
 
-	for (int i = 0; i < regInfos.size(); i++)
+	//处理图像有边框的情况,这时边框的占据了全部border造成背景的borderratio为0
+	//将边框合并到最大的区域的邻居
+	/*if (regInfos.size() ==3)
 	{
-		if (regInfos[i].borderRatio > 0.99)
+		for (int i = 0; i < regInfos.size(); i++)
 		{
-			float maxSize(0);
-			for (int n = 0; n < regInfos[i].neighbors.size(); n++)
+			int id = regInfos[i].id;
+			if (regions[id].edgeSpNum / ((spWidth + spHeight) * 2 - 4) > 0.99)
 			{
+				float maxSize(0);
+				int mId(0);
 
+				for (int n = 0; n < regions[id].neighbors.size(); n++)
+				{
+					int nid = regions[id].neighbors[n];
+					if (regions[nid].size > maxSize)
+					{
+						maxSize = regions[nid].size;
+						mId = nid;
+					}
+				}
+				MergeRegions(id, mId, newLabels, spPoses, regions);
 			}
 		}
-	}
+	}*/
+	
 	
 
 	/*std::sort(regInfos.begin(), regInfos.end(), RegionSalDescCmp());
@@ -4954,6 +4969,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			std::vector<float> scores;
 			std::vector<float> fgCHist(colorHist[0].size(), 0);
 			std::vector<float> boxBorderHist(colorHist[0].size(), 0);
+			HISTOGRAM bkgHist = regions[regInfos.size() - 1].colorHist;
 			float4 fgAvgColor = make_float4(0, 0, 0, 0);
 			float4 boxBorderAvgColor = make_float4(0, 0, 0, 0);
 			float fgSpNum(0);
@@ -4965,7 +4981,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			{
 				int id = regInfos[i].id;
 				ids.push_back(id);
-				float weight = regInfos[i].contrast; 
+				float weight = cv::compareHist(regions[id].colorHist, bkgHist, CV_COMP_BHATTACHARYYA);
 				scores.push_back(weight);
 				int cid = std::find_if(candiRegions.begin(), candiRegions.end(), RegionIdLocate(id)) - candiRegions.begin();
 				cids.push_back(cid);
@@ -7351,7 +7367,7 @@ float RegionDistance(std::vector<SPRegion>& regions, int i, int j)
 }
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, RegionPartition& regionPartition, std::vector<RegionSalInfo>& regInfos)
 {
-	float edgeSPNum = (computer->GetSPWidth() + computer->GetSPHeight()) * 2;
+	float edgeSPNum = (computer->GetSPWidth() + computer->GetSPHeight()) * 2 - 4;
 	regInfos.clear();
 	std::vector<std::vector<uint2>> spPoses;
 	computer->GetSuperpixelPoses(spPoses);
@@ -7500,7 +7516,7 @@ void RegionSaliency(int width, int height, const char* outputPath, SuperpixelCom
 }
 bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, bool debug)
 {
-	float edgeSPNum = (computer->GetSPWidth() + computer->GetSPHeight()) * 2;
+	float edgeSPNum = (computer->GetSPWidth() + computer->GetSPHeight()) * 2 - 4;
 	regInfos.clear();
 	std::vector<std::vector<uint2>> spPoses;
 	computer->GetSuperpixelPoses(spPoses);
