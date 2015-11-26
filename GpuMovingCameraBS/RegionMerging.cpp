@@ -17,7 +17,7 @@ const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
 double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, float4 avgc2 )
 {
-	//return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
+	return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 	//double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 
 	//double reg0V = HistogramVariance(h1);
@@ -35,7 +35,7 @@ double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, f
 }
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
-	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
 	
 	//static int idx = 0;
 	//double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
@@ -3925,7 +3925,7 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 
 void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const char* outPath, std::vector<int>& newLabels, std::vector<RegionSalInfo>& regInfos, std::vector<SPRegion>& regions, int * segment, bool debug = false)
 {
-	float maxColorDist(0);
+	float maxColorDist(0),minColorDist(255);
 	float maxAd2cDist(0);
 	float avgColorDist(0);
 	int avgColorDistSize(0);
@@ -3946,6 +3946,10 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 			//rd.edgeness = regions[id].borders[j] * 1.0 / std::min(regions[id].bor);
 			avgColorDist += colorDist;
 			avgColorDistSize++;
+			if (colorDist > maxColorDist)
+				maxColorDist = colorDist;
+			if (colorDist < minColorDist)
+				minColorDist = colorDist;
 			if ((regions[id].edgeSpNum < 1 && regions[nid].edgeSpNum < 1) ||
 				(regions[id].edgeSpNum > 1 && regions[nid].edgeSpNum > 1))
 			{
@@ -3979,7 +3983,12 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 		std::cout << "threshold=" << threshold << "\n";
 
 	}
-
+	/*for (int i = 0; i < RegDists.size(); i++)
+	{
+		RegDists[i].colorDist = (RegDists[i].colorDist - minColorDist) / (maxColorDist - minColorDist);
+		
+	}*/
+		
 	std::vector<std::vector<uint2>> spPoses;
 	computer.GetSuperpixelPoses(spPoses);
 
@@ -4496,7 +4505,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	}
 #endif
 
-	//BuildHistogram(img, &computer, hColorHist, gradHist, lbpHist, 1);
+	//BuildHistogram(img, &computer, colorHist, gradHist, lbpHist, 0);
 	cv::Mat idx1i, _color3f, _colorNum;
 	double ratio = 0.95;
 	const int clrNums[3] = { 12, 12, 12 };
@@ -4681,14 +4690,14 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());		
 		RegSize = regions.size() - ZeroReg;
-	//	holeSize = iter / 6.0;
-	//	int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(holeSize));
-	//	validSize = RegSize-smallReg;
-	///*	if (validSize < regThreshold)
-	//		MFHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, holeSize, debug);*/
+		holeSize = iter / 6.0;
+		int smallReg = std::count_if(regions.begin(), regions.end(), RegionSizeSmall(holeSize));
+		validSize = RegSize-smallReg;
+		if (validSize < regThreshold)
+			MFHoleHandling(width, height, outPath, &computer, regions, newLabels, HoleNeighborsNum, holeSize, debug);
 
-	//	ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
-	//	RegSize = regions.size() - ZeroReg;
+		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
+		RegSize = regions.size() - ZeroReg;
 		iter++;
 	}
 
@@ -4981,7 +4990,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			{
 				int id = regInfos[i].id;
 				ids.push_back(id);
-				float weight = cv::compareHist(regions[id].colorHist, bkgHist, CV_COMP_BHATTACHARYYA);
+				float weight = regInfos[i].contrast;
 				scores.push_back(weight);
 				int cid = std::find_if(candiRegions.begin(), candiRegions.end(), RegionIdLocate(id)) - candiRegions.begin();
 				cids.push_back(cid);
@@ -6866,12 +6875,12 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 				RegDist rd;
 				rd.sRid = i;
 				rd.bRid = n;
-				rd.colorDist = colorDist;
+				rd.oColorDist = rd.colorDist = colorDist;
 				rd.shapeDist = shapeDist;
 				rd.sizeDist = sizeDist;
 			/*	rd.hogDist = hogDist;
 				rd.lbpDist = lbpDist;*/
-				rd.edgeness = edgeness;
+				rd.edgeness = edgeness2;
 				RegDists.push_back(rd);
 			}
 		}
@@ -6882,20 +6891,21 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	avgSizeDist /= sum;
 
 	//normalize
-	for (int i = 0; i < RegDists.size(); i++)
-	{
-		RegDists[i].colorDist = (RegDists[i].colorDist - minColorDist) / (maxColorDist - minColorDist);
-		RegDists[i].shapeDist = (RegDists[i].shapeDist - minShapeDist) / (maxShapeDist - minShapeDist);
-		RegDists[i].edgeness = (RegDists[i].edgeness - minEdgeDist) / (maxEdgeDist - minEdgeDist);
-		RegDists[i].sizeDist = (RegDists[i].sizeDist - minSizeDist) / (maxSizeDist - minSizeDist);
+	
+	//for (int i = 0; i < RegDists.size(); i++)
+	//{
+	//	RegDists[i].colorDist = (RegDists[i].colorDist - minColorDist) / (maxColorDist - minColorDist);
+	//	RegDists[i].shapeDist = (RegDists[i].shapeDist - minShapeDist) / (maxShapeDist - minShapeDist);
+	//	RegDists[i].edgeness = RegDists[i].edgeness / avgEdgeDist;// (RegDists[i].edgeness - minEdgeDist) / (maxEdgeDist - minEdgeDist);
+	//	RegDists[i].sizeDist = (RegDists[i].sizeDist - minSizeDist) / (maxSizeDist - minSizeDist);
 
-	}
+	//}
 	//double avgDistSum = avgColorDist + avgHogDist + avgSizeDist;*/
 
 	//std::cout << idx << ": avgColorD= " << avgColorDist << ",avgShapeD= " << avgShapeDist << ",avgSizeD= " << avgSizeDist <<" avgEdgeD= "<<avgEdgeDist<< "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
-	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(0.3, 0.3, 0.2, 0.2));
-
+	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw, hw, shw, siw));
+	//std::cout << RegDists[0] << "\n";
 
 
 	//int N = std::max(1, (int)(thresholdF*RegDists.size()));
@@ -6905,10 +6915,11 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	std::vector < std::vector<uint2>> spPoses;
 	computer.GetSuperpixelPoses(spPoses);
 
-
+	maxColorDist = 0;
 	std::vector<uint2> regPairs;	
 	std::vector<int> sIds;
 	int MCount(0);
+	
 	for (int i = 0; i < RegDists.size() && MCount < N; i++)
 	{
 		if (regions[RegDists[i].bRid].size > 0 && regions[RegDists[i].sRid].size > 0)
@@ -6919,6 +6930,10 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 				sIds.push_back(RegDists[i].sRid);
 				sIds.push_back(RegDists[i].bRid);
 				MCount++;
+				if (maxColorDist < RegDists[i].oColorDist)
+				{
+					maxColorDist = RegDists[i].oColorDist;
+				}
 				MergeRegions(RegDists[i].bRid, RegDists[i].sRid, newLabels, spPoses, regions);
 				if (debug)
 					regPairs.push_back(make_uint2(RegDists[i].bRid, RegDists[i].sRid));
@@ -6974,7 +6989,7 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	
 	//HandleHoles(idx, img.cols, img.rows, (const char*)outPath, &computer, regions, newLabels, HoleNeighborsNum, HoleSize, true);
 	idx++;
-
+	//std::cout <<"max Color dist "<<maxColorDist << "\n"; 
 }
 
 void SalGuidedRegMergion2(const cv::Mat& img, const char* path, std::vector<RegionSalInfo>& regSalInfos, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, bool debug)
@@ -7612,11 +7627,11 @@ bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* o
 	avgFill /= regInfos.size();
 	
 	//normalize
-	for (int i = 0; i < regInfos.size(); i++)
+	/*for (int i = 0; i < regInfos.size(); i++)
 	{
 		regInfos[i].contrast = (regInfos[i].contrast - minContrast) / (maxContrast - minContrast);	
 		regInfos[i].borderRatio = (regInfos[i].borderRatio - minBorderRatio) / (maxBorderRatio - minBorderRatio);
-	}
+	}*/
 	
 
 	std::sort(regInfos.begin(), regInfos.end(), RegionSalDescCmp());

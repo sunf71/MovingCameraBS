@@ -48,9 +48,9 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	SuperpixelComputer computer(_width, _height, step, 0.55);
 
 
-	timer.start();
+	//timer.start();
 	computer.ComputeSuperpixel(img);
-	timer.stop();
+	//timer.stop();
 
 
 	if (debug)
@@ -80,11 +80,11 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector<SPRegion> regions;
 	std::vector < std::vector<int>> neighbors;
 	cv::Mat salMap;
-	timer.start();
+	//timer.start();
 	//IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
 	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, 15, debug);
-	timer.stop();	
-	std::cout << "SaliencyGuidedRegionMerging " << timer.seconds() * 1000 << "ms\n";
+	//timer.stop();	
+	//std::cout << "SaliencyGuidedRegionMerging " << timer.seconds() * 1000 << "ms\n";
 
 
 	
@@ -643,9 +643,13 @@ void GetImgSaliency(int argc, char* argv[])
 	{
 		debug = atoi(argv[5]);
 	}
+	nih::Timer timer;
+	timer.start();
 	for (size_t i = start; i < fileNames.size(); i++)
 	{
 		std::cout << i << ":" << fileNames[i] << "\n";
 		RegionMerging(workingPath, imgFolder, fileNames[i].c_str(), outPath, step, debug);
 	}
+	timer.stop();
+	std::cout << "total time " << timer.seconds() << "s avg " << timer.seconds() / fileNames.size() << "s\n";
 }

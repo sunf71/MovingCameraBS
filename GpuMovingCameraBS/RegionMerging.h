@@ -239,7 +239,7 @@ struct RegionSalInfo
 		//区域显著性越大越好
 		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
 		//return wc * (contrast + contrast) / 2 + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
-		return wc * std::min(contrast, contrast) + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
+		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
@@ -390,7 +390,7 @@ struct RegDist
 	friend std::ostream &  operator << (std::ostream & os, RegDist& rd)
 	{
 		os << rd.sRid << "," << rd.bRid << "\n";
-		os << "\t" << rd.colorDist << " " << rd.sizeDist << " " << rd.edgeness << "\n";
+		os << "\t" << rd.colorDist << ", " << rd.sizeDist << ", " << rd.edgeness << ", "<<rd.shapeDist << "\n";
 		return os;
 	}
 	friend bool operator< (const RegDist& rd1,const RegDist& rd2)
@@ -419,7 +419,7 @@ struct RegDist
 	double lbpDist;
 	double shapeDist;
 	double edgeness;
-	
+	double oColorDist;
 	//Region age, how many times region has been merged
 	int sRidAge;
 	int bRidAge;
