@@ -177,6 +177,7 @@ inline double RegionDist(const HISTOGRAM& rah, const HISTOGRAM& rbh, cv::Mat1f& 
 inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colorDist)
 {
 	double d(0);
+#pragma omp parallel for
 	for (int i = 0; i < ra.colorHist.size(); i++)
 	{
 		for (int j = 0; j < rb.colorHist.size(); j++)

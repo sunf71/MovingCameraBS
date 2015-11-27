@@ -11,70 +11,113 @@
 #include "../ImageSaliency/ImageFocusness.h"
 #include "../ImageSaliency/RegionObjectness.h"
 #include "GCoptimization.h"
-
-
+#include "../QC/sparse_matlab_like_matrix.hpp"
+#include "../QC/QC_full_sparse.hpp"
+#include "../QC/ind_sim_pair.hpp"
+#include "../QC/sparse_similarity_matrix_utils.hpp"
+#include <iostream>
+#include "HistComparer.h"
+extern HistComparer* histComparer;
+extern std::vector< std::vector<ind_sim_pair> > A;
 const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
+
+void PrepareQCSimMatrix(int N)
+{
+	A.resize(N);
+	for (int i = 0; i<N; ++i) A[i].push_back(ind_sim_pair(i, 1.0));
+	for (size_t i = 0; i < N; i++)
+	{
+		for (size_t j = i + 1; j < N; j++)
+		{
+			sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(A, i, j, 1-j*1.0/N); // A(0,1)= 0.2 and A(1,0)= 0.2
+		}
+	}
+	
+	
+}
+
+double QCHistogramDist(const HISTOGRAM& h1, const HISTOGRAM& h2)
+{
+	
+	// The normalization factor
+	double m = 0.9;
+	QC_full_sparse qc_full_sparse;
+	return qc_full_sparse(&h1[0], &h2[0], A, m, h1.size());
+
+}
+
 double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, float4 avgc2 )
 {
-	return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
-	//double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
+	//return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
+	double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 
-	//double reg0V = HistogramVariance(h1);
-	//double reg1V = HistogramVariance(h2);
-	////处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
-	//double avgDist = L1Distance(avgc1, avgc2) / 255;
-	//if (std::max(reg0V, reg1V)  > 0.1&&avgDist<0.1)
-	//{
-	//	
-	//	return avgDist;
-	//}
-	//else
-	//	return histDist;
-	return RegionDist(h1, h2, gColorDist);
+	double reg0V = HistogramVariance(h1);
+	double reg1V = HistogramVariance(h2);
+	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
+	double avgDist = L2Distance(avgc1, avgc2) / 255;
+	if (avgDist < 0.2 && std::max(reg0V, reg1V)> 0.1 && histDist >0.7)
+	{
+		
+		return avgDist;
+	}
+	else
+		return histDist;
+	double dist = RegionDist(h1, h2, gColorDist);
+	
+	//return dist;
 }
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
-	return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
 	
-	//static int idx = 0;
-	//double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
-	//double avgDist = L1Distance(reg0.color, reg1.color) / 255;
-	//double reg0V = HistogramVariance(reg0.colorHist);
-	//double reg1V = HistogramVariance(reg1.colorHist);
-	////处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
-	//if (avgDist < 0.1 && std::max(reg0V, reg1V)  > 0.1)
-	//{
-	//	/*int width = 400;
-	//	int height = 200;
-	//	cv::Mat map(height, width, CV_8UC3);
-	//	for (int i = 0; i < height; i++)
-	//	{
-	//		uchar3* ptr = map.ptr<uchar3>(i);
-	//		for (int j = 0; j < width / 2; j++)
-	//		{
-	//			ptr[j].x = (uchar)reg0.color.x;
-	//			ptr[j].y = (uchar)reg0.color.y;
-	//			ptr[j].z = (uchar)reg0.color.z;
-	//		}
-	//		for (int j = width / 2; j < width; j++)
-	//		{
-	//			ptr[j].x = (uchar)reg1.color.x;
-	//			ptr[j].y = (uchar)reg1.color.y;
-	//			ptr[j].z = (uchar)reg1.color.z;
-	//		}
-	//	}
-	//	char name[100];
-	//	sprintf(name, "%dimg_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100));
-	//	cv::imwrite(name, map);
-	//	idx++;*/
-	//	return avgDist;
-	//}
-	//else
-	//	return histDist;
+	static int idx = 0;
+	double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	double avgDist = L2Distance(reg0.color, reg1.color) / 255;
+	double reg0V = HistogramVariance(reg0.colorHist);
+	double reg1V = HistogramVariance(reg1.colorHist);
+	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
+	if (avgDist < 0.2 && std::max(reg0V,reg1V)> 0.1 && histDist >0.7)
+	{
+		double dist = QCHistogramDist(reg0.colorHist, reg1.colorHist);
+		/*if (avgDist < 0.2)
+		{
+			int width = 400;
+			int height = 200;
+			cv::Mat map(height, width, CV_8UC3);
+			for (int i = 0; i < height; i++)
+			{
+				uchar3* ptr = map.ptr<uchar3>(i);
+				for (int j = 0; j < width / 2; j++)
+				{
+					ptr[j].x = (uchar)reg0.color.x;
+					ptr[j].y = (uchar)reg0.color.y;
+					ptr[j].z = (uchar)reg0.color.z;
+				}
+				for (int j = width / 2; j < width; j++)
+				{
+					ptr[j].x = (uchar)reg1.color.x;
+					ptr[j].y = (uchar)reg1.color.y;
+					ptr[j].z = (uchar)reg1.color.z;
+				}
+			}
+			char name[100];
+			sprintf(name, "%dimg_%d_%d_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100),(int)(reg0V*100),(int)(reg1V*100));
+			cv::imwrite(name, map);
+			idx++;
+			
+		}*/
+		
+		return avgDist;
+		
+	}
+	else
+		return histDist;
 	
-
-	return RegionDist(reg0, reg1, gColorDist);
+	//double dist = RegionDist(reg0, reg1, gColorDist);
+	
+	//return dist;
+	
 }
 
 
@@ -3951,7 +3994,8 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 			if (colorDist < minColorDist)
 				minColorDist = colorDist;
 			if ((regions[id].edgeSpNum < 1 && regions[nid].edgeSpNum < 1) ||
-				(regions[id].edgeSpNum > 1 && regions[nid].edgeSpNum > 1))
+				(regions[id].edgeSpNum > 1 && regions[nid].edgeSpNum > 1) ||
+				isNeighbor(regions,id,nid))
 			{
 				RegDist rd;
 				float ad2cI = sqrt(sqr(regions[id].ad2c.x) + sqr(regions[id].ad2c.y));
@@ -4532,6 +4576,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	cv::minMaxLoc(cDistCache1f, &minDist, &maxDist);
 	gColorDist = cDistCache1f;
 	gMaxDist = maxDist;
+
+	PrepareQCSimMatrix(num);
+
 #if (TEST_SPEED)
 	{
 		timer.stop();
@@ -6905,6 +6952,7 @@ void RegionGrowing(int idx, const cv::Mat& img, const char* outPath, const cv::M
 	//std::cout << idx << ": avgColorD= " << avgColorDist << ",avgShapeD= " << avgShapeDist << ",avgSizeD= " << avgSizeDist <<" avgEdgeD= "<<avgEdgeDist<< "\n";
 	//std::cout << cw << "," << hw << "," << sw << "\n";
 	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(cw, hw, shw, siw));
+	//std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(1 / avgColorDist * 3, 1 / avgEdgeDist * 3, 1 / avgShapeDist * 2, 1 / avgSizeDist * 2));
 	//std::cout << RegDists[0] << "\n";
 
 

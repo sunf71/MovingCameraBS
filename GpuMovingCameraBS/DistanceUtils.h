@@ -114,3 +114,11 @@ static inline float L1Distance(const float4& f1, const float4& f2)
 	float dw = f1.w - f2.w;
 	return (abs(dx) + abs(dy) + abs(dz)) / 3;
 }
+static inline float L2Distance(const float4& f1, const float4& f2)
+{
+	float dx = f1.x - f2.x;
+	float dy = f1.y - f2.y;
+	float dz = f1.z - f2.z;
+	float dw = f1.w - f2.w;
+	return sqrt((abs(dx*dx) + abs(dy*dy) + abs(dz*dz)) / 3.f);
+}
