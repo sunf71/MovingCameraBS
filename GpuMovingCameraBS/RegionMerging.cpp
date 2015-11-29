@@ -25,12 +25,14 @@ const float compactnessMean = 0.7;
 void PrepareQCSimMatrix(int N)
 {
 	A.resize(N);
+	int threshold = 3;
 	for (int i = 0; i<N; ++i) A[i].push_back(ind_sim_pair(i, 1.0));
 	for (size_t i = 0; i < N; i++)
 	{
-		for (size_t j = i + 1; j < N; j++)
+		for (size_t j = i + 1; j < i + threshold && j < N; j++)
 		{
-			sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(A, i, j, 1-j*1.0/N); // A(0,1)= 0.2 and A(1,0)= 0.2
+			float sim = 1 - (j - i) / threshold;
+			sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(A, i, j, sim); // A(0,1)= 0.2 and A(1,0)= 0.2
 		}
 	}
 	
@@ -41,7 +43,7 @@ double QCHistogramDist(const HISTOGRAM& h1, const HISTOGRAM& h2)
 {
 	
 	// The normalization factor
-	double m = 0.9;
+	double m = 0.5;
 	QC_full_sparse qc_full_sparse;
 	return qc_full_sparse(&h1[0], &h2[0], A, m, h1.size());
 
@@ -49,7 +51,9 @@ double QCHistogramDist(const HISTOGRAM& h1, const HISTOGRAM& h2)
 
 double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, float4 avgc2 )
 {
-	//return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
+	//double QCdist = QCHistogramDist(h1, h2);
+	//return QCdist;
+	return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 	double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 
 	double reg0V = HistogramVariance(h1);
@@ -69,8 +73,9 @@ double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, f
 }
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
-	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
-	
+	return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	double QCdist = QCHistogramDist(reg0.colorHist, reg1.colorHist);
+	return QCdist;
 	static int idx = 0;
 	double histDist = cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
 	double avgDist = L2Distance(reg0.color, reg1.color) / 255;
@@ -79,8 +84,9 @@ double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
 	if (avgDist < 0.2 && std::max(reg0V,reg1V)> 0.1 && histDist >0.7)
 	{
-		double dist = QCHistogramDist(reg0.colorHist, reg1.colorHist);
-		/*if (avgDist < 0.2)
+		
+	
+		if (avgDist < 0.2)
 		{
 			int width = 400;
 			int height = 200;
@@ -102,11 +108,11 @@ double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 				}
 			}
 			char name[100];
-			sprintf(name, "%dimg_%d_%d_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100),(int)(reg0V*100),(int)(reg1V*100));
+			sprintf(name, "%dimg_%d_%d_%d_%d_%d.jpg", idx, (int)(avgDist * 100), (int)(histDist * 100), (int)(QCdist * 100), (int)(reg0V * 100), (int)(reg1V * 100));
 			cv::imwrite(name, map);
 			idx++;
 			
-		}*/
+		}
 		
 		return avgDist;
 		
