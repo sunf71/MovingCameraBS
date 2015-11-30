@@ -11,7 +11,7 @@
 cv::Mat1f gColorDist;
 double gMaxDist;
 std::vector< std::vector<ind_sim_pair> > A;
-HistComparer* histComparer;
+HistComparer* gHistComparer;
 
 
 void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)

@@ -19,20 +19,21 @@ public:
 	{
 		// Similarity matrix
 		_A.resize(N);
-		//for (int i = 0; i<N; ++i) A[i].push_back(ind_sim_pair(i, 1.0));
+		for (int i = 0; i<N; ++i) _A[i].push_back(ind_sim_pair(i, 1.0));
 		//sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(A, 0, 1, 0.2); // A(0,1)= 0.2 and A(1,0)= 0.2
 		//sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(A, 0, 2, 0.1);
 		//sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(A, 3, 4, 0.2);
 		for (size_t i = 0; i < N; i++)
 		{
-			int min = std::max(0, (int)(i - threshold));
-			int max = std::min(N - 1, (int)(i + threshold));
-			for (size_t j = min; j <= max; j++)
+			
+			int max = std::min(N - 1, (int)(i + threshold-1));
+			for (size_t j = i+1; j <= max; j++)
 			{
-				sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(_A, i, j, 1 - (abs((int)(i - j)) / threshold));
+				sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(_A, i, j, 1 - (abs((int)(i - j)) *1.0 / threshold));
 			}
 		}
 	}
+	
 	virtual double Distance(const std::vector<float>& h1, const std::vector<float>& h2)
 	{
 		assert(h1.size() == h2.size() && h1.size() == _N);
