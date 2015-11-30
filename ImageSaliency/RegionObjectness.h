@@ -1,5 +1,5 @@
 #include <opencv\cv.h>
-#include "../GpuMovingCameraBS/RegionMerging.h"
+#include "RegionMerging.h"
 #include <vector>
 
 const float meanRelSize = 0.3;

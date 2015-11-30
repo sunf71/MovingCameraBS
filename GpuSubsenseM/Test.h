@@ -34,7 +34,7 @@ void TestSuperpielxComputer();
 
 void TestDescDiff();
 void TestSuperpixelDownSample();
-
+void TestFeaturesRefine(int argc, char* argv[]);
 void TestFeaturesRefineHistogram(int argc, char* argv[]);
 void TestBlockHomography();
 void TestBlockWarping();

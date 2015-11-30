@@ -21,9 +21,6 @@
     <ClInclude Include="..\GpuMovingCameraBS\graph.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="..\GpuMovingCameraBS\RegionMerging.h">
-      <Filter>Header</Filter>
-    </ClInclude>
     <ClInclude Include="..\GpuMovingCameraBS\SLIC.h">
       <Filter>Header</Filter>
     </ClInclude>
@@ -54,6 +51,7 @@
     <ClInclude Include="RegionObjectness.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="RegionMerging.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu">
@@ -65,9 +63,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\GpuMovingCameraBS\GpuSuperpixel.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\GpuMovingCameraBS\RegionMerging.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\GpuMovingCameraBS\SuperpixelComputer.cpp">
@@ -97,5 +92,6 @@
     <ClCompile Include="RegionObjectness.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="RegionMerging.cpp" />
   </ItemGroup>
 </Project>

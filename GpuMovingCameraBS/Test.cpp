@@ -2076,6 +2076,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 	double warpErr(0);
 	char methodName[20];
 	float Pe(0);
+	float time(0);
 	for (int i = start; i <= end; i++)
 	{
 		sprintf(fileName, "%s//in%06d.jpg", path, i);
@@ -2137,7 +2138,8 @@ void TestFeaturesRefine(int argc, char* argv[])
 		}
 
 		timer.stop();
-		/*std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";*/
+		//std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
+		time += timer.seconds();
 		sprintf(fileName, "%s%s%d.jpg", outPath, methodName, i);
 		
 
@@ -2203,6 +2205,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		cv::swap(gray0, gray1);
 	}
 	std::cout << "Pe " << Pe * 100 / (end - start + 1) << "\n";
+	std::cout << "refine time " << time * 1000 / (end - start + 1) << "\n";
 	std::cout << "warp err " << warpErr / (end - start + 1);
 }
 //测试直方图投票的方式选取背景特征点
