@@ -17,42 +17,25 @@
 #include "../QC/sparse_similarity_matrix_utils.hpp"
 #include <iostream>
 #include "HistComparer.h"
-extern HistComparer* histComparer;
+extern HistComparer* gHistComparer;
 extern std::vector< std::vector<ind_sim_pair> > A;
 const float compactnessTheta = 0.4;
 const float compactnessMean = 0.7;
 
-void PrepareQCSimMatrix(int N)
-{
-	A.resize(N);
-	int threshold = 3;
-	for (int i = 0; i<N; ++i) A[i].push_back(ind_sim_pair(i, 1.0));
-	for (size_t i = 0; i < N; i++)
-	{
-		for (size_t j = i + 1; j < i + threshold && j < N; j++)
-		{
-			float sim = 1 - (j - i) / threshold;
-			sparse_similarity_matrix_utils::insert_into_A_symmetric_sim(A, i, j, sim); // A(0,1)= 0.2 and A(1,0)= 0.2
-		}
-	}
-	
-	
-}
+
 
 double QCHistogramDist(const HISTOGRAM& h1, const HISTOGRAM& h2)
 {
 	
 	// The normalization factor
-	double m = 0.5;
-	QC_full_sparse qc_full_sparse;
-	return qc_full_sparse(&h1[0], &h2[0], A, m, h1.size());
+	return gHistComparer->Distance(h1, h2);
 
 }
 
 double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, float4 avgc2 )
 {
-	//double QCdist = QCHistogramDist(h1, h2);
-	//return QCdist;
+	double QCdist = QCHistogramDist(h1, h2);
+	return QCdist;
 	return cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 	double histDist = cv::compareHist(h1, h2, CV_COMP_BHATTACHARYYA);
 
@@ -73,7 +56,7 @@ double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1, f
 }
 double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 {
-	return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
+	//return cv::compareHist(reg0.colorHist, reg1.colorHist, CV_COMP_BHATTACHARYYA);
 	double QCdist = QCHistogramDist(reg0.colorHist, reg1.colorHist);
 	return QCdist;
 	static int idx = 0;
@@ -4000,8 +3983,7 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 			if (colorDist < minColorDist)
 				minColorDist = colorDist;
 			if ((regions[id].edgeSpNum < 1 && regions[nid].edgeSpNum < 1) ||
-				(regions[id].edgeSpNum > 1 && regions[nid].edgeSpNum > 1) ||
-				isNeighbor(regions,id,nid))
+				(regions[id].edgeSpNum > 1 && regions[nid].edgeSpNum > 1))
 			{
 				RegDist rd;
 				float ad2cI = sqrt(sqr(regions[id].ad2c.x) + sqr(regions[id].ad2c.y));
@@ -4555,8 +4537,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	}
 #endif
 
-	//BuildHistogram(img, &computer, colorHist, gradHist, lbpHist, 0);
-	cv::Mat idx1i, _color3f, _colorNum;
+	BuildHistogram(img, &computer, colorHist, gradHist, lbpHist, 0);
+	/*cv::Mat idx1i, _color3f, _colorNum;
 	double ratio = 0.95;
 	const int clrNums[3] = { 12, 12, 12 };
 	cv::Mat fimg;
@@ -4565,25 +4547,27 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	BuildQHistorgram(idx1i, num, &computer, colorHist);
 	gradHist.resize(spSize);
 	cv::cvtColor(_color3f, _color3f, CV_BGR2Lab);
-	cv::Mat_<float> cDistCache1f = cv::Mat::zeros(_color3f.cols, _color3f.cols, CV_32F); {
-	cv::Vec3f* pColor = (cv::Vec3f*)_color3f.data;
-	for (int i = 0; i < cDistCache1f.rows; i++)
-		for (int j = i + 1; j < cDistCache1f.cols; j++)
-		{
-		
-			float distL = (pColor[i][0] - pColor[j][0]) ;
-			float distA = (pColor[i][1] - pColor[j][1]) ;
-			float distB = (pColor[i][2] - pColor[j][2]);
-			float dist = sqrt(sqr(distL) + sqr(distA) + sqr(distB));
-			cDistCache1f[i][j] = cDistCache1f[j][i] = dist;
-		}
+	cv::Mat_<float> cDistCache1f = cv::Mat::zeros(_color3f.cols, _color3f.cols, CV_32F);
+	{
+		cv::Vec3f* pColor = (cv::Vec3f*)_color3f.data;
+		for (int i = 0; i < cDistCache1f.rows; i++)
+
+			for (int j = i + 1; j < cDistCache1f.cols; j++)
+			{
+
+				float distL = (pColor[i][0] - pColor[j][0]);
+				float distA = (pColor[i][1] - pColor[j][1]);
+				float distB = (pColor[i][2] - pColor[j][2]);
+				float dist = sqrt(sqr(distL) + sqr(distA) + sqr(distB));
+				cDistCache1f[i][j] = cDistCache1f[j][i] = dist;
+			}
 	}
 	double minDist, maxDist;
 	cv::minMaxLoc(cDistCache1f, &minDist, &maxDist);
 	gColorDist = cDistCache1f;
-	gMaxDist = maxDist;
+	gMaxDist = maxDist;*/
 
-	PrepareQCSimMatrix(num);
+	gHistComparer = new QCHistComparer(colorHist[0].size());
 
 #if (TEST_SPEED)
 	{
@@ -5267,7 +5251,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	}
 #endif
-
+	delete gHistComparer;
 }
 void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* imgName, const char* outPutPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, cv::Mat& saliencyRst, int regThreshold, bool debug)
 {
