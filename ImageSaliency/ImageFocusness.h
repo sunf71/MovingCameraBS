@@ -1,5 +1,5 @@
 #include <opencv\cv.h>
-#include "../GpuMovingCameraBS/RegionMerging.h"
+#include "RegionMerging.h"
 #include <vector>
 
 void CalScale(const cv::Mat& gray, cv::Mat& scaleMap);

@@ -1,11 +1,11 @@
-ï»¿#pragma once
+#pragma once
 #include <opencv\cv.h>
 #include <opencv\highgui.h>
 #include <queue>
 #include <vector>
-#include "CudaSuperpixel.h"
-#include "HistComparer.h"
-#include "SuperpixelComputer.h"
+#include "../gpumovingcameraBS/CudaSuperpixel.h"
+#include "../gpumovingcameraBS/HistComparer.h"
+#include "../gpumovingcameraBS/SuperpixelComputer.h"
 #include <math.h>
 const int HoleSize = 5;
 const int HoleNeighborsNum = 2;
@@ -15,6 +15,32 @@ const float cw = 0.5;
 const float hw = 0.1;
 const float shw = 0.2;
 const float siw = 0.2;
+typedef std::vector<float> HISTOGRAM;
+typedef std::vector<HISTOGRAM> HISTOGRAMS;
+//global color dist used for  quantitized histogram distance
+extern cv::Mat1f gColorDist;
+extern double gMaxDist;
+static double sqr(double a)
+{
+	return a*a;
+}
+static double HistogramVariance(const HISTOGRAM&  hist)
+{
+	double avg(0);
+	for (size_t i = 0; i < hist.size(); i++)
+	{
+		avg += hist[i];
+	}
+	avg /= hist.size();
+	double Variance(0);
+	for (size_t i = 0; i < hist.size(); i++)
+	{
+		Variance += sqr(hist[i] - avg);
+	}
+	//Variance /= hist.size();
+	return Variance;
+}
+
 
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
@@ -66,7 +92,7 @@ struct RegInfo
 	int label;
 	int x, y;
 };
-//ï¿½á¹¹ï¿½ï¿½Ä±È½Ï·ï¿½ï¿½ï¿½ ï¿½ï¿½Ð´operator()  
+//½á¹¹ÌåµÄ±È½Ï·½·¨ ¸ÄÐ´operator()  
 struct RegInfoCmp
 {
 	bool operator()(const RegInfo &na, const RegInfo &nb)
@@ -76,40 +102,40 @@ struct RegInfoCmp
 };
 struct SPRegion
 {
-	SPRegion(){}
-	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){}
+	SPRegion(){ size = 0; regFlag = false;  filleness = 0; regSalScore = 0; }
+	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){ size = 0; regFlag = false; regSalScore = 0; }
 	int id;
 	int size;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Ôµï¿½Ä³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÇøÓò±ßÔµÖÐÊÇÍ¼Ïñ±ßÔµµÄ³¬ÏñËØÊý
 	float edgeSpNum;
-	//ï¿½ï¿½ï¿½ï¿½Ä±ï¿½Ôµï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÇøÓòµÄ±ßÔµÖÐÊÇÍ¼Ïñ±ßÔµµÄÏñËØÊýÁ¿
 	float edgePixNum;
-	//ï¿½ï¿½ï¿½ï¿½Ä±ï¿½Ôµï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÇøÓòµÄ±ßÔµÖÐÊÇÍ¼Ïñ±ßÔµµÄÏñËØ
 	std::vector<cv::Point> borderEdgePixels;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÇøÓòÏñËØÊýÁ¿
 	float pixels;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½Ü³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÇøÓòÖÜ³¤£¨ÏñËØÊý£©
 	float regCircum;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø¾ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½Äµï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÇøÓò³¬ÏñËØ¾àÀëÍ¼ÏñÖÐÐÄµÄÆ½¾ù¾àÀë
 	float2 ad2c;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Äµï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÇøÓò³¬ÏñËØ¾àÀëÇøÓòÖÐÐÄµÄÆ½¾ù¾àÀë
 	float2 rad2c;
 	float4 color;
-	////ï¿½Ú¾ï¿½ï¿½ï¿½ï¿½ï¿½Id
+	////ÁÚ¾ÓÇøÓòId
 	std::vector<int> neighbors;
-	//ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½ï¿½ï¿½ï¿½Ä±ß½ç³¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÓëÃ¿¸öÁÚ¾ÓÇøÓòµÄ±ß½ç³¬ÏñËØÊý
 	std::vector<int> borders;
-	//ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½Ú¾ÓµÄ±ß½ç³¬ï¿½ï¿½ï¿½ï¿½Id
+	//ÓëÃ¿¸öÁÚ¾ÓµÄ±ß½ç³¬ÏñËØId
 	std::vector<std::vector<int>> borderSpIndices;
-	//ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½ï¿½ï¿½ï¿½Ä±ß½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//ÓëÃ¿¸öÁÚ¾ÓÇøÓòµÄ±ß½çÏñËØÊý
 	std::vector<int> borderPixelNum;
-	//ï¿½ï¿½ß½ç³¬ï¿½ï¿½ï¿½ï¿½Id
+	//Íâ±ß½ç³¬ÏñËØId
 	std::vector<int> outBorderSPs;
-	//ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½Ú¾ÓµÄ±ß½ï¿½ï¿½ï¿½ï¿½ï¿½
-	std::vector<std::vector<uint2>> borderPixels;
-	//ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½Ú¾ÓµÄ±ß½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç±ï¿½Ôµï¿½ï¿½ï¿½ï¿½ï¿½Ø¸ï¿½ï¿½ï¿½
+	//ÓëÃ¿¸öÁÚ¾ÓµÄ±ß½çÏñËØ
+	std::vector<std::vector<cv::Point>> borderPixels;
+	//ÓëÃ¿¸öÁÚ¾ÓµÄ±ß½çÏñËØÖÐÊÇ±ßÔµµÄÏñËØ¸öÊý
 	std::vector<float> edgeness;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð³ï¿½ï¿½ï¿½ï¿½Øµï¿½Id
+	//ÇøÓòÖÐËùÓÐ³¬ÏñËØµÄId
 	std::vector<int> spIndices;
 	std::vector<float> colorHist;
 	std::vector<float> hog;
@@ -117,14 +143,62 @@ struct SPRegion
 	float cX;
 	float cY;
 	float dist;
-	//Ò»ï¿½ï¿½ï¿½ï¿½ï¿½Ä¾ï¿½
+	//Ò»½×ÖÐÐÄ¾à
 	float moment;
-	//ï¿½ï¿½×´ï¿½ï¿½ï¿½min(width,height)/max(width,height)
+	//ÐÎ×´½ô´Õmin(width,height)/max(width,height)
 	float compactness;
-	//ï¿½ï¿½Î§ï¿½ï¿½
+	//°üÎ§ºÐ
 	cv::Rect Bbox;
+	cv::Rect spBbox;
 	float focusness;
+	//ÇøÓòÊÇ·ñÊÇºÏ²¢ÕÚµ²Ê±µÃµ½µÄ(Á½¸ö²»ÏàÁÚÇøÓòºÏ²¢¶øÀ´)
+	bool regFlag;
+	float filleness;
+	//ÑÕÉ«Ö±·½Í¼·½²î
+	float colorHistV;
+	float regSalScore;
+	//Óë±³¾°µÄ¶Ô±È¶È
+	float regContrast;
 };
+inline double RegionDist(const HISTOGRAM& rah, const HISTOGRAM& rbh, cv::Mat1f& colorDist)
+{
+	double d(0);
+	for (int i = 0; i < rah.size(); i++)
+	{
+		for (int j = 0; j < rbh.size(); j++)
+		{
+			float dist = colorDist[i][j];
+			d += rah[i] * rbh[j] * (dist);
+		}
+	}
+
+	return d;
+}
+inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colorDist)
+{
+	double d(0);
+#pragma omp parallel for
+	for (int i = 0; i < ra.colorHist.size(); i++)
+	{
+		for (int j = 0; j < rb.colorHist.size(); j++)
+		{
+			float dist = colorDist[i][j];
+			d += ra.colorHist[i] * rb.colorHist[j] * (dist);
+		}
+	}
+
+	return d;
+}
+
+double RegionColorDist(const HISTOGRAM& h1, const HISTOGRAM& h2, float4 avgc1 = make_float4(0, 0, 0, 0), float4 avgc2 = make_float4(0, 0, 0, 0));
+
+double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1);
+
+static inline bool isNeighbor(std::vector<SPRegion>& regions, int i, int j)
+{
+	assert(i < regions.size() && j < regions.size() && i >= 0 && j >= 0);
+	return std::find(regions[i].neighbors.begin(), regions[i].neighbors.end(), j) != regions[i].neighbors.end();
+}
 struct RegionPartition
 {
 	std::vector<SPRegion> regions;
@@ -136,32 +210,36 @@ struct RegionSalInfo
 
 	RegionSalInfo(){ wp = 2, wc = 1, ws = 2; };
 	RegionSalInfo(float w1, float w2, float w3) :wc(w1), wp(w2), ws(w3){};
-	//ï¿½ï¿½ï¿½ï¿½Id
+	//ÇøÓòId
 	int id;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ÄµÄ¾ï¿½ï¿½ï¿½
+	//ÇøÓò¾àÀëÍ¼ÏñÖÐÐÄµÄ¾àÀë
 	float ad2c;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô´ï¿½Ð¡
+	//ÇøÓòµÄÏà¶Ô´óÐ¡
 	float relSize;
-	//ï¿½ï¿½ï¿½ï¿½Ä¶Ô±È¶ï¿½(ï¿½ë±³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¶Ô±È¶ï¿½global)
+	//ÇøÓòµÄ¶Ô±È¶È(Óë±³¾°ÇøÓòµÄ¶Ô±È¶Èglobal)
 	float contrast;
-	//ï¿½Ö²ï¿½ï¿½Ô±È¶È£ï¿½ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½ï¿½ï¿½ï¿½Ä¶Ô±È¶ï¿½
+	//¾Ö²¿¶Ô±È¶È£¬ÓëÁÚ¾ÓÇøÓòµÄ¶Ô±È¶È
 	float localContrast;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½Ð°ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ÔµÕ¼ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Ôµï¿½Ä±ï¿½ï¿½ï¿½
+	//ÇøÓòÖÐ°üº¬µÄÍ¼Ïñ±ßÔµÕ¼ËùÓÐÍ¼Ïñ±ßÔµµÄ±ÈÀý
 	float borderRatio;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½ï¿½Õ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä±ï¿½ï¿½ï¿½
+	//ÇøÓò°üº¬µÄÁÚ¾ÓÊýÕ¼×ÜÇøÓòÊýµÄ±ÈÀý
 	float neighRatio;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä³ï¿½ï¿½ï¿½ï¿½Öµmin(len,width)/max(len,width)ï¿½ï¿½
+	//ÇøÓòµÄÐÎ×´£¨ÇøÓòµÄ³¤¿í±ÈÖµmin(len,width)/max(len,width)£©
 	float compactness;
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îµï¿½ï¿½ï¿½ï¿½
+	//ÇøÓòµÄÌî³ä¶È£¬ÇøÓòÃæ»ý³ýÒÔÂÖÀª¶à±ßÐÎµÄÃæ»ý
 	float fillness;
-	//ï¿½ï¿½ï¿½ï¿½È¨Öµ
+	//¸÷ÏîÈ¨Öµ
 	float wp, ws, wc;
 	std::vector<int> neighbors;
-
+	float RegionSaliency(float wc, float wp, float ws)
+	{
+		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
+	}
 	float RegionSaliency() const
 	{
-		//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô½ï¿½ï¿½Ô½ï¿½ï¿½
+		//ÇøÓòÏÔÖøÐÔÔ½´óÔ½ºÃ
 		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
+		//return wc * (contrast + contrast) / 2 + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
 		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
@@ -197,6 +275,18 @@ struct RegionSalDescCmp
 		return na.RegionSaliency() > nb.RegionSaliency();
 	}
 };
+
+struct WRegionSalDescCmp
+{
+	WRegionSalDescCmp(float wc, float wp, float ws) :_wc(wc), _wp(wp), _ws(ws){};
+	float _wc, _wp, _ws;
+	bool operator()(RegionSalInfo &na, RegionSalInfo &nb)
+	{
+
+		return na.RegionSaliency(_wc, _wp, _ws) > nb.RegionSaliency(_wc, _wp, _ws);
+	}
+};
+
 struct RegionSalBorderCmp
 {
 	bool operator()(const RegionSalInfo &na, const RegionSalInfo &nb)
@@ -213,7 +303,15 @@ struct RegionSalCmp
 		return na.Saliency() < nb.Saliency();
 	}
 };
-//ï¿½á¹¹ï¿½ï¿½Ä±È½Ï·ï¿½ï¿½ï¿½ ï¿½ï¿½Ð´operator()  
+struct RegionSalscoreCmp
+{
+	bool operator()(const SPRegion &na, const SPRegion &nb)
+	{
+
+		return na.regSalScore > nb.regSalScore;
+	}
+};
+//½á¹¹ÌåµÄ±È½Ï·½·¨ ¸ÄÐ´operator()  
 struct RegionSizeCmp
 {
 	bool operator()(const SPRegion &na, const SPRegion &nb)
@@ -221,7 +319,7 @@ struct RegionSizeCmp
 		return na.size > nb.size;
 	}
 };
-//ï¿½á¹¹ï¿½ï¿½Ä±È½Ï·ï¿½ï¿½ï¿½ ï¿½ï¿½Ð´operator()  
+//½á¹¹ÌåµÄ±È½Ï·½·¨ ¸ÄÐ´operator()  
 struct RegionWSizeCmp
 {
 	bool operator()(const SPRegion &na, const SPRegion &nb)
@@ -241,6 +339,30 @@ struct RegionSizeZero
 	bool operator()(const SPRegion &na)
 	{
 		return na.size == 0;
+	}
+};
+struct RegionIdLocate
+{
+	int _id;
+	RegionIdLocate(int id) :_id(id){};
+	bool operator()(const SPRegion &na)
+	{
+		return na.id == _id;
+	}
+};
+struct RegionSizeSmall
+{
+	float threshold;
+	const static int minNeighbors = 3;
+	const static int maxHoleSize = 5;
+	RegionSizeSmall(float _threshold) :threshold(_threshold){};
+	RegionSizeSmall()
+	{
+		threshold = 0;
+	}
+	bool operator()(const SPRegion &na)
+	{
+		return (na.size < threshold && na.size>0) || (na.neighbors.size() < minNeighbors && na.size > 0 && na.size < maxHoleSize);
 	}
 };
 struct RegionColorCmp
@@ -264,16 +386,32 @@ typedef std::priority_queue<SPRegion, std::vector<SPRegion>, RegionDistCmp> SPRe
 
 struct RegDist
 {
+
+
 	friend std::ostream &  operator << (std::ostream & os, RegDist& rd)
 	{
 		os << rd.sRid << "," << rd.bRid << "\n";
-		os << "\t" << rd.colorDist << " " << rd.sizeDist << " " << rd.edgeness << "\n";
+		os << "\t" << rd.colorDist << ", " << rd.sizeDist << ", " << rd.edgeness << ", " << rd.shapeDist << "\n";
 		return os;
 	}
+	friend bool operator< (const RegDist& rd1, const RegDist& rd2)
+	{
+		const static double colorW = 0.25;
+		const static double hogW = 0.25;
+		const static double sizeW = 0.25;
+		const static double shapeW = 0.25;
+		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist + shapeW* rd1.shapeDist;
+		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist + shapeW * rd2.shapeDist;
+
+		return d1 < d2;
+	}
+
+
 	RegDist()
 	{
 		edgeness = colorDist = hogDist = sizeDist = lbpDist = 0;
 	}
+	int id;
 	int sRid;
 	int bRid;
 	double colorDist;
@@ -282,8 +420,27 @@ struct RegDist
 	double lbpDist;
 	double shapeDist;
 	double edgeness;
+	double oColorDist;
+	//Region age, how many times region has been merged
+	int sRidAge;
+	int bRidAge;
 };
+struct RegDistAcsdComparer
+{
+	RegDistAcsdComparer()
+	{
+		colorW = hogW = sizeW = shapeW = 1.0 / 4;
+	}
+	RegDistAcsdComparer(double cw, double hw, double shw, double siw) :colorW(cw), hogW(hw), sizeW(siw), shapeW(shw){};
+	double colorW, hogW, sizeW, shapeW;
+	bool operator()(const RegDist& rd1, const RegDist& rd2)
+	{
+		double d1 = colorW*rd1.colorDist + hogW*rd1.edgeness + sizeW*rd1.sizeDist + shapeW* rd1.shapeDist;
+		double d2 = colorW*rd2.colorDist + hogW*rd2.edgeness + sizeW*rd2.sizeDist + shapeW * rd2.shapeDist;
 
+		return d1 > d2;
+	}
+};
 struct RegDistDescComparer
 {
 	RegDistDescComparer()
@@ -360,8 +517,9 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	int*& segmented,
 	float threshold, float confidence = 0.6
 	);
-void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask);
+void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask, int flag = 0);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<int>& flagSPs, cv::Mat& mask);
+void GetRegionSaliencyMap(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, int candiRegSize, cv::Mat& mask);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool textflag = true);
 
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool txtflag = true);
@@ -427,13 +585,12 @@ void MergeRegions(int i, int nRegId,
 
 void GetContrastMap(int widht, int height, SuperpixelComputer* computer, std::vector<int>& newLabels, std::vector<std::vector<uint2>>& spPoses, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, cv::Mat& mask);
 
-typedef std::vector<float> HISTOGRAM;
-typedef std::vector<HISTOGRAM> HISTOGRAMS;
+
 void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, int colorSpace = 0);
 void BuildHistogram(const cv::Mat& img, SuperpixelComputer* computer, HISTOGRAMS& colorHist, HISTOGRAMS& gradHist, HISTOGRAMS& lbpHist, int colorSpace = 0);
 void BuildQHistorgram(const cv::Mat& idxImg, int colorNum, SuperpixelComputer* computer, HISTOGRAMS& colorHist);
 
-//ï¿½ï¿½ï¿½ï¿½maskï¿½ï¿½ï¿½ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½Í¼ï¿½Ô±È¶È£ï¿½ï¿½ï¿½ï¿½maskï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô±È¶ï¿½Ó¦ï¿½Ã¸ï¿½ï¿½ï¿½
+//¼ÆËãmaskÇøÓòÒÔ¼°ÆäËûÇøÓòµÄÖ±·½Í¼¶Ô±È¶È£¬Èç¹ûmaskÊÇÕýÈ·µÄÏÔÖøÐÔ¶ÔÏó£¬Õâ¸ö¶Ô±È¶ÈÓ¦¸Ã¸ü´ó
 float RegionContrast(const cv::Mat&img, const cv::Mat& mask, int colorSpace);
 
 inline double RegionDist(const SPRegion& ra, const SPRegion& rb)
@@ -444,20 +601,11 @@ inline double RegionDist(const SPRegion& ra, const SPRegion& rb)
 	return colorDist/*+gradDist*/;
 }
 
-inline double RegionDist(const SPRegion& ra, const SPRegion& rb, cv::Mat1f& colorDist)
-{
-	double d(0);
-	for (int i = 0; i < ra.colorHist.size(); i++)
-	{
-		for (int j = 0; j < rb.colorHist.size(); j++)
-		{
-			float dist = colorDist[i][j];
-			d += ra.colorHist[i] * rb.colorHist[j] * (dist);
-		}
-	}
 
-	return d;
-}
+
+float RegionBoxLocalContrast(SuperpixelComputer& computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int rid, HISTOGRAMS& colorHist, float theta = 0.5);
+
+void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder, const char* rstFolder, const char* imgName, const cv::Mat& img, const cv::Mat& edgeMap, SuperpixelComputer& computer, cv::Mat& salMap, int regThreshold = 15, bool debug = false);
 
 void IterativeRegionGrowing(const cv::Mat& img, const cv::Mat& edgeMap, const char* imgName, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<std::vector<int>>& regNeighbors, float thresholdF, cv::Mat& saliencyRst, int regThreshold = 15, bool debug = false);
 
@@ -470,6 +618,14 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& 
 void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& spSaliency, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
 void RegionGrowing(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
+
+
+typedef std::priority_queue<RegDist, std::vector<RegDist>, RegDistAcsdComparer> Queue;
+void PrepareForRegionGrowing(int spSize, std::vector<SPRegion>& regions, Queue& RegNParis, std::vector<float>& regAges);
+
+void FastRegionGrowing(int iter, const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, Queue& RegNPairs, std::vector<float>& regAges, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
+
+int RegionGrowingN(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
 void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
@@ -485,7 +641,7 @@ void RegionGrowing(const cv::Mat& img, SuperpixelComputer& computer, std::vector
 
 void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, cv::Mat1f& colorDist, float thresholdF);
 
-template<class T, int D> inline T vecSqrDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { T s = 0; for (int i = 0; i < D; i++) s += sqrt((v1[i] - v2[i])*(v1[i] - v2[i])*1.0f); return s; } // out of range risk for T = byte, ...
+template<class T, int D> inline T vecSqrDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { T s = 0; for (int i = 0; i < D; i++) s += sqr(v1[i] - v2[i]); return s; } // out of range risk for T = byte, ...
 template<class T, int D> inline T    vecDist(const cv::Vec<T, D> &v1, const cv::Vec<T, D> &v2) { return sqrt(vecSqrDist(v1, v2)); } // out of range risk for T = byte, ...
 int Quantize(cv::Mat& img3f, cv::Mat &idx1i, cv::Mat &_color3f, cv::Mat &_colorNum, double ratio, const int clrNums[3]);
 
@@ -499,14 +655,111 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 
 float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, cv::Mat& dbgMap);
 
+void RegionSaliencyL(int width, int height, HISTOGRAMS& colorHists, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, cv::Mat& salMap, bool debug = false);
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, cv::Mat& salMap, bool debug = false);
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, bool debug = false);
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, RegionPartition & bkgRegions, std::vector<RegionSalInfo>& regInfo);
-
-//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä±ß½ï¿½ï¿½ï¿½ï¿½Ï¢
-void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
+bool RegionSaliency(int width, int height, HISTOGRAMS& colorHists, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, bool debug = false);
+//¸üÐÂÇøÓòµÄ±ß½çµÈÐÅÏ¢
+void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, const  cv::Mat& edgeMap, std::vector<SPRegion>& regions);
 
 void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, const cv::Mat& gradMap, const cv::Mat& scaleMap, const cv::Mat& edgemap, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
 
 
 void GetRegionEdgeness(const cv::Mat& edgeMap, std::vector<SPRegion>& regions);
+
+
+static inline cv::Rect MergeBox(cv::Rect& boxi, cv::Rect& boxj)
+{
+	cv::Rect box;
+	box.x = std::min(boxi.x, boxj.x);
+	box.y = std::min(boxi.y, boxj.y);
+	int maxX = std::max(boxi.x + boxi.width, boxj.x + boxj.width);
+	int maxY = std::max(boxi.y + boxi.height, boxj.y + boxj.height);
+	box.width = maxX - box.x;
+	box.height = maxY - box.y;
+	return box;
+}
+
+//merge reg1 to reg2
+void MergeRegionHist(const SPRegion& reg1, SPRegion& reg2);
+
+
+void GetRegionBorder(SPRegion& reg, std::vector<cv::Point>& borders);
+
+void ShowRegionBorder(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, int regId, cv::Mat rmask);
+
+void ShowRegionBorder(const cv::Mat& img, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfos, cv::Mat rmask);
+
+
+//http://blog.bigbing.org/?p=661
+static inline cv::Mat guidedFilter(cv::Mat I, cv::Mat p, int r, double eps)
+{
+	/*
+	% GUIDEDFILTER   O(1) time implementation of guided filter.
+	%
+	%   - guidance image: I (should be a gray-scale/single channel image)
+	%   - filtering input image: p (should be a gray-scale/single channel image)
+	%   - local window radius: r
+	%   - regularization parameter: eps
+	*/
+
+	cv::Mat _I;
+	I.convertTo(_I, CV_64FC1);
+	I = _I;
+
+	cv::Mat _p;
+	p.convertTo(_p, CV_64FC1);
+	p = _p;
+
+	//[hei, wid] = size(I);
+	int hei = I.rows;
+	int wid = I.cols;
+
+	//N = boxfilter(ones(hei, wid), r); % the size of each local patch; N=(2r+1)^2 except for boundary pixels.
+	cv::Mat N;
+	cv::boxFilter(cv::Mat::ones(hei, wid, I.type()), N, CV_64FC1, cv::Size(r, r));
+
+	//mean_I = boxfilter(I, r) ./ N;
+	cv::Mat mean_I;
+	cv::boxFilter(I, mean_I, CV_64FC1, cv::Size(r, r));
+
+	//mean_p = boxfilter(p, r) ./ N;
+	cv::Mat mean_p;
+	cv::boxFilter(p, mean_p, CV_64FC1, cv::Size(r, r));
+
+	//mean_Ip = boxfilter(I.*p, r) ./ N;
+	cv::Mat mean_Ip;
+	cv::boxFilter(I.mul(p), mean_Ip, CV_64FC1, cv::Size(r, r));
+
+	//cov_Ip = mean_Ip - mean_I .* mean_p; % this is the covariance of (I, p) in each local patch.
+	cv::Mat cov_Ip = mean_Ip - mean_I.mul(mean_p);
+
+	//mean_II = boxfilter(I.*I, r) ./ N;
+	cv::Mat mean_II;
+	cv::boxFilter(I.mul(I), mean_II, CV_64FC1, cv::Size(r, r));
+
+	//var_I = mean_II - mean_I .* mean_I;
+	cv::Mat var_I = mean_II - mean_I.mul(mean_I);
+
+	//a = cov_Ip ./ (var_I + eps); % Eqn. (5) in the paper;	
+	cv::Mat a = cov_Ip / (var_I + eps);
+
+	//b = mean_p - a .* mean_I; % Eqn. (6) in the paper;
+	cv::Mat b = mean_p - a.mul(mean_I);
+
+	//mean_a = boxfilter(a, r) ./ N;
+	cv::Mat mean_a;
+	cv::boxFilter(a, mean_a, CV_64FC1, cv::Size(r, r));
+	mean_a = mean_a / N;
+
+	//mean_b = boxfilter(b, r) ./ N;
+	cv::Mat mean_b;
+	cv::boxFilter(b, mean_b, CV_64FC1, cv::Size(r, r));
+	mean_b = mean_b / N;
+
+	//q = mean_a .* I + mean_b; % Eqn. (8) in the paper;
+	cv::Mat q = mean_a.mul(I) + mean_b;
+
+	return q;
+}

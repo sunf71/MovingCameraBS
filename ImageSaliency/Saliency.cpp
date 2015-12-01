@@ -4,7 +4,7 @@
 #include "../GpuMovingCameraBS/FileNameHelper.h"
 #include "Saliency.h"
 #include "../GpuMovingCameraBS/common.h"
-#include "../GpuMovingCameraBS/RegionMerging.h"
+#include "RegionMerging.h"
 #include "../GpuMovingCameraBS/timer.h"
 #include "ImageFocusness.h"
 #include "RegionObjectness.h"
