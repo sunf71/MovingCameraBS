@@ -10,12 +10,6 @@
 const int HoleSize = 5;
 const int HoleNeighborsNum = 2;
 const double ZERO = 1e-6;
-
-const float cw = 0.5;
-const float hw = 0.1;
-const float shw = 0.2;
-const float siw = 0.2;
-
 // Expands a 10-bit integer into 30 bits
 // by inserting 2 zeros after each bit.
 inline unsigned int expandBits(unsigned int v)
@@ -103,8 +97,6 @@ struct SPRegion
 	std::vector<std::vector<int>> borderSpIndices;
 	//��ÿ���ھ�����ı߽�������
 	std::vector<int> borderPixelNum;
-	//��߽糬����Id
-	std::vector<int> outBorderSPs;
 	//��ÿ���ھӵı߽�����
 	std::vector<std::vector<uint2>> borderPixels;
 	//��ÿ���ھӵı߽��������Ǳ�Ե�����ظ���
@@ -121,9 +113,6 @@ struct SPRegion
 	float moment;
 	//��״���min(width,height)/max(width,height)
 	float compactness;
-	//��Χ��
-	cv::Rect Bbox;
-	float focusness;
 };
 struct RegionPartition
 {
@@ -162,7 +151,7 @@ struct RegionSalInfo
 	{
 		//����������Խ��Խ��
 		//return contrast + (1 - borderRatio) + (1 - ad2c) + compactness + fillness + neighRatio;
-		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2;
+		return wc * contrast + wp*((1 - borderRatio) + (1 - ad2c)) / 2 + ws*(compactness + fillness) / 2 + neighRatio;
 	}
 	friend std::ostream &  operator << (std::ostream & os, RegionSalInfo& rd)
 	{
@@ -361,7 +350,6 @@ void SuperPixelRegionMergingFast(int width, int height, SuperpixelComputer* comp
 	float threshold, float confidence = 0.6
 	);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<uint2>& regParis, cv::Mat& mask);
-void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, std::vector<int>& flagSPs, cv::Mat& mask);
 void GetRegionMap(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool textflag = true);
 
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag = 0, bool txtflag = true);
@@ -469,7 +457,7 @@ void RegionGrowing(const cv::Mat& img, const char* outPath, SuperpixelComputer& 
 
 void RegionGrowing(const cv::Mat& img, const char* outPath, std::vector<float>& spSaliency, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF);
 
-void RegionGrowing(int iter, const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
+void RegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
 void AllRegionGrowing(const cv::Mat& img, const char* outPath, const cv::Mat& edgeMap, SuperpixelComputer& computer, std::vector<int>& newLabels, std::vector<SPRegion>& regions, float thresholdF, bool debug = false);
 
@@ -499,14 +487,8 @@ void PickSaliencyRegion(int width, int height, SuperpixelComputer* computer, std
 
 float PickMostSaliencyRegions(int width, int height, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, cv::Mat& salMap, cv::Mat& dbgMap);
 
-void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, cv::Mat& salMap, bool debug = false);
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, std::vector<RegionSalInfo>& regInfo, bool debug = false);
 void RegionSaliency(int width, int height, const char* outputPath, SuperpixelComputer* computer, std::vector<int>&nLabels, std::vector<SPRegion>& regions, RegionPartition & bkgRegions, std::vector<RegionSalInfo>& regInfo);
 
 //��������ı߽����Ϣ
 void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
-
-void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, const cv::Mat& gradMap, const cv::Mat& scaleMap, const cv::Mat& edgemap, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
-
-
-void GetRegionEdgeness(const cv::Mat& edgeMap, std::vector<SPRegion>& regions);
