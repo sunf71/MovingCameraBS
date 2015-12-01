@@ -2862,7 +2862,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector < std::vector<int>> neighbors;
 	cv::Mat salMap;
 	timer.start();
-	IterativeRegionGrowing(img, edgeMap, (const char*)imgName, (const char*)outPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, true);
+	IterativeRegionGrowing(img, edgeMap, (const char*)outPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, true);
 	timer.stop();
 	if (debug)
 		std::cout << "IterativeRegionGrowing " << timer.seconds() * 1000 << "ms\n";
