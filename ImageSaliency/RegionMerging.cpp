@@ -84,8 +84,6 @@ double RegionColorDist(const SPRegion& reg0, const SPRegion& reg1)
 	//处理当颜色分布集中，而且平均颜色一致时，直方图距离仍然很大的问题
 	if (avgDist < 0.2 && std::max(reg0V, reg1V)> 0.1 && histDist >0.7)
 	{
-
-
 		if (avgDist < 0.2)
 		{
 			int width = 400;
