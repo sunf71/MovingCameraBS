@@ -2166,7 +2166,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 			}
 
 		}
-		if (errorNum > 0)
+		//if (errorNum > 0)
 		{
 			if (method == 2 || method == 4)
 			{

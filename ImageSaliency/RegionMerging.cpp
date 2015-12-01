@@ -4134,7 +4134,7 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 
 	if (debug)
 	{
-		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1);
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1,false);
 		sprintf(name, "%sOccHandled_%d.jpg", outPath, regSize);
 		cv::imwrite(name, rmask);
 	}
@@ -4795,7 +4795,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	RegSize = regions.size() - ZeroReg;
 	if (debug)
 	{
-		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 0, false);
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1, false);
 		ZeroReg = std::count_if(regions.begin(), regions.end(), RegionSizeZero());
 		RegSize = regions.size() - ZeroReg;
 		sprintf(fileName, "%sMerge2_%d.jpg", outPath, RegSize);
