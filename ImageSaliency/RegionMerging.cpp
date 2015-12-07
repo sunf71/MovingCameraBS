@@ -3977,10 +3977,14 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 	float avgColorDist(0);
 	int avgColorDistSize(0);
 	float avgAd2cDis(0);
-	float minDist(0);
+	float minDist(255);
+	
+	int minSId, minBId,minRegInfoId;
 	float threshold(0.4);
 	int idx(0);
 	std::vector<RegDist> RegDists;
+	float wc = 1;
+	float wa = 0.5;
 	for (size_t i = 0; i < regInfos.size() - 1; i++)
 	{
 		int id = regInfos[i].id;
@@ -4001,16 +4005,24 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 				(regions[id].edgeSpNum > 1 && regions[nid].edgeSpNum > 1) ||
 				isNeighbor(regions, id, nid))
 			{
-				RegDist rd;
+				
 				float ad2cI = sqrt(sqr(regions[id].ad2c.x) + sqr(regions[id].ad2c.y));
 				float ad2cJ = sqrt(sqr(regions[nid].ad2c.x) + sqr(regions[nid].ad2c.y));
 				float ad2cDis = abs(ad2cI - ad2cJ);
-				rd.id = i;
+				/*RegDist rd;rd.id = i;
 				rd.sRid = id;
 				rd.bRid = nid;
 				rd.colorDist = colorDist;
 				rd.edgeness = ad2cDis;
-				RegDists.push_back(rd);
+				RegDists.push_back(rd);*/
+				float wDist = wc*colorDist + wa*ad2cDis;
+				if (wDist < minDist)
+				{
+					minDist = wDist;
+					minSId = id;
+					minBId = nid;
+					minRegInfoId = i;
+				}
 			}
 			/*	;
 			rd.edgeness = ad2cDis;
@@ -4022,8 +4034,7 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 	}
 	avgColorDist /= avgColorDistSize;
 	avgAd2cDis /= avgColorDistSize;
-	float wc = 1;
-	float wa = 0.5;
+	
 	threshold = avgColorDist*0.8;
 	if (debug)
 	{
@@ -4045,8 +4056,8 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 	int regSize = regInfos.size();
 
 
-	std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(wc, wa, 0, 0));
-	minDist = 0;
+	//std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(wc, wa, 0, 0));
+	
 	char outPutPath[300];
 	if (debug)
 	{
@@ -4057,43 +4068,44 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 	//´¦ÀíÕÚµ²
 	while (regSize > 2 && minDist < threshold)
 	{
-		minDist = wc*RegDists[0].colorDist + wa*RegDists[0].edgeness;
-		if (minDist > threshold)
-		{
-			if (debug)
-			{
-				std::cout << minDist << " > " << threshold << "occ handel stop\n";
-			}
+		//minDist = wc*RegDists[0].colorDist + wa*RegDists[0].edgeness;
+		//if (minDist > threshold)
+		//{
+		//	if (debug)
+		//	{
+		//		std::cout << minDist << " > " << threshold << "occ handel stop\n";
+		//	}
 
 
-			break;
-		}
+		//	break;
+		//}
 
 
 
 		if (debug)
 		{
 			std::vector<uint2> pair;
-			pair.push_back(make_uint2(RegDists[0].sRid, RegDists[0].bRid));
+			pair.push_back(make_uint2(minSId, minBId));
 			GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, pair, rmask);
-			sprintf(name, "%s%dHOccMerge0_%d_%d_Region_%2d_%d.jpg", outPutPath, idx, RegDists[0].sRid, RegDists[0].bRid, (int)(minDist * 100), regSize);
+			sprintf(name, "%s%dHOccMerge0_%d_%d_Region_%2d_%d.jpg", outPutPath, idx, minSId, minBId, (int)(minDist * 100), regSize);
 
 			cv::imwrite(name, rmask);
 		}
 
-		MergeRegions(RegDists[0].sRid, RegDists[0].bRid, newLabels, spPoses, regions);
+		MergeRegions(minSId, minBId, newLabels, spPoses, regions);
 
 		if (debug)
 		{
 			GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
 
-			sprintf(name, "%s%dHOccMerge1_%d_%d_Region_%2d_%d.jpg", outPutPath, idx, RegDists[0].sRid, RegDists[0].bRid, (int)(minDist * 100), regSize - 1);
+			sprintf(name, "%s%dHOccMerge1_%d_%d_Region_%2d_%d.jpg", outPutPath, idx, minSId, minBId, (int)(minDist * 100), regSize - 1);
 			cv::imwrite(name, rmask);
 
 		}
 
-		regInfos.erase(RegDists[0].id + regInfos.begin());
-		RegDists.clear();
+		regInfos.erase(minRegInfoId + regInfos.begin());
+		//RegDists.clear();
+		minDist = 255;
 		for (size_t i = 0; i < regInfos.size() - 1; i++)
 		{
 			int id = regInfos[i].id;
@@ -4103,27 +4115,39 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 				if ((regions[id].edgeSpNum < 1 && regions[nid].edgeSpNum < 1) ||
 					(regions[id].edgeSpNum > 1 && regions[nid].edgeSpNum > 1))
 				{
-					RegDist rd;
-					rd.id = i;
-					rd.sRid = id;
-					rd.bRid = nid;
-					//rd.colorDist = cv::compareHist(regions[id].colorHist, regions[nid].colorHist, CV_COMP_BHATTACHARYYA);
-					rd.colorDist = RegionColorDist(regions[id], regions[nid]);
+					//RegDist rd;
+					//rd.id = i;
+					//rd.sRid = id;
+					//rd.bRid = nid;
+					////rd.colorDist = cv::compareHist(regions[id].colorHist, regions[nid].colorHist, CV_COMP_BHATTACHARYYA);
+					//rd.colorDist = RegionColorDist(regions[id], regions[nid]);
+					//float ad2cI = sqrt(sqr(regions[id].ad2c.x) + sqr(regions[id].ad2c.y));
+					//float  = abs(ad2cI - ad2cJ);
+					//rd.edgeness = ad2cDis;
+					//RegDists.push_baad2cJ = sqrt(sqr(regions[nid].ad2c.x) + sqr(regions[nid].ad2c.y));
+					//float ad2cDisck(rd);
+					float cDist = RegionColorDist(regions[id], regions[nid]);
 					float ad2cI = sqrt(sqr(regions[id].ad2c.x) + sqr(regions[id].ad2c.y));
 					float ad2cJ = sqrt(sqr(regions[nid].ad2c.x) + sqr(regions[nid].ad2c.y));
 					float ad2cDis = abs(ad2cI - ad2cJ);
-					rd.edgeness = ad2cDis;
-					RegDists.push_back(rd);
+					float wDist = wc*cDist + wa*ad2cDis;
+					if (wDist < minDist)
+					{
+						minDist = wDist;
+						minSId = id;
+						minBId = nid;
+						minRegInfoId = i;
+					}
 				}
 			}
 		}
-		if (RegDists.size() == 0)
+		/*if (RegDists.size() == 0)
 		{
 			std::cout << "regdists == 0 occhandle stop\n";
 			break;
 		}
-
-		std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(wc, wa, 0, 0));
+*/
+		//std::sort(RegDists.begin(), RegDists.end(), RegDistDescComparer(wc, wa, 0, 0));
 		idx++;
 		regSize--;
 		//UpdateRegionInfo(img.cols, img.rows, &computer, newLabels, regions, segment);
@@ -4528,9 +4552,10 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 {
 	char outPath[300];
 	char fileName[300];
-	sprintf(outPath, "%s\\%s\\", outputPath, imgName);
-	//if (debug)
+	
+	if (debug)
 	{
+		sprintf(outPath, "%s\\%s\\", outputPath, imgName);
 		CreateDir(outPath);
 
 	}
@@ -4561,8 +4586,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
 	int num = Quantize(fimg, idx1i, _color3f, _colorNum, ratio, clrNums);
 	BuildQHistorgram(idx1i, num, &computer, colorHist);
-	gradHist.resize(spSize);
-	cv::cvtColor(_color3f, _color3f, CV_BGR2Lab);
+	//gradHist.resize(spSize);
+	/*cv::cvtColor(_color3f, _color3f, CV_BGR2Lab);
 	cv::Mat_<float> cDistCache1f = cv::Mat::zeros(_color3f.cols, _color3f.cols, CV_32F); {
 		cv::Vec3f* pColor = (cv::Vec3f*)_color3f.data;
 		for (int i = 0; i < cDistCache1f.rows; i++)
@@ -4578,10 +4603,10 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	}
 	double minDist, maxDist;
 	cv::minMaxLoc(cDistCache1f, &minDist, &maxDist);
-	gColorDist = cDistCache1f;
-	gMaxDist = maxDist;
+	gColorDist = cDistCache1f;*/
+	//gMaxDist = maxDist;
 
-	PrepareQCSimMatrix(num);
+	//PrepareQCSimMatrix(num);
 
 #if (TEST_SPEED)
 	{
@@ -4634,7 +4659,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 		regions[i].cY = i / spWidth;
 		regions[i].color = centers[i].rgb;
 		regions[i].colorHist = colorHist[i];
-		regions[i].hog = gradHist[i];
+		//regions[i].hog = gradHist[i];
 		//regions[i].lbpHist = lbpHist[i];
 		regions[i].size = 1;
 		regions[i].dist = 0;
@@ -4939,10 +4964,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	float totalWeights(0);
 	float borderRatio = regInfos[regInfos.size() - 1].borderRatio;
 	std::vector<int> bgRegIds;
-	float rmThreshold = 0.75;
-
-
-
+	
 	char spath[200];
 	if (debug)
 	{
@@ -5011,12 +5033,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	std::vector<std::vector<int>> cproposalIds;
 	std::vector<std::vector<float>> regScores;
 	std::vector<cv::Mat> proposals;
-	char outDir[200];
-	sprintf(outDir, "%s\\saliency\\", outPath);
-	CreateDir(outDir);
-
-	sprintf(fileName, "%sbox.txt", outDir);
-	std::ofstream outFile(fileName);
+	
+	/*sprintf(fileName, "%sbox.txt", outDir);
+	std::ofstream outFile(fileName);*/
 
 	while (1)
 	{
@@ -5096,25 +5115,25 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 
 			PropScore ps;
-			ps.id = proposals.size();
+			ps.id = proposalIds.size()-1;
 			ps.score = weight;
 			totalWeights += weight;
 			//CalRegionFocusness(gradMap, scaleMap, edgeMap, _spPoses, regions, focus);
-			GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos, candiRegions.size(), rmask);
-			proposals.push_back(rmask.clone());
-			/*if (!debug)*/
+			/*GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos, candiRegions.size(), rmask);
+			proposals.push_back(rmask.clone());*/
+			if (debug)
 			{
 				char imgName[300];
-
+				GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos, candiRegions.size(), rmask);
 				rmask.convertTo(rmask, CV_8U, 255);
-				sprintf(imgName, "%s%dSaliency_%d_%d_%d.png", outDir, regInfos.size(), (int)(weightF * 100), (int)(weightS * 100), (int)(boxdist * 100));
+				sprintf(imgName, "%s%dSaliency_%d_%d_%d.png", spath, regInfos.size(), (int)(weightF * 100), (int)(weightS * 100), (int)(boxdist * 100));
 				cv::imwrite(imgName, rmask);
 
 			}
 
 			propScores.push_back(ps);
 
-			outFile << propScores.size() << "\t" << box.x << "\t" << box.y << "\t" << box.width << "\t" << box.height << "\n";
+			//outFile << propScores.size() << "\t" << box.x << "\t" << box.y << "\t" << box.width << "\t" << box.height << "\n";
 			/*proposals.push_back(salPropose.clone());
 			std::vector<int> nLabels(spSize);
 			memset(&nLabels[0], sizeof(int)*spSize, 0);
@@ -5164,7 +5183,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 
 	}
-	outFile.close();
+	//outFile.close();
 	salMap = cv::Mat::zeros(img.size(), CV_32F);
 	std::sort(propScores.begin(), propScores.end(), PropScoreCmp());
 	for (size_t i = 0; i < propScores.size() / 2; i++)
@@ -5253,9 +5272,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 	sprintf(fileName, "%s\\%s_RMSB.png", outputPath, imgName);
 	cv::imwrite(fileName, salMap);
 
-	salMap = cv::Mat::zeros(img.size(), CV_32F);
+	//salMap = cv::Mat::zeros(img.size(), CV_32F);
 	//Saliency(outPath, imgName, propScores, proposals, salMap);
-	Saliency(outputPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);
+	//Saliency(outputPath, imgName, propScores, candiRegions, proposalIds, proposals, salMap);
 	//cv::add(salMap, bkgSal, salMap);
 	cv::threshold(salMap, salMap, 127, 255, CV_THRESH_BINARY);
 #if (TEST_SPEED)
