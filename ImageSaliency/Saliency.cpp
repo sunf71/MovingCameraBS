@@ -49,10 +49,14 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	cv::Mat simg;
 
 	SuperpixelComputer computer(_width, _height, step, 0.55);
-
+	std::vector < std::vector<int>> neighbors;
+	//每个超像素中包含的像素以及位置	
+	std::vector<std::vector<uint2>> _spPoses;
 
 	//timer.start();
 	computer.ComputeSuperpixel(img);
+	computer.ComputeSLICSuperpixel(img);
+	computer.GetSuperpixelPosesNeighbors(_spPoses, neighbors);
 	//timer.stop();
 
 
@@ -72,8 +76,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	SLICClusterCenter* centers = NULL;
 	int _spSize(0);
 	computer.GetSuperpixelResult(_spSize, labels, centers);
-	//每个超像素中包含的像素以及位置	
-	std::vector<std::vector<uint2>> _spPoses;
+	
 	computer.GetSuperpixelPoses(_spPoses);
 
 	if (debug)
@@ -81,7 +84,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 
 	std::vector<int> nLabels;
 	std::vector<SPRegion> regions;
-	std::vector < std::vector<int>> neighbors;
+	
 	cv::Mat salMap;
 	//timer.start();
 	//IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);

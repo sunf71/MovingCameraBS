@@ -258,6 +258,118 @@ void SuperpixelComputer::GetSuperpixelPoints(std::vector<std::vector<cv::Point>>
 	}
 	poses = _spPoints;
 }
+
+void SuperpixelComputer::GetSuperpixelPointsNeighbors(std::vector<std::vector<cv::Point>>& points, std::vector<std::vector<int>>& neighbors, int numOfNeighbors)
+{
+	static int ndx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
+	static int ndy[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
+	if (_labels == NULL)
+		return;
+	if (_spPoints.size() > 0)
+	{
+		points = _spPoints;
+		neighbors = _neighbors4;
+		return;
+	}
+	int _spSize = _spWidth*_spHeight;
+	_spPoints.clear();
+	_spPoints.resize(_spSize);
+	_neighbors4.resize(_spSize);
+
+	for (int i = 0; i < _spSize; i++)
+	{
+		_spPoints[i].clear();
+		int x = int(_centers[i].xy.x + 0.5);
+		int y = int(_centers[i].xy.y + 0.5);
+		for (int m = -_step + y; m <= _step + y; m++)
+		{
+			if (m < 0 || m >= _height)
+				continue;
+			for (int n = -_step + x; n <= _step + x; n++)
+			{
+				if (n < 0 || n >= _width)
+					continue;
+				int id = m*_width + n;
+				if (_labels[id] == i)
+				{
+					_spPoints[i].push_back(cv::Point(n, m));
+					for (size_t ni = 0; ni < numOfNeighbors; ni++)
+					{
+						int x = n + ndx[ni];
+						int y = m + ndy[ni];
+						if (x >= 0 && x < _width && y >= 0 && y < _height)
+						{
+							int idx = x + y*_width;
+							if (_labels[idx] != i)
+							{
+								if (std::find(_neighbors4[i].begin(), _neighbors4[i].end(), idx) == _neighbors4[i].end())
+									_neighbors4[i].push_back(_labels[idx]);
+							}
+						}
+
+					}
+				}
+			}
+		}
+	}
+	points = _spPoints;
+}
+void SuperpixelComputer::GetSuperpixelPosesNeighbors(std::vector<std::vector<uint2>>& poses, std::vector<std::vector<int>>& neighbors, int numOfNeighbors)
+{
+	static int ndx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
+	static int ndy[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
+	if (_labels == NULL)
+		return;
+	if (_spPoses.size() > 0)
+	{
+		poses = _spPoses;
+		neighbors = _neighbors4;
+		return;
+	}
+	int _spSize = _spWidth*_spHeight;
+	_spPoses.clear();
+	_spPoses.resize(_spSize);
+	_neighbors4.resize(_spSize);
+
+	for (int i = 0; i < _spSize; i++)
+	{
+		_spPoses[i].clear();
+		int x = int(_centers[i].xy.x + 0.5);
+		int y = int(_centers[i].xy.y + 0.5);
+		for (int m = -_step + y; m <= _step + y; m++)
+		{
+			if (m < 0 || m >= _height)
+				continue;
+			for (int n = -_step + x; n <= _step + x; n++)
+			{
+				if (n < 0 || n >= _width)
+					continue;
+				int id = m*_width + n;
+				if (_labels[id] == i)
+				{
+					_spPoses[i].push_back(make_uint2(n, m));
+					for (size_t ni = 0; ni < numOfNeighbors; ni++)
+					{
+						int x = n + ndx[ni];
+						int y = m + ndy[ni];
+						if (x >= 0 && x < _width && y >= 0 && y < _height)
+						{
+							int idx = x + y*_width;
+							if (_labels[idx] != i)
+							{
+								if (std::find(_neighbors4[i].begin(), _neighbors4[i].end(), _labels[idx]) == _neighbors4[i].end())
+									_neighbors4[i].push_back(_labels[idx]);
+							}
+						}
+
+					}
+				}
+			}
+		}
+	}
+	poses = _spPoses;
+	neighbors = _neighbors4;
+}
 void SuperpixelComputer::GetSuperpixelPoses(std::vector<std::vector<uint2>>& spPoses)
 {
 	if (_labels == NULL)
@@ -301,6 +413,7 @@ void SuperpixelComputer::ComputeSLICSuperpixel(const cv::Mat& img)
 	int num(0);
 	double m(0);
 	slic.PerformSLICO_ForGivenStepSize((unsigned int*)rgbaImg.data, img.cols, img.rows, _labels, _centers, num, _step, m);
+	
 }
 struct SPInfo
 {

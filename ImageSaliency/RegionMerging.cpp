@@ -1313,7 +1313,9 @@ void GetRegionPixelBorder(int width, int height, SuperpixelComputer* computer, s
 		std::vector<cv::Point> borderPixels;
 		GetRegionBorder(regions[i], borderPixels);
 		regions[i].Bbox = cv::boundingRect(borderPixels);
-
+		for (int p = 0; p < regions[i].spIndices.size(); p++)
+		{
+		}
 	}
 }
 void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::vector<int>& nLabels, const cv::Mat& edgeMap, std::vector<SPRegion>& regions)
@@ -1326,9 +1328,48 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::
 	int num;
 	computer->GetSuperpixelResult(num, labels, centers);
 	std::vector<std::vector<uint2>> spPoses;
-	computer->GetSuperpixelPoses(spPoses);
+	std::vector < std::vector<int>> neighbors;
+	computer->GetSuperpixelPosesNeighbors(spPoses, neighbors);
+	//computer->GetSuperpixelPoses(spPoses);
 	int spWidth = computer->GetSPWidth();
 	int spHeight = computer->GetSPHeight();
+
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		
+		if (regions[i].size == 0)
+			continue;
+		int regPixels(0);
+		int labelI = nLabels[regions[i].spIndices[0]];
+		regions[i].borders.resize(regions[i].neighbors.size());
+		regions[i].borderPixelNum.resize(regions[i].neighbors.size());
+
+
+		regions[i].borderSpIndices.resize(regions[i].neighbors.size());
+		regions[i].borderPixels.resize(regions[i].neighbors.size());
+		regions[i].edgeness.resize(regions[i].borderPixels.size());
+
+		memset(&regions[i].edgeness[0], 0, sizeof(float)*regions[i].edgeness.size());
+		memset(&regions[i].borders[0], 0, sizeof(int)*regions[i].borders.size());
+		memset(&regions[i].borderPixelNum[0], 0, sizeof(int)*regions[i].borderPixelNum.size());
+		for (int k = 0; k < regions[i].neighbors.size(); k++)
+		{
+			regions[i].borderSpIndices[k].clear();
+			regions[i].borderPixels[k].clear();
+		}
+		for (int p = 0; p < regions[i].spIndices.size(); p++)
+		{
+			int spIdx = regions[i].spIndices[p];
+			int label = nLabels[spIdx];
+			regPixels += spPoses[spIdx].size();
+			for (size_t j = 0; j <neighbors[spIdx].size(); j++)
+			{
+				if (nLabels[neighbors[spIdx][j]] == 
+			}
+		}
+		
+
+	}
 
 #pragma omp parallel for
 	for (int i = 0; i < regions.size(); i++)

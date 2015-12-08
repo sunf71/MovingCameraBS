@@ -78,6 +78,8 @@ public:
 		  cv::Mat& dstColorImg, cv::Mat& dstMapXImg, cv::Mat& dstMapYImg, cv::Mat& dstInvMapXImg,  cv::Mat& dstInvMapYImg );
 	  void GetSuperpixelPoints(std::vector<std::vector<cv::Point>>& poses);
 	  void GetSuperpixelPoses(std::vector<std::vector<uint2>>& poses);
+	  void GetSuperpixelPointsNeighbors(std::vector<std::vector<cv::Point>>& poses, std::vector<std::vector<int>>& neighbors, int neighborNum = 4);
+	  void GetSuperpixelPosesNeighbors(std::vector<std::vector<uint2>>& poses, std::vector<std::vector<int>>& neighbors, int neighborNum = 4);
 	  ~SuperpixelComputer()
 	  {
 		  release();
