@@ -1329,8 +1329,8 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::
 	computer->GetSuperpixelResult(num, labels, centers);
 	std::vector<std::vector<uint2>> spPoses;
 	std::vector < std::vector<int>> neighbors;
-	computer->GetSuperpixelPosesNeighbors(spPoses, neighbors);
-	//computer->GetSuperpixelPoses(spPoses);
+	
+	computer->GetSuperpixelPoses(spPoses);
 	int spWidth = computer->GetSPWidth();
 	int spHeight = computer->GetSPHeight();
 
@@ -1783,9 +1783,8 @@ void GetRegionMap(int _width, int _height, SuperpixelComputer* computer, std::ve
 }
 void GetRegionMap(int widht, int height, SuperpixelComputer* computer, int* segmented, std::vector<SPRegion>& regions, cv::Mat& mask, int flag, bool txtflag)
 {
-	int _spWidth = computer->GetSPWidth();
-	int _spHeight = computer->GetSPHeight();
-	int _spSize = _spWidth*_spHeight;
+	
+	int _spSize = computer->GetSuperpixelSize();
 	mask.create(height, widht, CV_8UC3);
 	std::vector<int> color(_spSize);
 	CvRNG rng = cvRNG(cvGetTickCount());
@@ -4379,7 +4378,7 @@ void Saliency(const char* outPath, const char* imgName, std::vector<PropScore>& 
 
 void GCOptimization(const cv::Mat& img, const cv::Mat& salImg, cv::Mat& optRst)
 {
-	SuperpixelComputer* spComputer = new SuperpixelComputer(img.cols, img.rows, 5);
+	SuperpixelComputer* spComputer = new SuperpixelComputer(img.cols, img.rows, 5,0.9);
 	spComputer->ComputeSuperpixel(img);
 	SLICClusterCenter* centers;
 	int spNum, *labels;
@@ -4570,7 +4569,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	int width = img.cols, height = img.rows;
 	int spWidth = computer.GetSPWidth(), spHeight = computer.GetSPHeight();
-	int spSize(spWidth*spHeight);
+	int spSize= computer.GetSuperpixelSize();
 	//build historgram
 	HISTOGRAMS colorHist, gradHist, lbpHist, hColorHist;
 	//BuildHistogram(img, &computer, colorHist, gradHist);

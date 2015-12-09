@@ -118,27 +118,12 @@ void SuperpixelComputer::init()
 
 void SuperpixelComputer::release()
 {
-	delete _gs;
-	if (_labels != NULL)
-	{
-		delete[] _labels;
-		_labels = NULL;
-	}
-	if (_centers != NULL)
-	{
-		delete[] _labels;
-		_centers = NULL;
-	}
-	if (_preLabels != NULL)
-	{
-		delete[] _labels;
-		_preLabels = NULL;
-	}
-	if (_preCenters != NULL)
-	{
-		delete[] _labels;
-		_preCenters = NULL;
-	}
+	safe_delete(_gs);
+	safe_delete(_labels);
+	safe_delete(_centers);
+	safe_delete(_preLabels);
+	safe_delete(_preCenters);
+	
 	safe_delete_array(_segmented);
 	safe_delete_array(_visited);
 	safe_delete_array(_bgLabels);
@@ -326,17 +311,20 @@ void SuperpixelComputer::GetSuperpixelPosesNeighbors(std::vector<std::vector<uin
 		neighbors = _neighbors4;
 		return;
 	}
-	int _spSize = _spWidth*_spHeight;
-	_spPoses.clear();
-	_spPoses.resize(_spSize);
-	_neighbors4.clear();
-	_neighbors4.resize(_spSize);
 	
+	_spPoses.clear();
+	_spPoses.resize(_nPixels);
+	_neighbors4.clear();
+	_neighbors4.resize(_nPixels);
+	
+
 	for (int y = 0; y < _height; y++)
 	{
 		int* labelPtr = &_labels[y*_width];
+		
 		for (int x = 0; x < _width; x++)
 		{
+			
 			int label = labelPtr[x];
 			_spPoses[label].push_back( make_uint2(x, y));
 			for (int n = 0; n < numOfNeighbors; n++)
@@ -401,12 +389,15 @@ void SuperpixelComputer::ComputeSLICSuperpixel(const cv::Mat& img)
 	cv::Mat rgbaImg;
 	cv::cvtColor(img, rgbaImg, CV_BGR2BGRA);
 	SLIC slic;
-	int num(0);
-	double m(0);
-	slic.PerformSLICO_ForGivenStepSize((unsigned int*)rgbaImg.data, img.cols, img.rows, _labels, _centers, num, _step, m);
-	GetSuperpixelPosesNeighbors(_spPoses, _neighbors4);
 	
-	for (int i = 0; i < num; i++)
+	double m(0);
+	slic.PerformSLICO_ForGivenStepSize((unsigned int*)rgbaImg.data, img.cols, img.rows, _labels, _centers, _nPixels, _step, m);
+	//slic.SaveSuperpixelLabels(_labels, img.cols, img.rows, "labels.txt", "./");
+	
+	GetSuperpixelPosesNeighbors(_spPoses, _neighbors4);
+	_centers = new SLICClusterCenter[_nPixels];
+	//#pragma omp parallel for
+	for (int i = 0; i < _nPixels; i++)
 	{
 		double sr(0), sg(0), sb(0), sy(0), sx(0); 
 		for (int j = 0; j < _spPoses[i].size(); j++)
@@ -429,7 +420,7 @@ void SuperpixelComputer::ComputeSLICSuperpixel(const cv::Mat& img)
 		_centers[i].rgb = make_float4(sr, sg, sb, 0);
 		_centers[i].xy = make_float2(sx, sy);
 	}
-	slic.SaveSuperpixelLabels(_labels, img.cols, img.rows, "labels.txt", "./" );
+	
 }
 struct SPInfo
 {

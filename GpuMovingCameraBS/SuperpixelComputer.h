@@ -4,6 +4,21 @@
 class SuperpixelComputer
 {
 public:
+	SuperpixelComputer(const cv::Size imgSize, const int step) :_step(step)
+	{
+		_width = imgSize.width;
+		_height = imgSize.height;
+		_imgSize = imgSize.area();
+		_labels = new int[_imgSize];
+		_gs = NULL;
+		_preLabels = NULL;
+		_preCenters = NULL;
+		_segmented = NULL;
+		_visited = NULL;
+		_bgLabels = NULL;
+		
+
+	};
 	SuperpixelComputer(const int width, const int height, const int step, const float alpha = 0.9):
 	  _width(width),_height(height),_step(step),_alpha(alpha)
 	  {

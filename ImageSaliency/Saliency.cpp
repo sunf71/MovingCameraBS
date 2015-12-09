@@ -48,16 +48,16 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	int _height = img.rows;
 	cv::Mat simg;
 
-	SuperpixelComputer computer(_width, _height, step, 0.55);
+	//SuperpixelComputer computer(_width, _height, step, 0.55);
+	SuperpixelComputer computer(cv::Size(_width,_height), step);
 	std::vector < std::vector<int>> neighbors;
 	//每个超像素中包含的像素以及位置	
 	std::vector<std::vector<uint2>> _spPoses;
 
-	//timer.start();
+	timer.start();
 	//computer.ComputeSuperpixel(img);
 	computer.ComputeSLICSuperpixel(img);
-	computer.GetSuperpixelPosesNeighbors(_spPoses, neighbors);
-	//timer.stop();
+	timer.stop();
 
 
 	if (debug)
