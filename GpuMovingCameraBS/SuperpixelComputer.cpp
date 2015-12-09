@@ -295,11 +295,11 @@ void SuperpixelComputer::GetSuperpixelPointsNeighbors(std::vector<std::vector<cv
 					_spPoints[i].push_back(cv::Point(n, m));
 					for (size_t ni = 0; ni < numOfNeighbors; ni++)
 					{
-						int x = n + ndx[ni];
-						int y = m + ndy[ni];
-						if (x >= 0 && x < _width && y >= 0 && y < _height)
+						int px = n + ndx[ni];
+						int py = m + ndy[ni];
+						if (px >= 0 && px < _width && py >= 0 && py < _height)
 						{
-							int idx = x + y*_width;
+							int idx = px + py*_width;
 							if (_labels[idx] != i)
 							{
 								if (std::find(_neighbors4[i].begin(), _neighbors4[i].end(), idx) == _neighbors4[i].end())
@@ -329,42 +329,33 @@ void SuperpixelComputer::GetSuperpixelPosesNeighbors(std::vector<std::vector<uin
 	int _spSize = _spWidth*_spHeight;
 	_spPoses.clear();
 	_spPoses.resize(_spSize);
+	_neighbors4.clear();
 	_neighbors4.resize(_spSize);
-
-	for (int i = 0; i < _spSize; i++)
+	
+	for (int y = 0; y < _height; y++)
 	{
-		_spPoses[i].clear();
-		int x = int(_centers[i].xy.x + 0.5);
-		int y = int(_centers[i].xy.y + 0.5);
-		for (int m = -_step + y; m <= _step + y; m++)
+		int* labelPtr = &_labels[y*_width];
+		for (int x = 0; x < _width; x++)
 		{
-			if (m < 0 || m >= _height)
-				continue;
-			for (int n = -_step + x; n <= _step + x; n++)
+			int label = labelPtr[x];
+			_spPoses[label].push_back( make_uint2(x, y));
+			for (int n = 0; n < numOfNeighbors; n++)
 			{
-				if (n < 0 || n >= _width)
+				int dy = y + ndy[n];
+				if (dy <0 || dy >= _height)
 					continue;
-				int id = m*_width + n;
-				if (_labels[id] == i)
+				int dx = x + ndx[n];
+				if (dx < 0 || dx >= _width)
+					continue;
+				int nlabel = _labels[dx + dy*_width];
+				if (nlabel != label)
 				{
-					_spPoses[i].push_back(make_uint2(n, m));
-					for (size_t ni = 0; ni < numOfNeighbors; ni++)
-					{
-						int x = n + ndx[ni];
-						int y = m + ndy[ni];
-						if (x >= 0 && x < _width && y >= 0 && y < _height)
-						{
-							int idx = x + y*_width;
-							if (_labels[idx] != i)
-							{
-								if (std::find(_neighbors4[i].begin(), _neighbors4[i].end(), _labels[idx]) == _neighbors4[i].end())
-									_neighbors4[i].push_back(_labels[idx]);
-							}
-						}
+					if (std::find(_neighbors4[label].begin(), _neighbors4[label].end(), nlabel) == _neighbors4[label].end())
+						_neighbors4[label].push_back(nlabel);
 
-					}
 				}
 			}
+
 		}
 	}
 	poses = _spPoses;
@@ -413,7 +404,32 @@ void SuperpixelComputer::ComputeSLICSuperpixel(const cv::Mat& img)
 	int num(0);
 	double m(0);
 	slic.PerformSLICO_ForGivenStepSize((unsigned int*)rgbaImg.data, img.cols, img.rows, _labels, _centers, num, _step, m);
+	GetSuperpixelPosesNeighbors(_spPoses, _neighbors4);
 	
+	for (int i = 0; i < num; i++)
+	{
+		double sr(0), sg(0), sb(0), sy(0), sx(0); 
+		for (int j = 0; j < _spPoses[i].size(); j++)
+		{
+			int x = _spPoses[i][j].x;
+			int y = _spPoses[i][j].y;
+			sx += x;
+			sy += y;
+			uchar* ptr = (uchar*)(img.data + (y*_width + x) * 3);
+			sb += ptr[0];
+			sg += ptr[1];
+			sr += ptr[2];
+		}
+		sx /= _spPoses[i].size();
+		sy /= _spPoses[i].size();
+		sr /= _spPoses[i].size();
+		sg /= _spPoses[i].size();
+		sb /= _spPoses[i].size();
+		_centers[i].nPoints = _spPoses[i].size();
+		_centers[i].rgb = make_float4(sr, sg, sb, 0);
+		_centers[i].xy = make_float2(sx, sy);
+	}
+	slic.SaveSuperpixelLabels(_labels, img.cols, img.rows, "labels.txt", "./" );
 }
 struct SPInfo
 {

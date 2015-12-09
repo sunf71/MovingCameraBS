@@ -1042,7 +1042,7 @@ void SLIC::PerformSLICO_ForGivenStepSize(
 	PerformSuperpixelSegmentation_VariableSandM(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, clustersize, klabels, STEP, 10);
 	
 	numlabels = kseedsl.size();
-
+	
 	int* nlabels = new int[sz];
 	EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, double(sz) / double(STEP*STEP));
 	{
@@ -1055,15 +1055,19 @@ void SLIC::PerformSLICO_ForGivenStepSize(
 	}
 	if (nlabels) delete[] nlabels;
 
-	for (size_t i = 0; i < kseedsl.size(); i++)
+	
+	/*for (size_t i = 0; i < kseedsl.size(); i++)
 	{
-		centers[i].rgb.x = kseedsl[i];
-		centers[i].rgb.y = kseedsa[i];
-		centers[i].rgb.z = kseedsb[i];
-		centers[i].xy.x = kseedsx[i];
-		centers[i].xy.y = kseedsy[i];
-		centers[i].nPoints = clustersize[i];
-	}
+		int x = (int)(kseedsx[i]+0.5);
+		int y = (int)(kseedsy[i] + 0.5);
+		int label = klabels[x + y*width];
+		centers[label].rgb.x = kseedsl[i];
+		centers[label].rgb.y = kseedsa[i];
+		centers[label].rgb.z = kseedsb[i];
+		centers[label].xy.x = kseedsx[i];
+		centers[label].xy.y = kseedsy[i];
+		centers[label].nPoints = clustersize[i];
+	}*/
 }
 //===========================================================================
 ///	PerformSLICO_ForGivenK

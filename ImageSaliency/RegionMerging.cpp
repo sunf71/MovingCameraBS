@@ -1334,43 +1334,6 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::
 	int spWidth = computer->GetSPWidth();
 	int spHeight = computer->GetSPHeight();
 
-	for (size_t i = 0; i < regions.size(); i++)
-	{
-		
-		if (regions[i].size == 0)
-			continue;
-		int regPixels(0);
-		int labelI = nLabels[regions[i].spIndices[0]];
-		regions[i].borders.resize(regions[i].neighbors.size());
-		regions[i].borderPixelNum.resize(regions[i].neighbors.size());
-
-
-		regions[i].borderSpIndices.resize(regions[i].neighbors.size());
-		regions[i].borderPixels.resize(regions[i].neighbors.size());
-		regions[i].edgeness.resize(regions[i].borderPixels.size());
-
-		memset(&regions[i].edgeness[0], 0, sizeof(float)*regions[i].edgeness.size());
-		memset(&regions[i].borders[0], 0, sizeof(int)*regions[i].borders.size());
-		memset(&regions[i].borderPixelNum[0], 0, sizeof(int)*regions[i].borderPixelNum.size());
-		for (int k = 0; k < regions[i].neighbors.size(); k++)
-		{
-			regions[i].borderSpIndices[k].clear();
-			regions[i].borderPixels[k].clear();
-		}
-		for (int p = 0; p < regions[i].spIndices.size(); p++)
-		{
-			int spIdx = regions[i].spIndices[p];
-			int label = nLabels[spIdx];
-			regPixels += spPoses[spIdx].size();
-			for (size_t j = 0; j <neighbors[spIdx].size(); j++)
-			{
-				if (nLabels[neighbors[spIdx][j]] == 
-			}
-		}
-		
-
-	}
-
 #pragma omp parallel for
 	for (int i = 0; i < regions.size(); i++)
 	{
@@ -1466,7 +1429,8 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::
 									int x = pixel.x + dx4[pn];
 									if (x >= 0 && x < width)
 									{
-										if (nLabels[labels[y*width + x]] == labelJ)
+										int label = labels[y*width + x];
+										if (nLabels[label] == labelJ)
 										{
 											regions[i].borderPixels[j].push_back(pixel);
 											regions[i].borderPixelNum[j]++;
@@ -1479,8 +1443,10 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::
 								}
 							}
 						}
+						break;
 
 					}
+					
 				}
 			}
 		}
@@ -1502,7 +1468,6 @@ void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, std::
 		float bheight = maxY - minY + 1;
 		regions[i].spBbox = cv::Rect(minX, minY, bwidth, bheight);
 		regions[i].compactness = std::min(bwidth, bheight) / std::max(bwidth, bheight);
-		int step = computer->GetSuperpixelStep();
 		std::vector<cv::Point> borderPixels;
 		GetRegionBorder(regions[i], borderPixels);
 		regions[i].Bbox = cv::boundingRect(borderPixels);
@@ -4690,63 +4655,122 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 
 	//init regions 
+	//超像素合并过程中像素数量过少的超像素合并到邻居使得直方图统计更有效
+	std::vector<int> smallRegions;
+	int minPixels = sqr(computer.GetSuperpixelStep()) / 2;
 	regions.resize(spSize);
 #pragma omp parallel for	
 	for (int i = 0; i < spSize; i++)
 	{
-		newLabels[i] = i;
+		if (spPoses[i].size() > 0)
+		{
+			newLabels[i] = i;
 
-		regions[i].cX = i%spWidth;
-		regions[i].cY = i / spWidth;
-		regions[i].color = centers[i].rgb;
-		regions[i].colorHist = colorHist[i];
-		//regions[i].hog = gradHist[i];
-		//regions[i].lbpHist = lbpHist[i];
-		regions[i].size = 1;
-		regions[i].dist = 0;
-		regions[i].id = i;
-		regions[i].neighbors = computer.GetNeighbors4(i);
-		regions[i].spIndices.push_back(i);
-		regions[i].pixels = spPoses[i].size();
+			regions[i].cX = i%spWidth;
+			regions[i].cY = i / spWidth;
+			regions[i].color = centers[i].rgb;
+			regions[i].colorHist = colorHist[i];
+			//regions[i].hog = gradHist[i];
+			//regions[i].lbpHist = lbpHist[i];
+			regions[i].size = 1;
+			regions[i].dist = 0;
+			regions[i].id = i;
+			regions[i].neighbors = computer.GetNeighbors4(i);
+			regions[i].spIndices.push_back(i);
+			regions[i].pixels = spPoses[i].size();
+			if (regions[i].pixels < minPixels)
+				smallRegions.push_back(i);
+		}
+		else
+		{
+			regions[i].size = 0;
+		}
+		
 	}
 
 	int* segment = new int[img.cols*img.rows];
 
 
-	int minPixels = sqr(computer.GetSuperpixelStep()) / 2;
-	//处理边缘
-	//top
-	for (size_t i = 0; i < spWidth; i++)
+	for (size_t i = 0; i < smallRegions.size(); i++)
 	{
-		if (regions[i].size > 0 && regions[i].pixels < minPixels)
+		int id = smallRegions[i];
+		for (size_t j = 0; j < regions[id].neighbors.size(); j++)
 		{
-			CombineRegion(i, i + spWidth, regions, newLabels);
+			int n = regions[id].neighbors[j];
+			if (regions[id].pixels + regions[n].pixels > minPixels)
+			{
+				CombineRegion(id, n, regions, newLabels);
+				break;
+			}
 		}
 	}
-	//bottom
-	for (size_t i = spWidth*(spHeight - 1); i <= spWidth*spHeight - 1; i++)
-	{
-		if (regions[i].size > 0 && regions[i].pixels < minPixels)
-		{
-			CombineRegion(i, i - spWidth, regions, newLabels);
-		}
-	}
-	//left
-	for (size_t i = 0; i <= spWidth*(spHeight - 1); i += spWidth)
-	{
-		if (regions[i].size > 0 && regions[i].pixels < minPixels)
-		{
-			CombineRegion(i, i + 1, regions, newLabels);
-		}
-	}
-	//right
-	for (size_t i = spWidth - 1; i < spHeight*spWidth - 1; i += spWidth)
-	{
-		if (regions[i].size > 0 && regions[i].pixels < minPixels)
-		{
-			CombineRegion(i, i - 1, regions, newLabels);
-		}
-	}
+	////处理边缘
+	////top
+	//for (size_t i = 0; i < spWidth; i++)
+	//{
+	//	if (regions[i].size > 0 && regions[i].pixels < minPixels)
+	//	{
+	//		for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+	//		{
+	//			int n = regions[i].neighbors[j];
+	//			if (regions[i].pixels + regions[n].pixels > minPixels)
+	//			{
+	//				CombineRegion(i, n, regions, newLabels);
+	//				break;
+	//			}
+	//		}
+	//		
+	//	}
+	//}
+	////bottom
+	//for (size_t i = spWidth*(spHeight - 1); i <= spWidth*spHeight - 1; i++)
+	//{
+	//	if (regions[i].size > 0 && regions[i].pixels < minPixels)
+	//	{
+	//		for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+	//		{
+	//			int n = regions[i].neighbors[j];
+	//			if (regions[i].pixels + regions[n].pixels > minPixels)
+	//			{
+	//				CombineRegion(i, n, regions, newLabels);
+	//				break;
+	//			}
+	//		}
+	//	}
+	//	
+	//}
+	////left
+	//for (size_t i = 0; i <= spWidth*(spHeight - 1); i += spWidth)
+	//{
+	//	if (regions[i].size > 0 && regions[i].pixels < minPixels)
+	//	{
+	//		for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+	//		{
+	//			int n = regions[i].neighbors[j];
+	//			if (regions[i].pixels + regions[n].pixels > minPixels)
+	//			{
+	//				CombineRegion(i, n, regions, newLabels);
+	//				break;
+	//			}
+	//		}
+	//	}
+	//}
+	////right
+	//for (size_t i = spWidth - 1; i < spHeight*spWidth - 1; i += spWidth)
+	//{
+	//	if (regions[i].size > 0 && regions[i].pixels < minPixels)
+	//	{
+	//		for (size_t j = 0; j < regions[i].neighbors.size(); j++)
+	//		{
+	//			int n = regions[i].neighbors[j];
+	//			if (regions[i].pixels + regions[n].pixels > minPixels)
+	//			{
+	//				CombineRegion(i, n, regions, newLabels);
+	//				break;
+	//			}
+	//		}
+	//	}
+	//}
 #if (TEST_SPEED)
 	{
 		timer.stop();

@@ -54,7 +54,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	std::vector<std::vector<uint2>> _spPoses;
 
 	//timer.start();
-	computer.ComputeSuperpixel(img);
+	//computer.ComputeSuperpixel(img);
 	computer.ComputeSLICSuperpixel(img);
 	computer.GetSuperpixelPosesNeighbors(_spPoses, neighbors);
 	//timer.stop();
