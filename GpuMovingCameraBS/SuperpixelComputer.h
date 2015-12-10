@@ -16,7 +16,8 @@ public:
 		_segmented = NULL;
 		_visited = NULL;
 		_bgLabels = NULL;
-		
+		_spHeight = (_height + _step - 1) / _step;
+		_spWidth = (_width + _step - 1) / _step;
 
 	};
 	SuperpixelComputer(const int width, const int height, const int step, const float alpha = 0.9):

@@ -1336,6 +1336,8 @@ void InitRegions(const cv::Mat& img, HISTOGRAMS& colorHists, SuperpixelComputer*
 	regions.resize(spNum);
 	
 	spPoints.resize(spNum);
+
+//#pragma omp parallel for
 	for (int y = 0; y < height; y++)
 	{
 		int* labelPtr = &labels[y*width];
@@ -1397,7 +1399,9 @@ void InitRegions(const cv::Mat& img, HISTOGRAMS& colorHists, SuperpixelComputer*
 
 		}
 	}
-	for (size_t i = 0; i < spNum; i++)
+
+#pragma omp parallel for
+	for (int i = 0; i < spNum; i++)
 	{
 		regions[i].spIndices.push_back(i);
 		regions[i].size = 1;
@@ -1411,6 +1415,7 @@ void InitRegions(const cv::Mat& img, HISTOGRAMS& colorHists, SuperpixelComputer*
 		regions[i].colorHist = colorHists[i];
 		std::vector<cv::Point> borderPixels;
 		GetRegionBorder(regions[i], borderPixels);
+		regions[i].regCircum = borderPixels.size();
 		regions[i].Bbox = cv::boundingRect(borderPixels);
 		float bwidth = regions[i].Bbox.width*1.f;
 		float bheight = regions[i].Bbox.height*1.f;
@@ -5260,10 +5265,9 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 			std::vector<float> boxBorderHist(colorHist[0].size(), 0);
 			HISTOGRAM bkgHist = regions[regInfos.size() - 1].colorHist;
 			
-			int bkgRegId = regions[regInfos.size() - 1].id;
+			int bkgRegId = regInfos[regInfos.size() - 1].id;
 			float pixels(0);
-			float fgcX(0);
-			float fgcY(0);
+			
 			cv::Rect box = regions[regInfos[0].id].Bbox;			
 			for (size_t i = 0; i < regInfos.size() - 1; i++)
 			{
@@ -5280,47 +5284,50 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 				}
 				
 				pixels += regions[regInfos[i].id].pixels;
-				fgcX += regions[regInfos[i].id].cX*regions[regInfos[i].id].pixels;
-				fgcY += regions[regInfos[i].id].cY*regions[regInfos[i].id].pixels;
+				
 				box = MergeBox(box, regions[regInfos[i].id].Bbox);
 			}
-			fgcX /= pixels;
-			fgcY /= pixels;
+			
+			float fgcX = box.x + box.width / 2;
+			float fgcY = box.y + box.height / 2;
 			float theta = 0.5;
 			float hw = box.width*1.0 / box.height;
 			float h = sqrt(pixels / (theta*hw));
 			float w = hw*h;
-			int topX = fgcX - w / 2;
-			int topY = fgcY - h / 2;
-			topX = topX < 0 ? 0 : topX;
-			topY = topY < 0 ? 0 : topY;
-			if (topX + w >= width)
+			cv::Rect Box;
+			if (h < box.height || w < box.width)
 			{
-				w = width - topX;
+				Box = box;
 			}
-			if (topY + h >= height)
+			else
 			{
-				h = height - topY;
-			}
-			cv::Rect Box(topX, topY, (int)w, (int)h);
-
-			
-			for (int m = Box.x; m < Box.x + w; m++)
-			{
-				for (int n = Box.y; n < Box.y + h; n++)
+				int topX = fgcX - w / 2;
+				int topY = fgcY - h / 2;
+				topX = topX < 0 ? 0 : topX;
+				topY = topY < 0 ? 0 : topY;
+				if (topX + w >= width)
 				{
-
-					int label = labels[n*width + m];
-					if (newLabels[label] == bkgRegId)
+					w = width - topX;
+				}
+				if (topY + h >= height)
+				{
+					h = height - topY;
+				}
+				Box = cv::Rect(topX, topY, (int)w, (int)h);
+			}
+			for (int i = 0; i < regions[bkgRegId].spIndices.size(); i++)
+			{
+				int sp = regions[bkgRegId].spIndices[i];
+				if (Box.contains(cv::Point(centers[sp].xy.x, centers[sp].xy.y)))
+				{
+					for (size_t k = 0; k < colorHist[sp].size(); k++)
 					{
-						for (size_t k = 0; k < colorHist[label].size(); k++)
-						{
-							boxBorderHist[k] += colorHist[label][k];
-						}
+						boxBorderHist[k] += colorHist[sp][k];
 					}
 				}
-
 			}
+
+			
 		
 
 			cv::normalize(fgCHist, fgCHist, 1, 0, cv::NORM_L1);
@@ -5353,6 +5360,8 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 				GetRegionSaliencyMap(width, height, &computer, newLabels, regions, regInfos, candiRegions.size(), rmask);
 				rmask.convertTo(rmask, CV_8U, 255);
 				cv::rectangle(rmask, Box, cv::Scalar(255));
+				cv::rectangle(rmask, box, cv::Scalar(128));
+				cv::circle(rmask, cv::Point(fgcX, fgcY), 3, cv::Scalar(255));
 				sprintf(imgName, "%s%dSaliency_%d_%d_%d.png", spath, regInfos.size(), (int)(weightF * 100), (int)(weightS * 100), (int)(boxdist * 100));
 				cv::imwrite(imgName, rmask);
 
@@ -5426,7 +5435,7 @@ void SaliencyGuidedRegionGrowing(const char* workingPath, const char* imgFolder,
 
 	for (size_t i = 0; i < candiRegions.size(); i++)
 	{
-		float sal = candiRegions[i].regSalScore / totalWeights*exp(-9.0*(sqr(candiRegions[i].ad2c.x) + sqr(candiRegions[i].ad2c.y)));
+		float sal = candiRegions[i].regContrast / totalWeights*exp(-9.0*(sqr(candiRegions[i].ad2c.x) + sqr(candiRegions[i].ad2c.y)));
 		//
 		candiRegions[i].regSalScore = sal;
 		for (int j = 0; j < candiRegions[i].spIndices.size(); j++)
