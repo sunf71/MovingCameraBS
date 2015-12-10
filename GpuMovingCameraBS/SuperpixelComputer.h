@@ -107,6 +107,14 @@ public:
 	  {
 		  return _spHeight;
 	  }
+	  int GetImgWidth()
+	  {
+		  return _width;
+	  }
+	  int GetImgHeight()
+	  {
+		  return _height;
+	  }
 	  std::vector<int>& GetNeighbors4(int i)
 	  {
 		  if (i >= _neighbors4.size())

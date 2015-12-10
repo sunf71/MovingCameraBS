@@ -102,8 +102,27 @@ struct RegInfoCmp
 };
 struct SPRegion
 {
-	SPRegion(){ size = 0; regFlag = false;  filleness = 0; regSalScore = 0; }
-	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y){ size = 0; regFlag = false; regSalScore = 0; }
+	SPRegion()
+	{
+		size = 0;
+		regFlag = false;
+		filleness = 0;
+		regSalScore = 0;
+		edgeSpNum = edgePixNum = cX = cY = pixels = 0;
+		color = make_float4(0, 0, 0, 0);
+	}
+	SPRegion(int l, int _x, int _y, float d) :dist(d), id(l), cX(_x), cY(_y)
+	{ 
+		size = 0; 
+		regFlag = false; 
+		regSalScore = 0;
+		size = 0;
+		regFlag = false;
+		filleness = 0;
+		regSalScore = 0;
+		edgeSpNum = edgePixNum = cX = cY = pixels = 0;
+		color = make_float4(0, 0, 0, 0);
+	}
 	int id;
 	int size;
 	//ÇøÓò±ßÔµÖÐÊÇÍ¼Ïñ±ßÔµµÄ³¬ÏñËØÊý
@@ -665,7 +684,7 @@ void UpdateRegionInfo(int _width, int _height, SuperpixelComputer* computer, std
 
 void UpdateRegionInfo(int width, int height, SuperpixelComputer* computer, const cv::Mat& gradMap, const cv::Mat& scaleMap, const cv::Mat& edgemap, std::vector<int>& nLabels, std::vector<SPRegion>& regions, int * segment);
 
-
+void InitRegions(const cv::Mat& img, HISTOGRAMS& colorHists, SuperpixelComputer* computer, const  cv::Mat& edgeMap, std::vector<SPRegion>& regions);
 void GetRegionEdgeness(const cv::Mat& edgeMap, std::vector<SPRegion>& regions);
 
 

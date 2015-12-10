@@ -209,7 +209,8 @@ void SuperpixelComputer::ComputeSuperpixel(const cv::Mat& img)
 }
 void SuperpixelComputer::GetSuperpixelPoints(std::vector<std::vector<cv::Point>>& poses)
 {
-	if (_labels == NULL)
+	poses = _spPoints;
+	/*if (_labels == NULL)
 		return;
 	if (_spPoints.size() > 0)
 	{
@@ -241,7 +242,7 @@ void SuperpixelComputer::GetSuperpixelPoints(std::vector<std::vector<cv::Point>>
 			}
 		}
 	}
-	poses = _spPoints;
+	poses = _spPoints;*/
 }
 
 void SuperpixelComputer::GetSuperpixelPointsNeighbors(std::vector<std::vector<cv::Point>>& points, std::vector<std::vector<int>>& neighbors, int numOfNeighbors)
@@ -407,9 +408,9 @@ void SuperpixelComputer::ComputeSLICSuperpixel(const cv::Mat& img)
 			sx += x;
 			sy += y;
 			uchar* ptr = (uchar*)(img.data + (y*_width + x) * 3);
-			sb += ptr[0];
+			sr += ptr[0];
 			sg += ptr[1];
-			sr += ptr[2];
+			sb += ptr[2];
 		}
 		sx /= _spPoses[i].size();
 		sy /= _spPoses[i].size();
