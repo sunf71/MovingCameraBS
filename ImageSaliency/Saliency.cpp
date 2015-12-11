@@ -13,7 +13,126 @@ double gMaxDist;
 std::vector< std::vector<ind_sim_pair> > A;
 HistComparer* gHistComparer;
 
+void SLICRegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)
+{
+	nih::Timer timer;
+	char imgName[200];
+	sprintf(imgName, "%s\\%s\\%s.jpg", workingPath, imgPath, fileName);
+	CreateDir((char*)outputPath);
+	if (debug)
+	{
+		char debugPath[200];
+		sprintf(debugPath, "%s%s\\", outputPath, fileName);
+		CreateDir(debugPath);
+	}
 
+
+	cv::Mat img = cv::imread(imgName);
+	cv::Mat fimg, gray, labImg, lbpImg;
+	img.convertTo(fimg, CV_32FC3, 1.0 / 255);
+	cv::cvtColor(fimg, labImg, CV_BGR2Lab);
+	cv::cvtColor(img, gray, CV_BGR2GRAY);
+	cv::GaussianBlur(gray, gray, cv::Size(3, 3), 0);
+	cv::Mat dx, dy, _angImg, _magImg;
+	cv::Scharr(gray, dx, CV_32F, 1, 0);
+	cv::Scharr(gray, dy, CV_32F, 0, 1);
+	cv::cartToPolar(dx, dy, _magImg, _angImg, true);
+	sprintf(imgName, "%s\\Edges\\%s_edge.png", workingPath, fileName);
+	cv::Mat edgeMap = cv::imread(imgName, -1);
+	if (edgeMap.channels() == 3)
+		cv::cvtColor(edgeMap, edgeMap, CV_BGR2GRAY);
+	edgeMap.convertTo(edgeMap, CV_32F, 1.0 / 255);
+
+	int _width = img.cols;
+	int _height = img.rows;
+	cv::Mat simg;
+
+	//SuperpixelComputer computer(_width, _height, step, 0.55);
+	SuperpixelComputer computer(cv::Size(_width, _height), step);
+	std::vector < std::vector<int>> neighbors;
+	//每个超像素中包含的像素以及位置	
+	std::vector<std::vector<uint2>> _spPoses;
+
+	timer.start();
+	//computer.ComputeSuperpixel(img);
+	computer.ComputeSLICSuperpixel(img);
+	timer.stop();
+
+
+	if (debug)
+	{
+		std::cout << "superpixel " << timer.seconds() * 1000 << "ms\n";
+		computer.GetVisualResult(img, simg);
+		sprintf(imgName, "%ssuperpixel_%s.jpg", outputPath, fileName);
+		cv::imwrite(imgName, simg);
+	}
+
+
+	//计算每个超像素与周围超像素的差别
+	int spHeight = computer.GetSPHeight();
+	int spWidth = computer.GetSPWidth();
+	int* labels;
+	SLICClusterCenter* centers = NULL;
+	int _spSize(0);
+	computer.GetSuperpixelResult(_spSize, labels, centers);
+
+	computer.GetSuperpixelPoses(_spPoses);
+
+	if (debug)
+		std::cout << "IterativeRegionGrowing begin\n";
+
+	std::vector<int> nLabels;
+	std::vector<SPRegion> regions;
+
+	cv::Mat salMap;
+	//timer.start();
+	//IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
+	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, 15, debug);
+	//timer.stop();	
+	//std::cout << "SaliencyGuidedRegionMerging " << timer.seconds() * 1000 << "ms\n";
+
+
+
+	//GetContrastMap(_width, _height, &computer, nLabels, _spPoses, regions, neighbors, salMap);
+	//PickSaliencyRegion(_width, _height, &computer, nLabels, regions, salMap, 0.4);
+	sprintf(imgName, "%s%s_RM.png", outputPath, fileName);
+	cv::imwrite(imgName, salMap);
+	sprintf(imgName, "%s%s.jpg", outputPath, fileName);
+	cv::imwrite(imgName, img);
+	sprintf(imgName, "%s\\gt\\%s.png", workingPath, fileName);
+	cv::Mat gt = cv::imread(imgName);
+	sprintf(imgName, "%s\\%s\\%s.png", workingPath, imgPath, fileName);
+	cv::imwrite(imgName, gt);
+	/*cv::Mat sMask;
+	sMask.create(_height, _width, CV_32S);
+	std::vector<int> sortedLabels;
+	for (size_t i = 0; i < nLabels.size(); i++)
+	{
+	if (std::find(sortedLabels.begin(), sortedLabels.end(), nLabels[i]) == sortedLabels.end())
+	{
+	sortedLabels.push_back(nLabels[i]);
+	}
+	}
+	int *pixSeg = new int[_width*_height];
+	for (int i = 0; i < _height; i++)
+	{
+	for (int j = 0; j < _width; j++)
+	{
+	int idx = i*_width + j;
+	int id = std::find(sortedLabels.begin(), sortedLabels.end(), nLabels[labels[idx]]) - sortedLabels.begin();
+	pixSeg[idx] = id;
+	}
+	}
+	memcpy(sMask.data, pixSeg, sizeof(int)*_width*_height);
+	delete[] pixSeg;
+	sprintf(imgName, "%ssegment_%s.bmp", outputPath, fileName);
+	cv::imwrite(imgName, sMask);*/
+
+	/*cv::Mat rmask;
+	GetRegionMap(img.cols, img.rows, &computer, nLabels, regions, rmask);
+	sprintf(imgName, "%s%s_region_%d.jpg", outputPath, fileName, regions.size());
+	cv::imwrite(imgName, rmask);*/
+}
 void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)
 {
 	nih::Timer timer;
@@ -48,16 +167,16 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	int _height = img.rows;
 	cv::Mat simg;
 
-	//SuperpixelComputer computer(_width, _height, step, 0.55);
-	SuperpixelComputer computer(cv::Size(_width,_height), step);
+	SuperpixelComputer computer(_width, _height, step, 0.55);
+	//SuperpixelComputer computer(cv::Size(_width,_height), step);
 	std::vector < std::vector<int>> neighbors;
 	//每个超像素中包含的像素以及位置	
 	std::vector<std::vector<uint2>> _spPoses;
 
-	timer.start();
-	//computer.ComputeSuperpixel(img);
-	computer.ComputeSLICSuperpixel(img);
-	timer.stop();
+	//timer.start();
+	computer.ComputeSuperpixel(img);
+	//computer.ComputeSLICSuperpixel(img);
+	//timer.stop();
 
 
 	if (debug)
