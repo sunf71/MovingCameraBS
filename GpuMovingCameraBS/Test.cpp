@@ -4019,8 +4019,7 @@ void MatchContour(const vector<vector<cv::Point>> & contours, const cv::Mat& con
 }
 void TestWarpError(int argc, char**argv)
 {
-	TestPIF();
-	return;
+	
 	char fileName[200];
 	int start = atoi(argv[1]);
 	int end = atoi(argv[2]);
@@ -4080,33 +4079,35 @@ void TestWarpError(int argc, char**argv)
 		cv::waitKey(0);*/
 		cv::bitwise_not(outMask, outMask);
 		cv::bitwise_and(outMask, warpError, warpError);
+
+		
 		cv::GaussianBlur(warpError, warpError, cv::Size(3, 3), 1.0);
 		cv::threshold(warpError, warpError, 50, 255, CV_THRESH_BINARY);
 		sprintf(fileName, "%swarpErr%d.jpg", outPath, i);
 		cv::imwrite(fileName, warpError);
 
-		cv::Mat result, contourRst;
+		/*cv::Mat result, contourRst;
 		SuperpixelOptimize(spComputer, curImg, warpError, result, contourRst, spStep);
 
 		sprintf(fileName, "%soptimized%d.jpg", outPath, i);
 		cv::imwrite(fileName, result);
 		sprintf(fileName, "%sbin%06d.jpg", outPath, i);
-		cv::imwrite(fileName, contourRst);
-		cv::cvtColor(contourRst, contourRst, CV_BGR2GRAY);
+		cv::imwrite(fileName, contourRst);*/
+		/*cv::cvtColor(contourRst, contourRst, CV_BGR2GRAY);
 		int N = 200;
 		cv::Mat u, mask;
 		LSEWR(warpError, 1.5, 1.5, 0.04, 5, 3, 4, N, contourRst, u);
 		cv::bitwise_not(u, mask);
 		sprintf(fileName, "%shbin%06d.png", outPath, i);
-		cv::imwrite(fileName, mask);
-		N = 100;
+		cv::imwrite(fileName, mask);*/
+		/*N = 100;
 		sprintf(fileName, "%s\\region%06d.jpg", path, i);
 		curImg = cv::imread(fileName);
 		LSEWR(curImg, 1.5, 1.5, 0.04, 5, -3, 4, N, mask, u);
 		cv::bitwise_not(u, u);
 		sprintf(fileName, "%sbin%06d.png", outPath, i);
 		cv::bitwise_not(u, mask);
-		cv::imwrite(fileName, u);
+		cv::imwrite(fileName, u);*/
 
 		/*cv::Mat wpImg;
 		curImg.copyTo(wpImg, warpError);
