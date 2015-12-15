@@ -4029,8 +4029,16 @@ void TestWarpError(int argc, char**argv)
 	CreateDir(outPath);
 	sprintf(fileName, "%s\\in%06d.jpg", path, start);
 	cv::Mat prevImg = cv::imread(fileName);
+	
 	int width = prevImg.cols;
 	int height = prevImg.rows;
+	if (width*height > 800 * 600)
+	{
+		width /= 2;
+		height /= 2;
+		cv::resize(prevImg, prevImg, cv::Size(width, height));
+	}
+		
 	ImageWarping* warper;
 	int spStep = 5;
 	SuperpixelComputer spComputer(width, height, spStep);
@@ -4060,18 +4068,24 @@ void TestWarpError(int argc, char**argv)
 	std::vector<cv::Point2f> features0, features1;
 	cv::Mat homography;
 	cv::cvtColor(prevImg, gray0, CV_BGR2GRAY);
+	double meanWarpErr(0);
 	for (size_t i = start; i <= end; i++)
 	{
 		std::cout << i << "\n";
 		sprintf(fileName, "%s\\in%06d.jpg", path, i);
 		curImg = cv::imread(fileName);
+		cv::resize(curImg, curImg, cv::Size(width, height));
 		cv::cvtColor(curImg, gray1, CV_BGR2GRAY);
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500);
 		FeaturePointsRefineRANSAC(features1, features0, homography);
+		//RelFlowRefine(features1, features0, 1.0);
 		warper->SetFeaturePoints(features1, features0);
 		warper->Solve();
 		warper->Reset();
 		warper->Warp(gray1, warpImg);
+		sprintf(fileName, "%swarped%d_%d.jpg", outPath, i, method);
+		cv::imwrite(fileName, warpImg);
+	
 		cv::absdiff(warpImg, gray0, warpError);
 		cv::Mat outMask;
 		warper->GetOutMask(outMask);
@@ -4079,20 +4093,20 @@ void TestWarpError(int argc, char**argv)
 		cv::waitKey(0);*/
 		cv::bitwise_not(outMask, outMask);
 		cv::bitwise_and(outMask, warpError, warpError);
-
+		
 		
 		cv::GaussianBlur(warpError, warpError, cv::Size(3, 3), 1.0);
 		cv::threshold(warpError, warpError, 50, 255, CV_THRESH_BINARY);
-		sprintf(fileName, "%swarpErr%d.jpg", outPath, i);
+		sprintf(fileName, "%swarpErr%d_%d.jpg", outPath, i, method);
 		cv::imwrite(fileName, warpError);
 
-		/*cv::Mat result, contourRst;
+		cv::Mat result, contourRst;
 		SuperpixelOptimize(spComputer, curImg, warpError, result, contourRst, spStep);
 
 		sprintf(fileName, "%soptimized%d.jpg", outPath, i);
 		cv::imwrite(fileName, result);
 		sprintf(fileName, "%sbin%06d.jpg", outPath, i);
-		cv::imwrite(fileName, contourRst);*/
+		cv::imwrite(fileName, contourRst);
 		/*cv::cvtColor(contourRst, contourRst, CV_BGR2GRAY);
 		int N = 200;
 		cv::Mat u, mask;

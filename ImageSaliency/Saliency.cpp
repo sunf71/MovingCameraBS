@@ -133,7 +133,7 @@ void SLICRegionMerging(const char* workingPath, const char* imgPath, const char*
 	sprintf(imgName, "%s%s_region_%d.jpg", outputPath, fileName, regions.size());
 	cv::imwrite(imgName, rmask);*/
 }
-void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false)
+void RegionMerging(const char* workingPath, const char* imgPath, const char* fileName, const char* outputPath, int step, bool debug = false, int regThreshold = 15)
 {
 	nih::Timer timer;
 	char imgName[200];
@@ -207,7 +207,7 @@ void RegionMerging(const char* workingPath, const char* imgPath, const char* fil
 	cv::Mat salMap;
 	//timer.start();
 	//IterativeRegionGrowing(img, edgeMap, fileName, outputPath, computer, nLabels, regions, neighbors, 0.2, salMap, 20, debug);
-	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, 15, debug);
+	SaliencyGuidedRegionGrowing(workingPath, imgPath, outputPath, fileName, img, edgeMap, computer, salMap, regThreshold, debug);
 	//timer.stop();	
 	//std::cout << "SaliencyGuidedRegionMerging " << timer.seconds() * 1000 << "ms\n";
 
@@ -768,6 +768,9 @@ void GetImgSaliency(int argc, char* argv[])
 	{
 		debug = atoi(argv[5]);
 	}
+	int regThreshold = 15;
+	if (argc == 8)
+		regThreshold = atoi(argv[7]);
 	nih::Timer timer;
 	timer.start();
 	for (size_t i = start; i < fileNames.size(); i++)
