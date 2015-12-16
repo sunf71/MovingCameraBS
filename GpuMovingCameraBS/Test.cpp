@@ -2096,7 +2096,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500, 0.05, 10);
 		timer.stop();
 		//std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
-
+		FeatureFlowColor(img1, features1, features0);
+		cv::imshow("color", img1);
+		cv::waitKey();
 		BlockRelFlowRefine BRFR(width, height, 2);
 
 		cv::Mat homo;

@@ -136,3 +136,5 @@ protected:
 	float _threshold;
 	Points _f1, _f0;
 };
+
+void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2);

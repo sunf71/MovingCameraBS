@@ -1,5 +1,6 @@
 #include "FeaturePointRefine.h"
 #include "findHomography.h"
+
 void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography,float threshold)
 {
 	std::vector<uchar> inliers(vf1.size());
@@ -316,6 +317,72 @@ void OpticalFlowHistogram(const cv::Mat& flow,
 	}
 	
 }
+void makecolorwheel(std::vector<cv::Scalar> &colorwheel)
+{
+
+	int RY = 15;
+	int YG = 6;
+	int GC = 4;
+	int CB = 11;
+	int BM = 13;
+	int MR = 6;
+
+	int i;
+
+	for (i = 0; i < RY; i++) colorwheel.push_back(cv::Scalar(255, 255 * i / RY, 0));
+	for (i = 0; i < YG; i++) colorwheel.push_back(cv::Scalar(255 - 255 * i / YG, 255, 0));
+	for (i = 0; i < GC; i++) colorwheel.push_back(cv::Scalar(0, 255, 255 * i / GC));
+	for (i = 0; i < CB; i++) colorwheel.push_back(cv::Scalar(0, 255 - 255 * i / CB, 255));
+	for (i = 0; i < BM; i++) colorwheel.push_back(cv::Scalar(255 * i / BM, 0, 255));
+	for (i = 0; i < MR; i++) colorwheel.push_back(cv::Scalar(255, 0, 255 - 255 * i / MR));
+}
+
+void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2)
+{
+	static std::vector<cv::Scalar> colorwheel; //Scalar r,g,b  
+	if (colorwheel.empty())
+		makecolorwheel(colorwheel);
+
+	float maxRad(-1);
+	std::vector<float> dx(f1.size()),dy(f1.size());
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		dx[i] = f1[i].x - f2[i].x;
+		dy[i] = f1[i].y - f2[i].y;
+		float rad = sqrt(dx[i]*dx[i] + dy[i]*dy[i]);
+		maxRad = rad>maxRad ? rad : maxRad;
+	}
+	if (maxRad < 1e-5)
+		maxRad = 1e-5;
+	std::cout << "maxRad " << maxRad << "\n";
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		float fx = dx[i] / maxRad;
+		float fy = dy[i] / maxRad;
+		float rad = sqrt(fx * fx + fy * fy);
+		
+		float angle = atan2(-fy, -fx) / CV_PI;
+		float fk = (angle + 1.0) / 2.0 * (colorwheel.size() - 1);
+		int k0 = (int)fk;
+		int k1 = (k0 + 1) % colorwheel.size();
+		float f = fk - k0;
+		//f = 0;
+		cv::Scalar data;
+		for (int b = 0; b < 3; b++)
+		{
+		    float col0 = colorwheel[k0][b] / 255.0;
+		    float col1 = colorwheel[k1][b] / 255.0;
+		    float col = (1 - f) * col0 + f * col1;
+		    if (rad <= 1)
+		            col = 1 - rad * (1 - col); // increase saturation with radius  
+		     else
+		             col *= .75; // out of range  
+		     data[2 - b] = (int)(255.0 * col);
+		 }
+		cv::circle(img, f1[i], 3, data);
+	}
+}
+
 void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, std::vector<uchar>& inliers, int distSize, int thetaSize)
 {
 	inliers.resize(features1.size());
