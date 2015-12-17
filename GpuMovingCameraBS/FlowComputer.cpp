@@ -6,6 +6,7 @@
 #include "flowIO.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "FeaturePointRefine.h"
 using namespace cv;
 template <typename T> inline T clamp (T x, T a, T b)
 {
@@ -475,4 +476,48 @@ void FileSuperpixelFlow(const char* fileName, int imgWidth, int imgHeight, int s
 	delete[] flow;
 	fclose(file);
 	//WriteFlowFile(spFlow,"tmp.flo");
+}
+
+
+void  SparseOptialFlow::DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow)
+{
+	cv::Mat gray0, gray1;
+	if (curImg.channels() == 3)
+	{
+		cv::cvtColor(curImg, gray1, CV_BGR2GRAY);
+		cv::cvtColor(prevImg, gray0, CV_BGR2GRAY);
+	}
+	else
+	{
+		gray1 = curImg;
+		gray0 = prevImg;
+	}
+	std::vector<cv::Point2f> f1, f0;
+	KLTFeaturesMatching(gray1, gray0, f1, f0, 500, 0.05, 10);
+	flow = cv::Mat::zeros(curImg.size(), CV_32FC2);
+	int w = 5;
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		float u = f1[i].x - f0[i].x;
+		float v = f1[i].y - f0[i].y;
+		int x = f1[i].x + 0.5;
+		int y = f1[i].y + 0.5;
+		for (int dx = -w; dx < w; dx++)
+		{
+			int xx = x + dx;
+			if (xx<0 || xx>gray1.cols - 1)
+				continue;
+			for (int dy = -w; dy < w; dy++)
+			{
+				int yy = dy + y;
+				if (yy >= 0 && yy < gray1.rows)
+				{
+					float2& data = flow.at<float2>(cv::Point(xx, yy));
+					data.x = u;
+					data.y = v;
+				}
+			}
+		}
+		
+	}
 }

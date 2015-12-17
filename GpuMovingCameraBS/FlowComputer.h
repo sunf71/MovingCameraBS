@@ -28,6 +28,13 @@ class EPPMDenseOptialFlow:public DenseOpticalFlowProvier
 public:
 	virtual 	void  DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow);
 };
+
+class SparseOptialFlow :public DenseOpticalFlowProvier
+{
+public:
+	virtual 	void  DenseOpticalFlow(const cv::Mat& curImg, const cv::Mat& prevImg, cv::Mat& flow);
+};
+
 float L1Dist(const SLICClusterCenter& center, const float2& pos, const uchar* rgb);
 void SuperpixelFlow(const cv::Mat& sgray, const cv::Mat& tgray,int step, int spSize, const SLICClusterCenter* centers, 
 	std::vector<cv::Point2f>& features0, std::vector<cv::Point2f>& features1, cv::Mat& flow);

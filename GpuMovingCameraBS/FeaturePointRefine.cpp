@@ -78,6 +78,61 @@ void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>
 	features0.resize(k);
 	features1.resize(k);
 }
+void IterativeOpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize, int thetaSize, float thetaMin, float thetaMax)
+{
+	//直方图共DistSize * thetaSize个bin，其中根据光流强度分DistSize个bin，每个bin根据光流方向分thetaSize个bin
+	int binSize; 
+	thetaSize = 55;
+	DistSize = 50;
+	std::vector<float> thetas(f1.size());
+	std::vector<float> rads(f1.size());
+	float max = -1e10;
+	float min = 1e10;
+	float maxTheta(-1);
+	float minTheta(361);
+	for (int i = 0; i<f1.size(); i++)
+	{
+		float dx = f1[i].x - f2[i].x;
+		float dy = f1[i].y - f2[i].y;
+		float theta = atan2(dy, dx) / M_PI * 180 + 180;
+		thetas[i] = theta;
+		rads[i] = sqrt(dx*dx + dy*dy);
+
+		max = rads[i] >max ? rads[i] : max;
+		min = rads[i]<min ? rads[i] : min;
+		maxTheta = std::max(theta, maxTheta);
+		minTheta = std::min(minTheta, theta);
+	}
+	float radRange = max - min + 1e-6;
+	float thetaRange = 360;
+	//maxFlow = maxFlow>1.0f?maxFlow:1.0f;
+	std::cout << "Rad range " << radRange << " theta range " << thetaRange << std::endl;
+	binSize = DistSize * thetaSize;
+	histogram.resize(binSize);
+	ids.resize(binSize);
+	for (int i = 0; i < binSize; i++)
+		ids[i].clear();
+	memset(&histogram[0], 0, sizeof(float)*binSize);
+
+
+	//maxFlow = 10;
+	float stepR = max / DistSize + 1e-5;
+	float stepT = thetaRange / thetaSize;
+	for (int i = 0; i<f1.size(); i++)
+	{
+		int r = (int)(rads[i] / stepR);
+		int t = (int)(thetas[i] / stepT);
+		r = r>DistSize - 1 ? DistSize - 1 : r;
+		t = t>thetaSize - 1 ? thetaSize - 1 : t;
+		int idx = t*DistSize + r;
+		//std::cout<<idx<<std::endl;
+		histogram[idx]++;
+		ids[idx].push_back(i);
+
+	}
+	
+}
 void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
 	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize ,int thetaSize,float thetaMin, float thetaMax)
 {
@@ -107,17 +162,17 @@ void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>
 		maxTheta = std::max(theta, maxTheta);
 		minTheta = std::min(minTheta, theta);
 	}
-	float maxFlow = max-min+1e-6;
-	float thetaRange = maxTheta - minTheta +1e-6;
+	float maxFlow = max+1e-6;
+	float thetaRange = 360;
 	//maxFlow = maxFlow>1.0f?maxFlow:1.0f;
-	std::cout << "Flow range " << maxFlow << " theta range " << thetaRange << std::endl;
+	//std::cout << "Flow range " << maxFlow << " theta range " << thetaRange << std::endl;
 	//maxFlow = 10;
 	float stepR = maxFlow / DistSize;
 	float stepT = thetaRange / thetaSize;
 	for(int i=0; i<f1.size(); i++)
 	{
-		int r = (int)((rads[i]-min)/stepR);
-		int t = (int)((thetas[i] - minTheta) / stepT);
+		int r = (int)((rads[i])/stepR);
+		int t = (int)((thetas[i]) / stepT);
 		r = r>DistSize-1? DistSize-1:r;
 		t = t>thetaSize-1? thetaSize-1:t;
 		int idx = t*DistSize+r;
@@ -264,6 +319,7 @@ void OpticalFlowHistogram(const cv::Mat& flow,
 {
 	flowIdx.create(flow.size(),CV_16U);
 	//直方图共256个bin，其中根据光流强度分16个bin，每个bin根据光流方向分16个bin
+	//直方图共distSize和thetaSize个Bin，首先根据光流方向分，然后再根据强度分
 	int binSize = DistSize * thetaSize;
 	histogram.resize(binSize);
 	avgDx.resize(binSize);
@@ -281,7 +337,7 @@ void OpticalFlowHistogram(const cv::Mat& flow,
 	//calculate angle and magnitude
 	cv::Mat magnitude, angle;
 	cv::cartToPolar(xy[0], xy[1], magnitude, angle, true);
-
+	//angle range -180~180
 	//translate magnitude to range [0;1]
 	double mag_max;
 	cv::minMaxLoc(magnitude, 0, &mag_max);
@@ -301,7 +357,7 @@ void OpticalFlowHistogram(const cv::Mat& flow,
 		{
 			int index = i*magnitude.cols+j;
 			int r = (int)(magPtr[j]/stepR);
-			int t = (int)(angPtr[j]/stepT);
+			int t = (int)((angPtr[j]+180)/stepT);
 			//std::cout<<magnitude.at<float>(i,j)<<","<<angle.at<float>(i,j)<<std::endl;
 			r = r>=DistSize? DistSize-1:r;
 			t = t>=thetaSize? thetaSize-1:t;
@@ -344,23 +400,29 @@ void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv
 		makecolorwheel(colorwheel);
 
 	float maxRad(-1);
-	std::vector<float> dx(f1.size()),dy(f1.size());
+	float minRad(1e10);
+	std::vector<float> dx(f1.size()), dy(f1.size());
 	for (size_t i = 0; i < f1.size(); i++)
 	{
 		dx[i] = f1[i].x - f2[i].x;
 		dy[i] = f1[i].y - f2[i].y;
-		float rad = sqrt(dx[i]*dx[i] + dy[i]*dy[i]);
+		float rad = sqrt(dx[i] * dx[i] + dy[i] * dy[i]);
 		maxRad = rad>maxRad ? rad : maxRad;
+		minRad = rad < minRad ? rad : minRad;
 	}
 	if (maxRad < 1e-5)
 		maxRad = 1e-5;
-	std::cout << "maxRad " << maxRad << "\n";
+	std::cout << "maxRad " << maxRad << " minRad " << minRad << " range " << maxRad - minRad << "\n";
+
+	float maxTheta(0), minTheta(360);
 	for (size_t i = 0; i < f1.size(); i++)
 	{
 		float fx = dx[i] / maxRad;
 		float fy = dy[i] / maxRad;
 		float rad = sqrt(fx * fx + fy * fy);
-		
+		float theta = atan2(-fy, -fx) / CV_PI * 180 + 180;
+		maxTheta = theta>maxTheta ? theta : maxTheta;
+		minTheta = theta < minTheta ? theta : minTheta;
 		float angle = atan2(-fy, -fx) / CV_PI;
 		float fk = (angle + 1.0) / 2.0 * (colorwheel.size() - 1);
 		int k0 = (int)fk;
@@ -370,17 +432,20 @@ void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv
 		cv::Scalar data;
 		for (int b = 0; b < 3; b++)
 		{
-		    float col0 = colorwheel[k0][b] / 255.0;
-		    float col1 = colorwheel[k1][b] / 255.0;
-		    float col = (1 - f) * col0 + f * col1;
-		    if (rad <= 1)
-		            col = 1 - rad * (1 - col); // increase saturation with radius  
-		     else
-		             col *= .75; // out of range  
-		     data[2 - b] = (int)(255.0 * col);
-		 }
+			float col0 = colorwheel[k0][b] / 255.0;
+			float col1 = colorwheel[k1][b] / 255.0;
+			float col = (1 - f) * col0 + f * col1;
+			if (rad <= 1)
+				col = 1 - rad * (1 - col); // increase saturation with radius  
+			else
+				col *= .75; // out of range  
+			data[2 - b] = (int)(255.0 * col);
+		}
 		cv::circle(img, f1[i], 3, data);
 	}
+	std::cout << "maxTheta " << maxTheta << " minTheta " << minTheta << " range " << maxTheta - minTheta << "\n";
+	std::cout << "----------------------------------------\n";
+
 }
 
 void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, std::vector<uchar>& inliers, int distSize, int thetaSize)
@@ -393,8 +458,8 @@ void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vect
 	std::vector<float> histogram;
 	std::vector<std::vector<int>> ids;
 
+	//OpticalFlowHistogram(features1, features2, histogram, ids, distSize, thetaSize);
 	OpticalFlowHistogram(features1, features2, histogram, ids, distSize, thetaSize);
-
 	//最大bin
 	int max = ids[0].size();
 	int idx(0);
@@ -406,6 +471,21 @@ void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vect
 			idx = i;
 		}
 	}
+	float ratio = max *1.0/ features1.size();
+	if (ratio > 0.5)
+	{
+		//对最大bin中的特征点再进行筛选，建立直方图
+
+	}
+	else
+	{
+		while (ratio < 0.5)
+		{
+			//按照直方图统计顺序选择超过ratio的特征点
+
+		}
+	}
+	//std::cout << ratio << "\n";
 	int k = 0;
 	for (int i = 0; i<ids[idx].size(); i++)
 	{

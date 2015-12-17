@@ -2039,9 +2039,23 @@ void HomographyFlowOrientation()
 	std::cout << "dst " << dst << "\n";
 	std::cout << "orientaion " << atan2(dst.y - src.y, dst.x - src.x) / M_PI * 180 + 180 << " degree\n";
 }
+void TestFlowHistogramN()
+{
+	cv::Mat flow;
+	ReadFlowFile(flow, "flow.flo");
+
+	std::vector<float> histogram, avgDx, avgDy;
+	std::vector<std::vector<int>> ids;
+	cv::Mat flowIdx;
+	OpticalFlowHistogram(flow, histogram, avgDx, avgDy, ids, flowIdx, 10, 55);
+	DrawHistogram(histogram, histogram.size(), "hist");
+	cv::waitKey();
+
+}
 void TestFeaturesRefine(int argc, char* argv[])
 {
-
+	//TestFlowHistogramN();
+	//return;
 	int start = atoi(argv[1]);
 	int end = atoi(argv[2]);
 	int width = atoi(argv[3]);
@@ -2051,9 +2065,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 	char* outPath = argv[7];
 	
 	CreateDir(outPath);
-	
-	int dBinNum(10), aBinNum(90);
-	float threshold(1.0);
+	SparseOptialFlow sof;
+	int dBinNum(10), aBinNum(55);
+	float threshold(0.1);
 	if (method == 3 && argc == 10)
 	{
 		dBinNum = atoi(argv[8]);
@@ -2077,6 +2091,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 	char methodName[20];
 	float Pe(0);
 	float time(0);
+	float avgRatio(0);
+	sprintf(fileName, "%s\\%dOut.txt", outPath, method);
+	std::ofstream of(fileName);
 	for (int i = start; i <= end; i++)
 	{
 		sprintf(fileName, "%s//in%06d.jpg", path, i);
@@ -2091,14 +2108,18 @@ void TestFeaturesRefine(int argc, char* argv[])
 			gray0 = gray1.clone();
 			img0 = img1.clone();
 		}
+		cv::Mat flow;
+		sof.DenseOpticalFlow(gray1, gray0, flow);
+		sprintf(fileName, "%sflow%d.flo", outPath, i);
+		WriteFlowFile(flow, fileName);
 		nih::Timer timer;
 		timer.start();
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500, 0.05, 10);
 		timer.stop();
 		//std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
-		FeatureFlowColor(img1, features1, features0);
+		/*FeatureFlowColor(img1, features1, features0);
 		cv::imshow("color", img1);
-		cv::waitKey();
+		cv::waitKey();*/
 		BlockRelFlowRefine BRFR(width, height, 2);
 
 		cv::Mat homo;
@@ -2168,6 +2189,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 			}
 
 		}
+		float Ratio = k*1.0 / features0.size();
+		of << "Ratio " << Ratio << "\n";
+		avgRatio += Ratio;
 		if (errorNum > 0)
 		{
 			if (method == 2 || method == 4)
@@ -2209,6 +2233,11 @@ void TestFeaturesRefine(int argc, char* argv[])
 	std::cout << "Pe " << Pe * 100 / (end - start + 1) << "\n";
 	std::cout << "refine time " << time * 1000 / (end - start + 1) << "\n";
 	std::cout << "warp err " << warpErr / (end - start + 1);
+	avgRatio /= (end - start + 1);
+	of << "Pe " << Pe * 100 / (end - start + 1) << "\n";
+	of << "Ratio " << avgRatio<<"\n";
+	of <<  "refine time " << time * 1000 / (end - start + 1) << "\n";
+	of.close();
 }
 //测试直方图投票的方式选取背景特征点
 void TestFeaturesRefineHistogram(int argc, char* argv[])
@@ -2248,7 +2277,7 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 		timer.stop();
 		std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
 
-		RansacVsVoting(img1, features1, img0, features0);
+		//RansacVsVoting(img1, features1, img0, features0);
 		/*timer.stop();
 		std::cout<<"klt tracking "<<timer.seconds()*1000<<"ms\n";
 		timer.start();*/
@@ -2279,14 +2308,18 @@ void TestFeaturesRefineHistogram(int argc, char* argv[])
 			img1.copyTo(rstImg(cv::Rect(width, 0, width, height)));
 			for (int j = 0; j < features1.size(); j++)
 			{
-				int x = (int)(features1[j].x + 0.5);
-				int y = (int)(features1[j].y + 0.5);
-				if (gtImg.data[x + y*width] == 0xff)
+				if (inliers[j] == 1)
 				{
-					cv::line(rstImg, cv::Point(features0[j].x, features0[j].y), cv::Point(features1[j].x + width, features1[j].y), cv::Scalar(255, 0, 0));
-					ec++;
-					save = true;
+					int x = (int)(features1[j].x + 0.5);
+					int y = (int)(features1[j].y + 0.5);
+					if (gtImg.data[x + y*width] == 0xff)
+					{
+						cv::line(rstImg, cv::Point(features0[j].x, features0[j].y), cv::Point(features1[j].x + width, features1[j].y), cv::Scalar(255, 0, 0));
+						ec++;
+						save = true;
+					}
 				}
+				
 			}
 			if (save)
 			{
@@ -4179,3 +4212,5 @@ void TestWarpError(int argc, char**argv)
 		cv::swap(gray1, gray0);
 	}
 }
+
+
