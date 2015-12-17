@@ -1,5 +1,6 @@
 #include "FeaturePointRefine.h"
 #include "findHomography.h"
+#include "Common.h"
 
 void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography,float threshold)
 {
@@ -79,12 +80,12 @@ void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>
 	features1.resize(k);
 }
 void IterativeOpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
-	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize, int thetaSize, float thetaMin, float thetaMax)
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, float ratioMax, float ratioMin)
 {
 	//直方图共DistSize * thetaSize个bin，其中根据光流强度分DistSize个bin，每个bin根据光流方向分thetaSize个bin
 	int binSize; 
-	thetaSize = 55;
-	DistSize = 50;
+	float thetaSize = 60;
+	float DistSize = 20;
 	std::vector<float> thetas(f1.size());
 	std::vector<float> rads(f1.size());
 	float max = -1e10;
@@ -104,33 +105,63 @@ void IterativeOpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv:
 		maxTheta = std::max(theta, maxTheta);
 		minTheta = std::min(minTheta, theta);
 	}
-	float radRange = max - min + 1e-6;
+	float radRange = max - 1e-6;
 	float thetaRange = 360;
 	//maxFlow = maxFlow>1.0f?maxFlow:1.0f;
-	std::cout << "Rad range " << radRange << " theta range " << thetaRange << std::endl;
-	binSize = DistSize * thetaSize;
-	histogram.resize(binSize);
-	ids.resize(binSize);
-	for (int i = 0; i < binSize; i++)
-		ids[i].clear();
-	memset(&histogram[0], 0, sizeof(float)*binSize);
-
-
-	//maxFlow = 10;
-	float stepR = max / DistSize + 1e-5;
-	float stepT = thetaRange / thetaSize;
-	for (int i = 0; i<f1.size(); i++)
+	//std::cout << "Rad range " << radRange << " theta range " << thetaRange << std::endl;
+	while (DistSize > 1)
 	{
-		int r = (int)(rads[i] / stepR);
-		int t = (int)(thetas[i] / stepT);
-		r = r>DistSize - 1 ? DistSize - 1 : r;
-		t = t>thetaSize - 1 ? thetaSize - 1 : t;
-		int idx = t*DistSize + r;
-		//std::cout<<idx<<std::endl;
-		histogram[idx]++;
-		ids[idx].push_back(i);
+		binSize = DistSize * thetaSize;
+		histogram.resize(binSize);
+		ids.resize(binSize);
+		for (int i = 0; i < binSize; i++)
+			ids[i].clear();
+		memset(&histogram[0], 0, sizeof(float)*binSize);
 
+
+
+		float stepR = max / DistSize + 1e-5;
+		float stepT = thetaRange / thetaSize;
+		for (int i = 0; i<f1.size(); i++)
+		{
+			int r = (int)(rads[i] / stepR);
+			int t = (int)(thetas[i] / stepT);
+			r = r>DistSize - 1 ? DistSize - 1 : r;
+			t = t>thetaSize - 1 ? thetaSize - 1 : t;
+			int idx = t*DistSize + r;
+			//std::cout<<idx<<std::endl;
+			histogram[idx]++;
+			ids[idx].push_back(i);
+
+		}
+
+		//最大bin
+		int max = ids[0].size();
+		int idx(0);
+
+		for (int i = 1; i<ids.size(); i++)
+		{
+			if (ids[i].size() > max)
+			{
+
+				max = ids[i].size();
+				idx = i;
+
+			}
+
+		}
+		/*DrawHistogram(histogram, histogram.size(), "hist");
+		cv::waitKey();*/
+		float ratio = max*1.0 / f1.size();
+		if (ratio < 0.5)
+		{
+			//DistSize--;
+			thetaSize--;
+		}
+		else
+			break;
 	}
+	
 	
 }
 void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
@@ -451,6 +482,7 @@ void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv
 void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2, std::vector<uchar>& inliers, int distSize, int thetaSize)
 {
 	inliers.resize(features1.size());
+	
 	for (int i = 0; i < features1.size(); i++)
 	{
 		inliers[i] = 0;
@@ -459,7 +491,9 @@ void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vect
 	std::vector<std::vector<int>> ids;
 
 	//OpticalFlowHistogram(features1, features2, histogram, ids, distSize, thetaSize);
-	OpticalFlowHistogram(features1, features2, histogram, ids, distSize, thetaSize);
+	IterativeOpticalFlowHistogram(features1, features2, histogram, ids, distSize, thetaSize);
+	
+	//std::cout << ratio << "\n";
 	//最大bin
 	int max = ids[0].size();
 	int idx(0);
@@ -471,26 +505,11 @@ void FeaturePointsRefineHistogram(std::vector<cv::Point2f>& features1, std::vect
 			idx = i;
 		}
 	}
-	float ratio = max *1.0/ features1.size();
-	if (ratio > 0.5)
-	{
-		//对最大bin中的特征点再进行筛选，建立直方图
-
-	}
-	else
-	{
-		while (ratio < 0.5)
-		{
-			//按照直方图统计顺序选择超过ratio的特征点
-
-		}
-	}
-	//std::cout << ratio << "\n";
-	int k = 0;
 	for (int i = 0; i<ids[idx].size(); i++)
 	{
 		inliers[ids[idx][i]] = 1;		
 	}
+	
 }
 void FeaturePointsRefineHistogram(int width, int height,std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>& features2,int distSize, int thetaSize)
 {
@@ -928,7 +947,7 @@ void FeaturePointsRefineHistogram(int& nf, int width, int height,std::vector<cv:
 	std::vector<std::vector<int>> ids;
 	
 	
-	OpticalFlowHistogram(features1,features2,histogram,ids,distSize,thetaSize);
+	IterativeOpticalFlowHistogram(features1,features2,histogram,ids,distSize,thetaSize);
 
 	//最大bin
 	int max =ids[0].size(); 

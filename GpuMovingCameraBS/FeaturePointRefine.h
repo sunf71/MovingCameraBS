@@ -12,13 +12,13 @@ void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Po
 
 void FeaturePointsRefineRANSAC(int& nf, std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography,float threshold = 0.1);
 
-//build optical flow histogram based on optical flow orientation and distance
+//build optical flow histogram based on optical flow orientation and radiance
 void OpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
 	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16,int thetaSize = 16, float thetaMin = 0, float thetaMax = 360);
 
-//Iterative build optical flow histogram based on optical flow orientation and distance
+//Iterative build optical flow histogram based on optical flow orientation and radiance
 void IterativeOpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
-	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, int DistSize = 16, int thetaSize = 16, float thetaMin = 0, float thetaMax = 360);
+	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, float ratioMax = 0.6, float ratioMin = 0.4);
 
 
 //build optical flow histogram based on optical flow orientation

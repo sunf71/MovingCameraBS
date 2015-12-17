@@ -2108,10 +2108,10 @@ void TestFeaturesRefine(int argc, char* argv[])
 			gray0 = gray1.clone();
 			img0 = img1.clone();
 		}
-		cv::Mat flow;
+		/*cv::Mat flow;
 		sof.DenseOpticalFlow(gray1, gray0, flow);
 		sprintf(fileName, "%sflow%d.flo", outPath, i);
-		WriteFlowFile(flow, fileName);
+		WriteFlowFile(flow, fileName);*/
 		nih::Timer timer;
 		timer.start();
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500, 0.05, 10);
