@@ -2052,6 +2052,153 @@ void TestFlowHistogramN()
 	cv::waitKey();
 
 }
+void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img, int n = 4)
+{
+	//把图像分为n*n个分块
+	int blkWidth = width / n;
+	int blkHeight = height / n;
+	int blkSize = n*n;
+	std::vector<std::vector<cv::Point2f>> blkFP(f1.size());
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		cv::Point2f pt = f1[i];
+		int idx = (int)(pt.x + 0.5) / blkWidth;
+		int idy = (int)(pt.y + 0.5) / blkHeight;
+		float dx = f0[i].x - f1[i].x;
+		float dy = f0[i].y - f1[i].y;
+		blkFP[idx + idy*n].push_back(cv::Point(dx,dy));
+
+		
+	}
+	std::vector<cv::Point2f> blkAvgFlow(n*n);
+	std::vector<bool> blkFPFlag(n*n);
+	std::vector<float> blkNeiDist(n*n, 0);
+	for (size_t i = 0; i < blkSize; i++)
+	{
+		float avgDx(0), avgDy(0);
+		for (size_t j = 0; j < blkFP[i].size(); j++)
+		{
+			avgDx += blkFP[i][j].x;
+			avgDy += blkFP[i][j].y;
+		}
+		if (blkFP[i].size() > 0)
+		{
+			blkAvgFlow[i] = cv::Point2f(avgDx / blkFP[i].size(), avgDy / blkFP[i].size());
+			blkFPFlag[i] = true;
+		}			
+		else
+		{
+			blkAvgFlow[i] = cv::Point2f(0, 0);
+			blkFPFlag[i] = false;
+		}
+			
+	}
+	int nx[] = { 1, 0, -1, 0 };
+	int ny[] = { 0, -1, 0, 1 };
+	//与周围邻居进行比较
+	for (size_t i = 0; i < n; i++)
+	{
+		for (size_t j = 0; j < n; j++)
+		{
+			int idx = i*n + j;
+			if (!blkFPFlag[idx])
+				continue;
+			cv::Point2f flow = blkAvgFlow[idx];
+			float dx(0), dy(0);
+			int num(0);
+			for (int n = 0; n < 4; n++)
+			{
+				int y = i + ny[n];
+				int x = j + nx[n];
+				if (x >= 0 && x < blkWidth && y >= 0 && y < blkHeight)
+				{
+					
+					int id = y*n + x;
+					if (blkFPFlag[id])
+					{
+						dx += abs(flow.x - blkAvgFlow[id].x);
+						dy += abs(flow.y - blkAvgFlow[id].y);
+						num++;
+					}
+				}
+			}
+			if (num > 0)
+			{
+				float dist = sqrt((dx / num)*(dx / num) + (dy / num)*(dy / num));
+				blkNeiDist[idx] = dist;
+
+			}
+		}
+	}
+	cv::normalize(blkNeiDist, blkNeiDist, 1.0, 0.0, CV_MINMAX);
+	img = cv::Mat::zeros(height, width, CV_8U);
+	for (size_t i = 0; i < n; i++)
+	{
+		for (size_t j = 0; j < n; j++)
+		{
+			int idx = i*n + j;
+			int ty = blkHeight*i;
+			int tx = blkWidth*j;
+			for (size_t y = ty; y <ty + blkHeight; y++)
+			{
+				uchar* ptr = img.ptr<uchar>(y);
+				for (size_t x = tx; x < tx+blkWidth; x++)
+				{
+					ptr[x] = blkNeiDist[idx] * 255;
+				}
+			}
+		}
+	}
+	/*for (int i = 0; i < f1.size(); i++)
+	{
+		
+		cv::Point ipt(f1[i].x, f1[i].y);
+		cv::circle(img, ipt, 2, cv::Scalar(255), CV_FILLED, CV_AA);
+	}
+	cv::imshow("block", img);
+	cv::waitKey();*/
+}
+void FlowClustering(std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, int n = 3)
+{
+
+	Scalar colorTab[] =     //因为最多只有5类，所以最多也就给5个颜色
+	{
+		Scalar(0, 0, 255),
+		Scalar(0, 255, 0),
+		Scalar(255, 100, 100),
+		Scalar(255, 0, 255),
+		Scalar(0, 255, 255)
+	};
+	std::vector<float>dxs,dys;
+	for (size_t i = 0; i < f0.size(); i++)
+	{
+		float dx = f0[i].x - f1[i].x;
+		float dy = f0[i].x - f1[i].y;
+		dxs.push_back(dx);
+		dys.push_back(dy);
+	}
+	cv::normalize(dxs, dxs, 1.0, 0.0, CV_MINMAX);
+	cv::normalize(dys, dys, 1.0, 0.0, CV_MINMAX);
+	cv::Mat points(f0.size(), 1, CV_32FC2), labels;
+	cv::Mat centers(n, 1, points.type());
+	for (size_t i = 0; i < f0.size(); i++)
+	{
+		points.ptr<float2>(i)[0] = make_float2(dxs[i], dys[i]);
+	}
+	cv::kmeans(points, n, labels,
+		TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 10, 1.0),
+		3, KMEANS_PP_CENTERS, centers);  //聚类3次，取结果最好的那次，聚类的初始化采用PP特定的随机算法。
+
+	cv::Mat img(480, 640, CV_8UC3);
+	for (int i = 0; i < f1.size(); i++)
+	{
+		int clusterIdx = labels.at<int>(i);
+		cv::Point ipt(f1[i].x,f1[i].y);
+		cv::circle(img, ipt, 2, colorTab[clusterIdx], CV_FILLED, CV_AA);
+	}
+	cv::imshow("kmeans", img);
+	cv::waitKey();
+}
 void TestFeaturesRefine(int argc, char* argv[])
 {
 	//TestFlowHistogramN();
@@ -2081,12 +2228,13 @@ void TestFeaturesRefine(int argc, char* argv[])
 	{
 		aBinNum = atoi(argv[8]);
 	}
-	
+	BlockRelFlowRefine BRFR(width, height, 2);
 	cv::Size size2(width * 2, height);
 	char fileName[200];
 	cv::Mat img0, gray0, img1, gray1, gtImg;
 	std::vector<cv::Point2f> features0, features1;
 	std::vector<uchar> inliers;
+	cv::Mat blkImg;
 	double warpErr(0);
 	char methodName[20];
 	float Pe(0);
@@ -2120,7 +2268,10 @@ void TestFeaturesRefine(int argc, char* argv[])
 		/*FeatureFlowColor(img1, features1, features0);
 		cv::imshow("color", img1);
 		cv::waitKey();*/
-		BlockRelFlowRefine BRFR(width, height, 2);
+		//FlowClustering(features0, features1);
+		
+
+		
 
 		cv::Mat homo;
 		int anchorId(0);
@@ -2164,7 +2315,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 		//std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
 		time += timer.seconds();
 		sprintf(fileName, "%s%s%d.jpg", outPath, methodName, i);
-		
+	
+		BlockFlowAnalysis(width, height, features0, features1, blkImg);
+		cv::cvtColor(blkImg, blkImg, CV_GRAY2BGR);
 
 		float errorNum(0);
 		int k(0);
@@ -2173,6 +2326,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		{
 			if (inliers[ii] == 1)
 			{
+				cv::circle(blkImg, features1[ii], 3, cv::Scalar(255, 0, 0));
 				features1[k] = features1[ii];
 				features0[k] = features0[ii];
 				if (i > start)
@@ -2187,8 +2341,14 @@ void TestFeaturesRefine(int argc, char* argv[])
 				
 				k++;
 			}
+			else
+			{
+				cv::circle(blkImg, features1[ii], 3, cv::Scalar(0, 255, 0));
+			}
 
 		}
+		cv::imshow("blkimg", blkImg);
+		cv::waitKey();
 		float Ratio = k*1.0 / features0.size();
 		of << "Ratio " << Ratio << "\n";
 		avgRatio += Ratio;

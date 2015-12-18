@@ -85,7 +85,7 @@ void IterativeOpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv:
 	//直方图共DistSize * thetaSize个bin，其中根据光流强度分DistSize个bin，每个bin根据光流方向分thetaSize个bin
 	int binSize; 
 	float thetaSize = 60;
-	float DistSize = 20;
+	float DistSize = 60;
 	std::vector<float> thetas(f1.size());
 	std::vector<float> rads(f1.size());
 	float max = -1e10;
@@ -134,29 +134,78 @@ void IterativeOpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv:
 			ids[idx].push_back(i);
 
 		}
-
+		struct bin
+		{
+			bin(int i, int s) :id(i), size(s){};
+			int id;
+			int size;
+			bool operator < (const bin& a)
+			{
+				return size > a.size;
+			}
+		};
+		std::vector<bin> bins;
+		for (int i = 0; i < histogram.size(); i++)
+		{
+			bins.push_back(bin(i, histogram[i]));
+		}
+		std::sort(bins.begin(), bins.end());
 		//最大bin
 		int max = ids[0].size();
 		int idx(0);
-
+		//第二大bin
+		int scdMax(0);
+		int scdIdx(0);
 		for (int i = 1; i<ids.size(); i++)
 		{
 			if (ids[i].size() > max)
 			{
-
+				scdMax = max;
+				scdIdx = idx;
 				max = ids[i].size();
 				idx = i;
-
+			}
+			else if (ids[i].size() > scdMax)
+			{
+				scdMax = ids[i].size();
+				scdIdx = i;
 			}
 
 		}
-		/*DrawHistogram(histogram, histogram.size(), "hist");
+		//显示max
+		/*cv::Mat img= cv::Mat::zeros(480, 640, CV_8U);
+		float N (0);
+		for (int b = 0; b < bins.size() && N/f1.size() <0.5; b++)
+		{
+			int id = bins[b].id;
+			N += bins[b].size;
+			for (size_t j = 0; j < ids[id].size(); j++)
+			{
+				int x = f1[ids[id][j]].x + 0.5;
+				int y = f1[ids[id][j]].y + 0.5;
+				cv::circle(img, cv::Point(x, y), 5, cv::Scalar(255));
+			}
+		}
+		
+	
+		cv::imshow("max bin points", img);
 		cv::waitKey();*/
 		float ratio = max*1.0 / f1.size();
-		if (ratio < 0.5)
+		if (ratio < 0.1)
 		{
-			//DistSize--;
-			thetaSize--;
+			/*DrawHistogram(histogram, histogram.size(), "hist");
+			cv::waitKey();*/
+			if (scdMax*1.0 / max > 0.8 && (scdMax + max) *1.0 / f1.size() > 0.45)
+			{
+				for (size_t j = 0; j < ids[scdMax].size(); j++)
+				{
+					ids[max].push_back(ids[scdMax][j]);
+					histogram[max]++;
+				}
+				break;
+			}
+			DistSize--;
+			//thetaSize--;
 		}
 		else
 			break;
