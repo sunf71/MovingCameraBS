@@ -2078,11 +2078,13 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 {
 	using namespace cv;
 	using namespace std;
-	img = cv::Mat::zeros(height, width, CV_8UC3);
+	img = cv::Mat::zeros(height, width, CV_8U);
 	//把图像分为n*n个分块
 	int blkWidth = width / n;
 	int blkHeight = height / n;
 	int blkSize = n*n;
+	int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
+	int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
 	std::vector<std::vector<cv::Point2f>> blkFP(f1.size());
 	for (size_t i = 0; i < f1.size(); i++)
 	{
@@ -2091,17 +2093,18 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 		int idy = (int)(pt.y + 0.5) / blkHeight;
 		float dx = f0[i].x - f1[i].x;
 		float dy = f0[i].y - f1[i].y;
-		blkFP[idx + idy*n].push_back(cv::Point(dx,dy));
+		blkFP[idx + idy*n].push_back(cv::Point(dx, dy));
 
-		
+
 	}
 	std::vector<cv::Point2f> blkAvgFlow(n*n);
 	std::vector<bool> blkFPFlag(n*n);
 	std::vector<float> blkNeiDist(n*n, 0);
+	std::vector<float> blkNeiPCADist(n*n, 0);
 	for (size_t i = 0; i < blkSize; i++)
 	{
-	
-		cv::Point cntr = cv::Point((i%n)*blkWidth + blkWidth / 2,(i / n)*blkHeight + blkHeight / 2);
+
+
 		float avgDx(0), avgDy(0);
 		for (size_t j = 0; j < blkFP[i].size(); j++)
 		{
@@ -2112,50 +2115,29 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 		{
 			blkAvgFlow[i] = cv::Point2f(avgDx / blkFP[i].size(), avgDy / blkFP[i].size());
 			blkFPFlag[i] = true;
-			//Perform PCA analysis
-			int sz = static_cast<int>(blkFP[i].size());
-			Mat data_pts = Mat(sz, 2, CV_64FC1);
-			for (int j = 0; j < data_pts.rows; ++j)
-			{
-				data_pts.at<double>(j, 0) = blkFP[i][j].x;
-				data_pts.at<double>(j, 1) = blkFP[i][j].y;
-			}
-			PCA pca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
-			//Store the eigenvalues and eigenvectors
-			vector<Point2d> eigen_vecs(2);
-			vector<double> eigen_val(2);
-			for (int j = 0; j < 2; ++j)
-			{
-				eigen_vecs[j] = Point2d(pca_analysis.eigenvectors.at<double>(j, 0),
-					pca_analysis.eigenvectors.at<double>(j, 1));
-				eigen_val[j] = pca_analysis.eigenvalues.at<double>(j, 0);
-			}
-			// Draw the principal components
-			circle(img, cntr, 3, Scalar(255, 0, 255), 2);
-			cv::Point p1 = cntr + cv::Point(static_cast<int>(eigen_vecs[0].x * eigen_val[0]), static_cast<int>(eigen_vecs[0].y * eigen_val[0]));
-			cv::Point p2 = cntr - cv::Point(static_cast<int>(eigen_vecs[1].x * eigen_val[1]), static_cast<int>(eigen_vecs[1].y * eigen_val[1]));
-			drawAxis(img, cntr, p1, Scalar(0, 255, 0), 1);
-			drawAxis(img, cntr, p2, Scalar(255, 255, 0), 5);
 
-		}			
+
+		}
 		else
 		{
 			blkAvgFlow[i] = cv::Point2f(0, 0);
 			blkFPFlag[i] = false;
 		}
-		
+
 	}
-	int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
-	int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
+
 	//与周围邻居进行比较
 	for (size_t i = 0; i < n; i++)
 	{
 		for (size_t j = 0; j < n; j++)
 		{
+			cv::Point cntr = cv::Point(j*blkWidth + blkWidth / 2, i*blkHeight + blkHeight / 2);
 			//std::cout << i << "," << j << "\n";
+			std::vector<cv::Point2f> flows;
 			int idx = i*n + j;
 			if (!blkFPFlag[idx])
 				continue;
+			flows = blkFP[idx];
 			cv::Point2f flow = blkAvgFlow[idx];
 			float dx(0), dy(0);
 			int num(0);
@@ -2165,12 +2147,16 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 				int x = j + nx[n];
 				if (x >= 0 && x < n && y >= 0 && y < n)
 				{
-					
+
 					int id = y*n + x;
 					if (blkFPFlag[id])
 					{
 						dx += abs(flow.x - blkAvgFlow[id].x);
 						dy += abs(flow.y - blkAvgFlow[id].y);
+						for (size_t m = 0; m < blkFP[id].size(); m++)
+						{
+							flows.push_back(blkFP[id][m]);
+						}
 						num++;
 					}
 				}
@@ -2179,14 +2165,51 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 			{
 				float dist = sqrt((dx / num)*(dx / num) + (dy / num)*(dy / num));
 				blkNeiDist[idx] = dist;
+				if (flows.size() > 1)
+				{
+					//Perform PCA analysis
+					int sz = static_cast<int>(flows.size());
+					Mat data_pts = Mat(sz, 2, CV_64FC1);
+					for (int j = 0; j < data_pts.rows; ++j)
+					{
+						data_pts.at<double>(j, 0) = flows[j].x;
+						data_pts.at<double>(j, 1) = flows[j].y;
+					}
+					PCA pca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
+					//Store the eigenvalues and eigenvectors
+					vector<Point2d> eigen_vecs(2);
+					vector<double> eigen_val(2);
+					for (int j = 0; j < 2; ++j)
+					{
+						eigen_vecs[j] = Point2d(pca_analysis.eigenvectors.at<double>(j, 0),
+							pca_analysis.eigenvectors.at<double>(j, 1));
+						eigen_val[j] = std::max(5., pca_analysis.eigenvalues.at<double>(j, 0));
+					}
+					cv::Mat projected = pca_analysis.project(data_pts);
+					double pcaDist(0);
+					for (size_t r = 0; r < blkFP[idx].size(); r++)
+					{
+						double dist = abs(projected.at<double>(r, 0)) + abs(projected.at<double>(r, 1));
+						pcaDist += dist;
+					}
+					pcaDist /= blkFP[idx].size();
+					blkNeiPCADist[idx] = pcaDist;
+					//// Draw the principal components
+					//circle(img, cntr, 3, Scalar(255, 0, 255), 2);
+					//cv::Point p1 = cntr + cv::Point(static_cast<int>(eigen_vecs[0].x * pcaDist), static_cast<int>(eigen_vecs[0].y * pcaDist));
+					//cv::Point p2 = cntr - cv::Point(static_cast<int>(eigen_vecs[1].x * pcaDist), static_cast<int>(eigen_vecs[1].y * pcaDist));
+					//drawAxis(img, cntr, p1, Scalar(0, 255, 0), 1);
+					//drawAxis(img, cntr, p2, Scalar(255, 255, 0), 5);
+				}
 
 			}
 		}
 	}
 	cv::normalize(blkNeiDist, blkNeiDist, 1.0, 0.0, CV_MINMAX);
-	cv::imshow("pca", img);
-	cv::waitKey();
-	cv::cvtColor(img, img, CV_BGR2GRAY);
+	cv::normalize(blkNeiPCADist, blkNeiPCADist, 1.0, 0.0, CV_MINMAX);
+
+	//cv::cvtColor(img, img, CV_BGR2GRAY);
+	cv::Mat pcaImg = img.clone();
 	for (size_t i = 0; i < n; i++)
 	{
 		for (size_t j = 0; j < n; j++)
@@ -2194,26 +2217,55 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 			int idx = i*n + j;
 			int ty = blkHeight*i;
 			int tx = blkWidth*j;
-			for (size_t y = ty; y <ty + blkHeight; y++)
+			for (size_t y = ty; y < ty + blkHeight; y++)
 			{
 				uchar* ptr = img.ptr<uchar>(y);
-				for (size_t x = tx; x < tx+blkWidth; x++)
+				uchar* pcaPtr = pcaImg.ptr<uchar>(y);
+				for (size_t x = tx; x < tx + blkWidth; x++)
 				{
 					ptr[x] = blkNeiDist[idx] * 255;
+					pcaPtr[x] = blkNeiPCADist[idx] * 255;
 				}
 			}
 		}
 	}
 	cv::threshold(img, img, 25, 255, CV_THRESH_BINARY);
+	cv::threshold(pcaImg, pcaImg, 25, 255, CV_THRESH_BINARY);
+	/*cv::imshow("pca", pcaImg);
+	cv::waitKey();*/
 	/*for (int i = 0; i < f1.size(); i++)
 	{
-		
-		cv::Point ipt(f1[i].x, f1[i].y);
-		cv::circle(img, ipt, 2, cv::Scalar(255), CV_FILLED, CV_AA);
+
+	cv::Point ipt(f1[i].x, f1[i].y);
+	cv::circle(img, ipt, 2, cv::Scalar(255), CV_FILLED, CV_AA);
 	}
 	cv::imshow("block", img);
 	cv::waitKey();*/
 }
+
+
+void BlockFlowRefine(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<uchar>& inliers)
+{
+	cv::Mat blkImg;
+	BlockFlowAnalysis(width, height, f0, f1, blkImg, 8);
+	cv::imshow("blkImg", blkImg); 
+	cv::waitKey();
+	inliers.clear();
+	inliers.resize(f1.size());
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		int x = f0[i].x + 0.5;
+		int y = f0[i].y + 0.5;
+		//std::cout << x << "," << y << "\n";
+		if (blkImg.at<uchar>(y,x) == 0)
+		{
+			inliers[i] = 1;
+		}
+		else
+			inliers[i] = 0;
+	}
+}
+
 void FlowClustering(std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, int n = 3)
 {
 
@@ -2361,6 +2413,11 @@ void TestFeaturesRefine(int argc, char* argv[])
 			sprintf(methodName, "HistogramZ");
 			FeaturePointsRefineZoom(width, height, features1, features0, inliers, aBinNum);
 			break;
+		case 7:
+			sprintf(methodName, "BlockFlow");
+			BlockFlowRefine(width, height, features1, features0, inliers);
+			break;
+
 		default:
 			sprintf(methodName, "Ransac");
 			cv::findHomography(features1, features0, inliers, CV_RANSAC, threshold);
@@ -2372,8 +2429,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		time += timer.seconds();
 		sprintf(fileName, "%s%s%d.jpg", outPath, methodName, i);
 	
-		BlockFlowAnalysis(width, height, features0, features1, blkImg, 8);
-		cv::cvtColor(blkImg, blkImg, CV_GRAY2BGR);
+		
 
 		float errorNum(0);
 		int k(0);
@@ -2382,7 +2438,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		{
 			if (inliers[ii] == 1)
 			{
-				cv::circle(blkImg, features1[ii], 3, cv::Scalar(255, 0, 0));
+				//cv::circle(blkImg, features1[ii], 3, cv::Scalar(255, 0, 0));
 				features1[k] = features1[ii];
 				features0[k] = features0[ii];
 				if (i > start)
@@ -2399,12 +2455,11 @@ void TestFeaturesRefine(int argc, char* argv[])
 			}
 			else
 			{
-				cv::circle(blkImg, features1[ii], 3, cv::Scalar(0, 255, 0));
+				//cv::circle(blkImg, features1[ii], 3, cv::Scalar(0, 255, 0));
 			}
 
 		}
-		cv::imshow("blkimg", blkImg);
-		cv::waitKey();
+		
 		float Ratio = k*1.0 / features0.size();
 		of << "Ratio " << Ratio << "\n";
 		avgRatio += Ratio;
@@ -2422,6 +2477,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 
 				ShowFeatureRefineSingle(img1, features1, img0, features0, inliers, fileName);
 			}
+			
 		}
 		errorNum /= k;
 		Pe += errorNum;
