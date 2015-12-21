@@ -2052,8 +2052,33 @@ void TestFlowHistogramN()
 	cv::waitKey();
 
 }
+
+void drawAxis(Mat& img, cv::Point p, cv::Point q, Scalar colour, const float scale = 0.2)
+{
+	double angle;
+	double hypotenuse;
+	angle = atan2((double)p.y - q.y, (double)p.x - q.x); // angle in radians
+	hypotenuse = sqrt((double)(p.y - q.y) * (p.y - q.y) + (p.x - q.x) * (p.x - q.x));
+	//    double degrees = angle * 180 / CV_PI; // convert radians to degrees (0-180 range)
+	//    cout << "Degrees: " << abs(degrees - 180) << endl; // angle in 0-360 degrees range
+	// Here we lengthen the arrow by a factor of scale
+	q.x = (int)(p.x - scale * hypotenuse * cos(angle));
+	q.y = (int)(p.y - scale * hypotenuse * sin(angle));
+	line(img, p, q, colour, 1, CV_AA);
+	// create the arrow hooks
+	p.x = (int)(q.x + 9 * cos(angle + CV_PI / 4));
+	p.y = (int)(q.y + 9 * sin(angle + CV_PI / 4));
+	line(img, p, q, colour, 1, CV_AA);
+	p.x = (int)(q.x + 9 * cos(angle - CV_PI / 4));
+	p.y = (int)(q.y + 9 * sin(angle - CV_PI / 4));
+	line(img, p, q, colour, 1, CV_AA);
+}
+
 void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img, int n = 4)
 {
+	using namespace cv;
+	using namespace std;
+	img = cv::Mat::zeros(height, width, CV_8UC3);
 	//把图像分为n*n个分块
 	int blkWidth = width / n;
 	int blkHeight = height / n;
@@ -2075,42 +2100,70 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 	std::vector<float> blkNeiDist(n*n, 0);
 	for (size_t i = 0; i < blkSize; i++)
 	{
+	
+		cv::Point cntr = cv::Point((i%n)*blkWidth + blkWidth / 2,(i / n)*blkHeight + blkHeight / 2);
 		float avgDx(0), avgDy(0);
 		for (size_t j = 0; j < blkFP[i].size(); j++)
 		{
 			avgDx += blkFP[i][j].x;
 			avgDy += blkFP[i][j].y;
 		}
-		if (blkFP[i].size() > 0)
+		if (blkFP[i].size() > 1)
 		{
 			blkAvgFlow[i] = cv::Point2f(avgDx / blkFP[i].size(), avgDy / blkFP[i].size());
 			blkFPFlag[i] = true;
+			//Perform PCA analysis
+			int sz = static_cast<int>(blkFP[i].size());
+			Mat data_pts = Mat(sz, 2, CV_64FC1);
+			for (int j = 0; j < data_pts.rows; ++j)
+			{
+				data_pts.at<double>(j, 0) = blkFP[i][j].x;
+				data_pts.at<double>(j, 1) = blkFP[i][j].y;
+			}
+			PCA pca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
+			//Store the eigenvalues and eigenvectors
+			vector<Point2d> eigen_vecs(2);
+			vector<double> eigen_val(2);
+			for (int j = 0; j < 2; ++j)
+			{
+				eigen_vecs[j] = Point2d(pca_analysis.eigenvectors.at<double>(j, 0),
+					pca_analysis.eigenvectors.at<double>(j, 1));
+				eigen_val[j] = pca_analysis.eigenvalues.at<double>(j, 0);
+			}
+			// Draw the principal components
+			circle(img, cntr, 3, Scalar(255, 0, 255), 2);
+			cv::Point p1 = cntr + cv::Point(static_cast<int>(eigen_vecs[0].x * eigen_val[0]), static_cast<int>(eigen_vecs[0].y * eigen_val[0]));
+			cv::Point p2 = cntr - cv::Point(static_cast<int>(eigen_vecs[1].x * eigen_val[1]), static_cast<int>(eigen_vecs[1].y * eigen_val[1]));
+			drawAxis(img, cntr, p1, Scalar(0, 255, 0), 1);
+			drawAxis(img, cntr, p2, Scalar(255, 255, 0), 5);
+
 		}			
 		else
 		{
 			blkAvgFlow[i] = cv::Point2f(0, 0);
 			blkFPFlag[i] = false;
 		}
-			
+		
 	}
-	int nx[] = { 1, 0, -1, 0 };
-	int ny[] = { 0, -1, 0, 1 };
+	int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
+	int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
 	//与周围邻居进行比较
 	for (size_t i = 0; i < n; i++)
 	{
 		for (size_t j = 0; j < n; j++)
 		{
+			//std::cout << i << "," << j << "\n";
 			int idx = i*n + j;
 			if (!blkFPFlag[idx])
 				continue;
 			cv::Point2f flow = blkAvgFlow[idx];
 			float dx(0), dy(0);
 			int num(0);
-			for (int n = 0; n < 4; n++)
+			for (int n = 0; n < 8; n++)
 			{
 				int y = i + ny[n];
 				int x = j + nx[n];
-				if (x >= 0 && x < blkWidth && y >= 0 && y < blkHeight)
+				if (x >= 0 && x < n && y >= 0 && y < n)
 				{
 					
 					int id = y*n + x;
@@ -2131,7 +2184,9 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 		}
 	}
 	cv::normalize(blkNeiDist, blkNeiDist, 1.0, 0.0, CV_MINMAX);
-	img = cv::Mat::zeros(height, width, CV_8U);
+	cv::imshow("pca", img);
+	cv::waitKey();
+	cv::cvtColor(img, img, CV_BGR2GRAY);
 	for (size_t i = 0; i < n; i++)
 	{
 		for (size_t j = 0; j < n; j++)
@@ -2149,6 +2204,7 @@ void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std:
 			}
 		}
 	}
+	cv::threshold(img, img, 25, 255, CV_THRESH_BINARY);
 	/*for (int i = 0; i < f1.size(); i++)
 	{
 		
@@ -2316,7 +2372,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		time += timer.seconds();
 		sprintf(fileName, "%s%s%d.jpg", outPath, methodName, i);
 	
-		BlockFlowAnalysis(width, height, features0, features1, blkImg);
+		BlockFlowAnalysis(width, height, features0, features1, blkImg, 8);
 		cv::cvtColor(blkImg, blkImg, CV_GRAY2BGR);
 
 		float errorNum(0);
