@@ -2074,6 +2074,127 @@ void drawAxis(Mat& img, cv::Point p, cv::Point q, Scalar colour, const float sca
 	line(img, p, q, colour, 1, CV_AA);
 }
 
+struct Res
+{
+	int n;
+	int blkWidth;
+	int blkHeight;
+	std::vector<std::vector<int>> fid;
+};
+
+void MultiResAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img)
+{
+	int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
+	int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
+	std::vector<Res> multiRes;
+	std::vector<cv::Point2f> spflow;
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		spflow.push_back(cv::Point2f(f1[i].x - f0[i].x, f1[i].y - f0[i].y));
+	}
+	for (size_t N= 2; N <= 16; N*=2)
+	{
+		Res res;
+		res.n = N;
+		int blkWidth = width / N;
+		int blkHeight = height / N;
+		int blkSize = N*N;
+		res.fid.resize(blkSize);
+		res.blkWidth = blkWidth;
+		res.blkHeight = blkHeight;
+		for (size_t i = 0; i < f1.size(); i++)
+		{
+			cv::Point2f pt = f1[i];
+			int idx = (int)(pt.x + 0.5) / blkWidth;
+			int idy = (int)(pt.y + 0.5) / blkHeight;
+			res.fid[idx + idy*N].push_back(i);
+		}
+		multiRes.push_back(res);
+	}
+	std::vector<float> fpScore(f1.size());
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		//std::cout << i << "\n";
+		//find a best scale
+		float minDist(1e5);
+		int res(-1);
+		for (size_t j = 0; j < multiRes.size(); j++)
+		{
+			std::vector<cv::Point2f> flows;
+			int idx = (int)(f1[i].x + 0.5) / multiRes[j].blkWidth;
+			int idy = (int)(f1[i].y + 0.5) / multiRes[j].blkHeight;
+			int id = idx + idy*multiRes[j].n;
+			for (size_t n = 0; n < multiRes[j].fid[id].size(); n++)
+			{
+				int pid = multiRes[j].fid[id][n];
+				
+				flows.push_back(spflow[pid]);
+			}
+			if (flows.size() < 2)
+				continue;
+			Mat data_pts = Mat(flows.size(), 2, CV_64FC1);
+			for (int j = 0; j < data_pts.rows; ++j)
+			{
+				data_pts.at<double>(j, 0) = flows[j].x;
+				data_pts.at<double>(j, 1) = flows[j].y;
+			}
+			PCA gpca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
+			data_pts.resize(1, 2);
+			data_pts.at<double>(0, 0) = spflow[i].x;
+			data_pts.at<double>(0, 1) = spflow[i].y;
+			cv::Mat projected = gpca_analysis.project(data_pts);
+			float dist = cv::sum(cv::abs(projected))[0];
+			if (dist < minDist)
+			{
+				minDist = dist;
+				res = j;
+			}
+				
+		}
+		//在此分辨率下求特征点在周围八邻域内的pca主方向上的投影距离
+		int idx = (int)(f1[i].x + 0.5) / multiRes[res].blkWidth;
+		int idy = (int)(f1[i].y + 0.5) / multiRes[res].blkHeight;
+		int id = idx + idy*multiRes[res].n;
+		int N = multiRes[res].n;
+		std::vector<cv::Point2f> flows;
+		for (int n = 0; n < 8; n++)
+		{
+			int y = idy + ny[n];
+			int x = idx + nx[n];
+			if (x >= 0 && x < N && y >= 0 && y < N)
+			{
+
+				int id = y*N + x;
+				for (size_t p = 0; p < multiRes[res].fid[id].size(); p++)
+				{
+					int pid = multiRes[res].fid[id][p];
+					flows.push_back(spflow[pid]);
+				}
+			}
+		}
+		Mat data_pts = Mat(flows.size(), 2, CV_64FC1);
+		for (int j = 0; j < data_pts.rows; ++j)
+		{
+			data_pts.at<double>(j, 0) = flows[j].x;
+			data_pts.at<double>(j, 1) = flows[j].y;
+		}
+		PCA pca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
+		data_pts.resize(1, 2);
+		data_pts.at<double>(0, 0) = spflow[i].x;
+		data_pts.at<double>(0, 1) = spflow[i].y;
+		cv::Mat projected = pca_analysis.project(data_pts);
+		float dist = cv::sum(cv::abs(projected))[0];
+		fpScore[i] = dist;
+	}
+	cv::normalize(fpScore, fpScore, 0, 1, CV_MINMAX);
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		cv::circle(img, f1[i], 2 + 50 * fpScore[i], cv::Scalar(255));
+	}
+	cv::imshow("multires", img);
+	cv::waitKey();
+}
+
 void BlockFlowAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img, int N = 4)
 {
 	using namespace cv;
@@ -2532,7 +2653,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		//std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
 		time += timer.seconds();
 		sprintf(fileName, "%s%s%d.jpg", outPath, methodName, i);
-
+		MultiResAnalysis(width, height, features0, features1, img1);
 	//	cv::Mat blkImg;
 	//	BlockFlowAnalysis(width, height, features1, features0, blkImg, 8);
 	//	float min(255);
@@ -2601,8 +2722,8 @@ void TestFeaturesRefine(int argc, char* argv[])
 			}
 
 		}
-		cv::imshow("clustering", img1);
-		cv::waitKey();
+		/*cv::imshow("clustering", img1);
+		cv::waitKey();*/
 		//float Ratio = k*1.0 / features0.size();
 		//of << "Ratio " << Ratio << "\n";
 		//avgRatio += Ratio;
