@@ -17,6 +17,10 @@
 #include "RandUtils.h"
 #include "MotionEstimate.h"
 
+//algorithm of clustering
+void clustering(const vector<vector<double> >& vec, int nClus, int mode, int nn,
+	double tau, int metric, const string& outputfile, int*& clus);
+
 void testCudaGpu();
 void CpuSuperpixel();
 void TestSuperpixel(int argc, char* argv[]);

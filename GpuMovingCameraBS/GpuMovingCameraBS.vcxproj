@@ -101,6 +101,7 @@
     <ClCompile Include="..\ImageSaliency\RegionObjectness.cpp" />
     <ClCompile Include="ASAPWarping.cpp" />
     <ClCompile Include="BlockWarping.cpp" />
+    <ClCompile Include="cluster_sci14.cpp" />
     <ClCompile Include="ComSuperpixel.cpp" />
     <ClCompile Include="Dijkstra.cpp" />
     <ClCompile Include="FeaturePointRefine.cpp" />

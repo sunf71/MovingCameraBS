@@ -283,6 +283,9 @@
     <ClCompile Include="..\ImageSaliency\RegionObjectness.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="cluster_sci14.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu">
