@@ -2083,9 +2083,47 @@ struct Res
 	std::vector<std::vector<uchar>> mask;
 };
 
-bool BlockTest(int i, int j)
+bool BlockTest(std::vector<int>& g, int j, std::vector<std::vector<uchar>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1,cv::Mat& img)
 {
-	return true;
+	cv::Mat tmp = img.clone();
+	int minFPNum(4);
+	float threshold = 0.7;
+	std::vector<cv::Point2f> fp0, fp1;
+	int blkWidth = img.cols / 16;
+	int blkHeight = img.rows / 16;
+	cv::rectangle(tmp, cv::Rect(j % 16 * blkWidth, j / 16 * blkHeight, blkWidth, blkHeight), cv::Scalar(0, 0, 255));
+
+	int gNum(0);
+	for (int i = 0; i < g.size(); i++)
+	{
+		for (size_t m = 0; m < blkFPs[g[i]].size(); m++)
+		{
+			fp0.push_back(f0[blkFPs[g[i]][m]]);
+			fp1.push_back(f1[blkFPs[g[i]][m]]);
+			cv::circle(tmp, f1[blkFPs[g[i]][m]], 5, cv::Scalar(255, 0, 0));
+			cv::line(tmp, f1[blkFPs[g[i]][m]], f0[blkFPs[g[i]][m]], cv::Scalar(0, 255.0));
+		}
+	}
+	gNum = fp0.size();
+	for (size_t m = 0; m < blkFPs[j].size(); m++)
+	{
+		fp0.push_back(f0[blkFPs[j][m]]);
+		fp1.push_back(f1[blkFPs[j][m]]);
+		cv::circle(tmp, f1[blkFPs[j][m]], 5, cv::Scalar(255, 0, 0));
+		cv::line(tmp, f1[blkFPs[j][m]], f0[blkFPs[j][m]], cv::Scalar(0, 255.0));
+	}
+	
+	if (blkFPs[j].size()==0 || fp0.size() < minFPNum)
+		return true;
+	cv::imshow("blockTest", tmp);
+	cv::waitKey();
+	std::vector<uchar> inliers;
+	cv::findHomography(fp0, fp1, inliers, CV_RANSAC, 1.0);
+	float inRatio = std::accumulate(inliers.begin()+gNum,inliers.end(),0) * 1.0 / fp1.size();
+	if (inRatio > threshold)
+		return true;
+	else
+		return false;
 }
 void BlockFlowGrowing(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img)
 {
@@ -2098,23 +2136,28 @@ void BlockFlowGrowing(int width, int height, std::vector<cv::Point2f>& f0, std::
 	float inlierThreshold(0.7);
 	std::vector<std::vector<uchar>> blkFPs(blkSize);
 	blkFPs.resize(blkSize);
-
+	std::vector<int> labels(blkSize, -1);
 	for (size_t i = 0; i < f1.size(); i++)
 	{
 		cv::Point2f pt = f1[i];
 		int idx = (int)(pt.x + 0.5) / blkWidth;
 		int idy = (int)(pt.y + 0.5) / blkHeight;
 		blkFPs[idx + idy*N].push_back(i);
+		labels[idx + idy*N] = 0;
 	}
-	std::vector<int> labels(blkSize, -1);
+	
 	int s = 0;
 	std::vector<int> B;
 	B.push_back(s);
-	int cluster = 0;
+	int cluster = 1;
 	while (B.size() > 0)
 	{
 		int b = B[B.size() - 1];
 		B.pop_back();
+		std::vector<int> group;
+		std::vector<int> visited;
+		group.push_back(b);
+		visited.push_back(b);
 		int x = b % N;
 		int y = b / N;
 		std::vector<int> Ns;
@@ -2125,7 +2168,7 @@ void BlockFlowGrowing(int width, int height, std::vector<cv::Point2f>& f0, std::
 			if (dx >= 0 && dx < N && dy >= 0 && dy < N)
 			{
 				int idx = dx + dy*N;
-				if (labels[n] == -1)
+				if (labels[n] <= 0)
 					Ns.push_back(idx);
 			}
 		}
@@ -2133,8 +2176,11 @@ void BlockFlowGrowing(int width, int height, std::vector<cv::Point2f>& f0, std::
 		{
 			int n = Ns[Ns.size() - 1];
 			Ns.pop_back();
-			if (BlockTest(b, n))
+			visited.push_back(n);
+			if (BlockTest(group,n,blkFPs,f0,f1,img))
 			{
+				group.push_back(n);
+				
 				labels[n] = cluster;
 				int x = n % N;
 				int y = n / N;
@@ -2145,7 +2191,7 @@ void BlockFlowGrowing(int width, int height, std::vector<cv::Point2f>& f0, std::
 					if (dx >= 0 && dx < N && dy >= 0 && dy < N)
 					{
 						int idx = dx + dy*N;
-						if (labels[idx] == -1)
+						if (labels[idx] <= 0 && std::find(visited.begin(), visited.end(), n) == visited.end())
 							Ns.push_back(idx);
 					}
 				}
@@ -2155,6 +2201,26 @@ void BlockFlowGrowing(int width, int height, std::vector<cv::Point2f>& f0, std::
 		}
 		cluster++;
 	}
+	Scalar colorTab[] =     //因为最多只有5类，所以最多也就给5个颜色
+	{
+		Scalar(0, 0, 255),
+		Scalar(0, 255, 0),
+		Scalar(255, 100, 100),
+		Scalar(255, 0, 255),
+		Scalar(0, 255, 255)
+	};
+	cv::Mat tmp = img.clone();
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		
+		cv::Point2f pt = f1[i];
+		int idx = (int)(pt.x + 0.5) / blkWidth;
+		int idy = (int)(pt.y + 0.5) / blkHeight;
+		int blk = idx + idy*N;
+		cv::circle(tmp, pt, 5, colorTab[labels[blk] % 5]);
+	}
+	cv::imshow("blkmerged",tmp);
+	cv::waitKey();
 }
 	
 	
@@ -2757,7 +2823,8 @@ void TestFeaturesRefine(int argc, char* argv[])
 		//std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
 		time += timer.seconds();
 		sprintf(fileName, "%s%s%d.jpg", outPath, methodName, i);
-		MultiResAnalysis(width, height, features0, features1, img1);
+		//MultiResAnalysis(width, height, features0, features1, img1);
+		BlockFlowGrowing(width, height, features0, features1, img1);
 	//	cv::Mat blkImg;
 	//	BlockFlowAnalysis(width, height, features1, features0, blkImg, 8);
 	//	float min(255);
