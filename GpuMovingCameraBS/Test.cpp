@@ -2080,7 +2080,88 @@ struct Res
 	int blkWidth;
 	int blkHeight;
 	std::vector<std::vector<int>> fid;
+	std::vector<std::vector<uchar>> mask;
 };
+
+bool BlockTest(int i, int j)
+{
+	return true;
+}
+void BlockFlowGrowing(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img)
+{
+	int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
+	int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
+	int N = 16;
+	int blkWidth = width / N;
+	int blkHeight = height / N;
+	int blkSize = N*N;
+	float inlierThreshold(0.7);
+	std::vector<std::vector<uchar>> blkFPs(blkSize);
+	blkFPs.resize(blkSize);
+
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		cv::Point2f pt = f1[i];
+		int idx = (int)(pt.x + 0.5) / blkWidth;
+		int idy = (int)(pt.y + 0.5) / blkHeight;
+		blkFPs[idx + idy*N].push_back(i);
+	}
+	std::vector<int> labels(blkSize, -1);
+	int s = 0;
+	std::vector<int> B;
+	B.push_back(s);
+	int cluster = 0;
+	while (B.size() > 0)
+	{
+		int b = B[B.size() - 1];
+		B.pop_back();
+		int x = b % N;
+		int y = b / N;
+		std::vector<int> Ns;
+		for (size_t n = 0; n < 4; n++)
+		{
+			int dx = nx[n] + x;
+			int dy = ny[n] + y;
+			if (dx >= 0 && dx < N && dy >= 0 && dy < N)
+			{
+				int idx = dx + dy*N;
+				if (labels[n] == -1)
+					Ns.push_back(idx);
+			}
+		}
+		while (Ns.size() > 0)
+		{
+			int n = Ns[Ns.size() - 1];
+			Ns.pop_back();
+			if (BlockTest(b, n))
+			{
+				labels[n] = cluster;
+				int x = n % N;
+				int y = n / N;
+				for (size_t n = 0; n < 4; n++)
+				{
+					int dx = nx[n] + x;
+					int dy = ny[n] + y;
+					if (dx >= 0 && dx < N && dy >= 0 && dy < N)
+					{
+						int idx = dx + dy*N;
+						if (labels[idx] == -1)
+							Ns.push_back(idx);
+					}
+				}
+			}
+			else
+				B.push_back(n);
+		}
+		cluster++;
+	}
+}
+	
+	
+
+	
+	
+
 
 void MultiResAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img)
 {
@@ -2099,7 +2180,14 @@ void MultiResAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::
 		int blkWidth = width / N;
 		int blkHeight = height / N;
 		int blkSize = N*N;
+		std::vector<uchar> mask(blkSize, 0);
 		res.fid.resize(blkSize);
+		res.mask.resize(blkSize);
+		for (size_t i = 0; i < blkSize; i++)
+		{
+			res.mask[i].resize(f1.size());
+			memset(&res.mask[i][0], 0, f1.size());
+		}
 		res.blkWidth = blkWidth;
 		res.blkHeight = blkHeight;
 		for (size_t i = 0; i < f1.size(); i++)
@@ -2108,6 +2196,7 @@ void MultiResAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::
 			int idx = (int)(pt.x + 0.5) / blkWidth;
 			int idy = (int)(pt.y + 0.5) / blkHeight;
 			res.fid[idx + idy*N].push_back(i);
+			res.mask[idx + idy*N][i] = 1;
 		}
 		multiRes.push_back(res);
 	}
@@ -2124,12 +2213,18 @@ void MultiResAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::
 			int idx = (int)(f1[i].x + 0.5) / multiRes[j].blkWidth;
 			int idy = (int)(f1[i].y + 0.5) / multiRes[j].blkHeight;
 			int id = idx + idy*multiRes[j].n;
+			cv::Mat tmp = img.clone();
 			for (size_t n = 0; n < multiRes[j].fid[id].size(); n++)
 			{
-				int pid = multiRes[j].fid[id][n];
-				
+				int pid = multiRes[j].fid[id][n];				
 				flows.push_back(spflow[pid]);
+				cv::circle(tmp, f1[pid], 5, cv::Scalar(255, 0, 0));
+				cv::line(tmp, f1[pid], f0[pid], cv::Scalar(0, 255, 0));
 			}
+			
+			cv::imwrite("tmp.jpg", tmp);
+			
+
 			if (flows.size() < 2)
 				continue;
 			Mat data_pts = Mat(flows.size(), 2, CV_64FC1);
@@ -2139,11 +2234,19 @@ void MultiResAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::
 				data_pts.at<double>(j, 1) = flows[j].y;
 			}
 			PCA gpca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
-			data_pts.resize(1, 2);
+			/*data_pts.resize(1, 2);
 			data_pts.at<double>(0, 0) = spflow[i].x;
-			data_pts.at<double>(0, 1) = spflow[i].y;
+			data_pts.at<double>(0, 1) = spflow[i].y;*/
+			
 			cv::Mat projected = gpca_analysis.project(data_pts);
-			float dist = cv::sum(cv::abs(projected))[0];
+			double dist(0);
+			for (size_t r = 0; r < projected.rows; r++)
+			{
+				double di = abs(projected.at<double>(r, 0)) + abs(projected.at<double>(r, 1));
+				dist += di;
+			}
+			dist /= projected.rows;
+			fpScore[i] += dist;
 			if (dist < minDist)
 			{
 				minDist = dist;
@@ -2151,45 +2254,46 @@ void MultiResAnalysis(int width, int height, std::vector<cv::Point2f>& f0, std::
 			}
 				
 		}
-		//在此分辨率下求特征点在周围八邻域内的pca主方向上的投影距离
-		int idx = (int)(f1[i].x + 0.5) / multiRes[res].blkWidth;
-		int idy = (int)(f1[i].y + 0.5) / multiRes[res].blkHeight;
-		int id = idx + idy*multiRes[res].n;
-		int N = multiRes[res].n;
-		std::vector<cv::Point2f> flows;
-		for (int n = 0; n < 8; n++)
-		{
-			int y = idy + ny[n];
-			int x = idx + nx[n];
-			if (x >= 0 && x < N && y >= 0 && y < N)
-			{
+		fpScore[i] /= multiRes.size();
+		////在此分辨率下求特征点在周围八邻域内的pca主方向上的投影距离
+		//int idx = (int)(f1[i].x + 0.5) / multiRes[res].blkWidth;
+		//int idy = (int)(f1[i].y + 0.5) / multiRes[res].blkHeight;
+		//int id = idx + idy*multiRes[res].n;
+		//int N = multiRes[res].n;
+		//std::vector<cv::Point2f> flows;
+		//for (int n = 0; n < 8; n++)
+		//{
+		//	int y = idy + ny[n];
+		//	int x = idx + nx[n];
+		//	if (x >= 0 && x < N && y >= 0 && y < N)
+		//	{
 
-				int id = y*N + x;
-				for (size_t p = 0; p < multiRes[res].fid[id].size(); p++)
-				{
-					int pid = multiRes[res].fid[id][p];
-					flows.push_back(spflow[pid]);
-				}
-			}
-		}
-		Mat data_pts = Mat(flows.size(), 2, CV_64FC1);
-		for (int j = 0; j < data_pts.rows; ++j)
-		{
-			data_pts.at<double>(j, 0) = flows[j].x;
-			data_pts.at<double>(j, 1) = flows[j].y;
-		}
-		PCA pca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
-		data_pts.resize(1, 2);
-		data_pts.at<double>(0, 0) = spflow[i].x;
-		data_pts.at<double>(0, 1) = spflow[i].y;
-		cv::Mat projected = pca_analysis.project(data_pts);
-		float dist = cv::sum(cv::abs(projected))[0];
-		fpScore[i] = dist;
+		//		int id = y*N + x;
+		//		for (size_t p = 0; p < multiRes[res].fid[id].size(); p++)
+		//		{
+		//			int pid = multiRes[res].fid[id][p];
+		//			flows.push_back(spflow[pid]);
+		//		}
+		//	}
+		//}
+		//Mat data_pts = Mat(flows.size(), 2, CV_64FC1);
+		//for (int j = 0; j < data_pts.rows; ++j)
+		//{
+		//	data_pts.at<double>(j, 0) = flows[j].x;
+		//	data_pts.at<double>(j, 1) = flows[j].y;
+		//}
+		//PCA pca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
+		//data_pts.resize(1, 2);
+		//data_pts.at<double>(0, 0) = spflow[i].x;
+		//data_pts.at<double>(0, 1) = spflow[i].y;
+		//cv::Mat projected = pca_analysis.project(data_pts);
+		//float dist = cv::sum(cv::abs(projected))[0];
+		//fpScore[i] = dist;
 	}
-	cv::normalize(fpScore, fpScore, 0, 1, CV_MINMAX);
+	//cv::normalize(fpScore, fpScore, 0, 1, CV_MINMAX);
 	for (size_t i = 0; i < f1.size(); i++)
 	{
-		cv::circle(img, f1[i], 2 + 50 * fpScore[i], cv::Scalar(255));
+		cv::circle(img, f1[i], fpScore[i], cv::Scalar(255));
 	}
 	cv::imshow("multires", img);
 	cv::waitKey();
@@ -2595,10 +2699,10 @@ void TestFeaturesRefine(int argc, char* argv[])
 		WriteFlowFile(flow, fileName);*/
 		nih::Timer timer;
 		timer.start();
-		KLTFeaturesMatching(gray1, gray0, features1, features0, 500, 0.05, 10);
+		KLTFeaturesMatching(gray1, gray0, features1, features0, 100, 0.05, 10);
 		timer.stop();
 		//std::cout << i << "-----\nKLT " << timer.seconds() * 1000 << "ms\n";
-		/*FeatureFlowColor(img1, features1, features0);
+	/*	FeatureFlowColor(img1, features1, features0);
 		cv::imshow("color", img1);
 		cv::waitKey();*/
 		//FlowClustering(features0, features1);
