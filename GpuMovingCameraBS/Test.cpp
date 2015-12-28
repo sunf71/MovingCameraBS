@@ -2097,10 +2097,198 @@ bool isNeighbor4(int N, int i, int j)
 		return false;
 }
 
-bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img)
+bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<cv::Point2f>& blkFlow, cv::Mat& img)
 {
 	bool nFlag(false);
 	
+	cv::Mat tmp = img.clone();
+	int minFPNum(8);
+	float threshold = 1.0;
+
+	int blkWidth = img.cols / N;
+	int blkHeight = img.rows / N;
+	cv::rectangle(tmp, cv::Rect(j % N * blkWidth, j / N * blkHeight, blkWidth, blkHeight), cv::Scalar(0, 0, 255));
+
+	int gNum(0);
+	float adx(0), ady(0);
+
+	for (int i = 0; i < g.size(); i++)
+	{
+		cv::rectangle(tmp, cv::Rect(g[i] % N * blkWidth, g[i] / N * blkHeight, blkWidth, blkHeight), cv::Scalar(0, 0, 255), 5);
+		for (size_t m = 0; m < blkFPs[g[i]].size(); m++)
+		{	
+			
+			if (!nFlag && isNeighbor4(N, g[i], j))
+				nFlag = true;
+			cv::circle(tmp, f1[blkFPs[g[i]][m]], 5, cv::Scalar(0, 0, 255));
+			cv::line(tmp, f1[blkFPs[g[i]][m]], f0[blkFPs[g[i]][m]], cv::Scalar(0, 255, 0));
+			
+		}
+		adx += blkFlow[g[i]].x*blkFPs[g[i]].size();
+		ady += blkFlow[g[i]].y*blkFPs[g[i]].size();
+		gNum += blkFPs[g[i]].size();
+	}
+	if (!nFlag)
+		return false;
+
+	adx /= gNum;
+	ady /= gNum;
+
+	float adx2(0), ady2(0);
+	for (size_t m = 0; m < blkFPs[j].size(); m++)
+	{
+		cv::circle(tmp, f1[blkFPs[j][m]], 5, cv::Scalar(255, 0, 0));
+		cv::line(tmp, f1[blkFPs[j][m]], f0[blkFPs[j][m]], cv::Scalar(0, 255.0));
+	}
+
+	adx2 = blkFlow[j].x;
+	ady2 = blkFlow[j].y;
+	float L2Dist = sqrt((adx - adx2)*(adx - adx2) + (ady - ady2)*(ady - ady2));
+
+	
+	//std::cout << "block flow L2 Dist " << L2Dist << "\n";
+	//cv::imshow("blockTest", tmp);
+	//cv::waitKey();
+	if (L2Dist < threshold)
+		return true;
+	else
+		return false;
+}
+
+float BlockWL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<cv::Point2f>& blkFlow, std::vector<cv::Point2f>& blkFPPos, cv::Mat& img, bool needClose=true)
+{
+	float theta = (img.cols*img.cols + img.rows*img.rows) * 2;
+	bool nFlag(false);
+	float maxDist(255);
+
+	cv::Mat tmp = img.clone();
+	int minFPNum(8);
+	float threshold = 2.0;
+
+	int blkWidth = img.cols / N;
+	int blkHeight = img.rows / N;
+	cv::rectangle(tmp, cv::Rect(j % N * blkWidth, j / N * blkHeight, blkWidth, blkHeight), cv::Scalar(0, 0, 255));
+
+	int gNum(0);
+	float adx(0), ady(0);	
+	for (int i = 0; i < g.size(); i++)
+	{
+		cv::rectangle(tmp, cv::Rect(g[i] % N * blkWidth, g[i] / N * blkHeight, blkWidth, blkHeight), cv::Scalar(0, 0, 255), 5);
+		for (size_t m = 0; m < blkFPs[g[i]].size(); m++)
+		{
+
+			if (!nFlag && isNeighbor4(N, g[i], j))
+				nFlag = true;
+			cv::circle(tmp, f1[blkFPs[g[i]][m]], 5, cv::Scalar(0, 0, 255));
+			cv::line(tmp, f1[blkFPs[g[i]][m]], f0[blkFPs[g[i]][m]], cv::Scalar(0, 255, 0));
+		
+		}
+	/*	adx += blkFlow[g[i]].x*blkFPs[g[i]].size();
+		ady += blkFlow[g[i]].y*blkFPs[g[i]].size();*/
+		gNum += blkFPs[g[i]].size();
+	}
+	if (!nFlag && needClose)
+		return maxDist;
+
+	adx /= gNum;
+	ady /= gNum;
+
+	float adx2(0), ady2(0);
+	for (size_t m = 0; m < blkFPs[j].size(); m++)
+	{
+		cv::circle(tmp, f1[blkFPs[j][m]], 5, cv::Scalar(255, 0, 0));
+		cv::line(tmp, f1[blkFPs[j][m]], f0[blkFPs[j][m]], cv::Scalar(0, 255.0));
+	}
+
+	adx2 = blkFlow[j].x;
+	ady2 = blkFlow[j].y;
+
+	
+	float L2Dist(0);
+	float weights(0);
+	float nwL2Dist(0);
+	for (int i = 0; i < g.size(); i++)
+	{
+		float adx = blkFlow[g[i]].x;
+		float ady = blkFlow[g[i]].y;
+		float L2FlowDist = sqrt((adx - adx2)*(adx - adx2) + (ady - ady2)*(ady - ady2));
+		float L2PosDist = L2SqrDistance(blkFPPos[g[i]], blkFPPos[j]);
+		float weight = exp(-L2PosDist / theta);
+		L2Dist += weight*L2FlowDist;
+		weights += weight;
+		nwL2Dist += L2FlowDist;
+	}
+	
+	L2Dist /= weights;
+	nwL2Dist /= g.size();
+	//std::cout << "w block flow L2 Dist " << L2Dist << " ,nw dist " << nwL2Dist << "\n";
+	//cv::imshow("blockTest", tmp);
+	//cv::waitKey();
+	return L2Dist;
+	/*if (L2Dist < threshold)
+		return true;
+	else
+		return false;*/
+}
+
+bool BlockWL2Test(int N, std::vector<int>& b1, std::vector<int>& b2, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<cv::Point2f>& blkFlow, std::vector<cv::Point2f>& blkFPPos, cv::Mat& img)
+{
+	float theta = (img.cols*img.cols + img.rows*img.rows) * 2;
+	bool nFlag(false);
+
+	cv::Mat tmp = img.clone();
+	int minFPNum(8);
+	float threshold = 1.0;
+
+	int blkWidth = img.cols / N;
+	int blkHeight = img.rows / N;
+	
+
+	for (int i = 0; i < b1.size(); i++)
+	{
+		cv::rectangle(tmp, cv::Rect(b1[i] % N * blkWidth, b1[i] / N * blkHeight, blkWidth, blkHeight), cv::Scalar(0, 0, 255), 5);
+		for (size_t m = 0; m < blkFPs[b1[i]].size(); m++)
+		{
+
+			cv::circle(tmp, f1[blkFPs[b1[i]][m]], 5, cv::Scalar(0, 0, 255));
+			cv::line(tmp, f1[blkFPs[b1[i]][m]], f0[blkFPs[b1[i]][m]], cv::Scalar(0, 255, 0));
+		}	
+	}
+
+
+	
+
+	
+	for (int i = 0; i < b2.size(); i++)
+	{
+		cv::rectangle(tmp, cv::Rect(b2[i] % N * blkWidth, b2[i] / N * blkHeight, blkWidth, blkHeight), cv::Scalar(255, 0, 0), 5);
+		for (size_t m = 0; m < blkFPs[b2[i]].size(); m++)
+		{
+			cv::circle(tmp, f1[blkFPs[b2[i]][m]], 5, cv::Scalar(255, 0, 0));
+			cv::line(tmp, f1[blkFPs[b2[i]][m]], f0[blkFPs[b2[i]][m]], cv::Scalar(0, 255, 0));
+		}
+	}
+	
+	float L2Dist(0);
+	float weights(0);
+	for (int i = 0; i < b2.size(); i++)
+	{
+		L2Dist += BlockWL2Test(N, b1, b2[i], blkFPs, f0, f1, blkFlow, blkFPPos, img, false);
+
+	}
+	L2Dist /= b2.size();
+	//std::cout << "block flow L2 Dist " << L2Dist << "\n";
+	//cv::imshow("blockTest", tmp);
+	//cv::waitKey();
+	if (L2Dist < threshold)
+		return true;
+	else
+		return false;
+}
+bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img)
+{
+	bool nFlag(false);
+
 	cv::Mat tmp = img.clone();
 	int minFPNum(8);
 	float threshold = 1.0;
@@ -2116,15 +2304,19 @@ bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>
 		cv::rectangle(tmp, cv::Rect(g[i] % N * blkWidth, g[i] / N * blkHeight, blkWidth, blkHeight), cv::Scalar(0, 0, 255), 5);
 		for (size_t m = 0; m < blkFPs[g[i]].size(); m++)
 		{
-		
-			adx += f1[blkFPs[g[i]][m]].x - f0[blkFPs[g[i]][m]].x;
-			ady += f1[blkFPs[g[i]][m]].y - f0[blkFPs[g[i]][m]].y;
-			cv::circle(tmp, f1[blkFPs[g[i]][m]], 5, cv::Scalar(0, 0, 255));
-			cv::line(tmp, f1[blkFPs[g[i]][m]], f0[blkFPs[g[i]][m]], cv::Scalar(0, 255, 0));
-			gNum++;
+
 			if (!nFlag && isNeighbor4(N, g[i], j))
 				nFlag = true;
+			cv::circle(tmp, f1[blkFPs[g[i]][m]], 5, cv::Scalar(0, 0, 255));
+			cv::line(tmp, f1[blkFPs[g[i]][m]], f0[blkFPs[g[i]][m]], cv::Scalar(0, 255, 0));
+
+				adx += f1[blkFPs[g[i]][m]].x - f0[blkFPs[g[i]][m]].x;
+			ady += f1[blkFPs[g[i]][m]].y - f0[blkFPs[g[i]][m]].y;
+
+			gNum++;
+
 		}
+		
 	}
 	if (!nFlag)
 		return false;
@@ -2135,7 +2327,7 @@ bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>
 	float adx2(0), ady2(0);
 	for (size_t m = 0; m < blkFPs[j].size(); m++)
 	{
-		
+
 		adx2 += f1[blkFPs[j][m]].x - f0[blkFPs[j][m]].x;
 		ady2 += f1[blkFPs[j][m]].y - f0[blkFPs[j][m]].y;
 		cv::circle(tmp, f1[blkFPs[j][m]], 5, cv::Scalar(255, 0, 0));
@@ -2143,10 +2335,10 @@ bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>
 	}
 	adx2 /= blkFPs[j].size();
 	ady2 /= blkFPs[j].size();
-	
+
 	float L2Dist = sqrt((adx - adx2)*(adx - adx2) + (ady - ady2)*(ady - ady2));
 
-	
+
 	//std::cout << "block flow L2 Dist " << L2Dist << "\n";
 	//cv::imshow("blockTest", tmp);
 	//cv::waitKey();
@@ -2155,6 +2347,7 @@ bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>
 	else
 		return false;
 }
+
 
 
 bool BlockTest(int N,std::vector<int>& b1, std::vector<int>& b2, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, cv::Mat& img)
@@ -2276,6 +2469,7 @@ bool BlockTest(int N, std::vector<int>& g, int j, std::vector<std::vector<int>>&
 }
 void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1,std::vector<uchar>& inliers, cv::Mat& img)
 {
+	float distThres(1.0);
 	static int idx(0);
 	int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
 	int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
@@ -2289,6 +2483,7 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 	inliers.resize(f0.size());
 	std::vector<int> labels(blkSize, -1);
 	std::vector<cv::Point2f> blkAvgFlow(blkSize, cv::Point2f(0, 0));
+	std::vector<cv::Point2f> blkFPPos(blkSize, cv::Point2f(0, 0));
 	for (size_t i = 0; i < f1.size(); i++)
 	{
 		cv::Point2f pt = f1[i];
@@ -2297,6 +2492,8 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 		int blkId = idx + idy*N;
 		blkAvgFlow[blkId].x += pt.x - f0[i].x;
 		blkAvgFlow[blkId].y += pt.y - f0[i].y;
+		blkFPPos[blkId].x += pt.x;
+		blkFPPos[blkId].y += pt.y;
 		blkFPs[blkId].push_back(i);
 
 		labels[blkId] = 0;
@@ -2308,6 +2505,8 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 		{
 			blkAvgFlow[i].x /= blkFPs[i].size();
 			blkAvgFlow[i].y /= blkFPs[i].size();
+			blkFPPos[i].x /= blkFPs[i].size();
+			blkFPPos[i].y /= blkFPs[i].size();
 		}
 	}
 	float avgFlowDist(0);
@@ -2381,7 +2580,7 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 			{
 				;
 			}
-			else 	if (BlockL2Test(N,group,n,blkFPs,f0,f1,img))
+			else 	if (BlockWL2Test(N, group, n, blkFPs, f0, f1, blkAvgFlow,blkFPPos, img) < distThres)
 			{
 				group.push_back(n);
 				std::vector<int>::iterator itr = std::find(B.begin(), B.end(), n);
@@ -2484,7 +2683,8 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 	{
 		if (i != maxId && groups[i].size()>0)
 		{
-			if (BlockTest(N,groups[i], groups[maxId], blkFPs, f0, f1, img))
+			//if (BlockTest(N,groups[i], groups[maxId], blkFPs, f0, f1, img))
+			if (BlockWL2Test(N, groups[maxId],groups[i],blkFPs,f0,f1,blkAvgFlow,blkFPPos,img))
 			{
 				for (int j = 0; j < groups[i].size(); j++)
 				{

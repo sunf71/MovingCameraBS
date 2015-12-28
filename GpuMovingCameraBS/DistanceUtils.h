@@ -120,5 +120,20 @@ static inline float L2Distance(const float4& f1, const float4& f2)
 	float dy = f1.y - f2.y;
 	float dz = f1.z - f2.z;
 	float dw = f1.w - f2.w;
-	return sqrt((abs(dx*dx) + abs(dy*dy) + abs(dz*dz)) / 3.f);
+	return sqrt(((dx*dx) + (dy*dy) + (dz*dz)) / 3.f);
+}
+static inline float L2Distance(const cv::Point2f& f1, const cv::Point2f& f2)
+{
+	float dx = f1.x - f2.x;
+	float dy = f1.y - f2.y;
+
+	return sqrt(dx*dx + dy*dy );
+}
+
+static inline float L2SqrDistance(const cv::Point2f& f1, const cv::Point2f& f2)
+{
+	float dx = f1.x - f2.x;
+	float dy = f1.y - f2.y;
+
+	return (dx*dx + dy*dy);
 }
