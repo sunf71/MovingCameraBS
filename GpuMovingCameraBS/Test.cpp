@@ -23,6 +23,7 @@
 #include "Dijkstra.h"
 #include "FileNameHelper.h"
 
+
 void testCudaGpu()
 {
 	try
@@ -2231,14 +2232,14 @@ float BlockWL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<in
 		return false;*/
 }
 
-bool BlockWL2Test(int N, std::vector<int>& b1, std::vector<int>& b2, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<cv::Point2f>& blkFlow, std::vector<cv::Point2f>& blkFPPos, cv::Mat& img)
+bool BlockWL2Test(int N, std::vector<int>& b1, std::vector<int>& b2, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<cv::Point2f>& blkFlow, std::vector<cv::Point2f>& blkFPPos, cv::Mat& img,float threshold=1.0)
 {
 	float theta = (img.cols*img.cols + img.rows*img.rows) * 2;
 	bool nFlag(false);
 
 	cv::Mat tmp = img.clone();
 	int minFPNum(8);
-	float threshold = 1.0;
+
 
 	int blkWidth = img.cols / N;
 	int blkHeight = img.rows / N;
@@ -2533,7 +2534,9 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 		}
 	}
 	avgFlowDist /= num;
-	//std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
+	distThres = max(avgFlowDist*0.25, 1.0);
+	//distThres = 1.0;
+	std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
 	//int s = N/2;B.push_back(s);
 	std::vector<int> B;
 	for (size_t i = 0; i < blkSize; i++)
@@ -2684,7 +2687,7 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 		if (i != maxId && groups[i].size()>0)
 		{
 			//if (BlockTest(N,groups[i], groups[maxId], blkFPs, f0, f1, img))
-			if (BlockWL2Test(N, groups[maxId],groups[i],blkFPs,f0,f1,blkAvgFlow,blkFPPos,img))
+			if (BlockWL2Test(N, groups[maxId],groups[i],blkFPs,f0,f1,blkAvgFlow,blkFPPos,img,distThres))
 			{
 				for (int j = 0; j < groups[i].size(); j++)
 				{
@@ -3262,6 +3265,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 	float avgRatio(0);
 	sprintf(fileName, "%s\\%dOut.txt", outPath, method);
 	std::ofstream of(fileName);
+	float TP(0), FP(0), FN(0);
 	for (int i = start; i <= end; i++)
 	{
 		sprintf(fileName, "%s//in%06d.jpg", path, i);
@@ -3377,7 +3381,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 	/*	cv::waitKey();*/
 		float errorNum(0);
 		int k(0);
-		
+	
 		for (size_t ii = 0; ii < inliers.size(); ii++)
 		{
 			if (inliers[ii] == 1)
@@ -3391,7 +3395,12 @@ void TestFeaturesRefine(int argc, char* argv[])
 					int y = features1[k].y + 0.5;
 					if (gtImg.data[y*width + x] == 0xff)
 					{
+						FP++;
 						errorNum++;
+					}
+					else
+					{
+						TP++;
 					}
 				}
 				
@@ -3399,6 +3408,16 @@ void TestFeaturesRefine(int argc, char* argv[])
 			}
 			else
 			{
+				int x = features1[k].x + 0.5;
+				int y = features1[k].y + 0.5;
+				if (gtImg.data[y*width + x] != 0xff)
+				{
+					FN++;
+				}
+				else
+				{
+					FP++;
+				}
 				/*if (inliers[ii] == 0)
 				{
 					cv::circle(img1, features1[ii], 3, cv::Scalar(0, 255, 0));
@@ -3455,6 +3474,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 		cv::swap(gray0, gray1);
 	}
 	std::cout << "Pe " << Pe * 100 / (end - start + 1) << "\n";
+	float Pr(TP / (TP + FP)); 
+	float Re(TP / (TP + FN));
+	std::wcout << "Pr " << Pr << " Re " << Re << " F-Measure " << 2.0 * (Re * Pr) / (Re + Pr) << "\n";
 	std::cout << "refine time " << time * 1000 / (end - start + 1) << "\n";
 	std::cout << "warp err " << warpErr / (end - start + 1);
 	avgRatio /= (end - start + 1);
