@@ -7,11 +7,11 @@ double pdist2(double x1, double y1, double x2, double y2)
 	double dy = y1 - y2;
 	return dx*dx + dy*dy;
 }
-cv::Mat  rollVector9f(const std::vector<double> &h) 
+cv::Mat  rollVector9f(const double* ptr) 
 {
 
-	cv::Mat H(3, 3, CV_64F);
-	memcpy(H.data, &h[0], sizeof(double) * 9);
+	cv::Mat H(cv::Size(3,3), CV_64F, (void*)ptr);
+	
 	return H;
 }
 void APAPWarping::Solve()
@@ -37,8 +37,14 @@ void APAPWarping::Solve()
 		cv::SVDecomp(Wi*_A, w, u, vt);
 		//std::cout<<"vt = "<<vt<<std::endl;
 		double* ptr = (double*)(vt.data + (vt.rows - 1)*vt.step.p[0]);
-		for (int j = 0; j<8; j++)
-			_blkHomoVec[i*8] = ptr[j] / ptr[8];
+
+		for (int j = 0; j<9; j++)
+			_blkHomoVec[i*9+j] = ptr[j] / ptr[8];
+		cv::Mat h = rollVector9f(&_blkHomoVec[i * 9]);
+		cv::Mat invH = h.inv();
+		ptr = (double*)(invH.data);
+		for (int j = 0; j < 9; j++)
+			_blkInvHomoVec[i * 9 + j] = ptr[j];
 	}
 
 
