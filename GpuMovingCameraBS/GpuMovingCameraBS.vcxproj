@@ -52,6 +52,7 @@
     <ClInclude Include="..\QC\sparse_similarity_matrix_utils.hpp" />
     <ClInclude Include="..\QC\sparse_vector_constant_time_access_element.hpp" />
     <ClInclude Include="..\QC\tictoc.hpp" />
+    <ClInclude Include="APAPWarping.h" />
     <ClInclude Include="ASAPWarping.h" />
     <ClInclude Include="block.h" />
     <ClInclude Include="BlockWarping.h" />
@@ -99,6 +100,7 @@
   <ItemGroup>
     <ClCompile Include="..\ImageSaliency\ImageFocusness.cpp" />
     <ClCompile Include="..\ImageSaliency\RegionObjectness.cpp" />
+    <ClCompile Include="APAPWarping.cpp" />
     <ClCompile Include="ASAPWarping.cpp" />
     <ClCompile Include="BlockWarping.cpp" />
     <ClCompile Include="cluster_sci14.cpp" />

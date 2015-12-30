@@ -191,6 +191,9 @@
     <ClInclude Include="FileNameHelper.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="APAPWarping.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WarpBackgroundSubtractor.cpp">
@@ -274,9 +277,6 @@
     <ClCompile Include="Dijkstra.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="ASAPWarping.cpp">
-      <Filter>头文件</Filter>
-    </ClCompile>
     <ClCompile Include="..\ImageSaliency\ImageFocusness.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -284,6 +284,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="cluster_sci14.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ASAPWarping.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="APAPWarping.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -22,7 +22,7 @@
 #include <numeric>
 #include "Dijkstra.h"
 #include "FileNameHelper.h"
-
+#include "APAPWarping.h"
 
 void testCudaGpu()
 {
@@ -2158,7 +2158,7 @@ bool BlockL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>
 
 float BlockWL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<cv::Point2f>& blkFlow, std::vector<cv::Point2f>& blkFPPos, cv::Mat& img, bool needClose=true)
 {
-	float theta = (img.cols*img.cols + img.rows*img.rows) * 2;
+	float theta = (img.cols*img.cols + img.rows*img.rows) * 8;
 	bool nFlag(false);
 	float maxDist(255);
 
@@ -2234,7 +2234,7 @@ float BlockWL2Test(int N, std::vector<int>& g, int j, std::vector<std::vector<in
 
 bool BlockWL2Test(int N, std::vector<int>& b1, std::vector<int>& b2, std::vector<std::vector<int>>& blkFPs, std::vector<cv::Point2f>& f0, std::vector<cv::Point2f>&f1, std::vector<cv::Point2f>& blkFlow, std::vector<cv::Point2f>& blkFPPos, cv::Mat& img,float threshold=1.0)
 {
-	float theta = (img.cols*img.cols + img.rows*img.rows) * 2;
+	float theta = (img.cols*img.cols + img.rows*img.rows) * 12;
 	bool nFlag(false);
 
 	cv::Mat tmp = img.clone();
@@ -2536,7 +2536,7 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 	avgFlowDist /= num;
 	distThres = max(avgFlowDist*0.25, 1.0);
 	//distThres = 1.0;
-	std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
+	//std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
 	//int s = N/2;B.push_back(s);
 	std::vector<int> B;
 	for (size_t i = 0; i < blkSize; i++)
@@ -3455,10 +3455,15 @@ void TestFeaturesRefine(int argc, char* argv[])
 		features0.resize(k);
 		features1.resize(k);
 		//findHomographyDLT(features1, features0, homo);
-		findHomographyEqa(features1, features0, homo);
-		//homo = cv::findHomography(features1, features0, CV_LMEDS);
-		/*std::cout << "homoCV: \n" << homoCV << "\n";
-		std::cout << "homo: \n" << homo << "\n";*/
+	/*	findHomographyEqa(features1, features0, homo);
+		std::cout << "homo EQA: \n" << homo << "\n";
+		findHomographyDLT(features1, features0, homo);
+		std::cout << "homo DLT: \n" << homo << "\n";*/
+		findHomographyNormalizedDLT(features1, features0, homo);
+		/*std::cout << "homo NDLT: \n" << homo << "\n";
+		homo = cv::findHomography(features1, features0, CV_LMEDS);
+		std::cout << "homoCV: \n" << homo << "\n";*/
+		
 
 
 		cv::Mat wimg0;
@@ -5339,6 +5344,9 @@ void TestWarpError(int argc, char**argv)
 		break;
 	case 4:
 		warper = new GlobalWarping(width, height);
+		break;
+	case 5:
+		warper = new APAPWarping(width, height, 8);
 		break;
 	default:
 		warper = new ASAPWarping(width, height, 8, 1.0);

@@ -112,68 +112,7 @@ inline void NormalizePoints(const std::vector<cv::Point2f >& points, cv::Mat& tr
 
 
 }
-inline void findHomographyNormalizedDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
-{
-	// Normalise each set of points 
-	cv::Mat T1,T2;
-	std::vector<cv::Point2f> x1,x2;
-    NormalizePoints(f1,T1,x1);
-    NormalizePoints(f2,T2,x2);  
-	//std::cout<<"\nT1\n";
-	//std::cout<<T1; 
-	//std::cout<<"\nT2\n";
-	//std::cout<<T2;
 
-
-	homography.create(3,3,CV_64F);
-	double* homoData = (double*)homography.data;
-	cv::Mat dataM(3*f1.size(),9,CV_64F);
-	double* ptr = dataM.ptr<double>(0);
-	int rowStep = dataM.step.p[0];
-	for(int i=0; i<f1.size(); i++)
-	{		
-		ptr[0] = ptr[1] = ptr[2] =0;
-		ptr[3] = -1*x1[i].x;
-		ptr[4] = -1*x1[i].y;
-		ptr[5] = -1;
-		ptr[6] = x2[i].y*x1[i].x;
-		ptr[7] = x2[i].y*x1[i].y;
-		ptr[8] = x2[i].y;
-		ptr += 9;
-		ptr[0] = x1[i].x;
-		ptr[1] = x1[i].y;
-		ptr[2] = 1;
-		ptr[3] = ptr[4] = ptr[5] = 0;
-		ptr[6] = -x2[i].x * x1[i].x;
-		ptr[7] = -x2[i].x * x1[i].y;
-		ptr[8] = -x2[i].x;
-		ptr += 9;
-		ptr[0] = -x2[i].y*x1[i].x;
-		ptr[1] = -x2[i].y*x1[i].y;
-		ptr[2] = -1;
-		ptr[3] = x2[i].x*x1[i].x;
-		ptr[4] = x2[i].x*x1[i].y;
-		ptr[5] = 1;
-		ptr[6] = 0,ptr[7]=0,ptr[8]=0;
-		ptr+=9;
-	}
-	cv::Mat w,u,vt;
-	//std::cout<<"\nA = "<<dataM<<std::endl;
-	cv::SVDecomp(dataM,w,u,vt);
-	//std::cout<<"\nvt = \n"<<vt<<std::endl;
-	//std::cout<<"\nu = \n"<<u<<std::endl;
-	//std::cout<<"\nw = \n"<<w<<std::endl;
-	ptr = (double*)(vt.data + (vt.rows-1)*vt.step.p[0]);
-	for(int i=0; i<9; i++)
-		homoData[i] = ptr[i]/ptr[8];
-
-	cv::Mat invT2 = T2.inv();
-	homography = invT2*homography*T1;
-
-
-	for(int i=0; i<9; i++)
-		homoData[i] = homoData[i]/homoData[8];
-}
 inline void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
 {
 	homography.create(3,3,CV_64F);
@@ -210,6 +149,32 @@ inline void findHomographyDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Poin
 
 
 }
+
+
+inline void findHomographyNormalizedDLT(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2, cv::Mat& homography)
+{
+	// Normalise each set of points 
+	cv::Mat T1, T2;
+	std::vector<cv::Point2f> x1, x2;
+	NormalizePoints(f1, T1, x1);
+	NormalizePoints(f2, T2, x2);
+	//std::cout<<"\nT1\n";
+	//std::cout<<T1; 
+	//std::cout<<"\nT2\n";
+	//std::cout<<T2;
+
+
+
+	findHomographyDLT(x1, x2, homography);
+	double* homoData = (double*)homography.data;
+	cv::Mat invT2 = T2.inv();
+	homography = invT2*homography*T1;
+
+
+	for (int i = 0; i<9; i++)
+		homoData[i] = homoData[i] / homoData[8];
+}
+
 inline void findHomographySVD(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,cv::Mat& homography)
 {
 	homography.create(3,3,CV_64F);
