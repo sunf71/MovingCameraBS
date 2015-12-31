@@ -76,6 +76,9 @@ void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>
 //Refine with reletive flow
 void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>&features0, float threshold = 1.2);
 
+
+
+
 //Locate minimum and maximum value in a vector
 template<typename T>
 void minMaxLoc(const std::vector<T>& vec,T& maxValue,T& minValue, int& maxId, int& minId)
@@ -117,10 +120,10 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title, int anchorId);
 
 void ShowFeatureRefineSingle(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::Mat& img0, std::vector<cv::Point2f>&features0, std::vector<uchar>& inliers, std::string title);
-
+typedef std::vector<cv::Point2f> Points;
 class BlockRelFlowRefine
 {
-	typedef std::vector<cv::Point2f> Points;
+	
 	struct Cell
 	{
 		std::vector<int> featureIds;
@@ -142,4 +145,46 @@ protected:
 	Points _f1, _f0;
 };
 
+class BlockGrowRefine
+{
+public:
+	BlockGrowRefine(int width, int height, int quad):_width(width), _height(height), _N(quad)
+	{
+		_blkWidth = _width / _N;
+		_blkHeight = _height / _N;
+		_blkSize = quad*quad;
+		_blkFPs.resize(_blkSize);
+		_blkAvgFlow.resize(_blkSize);
+		_blkFPPos.resize(_blkSize);
+		_theta = (_width*_width + _height*_height) * 12;
+	}
+	float BlockWL2Test(std::vector<int>& g, int j, bool needClose=true);
+	bool BlockWL2Test(std::vector<int>&b1, std::vector<int>& b2, float threshold);
+	void Refine(Points& features1, Points& features0);
+	void Refine(Points& features1, Points& features0, std::vector<uchar>& inliers);
+protected:
+	bool isNeighbor4(int N, int i, int j)
+	{
+		int ix = i%N;
+		int iy = i / N;
+		int jx = j%N;
+		int jy = j / N;
+
+		if ((abs(ix - jx) == 0 && abs(iy - jy) == 1) ||
+			(abs(ix - jx) == 1 && abs(iy - jy) == 0))
+			return true;
+		else
+			return false;
+	}
+	std::vector<std::vector<int>> _blkFPs;
+	std::vector<cv::Point2f> _blkAvgFlow;
+	std::vector<cv::Point2f> _blkFPPos;
+	int _width, _height, _N;
+	int _blkWidth, _blkHeight, _blkSize;
+	float _theta;
+	float _threshold;
+	Points _f1, _f0;
+};
+
 void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2);
+

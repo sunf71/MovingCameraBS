@@ -18,13 +18,10 @@ void APAPWarping::Solve()
 {
 	std::vector<cv::Point2f>& f1(*_x1), &f2(*_x2);
 
-
-	cv::Mat Wi = cv::Mat::zeros(f1.size() * 2, f1.size() * 2, CV_64F);
-	
 	for (int i = 0; i < _blkSize; i++) {
 
 
-
+		cv::Mat Wi = cv::Mat::zeros(f1.size() * 2, f1.size() * 2, CV_64F);
 		for (int j = 0; j < f1.size(); j++) {
 			double dist_weight = exp(-pdist2(_blkCenters[i].x, _blkCenters[i].y, f1[j].x, f1[j].y) / _sigmaSquared);
 			double weight = std::max(dist_weight, _gamma);
@@ -38,13 +35,13 @@ void APAPWarping::Solve()
 		//std::cout<<"vt = "<<vt<<std::endl;
 		double* ptr = (double*)(vt.data + (vt.rows - 1)*vt.step.p[0]);
 
-		for (int j = 0; j<9; j++)
-			_blkHomoVec[i*9+j] = ptr[j] / ptr[8];
-		cv::Mat h = rollVector9f(&_blkHomoVec[i * 9]);
+		for (int j = 0; j<8; j++)
+			_blkHomoVec[i*8+j] = ptr[j] / ptr[8];
+		cv::Mat h = rollVector9f(ptr);
 		cv::Mat invH = h.inv();
 		ptr = (double*)(invH.data);
-		for (int j = 0; j < 9; j++)
-			_blkInvHomoVec[i * 9 + j] = ptr[j];
+		for (int j = 0; j < 8; j++)
+			_blkInvHomoVec[i * 8 + j] = ptr[j] / ptr[8];
 	}
 
 
@@ -113,7 +110,7 @@ void APAPWarping::WarpPt(const cv::Point2f& input, cv::Point2f& output)
 {
 
 }
-void APAPWarping::SetFeaturePoints(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2)
+void APAPWarping::SetFeaturePoints(std::vector<cv::Point2f>& f2, std::vector<cv::Point2f>& f1)
 {
 	
 	//// Normalise each set of points 

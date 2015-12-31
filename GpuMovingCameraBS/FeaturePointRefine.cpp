@@ -1,6 +1,7 @@
 #include "FeaturePointRefine.h"
 #include "findHomography.h"
 #include "Common.h"
+#include "DistanceUtils.h"
 
 void FeaturePointsRefineRANSAC(std::vector<cv::Point2f>& vf1, std::vector<cv::Point2f>& vf2,cv::Mat& homography,float threshold)
 {
@@ -79,6 +80,7 @@ void RelFlowRefine(std::vector<cv::Point2f>& features1, std::vector<cv::Point2f>
 	features0.resize(k);
 	features1.resize(k);
 }
+
 void IterativeOpticalFlowHistogram(std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2,
 	std::vector<float>& histogram, std::vector<std::vector<int>>& ids, float ratioMax, float ratioMin)
 {
@@ -1641,4 +1643,308 @@ void FeaturePointsRefineZoom(int width, int height, std::vector<cv::Point2f>& fe
 
 	features1.resize(k);
 	features2.resize(k);
+}
+
+float BlockGrowRefine::BlockWL2Test(std::vector<int>& g, int j, bool needClose)
+{
+	
+	bool nFlag(false);
+	float maxDist(255);
+
+
+	int minFPNum(8);
+	float threshold = 2.0;
+
+	
+
+	int gNum(0);
+	float adx(0), ady(0);
+	for (int i = 0; i < g.size(); i++)
+	{
+
+		for (size_t m = 0; m < _blkFPs[g[i]].size(); m++)
+		{
+
+			if (!nFlag && isNeighbor4(_N, g[i], j))
+				nFlag = true;
+
+		}
+		/*	adx += blkFlow[g[i]].x*blkFPs[g[i]].size();
+		ady += blkFlow[g[i]].y*blkFPs[g[i]].size();*/
+		gNum += _blkFPs[g[i]].size();
+	}
+	if (!nFlag && needClose)
+		return maxDist;
+
+	adx /= gNum;
+	ady /= gNum;
+
+	float adx2(0), ady2(0);
+
+
+	adx2 = _blkAvgFlow[j].x;
+	ady2 = _blkAvgFlow[j].y;
+
+
+	float L2Dist(0);
+	float weights(0);
+	float nwL2Dist(0);
+	for (int i = 0; i < g.size(); i++)
+	{
+		float adx = _blkAvgFlow[g[i]].x;
+		float ady = _blkAvgFlow[g[i]].y;
+		float L2FlowDist = sqrt((adx - adx2)*(adx - adx2) + (ady - ady2)*(ady - ady2));
+		float L2PosDist = L2SqrDistance(_blkFPPos[g[i]], _blkFPPos[j]);
+		float weight = exp(-L2PosDist / _theta);
+		L2Dist += weight*L2FlowDist;
+		weights += weight;
+		nwL2Dist += L2FlowDist;
+	}
+
+	L2Dist /= weights;
+	nwL2Dist /= g.size();
+	//std::cout << "w block flow L2 Dist " << L2Dist << " ,nw dist " << nwL2Dist << "\n";
+	//cv::imshow("blockTest", tmp);
+	//cv::waitKey();
+	return L2Dist;
+	/*if (L2Dist < threshold)
+	return true;
+	else
+	return false;*/
+}
+bool BlockGrowRefine::BlockWL2Test(std::vector<int>& b1, std::vector<int>& b2,float threshold)
+{
+	bool nFlag(false);
+
+
+	float L2Dist(0);
+	float weights(0);
+	for (int i = 0; i < b2.size(); i++)
+	{
+		L2Dist += BlockWL2Test(b1, b2[i], false);
+
+	}
+	L2Dist /= b2.size();
+	if (L2Dist < threshold)
+		return true;
+	else
+		return false;
+}
+void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers)
+{
+	float distThres(1.0);
+	static int idx(0);
+	static int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
+	static int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
+
+
+	
+	inliers.resize(f0.size());
+	std::vector<int> labels(_blkSize, -1);
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		_blkFPs[i].clear();
+		_blkFPPos[i] =_blkAvgFlow[i] = cv::Point2f(0, 0);
+	}
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		cv::Point2f pt = f1[i];
+		int idx = (int)(pt.x + 0.5) / _blkWidth;
+		int idy = (int)(pt.y + 0.5) / _blkHeight;
+		int blkId = idx + idy*_N;
+		_blkAvgFlow[blkId].x += pt.x - f0[i].x;
+		_blkAvgFlow[blkId].y += pt.y - f0[i].y;
+		_blkFPPos[blkId].x += pt.x;
+		_blkFPPos[blkId].y += pt.y;
+		_blkFPs[blkId].push_back(i);
+
+		labels[blkId] = 0;
+	}
+
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		if (_blkFPs[i].size() > 0)
+		{
+			_blkAvgFlow[i].x /= _blkFPs[i].size();
+			_blkAvgFlow[i].y /= _blkFPs[i].size();
+			_blkFPPos[i].x /= _blkFPs[i].size();
+			_blkFPPos[i].y /= _blkFPs[i].size();
+		}
+	}
+	float avgFlowDist(0);
+	int num(0);
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		int x = i % _N;
+		int y = i / _N;
+		int id = x + y*_N;
+		cv::Point2f avgFlow = _blkAvgFlow[id];
+		for (size_t n = 0; n < 4; n++)
+		{
+			int dx = nx[n] + x;
+			int dy = ny[n] + y;
+			if (dx >= 0 && dx < _N && dy >= 0 && dy < _N)
+			{
+				int idx = dx + dy*_N;
+				if (id < idx)
+				{
+					avgFlowDist += L2Distance(avgFlow, _blkAvgFlow[idx]);
+					num++;
+				}
+			}
+		}
+	}
+	avgFlowDist /= num;
+	distThres = std::max(avgFlowDist*0.25, 1.0);
+	//distThres = 1.0;
+	//std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
+	//int s = N/2;B.push_back(s);
+	std::vector<int> B;
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		if (_blkFPs.size() > 0)
+		{
+			B.push_back(i);
+			break;
+		}
+
+	}
+
+	int cluster = 1;
+	while (B.size() > 0)
+	{
+		int b = B[B.size() - 1];
+		B.pop_back();
+		labels[b] = cluster;
+		std::vector<int> group;
+		std::vector<int> visited;
+		group.push_back(b);
+		visited.push_back(b);
+		int x = b % _N;
+		int y = b / _N;
+		std::set<int> Ns;
+		for (size_t n = 0; n < 4; n++)
+		{
+			int dx = nx[n] + x;
+			int dy = ny[n] + y;
+			if (dx >= 0 && dx < _N && dy >= 0 && dy < _N)
+			{
+				int idx = dx + dy*_N;
+				if (labels[idx] <= 0)
+					Ns.insert(idx);
+			}
+		}
+		while (Ns.size() > 0)
+		{
+			std::set<int>::iterator itr = Ns.begin();
+			int n = *itr;
+			Ns.erase(itr);
+			visited.push_back(n);
+			if (_blkFPs[n].size() == 0)
+			{
+				;
+			}
+			else 	if (BlockWL2Test(group, n) < distThres)
+			{
+				group.push_back(n);
+				std::vector<int>::iterator itr = std::find(B.begin(), B.end(), n);
+				if (itr != B.end())
+					B.erase(itr);
+				labels[n] = cluster;
+
+			}
+			else
+			{
+				if (std::find(B.begin(), B.end(), n) == B.end())
+					B.push_back(n);
+
+			}
+
+			int x = n % _N;
+			int y = n / _N;
+			for (size_t n = 0; n < 4; n++)
+			{
+				int dx = nx[n] + x;
+				int dy = ny[n] + y;
+				if (dx >= 0 && dx < _N && dy >= 0 && dy < _N)
+				{
+					int idx = dx + dy*_N;
+					if (labels[idx] <= 0 &&
+						std::find(visited.begin(), visited.end(), idx) == visited.end() &&
+						std::find(Ns.begin(), Ns.end(), idx) == Ns.end())
+						Ns.insert(idx);
+				}
+			}
+
+
+		}
+		cluster++;
+	}
+
+	std::vector<float> labelHistgram(cluster, 0);
+	std::vector<std::vector<int>> groups(cluster);
+	float maxV(0);
+	int maxId(0);
+	for (size_t i = 0; i < labels.size(); i++)
+	{
+		if (labels[i] > 0)
+		{
+			labelHistgram[labels[i]]++;
+			if (labelHistgram[labels[i]] > maxV)
+			{
+				maxV = labelHistgram[labels[i]];
+				maxId = labels[i];
+			}
+			groups[labels[i]].push_back(i);
+		}
+
+	}
+
+
+
+
+	//第二阶段合并，利用RANSAC距离尝试将其他区域合并到最大区域
+	for (size_t i = 0; i <groups.size(); i++)
+	{
+		if (i != maxId && groups[i].size()>0)
+		{
+			//if (BlockTest(N,groups[i], groups[maxId], blkFPs, f0, f1, img))
+			if (BlockWL2Test(groups[maxId], groups[i],distThres))
+			{
+				for (int j = 0; j < groups[i].size(); j++)
+				{
+					labels[groups[i][j]] = maxId;
+				}
+			}
+		}
+	}
+
+	for (size_t i = 0; i < inliers.size(); i++)
+	{
+		cv::Point2f pt = f1[i];
+		int idx = (int)(pt.x + 0.5) / _blkWidth;
+		int idy = (int)(pt.y + 0.5) / _blkHeight;
+		int blk = idx + idy*_N;
+		if (labels[blk] == maxId)
+			inliers[i] = 1;
+		else
+			inliers[i] = 0;
+	}
+}
+
+void BlockGrowRefine::Refine(Points& features1, Points& features0)
+{
+	std::vector<uchar> inliers(features0.size(), 0);
+	Refine(features1, features0, inliers);
+	int k(0);
+	for (size_t i = 0; i < features0.size(); i++)
+	{
+		if (inliers[i] == 1)
+		{
+			features0[k] = features0[i];
+			features1[k++] = features1[i];
+		}
+	}
+	features0.resize(k);
+	features1.resize(k);
 }

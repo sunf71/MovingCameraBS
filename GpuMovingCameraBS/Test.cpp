@@ -2092,7 +2092,7 @@ bool isNeighbor4(int N, int i, int j)
 	int jy = j / N;
 
 	if ((abs(ix - jx) == 0 && abs(iy - jy) == 1) ||
-		(abs(ix - jx) == 1 && abs(iy-jy)==0))
+		(abs(ix - jx) == 1 && abs(iy - jy) == 0))
 		return true;
 	else
 		return false;
@@ -5328,6 +5328,7 @@ void TestWarpError(int argc, char**argv)
 	ImageWarping* warper;
 	int spStep = 5;
 	SuperpixelComputer spComputer(width, height, spStep);
+	BlockGrowRefine BGR(width, height, 8);
 	switch (method)
 	{
 	case 0:
@@ -5366,8 +5367,9 @@ void TestWarpError(int argc, char**argv)
 		cv::resize(curImg, curImg, cv::Size(width, height));
 		cv::cvtColor(curImg, gray1, CV_BGR2GRAY);
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500);
-		FeaturePointsRefineRANSAC(features1, features0, homography);
+		//FeaturePointsRefineRANSAC(features1, features0, homography);
 		//RelFlowRefine(features1, features0, 1.0);
+		BGR.Refine(features1, features0);
 		warper->SetFeaturePoints(features1, features0);
 		warper->Solve();
 		warper->Reset();

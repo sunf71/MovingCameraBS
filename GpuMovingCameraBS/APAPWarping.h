@@ -31,8 +31,8 @@ public:
 		_gamma = 0.01;
 		_sigma = 12.f;
 		_sigmaSquared = _sigma*_sigma;
-		_blkHomoVec.resize(_blkSize * 9);
-		_blkInvHomoVec.resize(_blkSize * 9);
+		_blkHomoVec.resize(_blkSize * 8);
+		_blkInvHomoVec.resize(_blkSize * 8);
 		
 	}
 	virtual void Reset()
