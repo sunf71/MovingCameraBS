@@ -1304,16 +1304,23 @@ void ShowFeatureRefine(cv::Mat& img1, std::vector<cv::Point2f>& features1, cv::M
 	{
 		if (inliers[i] == 1)
 		{
-			cv::circle(rstImg, features1[i], 3, red);
-			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, red);
+			cv::circle(rstImg, features1[i], 5, cv::Scalar(255, 255, 255));
+			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 5, cv::Scalar(255, 255, 255));
 		/*	cv::line(rstImg, cv::Point(features1[i].x, features1[i].y),
 				cv::Point(features0[i].x + width, features0[i].y), cv::Scalar(255, 0, 0));
 			inlierNum++;*/
 		}
 		else
 		{
-			cv::circle(rstImg, features1[i], 3, blue);
-			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 3, blue);
+			/*cv::circle(rstImg, features1[i], 5, blue);
+			cv::circle(rstImg, cv::Point(features0[i].x + width, features0[i].y), 5, blue);*/
+			cv::Point lt(features1[i].x - 3, features1[i].y - 3), rd(features1[i].x + 3, features1[i].y + 3);
+			cv::rectangle(rstImg, lt, rd, cv::Scalar(255, 255, 255));
+			lt.x = features0[i].x - 3+width;
+			lt.y = features0[i].y - 3;
+			rd.x = features0[i].x + 3+width;
+			rd.y = features0[i].y + 3;
+			cv::rectangle(rstImg, lt, rd, cv::Scalar(255, 255, 255));
 		}
 		
 
@@ -1643,6 +1650,46 @@ void FeaturePointsRefineZoom(int width, int height, std::vector<cv::Point2f>& fe
 
 	features1.resize(k);
 	features2.resize(k);
+}
+
+//对每个block内的特征点进行直方图投票,选取90%，剩余10%作为outlier
+void BlockGrowRefine::IntraBlockVoting()
+{
+	//距离和角度的bin数量
+	int DistSize(10), thetaSize(36);
+	float rMax(20), tMax(360);
+	float dStep = rMax / DistSize;
+	float tStep = tMax / thetaSize;
+
+	struct histBin
+	{
+		int idx;
+		float value;
+
+	};
+	std::vector<histBin> histogram(DistSize*thetaSize);
+	for (size_t i = 0; i < length; i++)
+	{
+
+	}
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+
+		for (size_t j = 0; j < _blkFPs.size(); j++)
+		{
+			float dx = _f1[_blkFPs[i][j]].x - _f0[_blkFPs[i][j]].x;
+			float dy = _f1[_blkFPs[i][j]].y - _f0[_blkFPs[i][j]].y;
+			float r = sqrt(dx*dx+dy*dy);
+			float theta = atan2(dy, dx) / M_PI * 180 + 180;
+			int t = theta / tStep;
+			int r = r / dStep;
+			r = r>DistSize - 1 ? DistSize - 1 : r;
+			t = t>thetaSize - 1 ? thetaSize - 1 : t;
+			int idx = t*DistSize + r;
+			histogram[idx]++;
+		}
+	}
+
 }
 
 float BlockGrowRefine::BlockWL2Test(std::vector<int>& g, int j, bool needClose)

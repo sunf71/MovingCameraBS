@@ -3434,7 +3434,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		float Ratio = k*1.0 / features0.size();
 		of << "Ratio " << Ratio << "\n";
 		avgRatio += Ratio;
-		if (errorNum > 0)
+		/*if (errorNum > 0)*/
 		{
 			if (method == 2 || method == 4)
 			{
@@ -5303,8 +5303,18 @@ void MatchContour(const vector<vector<cv::Point>> & contours, const cv::Mat& con
 	}
 
 }
+//void TestEdgeMapping(cv::Mat& edge, cv::Mat& warpErr)
+//{
+//	cv::Mat andMask;
+//	cv::bitwise_and(edge, warpErr,andMask);
+//
+//
+//
+//}
 void TestWarpError(int argc, char**argv)
 {
+	using namespace std;
+	using namespace cv;
 	
 	char fileName[200];
 	int start = atoi(argv[1]);
@@ -5355,15 +5365,23 @@ void TestWarpError(int argc, char**argv)
 	}
 	cv::Mat curImg, warpImg, warpError;
 	cv::Mat gray0, gray1;
+	cv::Mat edge;
 	std::vector<cv::Point2f> features0, features1;
 	cv::Mat homography;
 	cv::cvtColor(prevImg, gray0, CV_BGR2GRAY);
 	double meanWarpErr(0);
-	for (size_t i = start; i <= end; i++)
+	for (size_t i = start; i <= end; i+=10)
 	{
 		std::cout << i << "\n";
 		sprintf(fileName, "%s\\in%06d.jpg", path, i);
 		curImg = cv::imread(fileName);
+		sprintf(fileName, "%s\\in%06d_edge.png", path, i);
+		edge = cv::imread(fileName);
+		if (edge.channels() == 3)
+		{
+			cv::cvtColor(edge, edge, CV_BGR2GRAY);
+		}
+		threshold(edge, edge, 50, 255, CV_THRESH_BINARY);
 		cv::resize(curImg, curImg, cv::Size(width, height));
 		cv::cvtColor(curImg, gray1, CV_BGR2GRAY);
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500);
@@ -5391,6 +5409,26 @@ void TestWarpError(int argc, char**argv)
 		sprintf(fileName, "%swarpErr%d_%d.jpg", outPath, i, method);
 		cv::imwrite(fileName, warpError);
 
+		Mat andMask;
+		cv::bitwise_and(warpError, edge, andMask);
+		imshow("and", andMask);
+		
+		
+		Mat tmp = gray1.clone();
+		for (size_t i = 0; i < height; i++)
+		{
+			uchar* ptr = andMask.ptr<uchar>(i);
+			uchar* tPtr = tmp.ptr<uchar>(i);
+			for (size_t j = 0; j < width; j++)
+			{
+				if (ptr[j] != 255)
+					tPtr[j] = 0;
+
+			}
+		}
+
+		imshow("tmp", tmp);
+		waitKey();
 		cv::Mat result, contourRst;
 		SuperpixelOptimize(spComputer, curImg, warpError, result, contourRst, spStep);
 
