@@ -161,6 +161,7 @@ public:
 	float BlockWL2Test(std::vector<int>& g, int j, bool needClose=true);
 	bool BlockWL2Test(std::vector<int>&b1, std::vector<int>& b2, float threshold);
 	void IntraBlockVoting();
+	void ShowIntraBlockVoting(const cv::Mat& img, cv::Mat& rst);
 	void Refine(Points& features1, Points& features0);
 	void Refine(Points& features1, Points& features0, std::vector<uchar>& inliers);
 protected:
@@ -185,7 +186,7 @@ protected:
 	float _theta;
 	float _threshold;
 	Points _f1, _f0;
-	std::vector<std::vector<int>> _blkOutliers;
+	std::vector<std::vector<int>> _blkInliers;
 };
 
 void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2);

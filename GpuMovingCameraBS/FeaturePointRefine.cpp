@@ -1652,6 +1652,24 @@ void FeaturePointsRefineZoom(int width, int height, std::vector<cv::Point2f>& fe
 	features2.resize(k);
 }
 
+void BlockGrowRefine::ShowIntraBlockVoting(const cv::Mat& img, cv::Mat& rst)
+{
+	rst = img.clone();
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		for (size_t j = 0; j < _blkInliers[i].size(); j++)
+		{
+			if (_blkInliers[i][j] == 1)
+			{
+				cv::circle(rst, _f1[_blkFPs[i][j]], 3, cv::Scalar(255, 0, 0));
+			}
+			else
+			{
+				cv::circle(rst, _f1[_blkFPs[i][j]], 3, cv::Scalar(0, 255, 0));
+			}
+		}
+	}
+}
 //对每个block内的特征点进行直方图投票,选取90%，剩余10%作为outlier
 void BlockGrowRefine::IntraBlockVoting()
 {
@@ -1663,33 +1681,55 @@ void BlockGrowRefine::IntraBlockVoting()
 
 	struct histBin
 	{
+		bool operator < (histBin& a)
+		{
+			return ids.size() < a.ids.size();
+		}
 		int idx;
 		float value;
-
+		std::vector<int> ids;
 	};
 	std::vector<histBin> histogram(DistSize*thetaSize);
-	for (size_t i = 0; i < length; i++)
+	
+	for (size_t i = 0; i < _blkSize; i++)
 	{
-
+		histogram[i].idx = i;
+		histogram[i].value = 0;
 	}
 	for (size_t i = 0; i < _blkSize; i++)
 	{
-
-		for (size_t j = 0; j < _blkFPs.size(); j++)
+		_blkInliers[i].resize(_blkFPs[i].size());
+		
+		for (size_t j = 0; j < _blkFPs[i].size(); j++)
 		{
+			_blkInliers[i][j] = 0;
 			float dx = _f1[_blkFPs[i][j]].x - _f0[_blkFPs[i][j]].x;
 			float dy = _f1[_blkFPs[i][j]].y - _f0[_blkFPs[i][j]].y;
-			float r = sqrt(dx*dx+dy*dy);
+			float rad = sqrt(dx*dx+dy*dy);
 			float theta = atan2(dy, dx) / M_PI * 180 + 180;
 			int t = theta / tStep;
-			int r = r / dStep;
+			int r = rad / dStep;
 			r = r>DistSize - 1 ? DistSize - 1 : r;
 			t = t>thetaSize - 1 ? thetaSize - 1 : t;
 			int idx = t*DistSize + r;
-			histogram[idx]++;
+			histogram[idx].value++;
+			histogram[idx].ids.push_back(_blkFPs[i][j]);
+		}
+		std::sort(histogram.begin(), histogram.end());
+		float threshold(0.9);
+		int size = threshold*_blkFPs.size();
+		for (size_t m = 0, k = 0; m < histogram.size() && k < size; m++)
+		{
+			//_blkFPs[k] = _blkFPs[histogram[i].idx];
+			for (size_t j = 0; j < histogram[m].ids.size(); j++)
+			{
+				_blkInliers[i][histogram[m].ids[j]] = 1;
+			}
+
+
 		}
 	}
-
+	
 }
 
 float BlockGrowRefine::BlockWL2Test(std::vector<int>& g, int j, bool needClose)

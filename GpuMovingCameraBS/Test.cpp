@@ -3252,6 +3252,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		aBinNum = atoi(argv[8]);
 	}
 	BlockRelFlowRefine BRFR(width, height, 2);
+	BlockGrowRefine BGR(width, height, 8);
 	cv::Size size2(width * 2, height);
 	char fileName[200];
 	cv::Mat img0, gray0, img1, gray1, gtImg;
@@ -3332,7 +3333,12 @@ void TestFeaturesRefine(int argc, char* argv[])
 		case 7:
 			sprintf(methodName, "BlockFlow");
 			//BlockFlowRefine(width, height, features1, features0, inliers);
-			BlockFlowGrowing(outPath,width, height, features0, features1, inliers, img1);
+			//BlockFlowGrowing(outPath,width, height, features0, features1, inliers, img1);
+			BGR.IntraBlockVoting();
+			cv::Mat bfrst = cv::Mat::zeros(img1.size(), CV_8U);
+			BGR.ShowIntraBlockVoting(img1, bfrst);
+			cv::imshow("bh", bfrst);
+			cv::waitKey();
 			break;
 
 		default:
