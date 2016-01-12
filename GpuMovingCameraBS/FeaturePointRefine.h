@@ -144,7 +144,16 @@ protected:
 	float _threshold;
 	Points _f1, _f0;
 };
-
+struct histBin
+{
+	bool operator < (histBin& a)
+	{
+		return ids.size() > a.ids.size();
+	}
+	int idx;
+	float value;
+	std::vector<int> ids;
+};
 class BlockGrowRefine
 {
 public:
@@ -156,14 +165,20 @@ public:
 		_blkFPs.resize(_blkSize);
 		_blkAvgFlow.resize(_blkSize);
 		_blkFPPos.resize(_blkSize);
+		_blkInliers.resize(_blkSize);
+		_blkH.resize(_blkSize);
 		_theta = (_width*_width + _height*_height) * 12;
 	}
 	float BlockWL2Test(std::vector<int>& g, int j, bool needClose=true);
 	bool BlockWL2Test(std::vector<int>&b1, std::vector<int>& b2, float threshold);
-	void IntraBlockVoting();
-	void ShowIntraBlockVoting(const cv::Mat& img, cv::Mat& rst);
+	void IntraBlockVoting(Points& features1, Points& features0);
+	void ShowIntraBlockVoting(const cv::Mat& img, Points& features1, Points& features0,cv::Mat& rst);
+	void ShowMergePhase1(const cv::Mat& img, Points& features1, Points& features0, cv::Mat& rst);
+	void ShowMergePhase2(const cv::Mat& img, Points& features1, Points& features0, cv::Mat& rst);
 	void Refine(Points& features1, Points& features0);
 	void Refine(Points& features1, Points& features0, std::vector<uchar>& inliers);
+	//预处理，将特征点分配到分块中，在每个分块内进行投票，计算分块平均光流等
+	void Preprocess(Points& features1, Points& features0);
 protected:
 	bool isNeighbor4(int N, int i, int j)
 	{
@@ -185,8 +200,10 @@ protected:
 	int _blkWidth, _blkHeight, _blkSize;
 	float _theta;
 	float _threshold;
-	Points _f1, _f0;
+	
 	std::vector<std::vector<int>> _blkInliers;
+	//分块内光流直方图最大bin占比，越大说明分块内光流越一致，反之说明分块内可能有运动前景
+	std::vector<float> _blkH;
 };
 
 void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2);

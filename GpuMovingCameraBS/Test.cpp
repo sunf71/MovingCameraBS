@@ -3334,11 +3334,9 @@ void TestFeaturesRefine(int argc, char* argv[])
 			sprintf(methodName, "BlockFlow");
 			//BlockFlowRefine(width, height, features1, features0, inliers);
 			//BlockFlowGrowing(outPath,width, height, features0, features1, inliers, img1);
-			BGR.IntraBlockVoting();
-			cv::Mat bfrst = cv::Mat::zeros(img1.size(), CV_8U);
-			BGR.ShowIntraBlockVoting(img1, bfrst);
-			cv::imshow("bh", bfrst);
-			cv::waitKey();
+			BGR.Refine(features1, features0, inliers);
+			//BGR.IntraBlockVoting(features1, features0);
+			
 			break;
 
 		default:
@@ -3346,7 +3344,10 @@ void TestFeaturesRefine(int argc, char* argv[])
 			cv::findHomography(features1, features0, inliers, CV_RANSAC, threshold);
 			break;
 		}
-
+	/*	cv::Mat bfrst = cv::Mat::zeros(img1.size(), CV_8U);
+		BGR.ShowIntraBlockVoting(img1, features1, features0, bfrst);
+		cv::imshow("bh", bfrst);
+		cv::waitKey();*/
 		timer.stop();
 		//std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
 		time += timer.seconds();
