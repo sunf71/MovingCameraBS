@@ -3273,7 +3273,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 		img1 = imread(fileName);
 		sprintf(fileName, "%s//groundtruth//gt%06d.png", path, i);
 		gtImg = imread(fileName);
-
+		BGR.SetImg(img1);
 		cv::cvtColor(gtImg, gtImg, CV_BGR2GRAY);
 		cv::cvtColor(img1, gray1, CV_BGR2GRAY);
 		if (gray0.empty())
@@ -3336,7 +3336,6 @@ void TestFeaturesRefine(int argc, char* argv[])
 			//BlockFlowGrowing(outPath,width, height, features0, features1, inliers, img1);
 			BGR.Refine(features1, features0, inliers);
 			//BGR.IntraBlockVoting(features1, features0);
-			
 			break;
 
 		default:

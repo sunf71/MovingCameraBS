@@ -1690,10 +1690,7 @@ void BlockGrowRefine::Preprocess(Points& f1, Points& f0)
 		int idx = (int)(pt.x + 0.5) / _blkWidth;
 		int idy = (int)(pt.y + 0.5) / _blkHeight;
 		int blkId = idx + idy*_N;
-		_blkAvgFlow[blkId].x += pt.x - f0[i].x;
-		_blkAvgFlow[blkId].y += pt.y - f0[i].y;
-		_blkFPPos[blkId].x += pt.x;
-		_blkFPPos[blkId].y += pt.y;
+		
 		_blkFPs[blkId].push_back(i);
 
 		
@@ -1701,6 +1698,7 @@ void BlockGrowRefine::Preprocess(Points& f1, Points& f0)
 
 	for (size_t i = 0; i < _blkSize; i++)
 	{
+
 		if (_blkFPs[i].size() > 0)
 		{
 			_blkAvgFlow[i].x /= _blkFPs[i].size();
@@ -1875,33 +1873,69 @@ bool BlockGrowRefine::BlockWL2Test(std::vector<int>& b1, std::vector<int>& b2,fl
 	else
 		return false;
 }
-void BlockGrowRefine::ShowMergePhase1(const cv::Mat& img, Points& features1, Points& features0, cv::Mat& rst)
+void BlockGrowRefine::ShowMergePhase1(const cv::Mat& img,int cluster, int maxId, Points& features1, Points& features0, cv::Mat& rst)
 {
+	CvRNG rng = cvRNG(cvGetTickCount());
+	rst = img.clone();
+	std::vector<int> colorTab(cluster);
+	for (int i = 0; i < cluster; i++)
+		colorTab[i] = cvRandInt(&rng);
 	for (size_t i = 0; i < _blkSize; i++)
 	{
 		if (_labels[i] > 0)
 		{
-			int icolor = colorTab[labels[i]];
-			Scalar color = Scalar((uchar)(icolor)& 255, (uchar)(icolor >> 8) & 255, (uchar)(icolor >> 16) & 255);
+			int icolor = colorTab[_labels[i]];
+			cv::Scalar color = cv::Scalar((uchar)(icolor)& 255, (uchar)(icolor >> 8) & 255, (uchar)(icolor >> 16) & 255);
 
-			if (labels[i] == maxId)
+			if (_labels[i] == maxId)
 			{
-				cv::rectangle(tmp, cv::Rect(i % N * blkWidth, i / N * blkHeight, blkWidth, blkHeight), color, 5);
+				cv::rectangle(rst, cv::Rect(i % _N * _blkWidth, i / _N * _blkHeight, _blkWidth, _blkHeight), color, 5);
 			}
 			else
 			{
-				cv::rectangle(tmp, cv::Rect(i % N * blkWidth, i / N * blkHeight, blkWidth, blkHeight), color);
+				cv::rectangle(rst, cv::Rect(i % _N * _blkWidth, i / _N * _blkHeight, _blkWidth, _blkHeight), color);
 			}
 		}
 	}
-	char fileName[100];
-	sprintf(fileName, "%sMerge%d_1.jpg", outPath, idx);
-	cv::imwrite(fileName, tmp);
+	
 }
 
-void BlockGrowRefine::ShowMergePhase2(const cv::Mat& img, Points& features1, Points& features0, cv::Mat& rst)
+void BlockGrowRefine::ShowMergePhase2(const cv::Mat& img, int cluster, int maxId, Points& f1, Points& f0, cv::Mat& rst)
 {
+	using namespace cv;
+	rst = img.clone();
+	CvRNG rng = cvRNG(cvGetTickCount());
+	std::vector<int> colorTab(cluster);
+	for (int i = 0; i < cluster; i++)
+		colorTab[i] = cvRandInt(&rng);
+	for (size_t i = 0; i < f1.size(); i++)
+	{
 
+		cv::Point2f pt = f1[i];
+		int idx = (int)(pt.x + 0.5) / _blkWidth;
+		int idy = (int)(pt.y + 0.5) / _blkHeight;
+		int blk = idx + idy*_N;
+		int icolor = colorTab[_labels[blk]];
+		Scalar color = Scalar((uchar)(icolor)& 255, (uchar)(icolor >> 8) & 255, (uchar)(icolor >> 16) & 255);
+		cv::circle(rst, pt, 5, color, -1);
+	}
+	for (size_t i = 0; i < _blkSize; i++)
+	{
+		if (_labels[i] > 0)
+		{
+			int icolor = colorTab[_labels[i]];
+			Scalar color = Scalar((uchar)(icolor)& 255, (uchar)(icolor >> 8) & 255, (uchar)(icolor >> 16) & 255);
+
+			if (_labels[i] == maxId)
+			{
+				cv::rectangle(rst, cv::Rect(i % _N * _blkWidth, i / _N * _blkHeight, _blkWidth, _blkHeight), color, 5);
+			}
+			else
+			{
+				cv::rectangle(rst, cv::Rect(i % _N * _blkWidth, i / _N * _blkHeight, _blkWidth, _blkHeight), color);
+			}
+		}
+	}
 }
 void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers)
 {
@@ -1913,15 +1947,17 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 	Preprocess(f1, f0);
 	
 	inliers.resize(f0.size());
-	std::vector<int> labels(_blkSize, -1);
-	
+	for (size_t i = 0; i < _labels.size(); i++)
+	{
+		_labels[i] = -1;
+	}
 	float avgFlowDist(0);
 	int num(0);
 	for (size_t i = 0; i < _blkSize; i++)
 	{
 		if (_blkFPs.size() > 0)
 		{
-			labels[i] = 0;
+			_labels[i] = 0;
 			int x = i % _N;
 			int y = i / _N;
 			int id = x + y*_N;
@@ -1964,7 +2000,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 	{
 		int b = B[B.size() - 1];
 		B.pop_back();
-		labels[b] = cluster;
+		_labels[b] = cluster;
 		std::vector<int> group;
 		std::vector<int> visited;
 		group.push_back(b);
@@ -1979,7 +2015,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 			if (dx >= 0 && dx < _N && dy >= 0 && dy < _N)
 			{
 				int idx = dx + dy*_N;
-				if (labels[idx] <= 0)
+				if (_labels[idx] <= 0)
 					Ns.insert(idx);
 			}
 		}
@@ -1993,13 +2029,13 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 			{
 				;
 			}
-			else 	if (BlockWL2Test(group, n) < distThres)
+			else if (BlockWL2Test(group, n) < distThres)
 			{
 				group.push_back(n);
 				std::vector<int>::iterator itr = std::find(B.begin(), B.end(), n);
 				if (itr != B.end())
 					B.erase(itr);
-				labels[n] = cluster;
+				_labels[n] = cluster;
 
 			}
 			else
@@ -2018,7 +2054,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 				if (dx >= 0 && dx < _N && dy >= 0 && dy < _N)
 				{
 					int idx = dx + dy*_N;
-					if (labels[idx] <= 0 &&
+					if (_labels[idx] <= 0 &&
 						std::find(visited.begin(), visited.end(), idx) == visited.end() &&
 						std::find(Ns.begin(), Ns.end(), idx) == Ns.end())
 						Ns.insert(idx);
@@ -2034,23 +2070,26 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 	std::vector<std::vector<int>> groups(cluster);
 	float maxV(0);
 	int maxId(0);
-	for (size_t i = 0; i < labels.size(); i++)
+	for (size_t i = 0; i < _labels.size(); i++)
 	{
-		if (labels[i] > 0)
+		if (_labels[i] > 0)
 		{
-			labelHistgram[labels[i]]++;
-			if (labelHistgram[labels[i]] > maxV)
+			labelHistgram[_labels[i]]++;
+			if (labelHistgram[_labels[i]] > maxV)
 			{
-				maxV = labelHistgram[labels[i]];
-				maxId = labels[i];
+				maxV = labelHistgram[_labels[i]];
+				maxId = _labels[i];
 			}
-			groups[labels[i]].push_back(i);
+			groups[_labels[i]].push_back(i);
 		}
 
 	}
-
-
-
+	static int fidx = 0;
+	cv::Mat rst;
+	ShowMergePhase1(_img1,cluster, maxId, f1, f0, rst);
+	char fileName[100];
+	sprintf(fileName, "M%d_1.jpg", fidx);
+	cv::imwrite(fileName, rst);
 
 	//第二阶段合并，利用RANSAC距离尝试将其他区域合并到最大区域
 	for (size_t i = 0; i <groups.size(); i++)
@@ -2062,11 +2101,18 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 			{
 				for (int j = 0; j < groups[i].size(); j++)
 				{
-					labels[groups[i][j]] = maxId;
+					_labels[groups[i][j]] = maxId;
 				}
 			}
 		}
 	}
+
+	
+	ShowMergePhase2(_img1, cluster, maxId, f1, f0, rst);
+	
+	sprintf(fileName, "M%d_2.jpg", fidx);
+	cv::imwrite(fileName, rst);
+	fidx++;
 
 	for (size_t i = 0; i < inliers.size(); i++)
 	{
@@ -2074,7 +2120,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 		int idx = (int)(pt.x + 0.5) / _blkWidth;
 		int idy = (int)(pt.y + 0.5) / _blkHeight;
 		int blk = idx + idy*_N;
-		if (labels[blk] == maxId)
+		if (_labels[blk] == maxId)
 			inliers[i] = 1;
 		else
 			inliers[i] = 0;
