@@ -153,6 +153,8 @@ struct histBin
 	int idx;
 	float value;
 	std::vector<int> ids;
+	std::vector<int> gids;
+
 };
 class BlockGrowRefine
 {
@@ -211,6 +213,7 @@ protected:
 	std::vector<float> _blkH;
 	std::vector<int> _labels;
 	cv::Mat _img1;
+	std::vector<uchar> _IBinliers;
 };
 
 void FeatureFlowColor(cv::Mat& img, std::vector<cv::Point2f>& f1, std::vector<cv::Point2f>& f2);

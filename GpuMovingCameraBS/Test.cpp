@@ -2536,7 +2536,7 @@ void BlockFlowGrowing(const char* outPath, int width, int height, std::vector<cv
 	avgFlowDist /= num;
 	distThres = max(avgFlowDist*0.25, 1.0);
 	//distThres = 1.0;
-	//std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
+	//std::cout << "AVG Block Flow Dist = " << avgFlowDist << " , "<<num<<"\n";
 	//int s = N/2;B.push_back(s);
 	std::vector<int> B;
 	for (size_t i = 0; i < blkSize; i++)
