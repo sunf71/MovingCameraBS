@@ -1679,9 +1679,6 @@ void BlockGrowRefine::ShowIntraBlockVoting(const cv::Mat& img, Points& _f1, Poin
 
 void BlockGrowRefine::Preprocess(Points& f1, Points& f0)
 {
-	_IBinliers.resize(f1.size());
-	memset(&_IBinliers[0], 0, sizeof(uchar)*_IBinliers.size());
-	
 	for (size_t i = 0; i < _blkSize; i++)
 	{
 		_blkFPs[i].clear();
@@ -1689,40 +1686,41 @@ void BlockGrowRefine::Preprocess(Points& f1, Points& f0)
 	}
 	for (size_t i = 0; i < f1.size(); i++)
 	{
-	
 		cv::Point2f pt = f1[i];
 		int idx = (int)(pt.x + 0.5) / _blkWidth;
 		int idy = (int)(pt.y + 0.5) / _blkHeight;
 		int blkId = idx + idy*_N;
 		
-		/*std::cout << blkId << "\n";*/
-		
 		_blkFPs[blkId].push_back(i);
+		_blkAvgFlow[blkId].x += pt.x - f0[i].x;
+		_blkAvgFlow[blkId].y += pt.y - f0[i].y;
+		_blkFPPos[blkId].x += pt.x;
+		_blkFPPos[blkId].y += pt.y;
 		_labels[blkId] = 0;
+	}
+
+	IntraBlockVoting(f1, f0);
+	for (size_t i = 0; i < f1.size(); i++)
+	{
+		if (_IBinliers[i] == 1)
+		{
+			cv::Point2f pt = f1[i];
+			int idx = (int)(pt.x + 0.5) / _blkWidth;
+			int idy = (int)(pt.y + 0.5) / _blkHeight;
+			int blkId = idx + idy*_N;
+			_blkAvgFlow[blkId].x += pt.x - f0[i].x;
+			_blkAvgFlow[blkId].y += pt.y - f0[i].y;
+			_blkFPPos[blkId].x += pt.x;
+			_blkFPPos[blkId].y += pt.y;
+
+		}
 		
 	}
-	IntraBlockVoting(f1, f0);
 	for (size_t i = 0; i < _blkSize; i++)
 	{
 
 		if (_blkFPs[i].size() > 0)
 		{
-			for (size_t j = 0; j < _blkFPs[i].size(); j++)
-			{
-				int id = _blkFPs[i][j];
-				if (_IBinliers[id] == 1)
-				{
-					cv::Point2f pt = f1[id];
-					_blkAvgFlow[i].x += pt.x - f0[id].x;
-					_blkAvgFlow[i].y += pt.y - f0[id].y;
-					_blkFPPos[i].x += pt.x;
-					_blkFPPos[i].y += pt.y;
-
-				}
-				
-			}
-		
-
 			_blkAvgFlow[i].x /= _blkFPs[i].size();
 			_blkAvgFlow[i].y /= _blkFPs[i].size();
 			_blkFPPos[i].x /= _blkFPs[i].size();
@@ -1733,12 +1731,18 @@ void BlockGrowRefine::Preprocess(Points& f1, Points& f0)
 //对每个block内的特征点进行直方图投票
 void BlockGrowRefine::IntraBlockVoting(Points& _f1, Points& _f0 )
 {	
+	_IBinliers.resize(_f1.size());
+	memset(&_IBinliers[0], 0, _f1.size());
 	//距离和角度的bin数量
 	int DistSize(10), thetaSize(36);
 	float rMax(20), tMax(360);
 	float dStep = rMax / DistSize;
 	float tStep = tMax / thetaSize;
 
+	
+	
+	
+	
 	for (size_t i = 0; i < _blkSize; i++)
 	{
 		std::vector<histBin> histogram(DistSize*thetaSize);
@@ -1748,7 +1752,6 @@ void BlockGrowRefine::IntraBlockVoting(Points& _f1, Points& _f0 )
 			histogram[j].idx = j;
 			histogram[j].value = 0;
 			histogram[j].ids.clear();
-			histogram[j].gids.clear();
 		}
 		
 		if (_blkFPs[i].size() == 0)
@@ -1778,7 +1781,7 @@ void BlockGrowRefine::IntraBlockVoting(Points& _f1, Points& _f0 )
 		}
 		std::sort(histogram.begin(), histogram.end());
 		_blkH[i] = histogram[0].ids.size() *1.0 / _blkFPs[i].size();
-	/*	float threshold(0.9);
+		float threshold(0.9);
 		int size = threshold*_blkFPs[i].size();
 		size = std::max(1, size);
 		bool end(false);
@@ -1788,6 +1791,7 @@ void BlockGrowRefine::IntraBlockVoting(Points& _f1, Points& _f0 )
 			for (size_t j = 0; j < histogram[m].ids.size(); j++)
 			{
 				_blkInliers[i][histogram[m].ids[j]] = 1;
+				_IBinliers[histogram[0].gids[j]] = 1;
 				k++;
 				if (k >= size)
 				{
@@ -1799,12 +1803,12 @@ void BlockGrowRefine::IntraBlockVoting(Points& _f1, Points& _f0 )
 			}
 
 
-		}*/
-		for (size_t j = 0; j < histogram[0].ids.size(); j++)
+		}
+		/*for (size_t j = 0; j < histogram[0].ids.size(); j++)
 		{
 			_blkInliers[i][histogram[0].ids[j]] = 1;
 			_IBinliers[histogram[0].gids[j]] = 1;
-		}
+		}*/
 	}
 	
 }
@@ -1936,9 +1940,17 @@ void BlockGrowRefine::ShowMergePhase2(const cv::Mat& img, int cluster, int maxId
 		int idx = (int)(pt.x + 0.5) / _blkWidth;
 		int idy = (int)(pt.y + 0.5) / _blkHeight;
 		int blk = idx + idy*_N;
-		int icolor = colorTab[_labels[blk]];
+		/*int icolor = colorTab[_labels[blk]];
 		Scalar color = Scalar((uchar)(icolor)& 255, (uchar)(icolor >> 8) & 255, (uchar)(icolor >> 16) & 255);
-		cv::circle(rst, pt, 5, color, -1);
+		cv::circle(rst, pt, 5, color, -1);*/
+		if (_IBinliers[i] == 0)
+		{
+			cv::circle(rst, pt, 5, cv::Scalar(255, 0, 0), -1);
+		}
+		else
+		{
+			cv::circle(rst, pt, 5, cv::Scalar(0, 255, 0), -1);
+		}
 	}
 	for (size_t i = 0; i < _blkSize; i++)
 	{
@@ -1964,23 +1976,21 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 	static int idx(0);
 	static int nx[] = { 1, 0, -1, 0, 1, -1, -1, 1 };
 	static int ny[] = { 0, -1, 0, 1, -1, -1, 1, 1 };
-	
-	for (size_t i = 0; i < _labels.size(); i++)
-	{
-		_labels[i] = -1;
-	}
 
 	Preprocess(f1, f0);
 	
 	inliers.resize(f0.size());
-	
+	for (size_t i = 0; i < _labels.size(); i++)
+	{
+		_labels[i] = -1;
+	}
 	float avgFlowDist(0);
 	int num(0);
 	for (size_t i = 0; i < _blkSize; i++)
 	{
-		//if (_blkFPs.size() > 0)
+		if (_blkFPs.size() > 0)
 		{
-			/*_labels[i] = 0;*/
+			_labels[i] = 0;
 			int x = i % _N;
 			int y = i / _N;
 			int id = x + y*_N;
@@ -2005,7 +2015,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 	avgFlowDist /= num;
 	distThres = std::max(avgFlowDist*0.25, 1.0);
 	//distThres = 1.0;
-	//std::cout << "AVG Block Flow Dist = " << avgFlowDist <<" , "<<num<<"\n";
+	//std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
 	//int s = N/2;B.push_back(s);
 	std::vector<int> B;
 	for (size_t i = 0; i < _blkSize; i++)
@@ -2139,12 +2149,16 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 
 	for (size_t i = 0; i < inliers.size(); i++)
 	{
+					
 		cv::Point2f pt = f1[i];
 		int idx = (int)(pt.x + 0.5) / _blkWidth;
 		int idy = (int)(pt.y + 0.5) / _blkHeight;
 		int blk = idx + idy*_N;
 		if (_labels[blk] == maxId)
+		{
 			inliers[i] = 1;
+			
+		}			
 		else
 			inliers[i] = 0;
 	}
