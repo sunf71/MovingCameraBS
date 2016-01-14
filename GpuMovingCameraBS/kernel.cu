@@ -10,7 +10,7 @@ int main (int argc, char* argv[])
 	//TestRegionMerging(argc, argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
-	TestFeaturesRefine(argc, argv);
+	//TestFeaturesRefine(argc, argv);
 	//TestFeaturesRefineHistogram(argc,argv);
 	//TestSuperpixelDownSample();
 	//TestSuperpielxComputer();
@@ -28,7 +28,7 @@ int main (int argc, char* argv[])
 	//TestSuperpixel(argc, argv);
 	//testCudaGpu();
 	//TestDescDiff();
-	//TestWarpError(argc, argv);
+	TestWarpError(argc, argv);	
 	return 0;
 
 }

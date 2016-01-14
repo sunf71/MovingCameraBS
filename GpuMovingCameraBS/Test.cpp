@@ -5391,9 +5391,9 @@ void TestWarpError(int argc, char**argv)
 		cv::resize(curImg, curImg, cv::Size(width, height));
 		cv::cvtColor(curImg, gray1, CV_BGR2GRAY);
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500);
-		//FeaturePointsRefineRANSAC(features1, features0, homography);
+		FeaturePointsRefineRANSAC(features1, features0, homography);
 		//RelFlowRefine(features1, features0, 1.0);
-		BGR.Refine(features1, features0);
+		//BGR.Refine(features1, features0);
 		warper->SetFeaturePoints(features1, features0);
 		warper->Solve();
 		warper->Reset();

@@ -2117,12 +2117,12 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 		}
 
 	}
-	static int fidx = 0;
-	cv::Mat rst;
-	ShowMergePhase1(_img1,cluster, maxId, f1, f0, rst);
-	char fileName[100];
-	sprintf(fileName, "M%d_1.jpg", fidx);
-	cv::imwrite(fileName, rst);
+	//static int fidx = 0;
+	//cv::Mat rst;
+	//ShowMergePhase1(_img1,cluster, maxId, f1, f0, rst);
+	//char fileName[100];
+	//sprintf(fileName, "M%d_1.jpg", fidx);
+	//cv::imwrite(fileName, rst);
 
 	//第二阶段合并，利用RANSAC距离尝试将其他区域合并到最大区域
 	for (size_t i = 0; i <groups.size(); i++)
@@ -2141,11 +2141,11 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 	}
 
 	
-	ShowMergePhase2(_img1, cluster, maxId, f1, f0, rst);
-	
-	sprintf(fileName, "M%d_2.jpg", fidx);
-	cv::imwrite(fileName, rst);
-	fidx++;
+	//ShowMergePhase2(_img1, cluster, maxId, f1, f0, rst);
+	//
+	//sprintf(fileName, "M%d_2.jpg", fidx);
+	//cv::imwrite(fileName, rst);
+	//fidx++;
 
 	for (size_t i = 0; i < inliers.size(); i++)
 	{

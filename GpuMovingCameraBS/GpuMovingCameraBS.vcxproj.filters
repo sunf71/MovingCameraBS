@@ -194,6 +194,9 @@
     <ClInclude Include="APAPWarping.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="MBD.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WarpBackgroundSubtractor.cpp">
@@ -290,6 +293,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="APAPWarping.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MBD.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
