@@ -53,3 +53,5 @@ void TestQuantize();
 void TestLBP();
 void TestGpuKLT();
 void TestWarpError(int argc, char* argv[]);
+
+void TestMBD();

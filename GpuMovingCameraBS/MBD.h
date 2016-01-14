@@ -1,5 +1,5 @@
 #include <opencv\cv.h>
-const float MAXD 1e10;
+const float MAXD = 1e10;
 using namespace cv;
 
 

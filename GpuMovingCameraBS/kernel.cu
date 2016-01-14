@@ -28,7 +28,7 @@ int main (int argc, char* argv[])
 	//TestSuperpixel(argc, argv);
 	//testCudaGpu();
 	//TestDescDiff();
-	TestWarpError(argc, argv);	
+	//TestWarpError(argc, argv);	
 	return 0;
 
 }

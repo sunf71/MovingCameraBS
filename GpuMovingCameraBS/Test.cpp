@@ -23,6 +23,7 @@
 #include "Dijkstra.h"
 #include "FileNameHelper.h"
 #include "APAPWarping.h"
+#include "MBD.h"
 
 void testCudaGpu()
 {
@@ -5514,3 +5515,36 @@ void TestWarpError(int argc, char**argv)
 }
 
 
+void TestMBD()
+{
+
+	Mat img = cv::imread("0055.jpg");
+	Mat bgr[3];
+	split(img, bgr);
+	Mat U, L, seeds, rst;
+	seeds = Mat::zeros(img.size(), CV_8U);
+	for (size_t i = 0; i < img.rows; i++)
+	{
+
+		uchar* ptr = img.ptr<uchar>(i);
+		if (i == 0 || i == img.rows - 1)
+		{
+			for (size_t j = 0; j < img.cols; j++)
+			{
+				ptr[j] = 1;
+			}
+		}
+		else
+		{
+			ptr[0] = 1;
+			ptr[img.cols - 1] = 1;
+		}
+		
+	}
+	FastMBD(bgr[0], U, L, 3, seeds, rst);
+
+	normalize(rst, rst, 255, 0, CV_8U, CV_MINMAX);
+
+	imshow("mbd", rst);
+	waitKey();
+}
