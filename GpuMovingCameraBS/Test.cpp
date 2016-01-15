@@ -5523,28 +5523,43 @@ void TestMBD()
 	split(img, bgr);
 	Mat U, L, seeds, rst;
 	seeds = Mat::zeros(img.size(), CV_8U);
+	int borderWidth(1);
 	for (size_t i = 0; i < img.rows; i++)
 	{
 
-		uchar* ptr = img.ptr<uchar>(i);
-		if (i == 0 || i == img.rows - 1)
+		uchar* ptr = seeds.ptr<uchar>(i);
+		if (i < borderWidth || i > img.rows - 1-borderWidth)
 		{
 			for (size_t j = 0; j < img.cols; j++)
 			{
-				ptr[j] = 1;
+				ptr[j] = 255;
 			}
 		}
 		else
 		{
-			ptr[0] = 1;
-			ptr[img.cols - 1] = 1;
+			for (size_t j = 0; j < borderWidth; j++)
+			{
+				ptr[j] = 255;
+			}
+			for (int j = img.cols - 1; j > img.cols - 1 - borderWidth; j--)
+			{
+				ptr[j] = 255;
+			}
+			
 		}
 		
 	}
-	FastMBD(bgr[0], U, L, 3, seeds, rst);
+	Mat fmbd = Mat::zeros(img.size(), CV_32F);
+	for (size_t c = 0; c < 3; c++)
+	{
+		FastMBD(bgr[c], U, L, 3, seeds, rst);
+		add(rst, fmbd, fmbd);
+	}
+	
+	//GaussianBlur(fmbd, fmbd, cv::Size(3, 3), 1.0);
+	normalize(fmbd, fmbd, 0, 255, CV_MINMAX, CV_8U);
 
-	normalize(rst, rst, 255, 0, CV_8U, CV_MINMAX);
+	imshow("mbd", fmbd);
 
-	imshow("mbd", rst);
 	waitKey();
 }
