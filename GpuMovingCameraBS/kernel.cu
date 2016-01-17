@@ -23,13 +23,13 @@ int main (int argc, char* argv[])
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();
 	//TestRandom();
-	//GpuSubsenseMain( argc, argv);
+	GpuSubsenseMain( argc, argv);
 	//MRFOptimization();
 	//TestSuperpixel(argc, argv);
 	//testCudaGpu();
 	//TestDescDiff();
 	//TestWarpError(argc, argv);	
-	TestMBD();
+	//TestMBD();
 	return 0;
 
 }
