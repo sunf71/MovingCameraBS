@@ -44,11 +44,12 @@ public:
 	MRFOptimize(int width, int height,int step,float mdlConfidence = 0.8, float tcConfidence = 0.25,float scConfidence = 0.35):m_width(width),
 		m_height(height),
 		m_theta(0.35),
-		m_lmd1(0.3),
-		m_lmd2(scConfidence),
+		m_lmd1(0.857),
+		m_lmd2(40),
 		m_step(step),
 		m_modelConfidence(mdlConfidence),
-		m_tcConfidence(tcConfidence)
+		m_tcConfidence(tcConfidence),
+		m_scConfidence(scConfidence)
 	{
 		Init();
 	}
@@ -134,4 +135,5 @@ private:
 	float m_variance;
 	float m_modelConfidence;
 	float m_tcConfidence;
+	float m_scConfidence;
 };
