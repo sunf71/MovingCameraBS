@@ -62,12 +62,12 @@ public:
 	{
 		if (procId==0)
 		{
-			_bgs = new GpuWarpBackgroundSubtractor(warpId, rggThreshold, rggSeedThreshold, mdlConfidence, tcConfidence);
+			_bgs = new GpuWarpBackgroundSubtractor(warpId, rggThreshold, rggSeedThreshold, mdlConfidence, tcConfidence, scConfidence);
 			
 		}
 		else if (procId == 1)
 		{
-			_bgs = new WarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,mdlConfidence,tcConfidence);
+			_bgs = new WarpBackgroundSubtractor(rggThreshold, rggSeedThreshold, mdlConfidence, tcConfidence, scConfidence);
 			
 		}
 		

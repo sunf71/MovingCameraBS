@@ -300,7 +300,7 @@ public:
 									size_t nBGSamples=BGSSUBSENSE_DEFAULT_NB_BG_SAMPLES,
 									size_t nRequiredBGSamples=BGSSUBSENSE_DEFAULT_REQUIRED_NB_BG_SAMPLES,
 									size_t nSamplesForMovingAvgs=BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS
-									):m_warpId(warpId),WarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,modelConfidence,tcConfidence)
+									):m_warpId(warpId),WarpBackgroundSubtractor(rggThreshold,rggSeedThreshold,modelConfidence,tcConfidence, scConfidence)
 	{
 		
 

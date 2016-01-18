@@ -246,7 +246,7 @@ void TestGpuSubsense(int procId, int start, int end, const char* input, const ch
 	// Create feature tracker instance"..\\result\\subsensex\\moseg\\people1\\"
 	if (procId >= 0)
 	{
-		BSProcessor = new WarpBSProcessor(procId, output, start - 1, warpId, rggThre, rggSeedThres, mdlConfidence, tcConfidence);
+		BSProcessor = new WarpBSProcessor(procId, output, start - 1, warpId, rggThre, rggSeedThres, mdlConfidence, tcConfidence, scConfidence);
 	}
 	else
 	{
