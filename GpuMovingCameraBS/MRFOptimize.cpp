@@ -230,13 +230,16 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 	float k1 = (1 - m_tcConfidence - m_scConfidence);
 	float k2 = m_tcConfidence*40;
 
+	float avgDataTerm(0);
 	for(int i=0; i<num_pixels; i++)
 	{
 		g->add_node();
 		
 		float d = min(1.0f,spPtr[i].ps*2);
+		
 		d = max(1e-20f,d);
 		float d1 = -log(d);		
+		avgDataTerm += d;
 		float d2 = max(1e-20f,1-d);
 		d2 =  - log(d2);
 		float t1(0),t2(0);
@@ -268,9 +271,11 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 		g->add_tweights(i,e1,e2);
 
 	}
-	
+	avgDataTerm /= num_pixels;
 	/*dfile.close();
 	std::ofstream sfile("senergy.txt");*/
+	float avgSmoothTerm(0);
+	float numSmoothTerm(0);
 	for(int i=0; i<num_pixels; i++)
 	{
 
@@ -282,11 +287,15 @@ void MRFOptimize::TCMaxFlowOptimize(SuperPixel* spPtr, int num_pixels,float beta
 			/*	sfile << m_lmd1 << "," << m_lmd2 << "," << beta << ":" << energy << " ";*/
 			//	std::cout << beta << "," << exp(-beta*abs(spPtr[i].avgColor - spPtr[m_neighbor[i][j]].avgColor)) << "\n";
 				g->add_edge(i,m_neighbor[i][j],energy,energy);
+				avgSmoothTerm += energy;
+				numSmoothTerm++;
 			}
 		}
 		
 		/*sfile<<std::endl;*/
 	}
+	avgSmoothTerm /= numSmoothTerm;
+	//std::cout << "avg data term " << avgDataTerm << ", avg smooth term " << avgSmoothTerm << "\n";
 	/*sfile.close();*/
 	float flow = g -> maxflow();
 	for ( int  i = 0; i < num_pixels; i++ )
