@@ -244,6 +244,7 @@ protected:
 	float m_TCConfidence;
 	//ПегђСЌајад
 	float m_SCConfidence;
+	ofstream* m_logger;
 };
 
 class WarpSPBackgroundSubtractor : public WarpBackgroundSubtractor

@@ -111,6 +111,7 @@ m_bInitializedInternalStructs(false)
 	{
 		CV_Assert(m_nBGSamples>0 && m_nRequiredBGSamples<=m_nBGSamples);
 		CV_Assert(m_nMinColorDistThreshold>=STAB_COLOR_DIST_OFFSET);
+		m_logger = new ofstream("log.txt");
 		
 }
 
@@ -126,8 +127,8 @@ WarpBackgroundSubtractor::~WarpBackgroundSubtractor()
 
 	delete m_optimizer;
 	delete m_gs;
-
-
+	m_logger->close();
+	safe_delete(m_logger);
 }
 void WarpBackgroundSubtractor::initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints)
 {
@@ -665,7 +666,9 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 }
 void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray _fgmask)
 {
+
 	std::cout<<m_nFrameIndex<<std::endl;
+
 	_fgmask.create(m_oImgSize,CV_8UC1);
 	cv::Mat oCurrFGMask = _fgmask.getMat();
 	memset(oCurrFGMask.data,0,oCurrFGMask.cols*oCurrFGMask.rows);
@@ -741,7 +744,12 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 			float fy = invMapY;
 			int wx = (int)(mapX+0.5);
 			int wy = (int)(mapY+0.5);
-
+			bool logFlag(false);
+			if (x == 317 && y == 137)
+			{
+				logFlag = true;
+				*m_logger << " x=317,y=137 wx,wy=" << wx << "," << wy << endl;
+			}
 
 			if (wx<2 || wx>= m_oImgSize.width-2 || wy<2 || wy>=m_oImgSize.height-2)
 			{					
@@ -816,13 +824,30 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 			LBSP::computeRGBDescriptor(oInputImg,anCurrColor,x,y,anCurrIntraLBSPThresholds,anCurrIntraDesc);
 			m_oUnstableRegionMask.data[idx_uchar] = ((*pfCurrDistThresholdFactor)>UNSTABLE_REG_RDIST_MIN || (*pfCurrMeanRawSegmRes_LT-*pfCurrMeanFinalSegmRes_LT)>UNSTABLE_REG_RATIO_MIN || (*pfCurrMeanRawSegmRes_ST-*pfCurrMeanFinalSegmRes_ST)>UNSTABLE_REG_RATIO_MIN)?1:0;
 			size_t nGoodSamplesCount=0, nSampleIdx=0;
+			if (logFlag)
+			{
+				*m_logger << "nCurrSCColorDistThreshold " << nCurrSCColorDistThreshold << "\n ";
+				*m_logger << "nCurrDescDistThreshold " << nCurrDescDistThreshold << "\n";
+			}
+			
 			while(nGoodSamplesCount<m_nRequiredBGSamples && nSampleIdx<m_nBGSamples) {
 				const ushort* const anBGIntraDesc = (ushort*)(m_voBGDescSamples[nSampleIdx].data+idx_ushrt_rgb);
 				const uchar* const anBGColor = m_voBGColorSamples[nSampleIdx].data+idx_uchar_rgb;
 				size_t nTotDescDist = 0;
 				size_t nTotSumDist = 0;
+				if (logFlag)
+				{
+					*m_logger << nSampleIdx << ":\n";
+
+				}
+				
 				for(size_t c=0;c<3; ++c) {
 					const size_t nColorDist = absdiff_uchar(anCurrColor[c],anBGColor[c]);
+					if (logFlag)
+					{
+						*m_logger << "\tchannel " << c << " BGColor " << (unsigned)anBGColor[c] << " - " << (unsigned)anCurrColor[c] << " = " << nColorDist << "\n";
+						
+					}
 					if(nColorDist>nCurrSCColorDistThreshold)
 						goto failedcheck3ch;
 					size_t nIntraDescDist = hdist_ushort_8bitLUT(anCurrIntraDesc[c],anBGIntraDesc[c]);
@@ -830,6 +855,10 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 					size_t nInterDescDist = hdist_ushort_8bitLUT(anCurrInterDesc[c],anBGIntraDesc[c]);
 					const size_t nDescDist = (nIntraDescDist+nInterDescDist)/2;
 					const size_t nSumDist = std::min((nDescDist/2)*(s_nColorMaxDataRange_1ch/s_nDescMaxDataRange_1ch)+nColorDist,s_nColorMaxDataRange_1ch);
+					if (logFlag)
+					{
+						*m_logger << "\tintra Desc Dist " << nIntraDescDist << " inter desc Dist " << nInterDescDist << " sum dist " << nSumDist << "\n";
+					}
 					if(nSumDist>nCurrSCColorDistThreshold)
 						goto failedcheck3ch;
 					nTotDescDist += nDescDist;
@@ -849,6 +878,10 @@ failedcheck3ch:
 			*pfCurrMeanLastDist = (*pfCurrMeanLastDist)*(1.0f-fRollAvgFactor_ST) + fNormalizedLastDist*fRollAvgFactor_ST;
 			if(nGoodSamplesCount<m_nRequiredBGSamples) {
 				// == foreground
+				if (logFlag)
+				{
+					*m_logger << "Belong to foreground\n ";
+				}
 				const float fNormalizedMinDist = std::min(1.0f,((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2 + (float)(m_nRequiredBGSamples-nGoodSamplesCount)/m_nRequiredBGSamples);
 				*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
 				*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
@@ -865,6 +898,10 @@ failedcheck3ch:
 			}
 			else {
 				// == background
+				if (logFlag)
+				{
+					*m_logger << "Belong to background\n ";
+				}
 				const float fNormalizedMinDist = ((float)nMinTotSumDist/s_nColorMaxDataRange_3ch+(float)nMinTotDescDist/s_nDescMaxDataRange_3ch)/2;
 				*pfCurrMeanMinDist_LT = (*pfCurrMeanMinDist_LT)*(1.0f-fRollAvgFactor_LT) + fNormalizedMinDist*fRollAvgFactor_LT;
 				*pfCurrMeanMinDist_ST = (*pfCurrMeanMinDist_ST)*(1.0f-fRollAvgFactor_ST) + fNormalizedMinDist*fRollAvgFactor_ST;
