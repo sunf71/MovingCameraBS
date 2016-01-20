@@ -641,7 +641,7 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	int * rgResult(NULL);
 	m_SPComputer->RegionGrowingFast(resLabels,m_rggThreshold*avgE,rgResult);
 #ifndef REPORT
-	/*m_SPComputer->GetRegionGrowingImg(m_features);	
+	m_SPComputer->GetRegionGrowingImg(m_features);	
 	char filename[200];	
 	sprintf(filename,".\\features\\features%06d.jpg",m_nFrameIndex+1);
 	cv::imwrite(filename,m_features);
@@ -649,7 +649,7 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	cv::Mat tmp;
 	m_SPComputer->GetRegionGrowingSeedImg(resLabels,tmp);
 	sprintf(filename,".\\seeds\\seed%06d.jpg",m_nFrameIndex+1);
-	cv::imwrite(filename,tmp);*/
+	cv::imwrite(filename,tmp);
 #endif
 #ifndef REPORT
 	cpuTimer.stop();
@@ -745,10 +745,13 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 			int wx = (int)(mapX+0.5);
 			int wy = (int)(mapY+0.5);
 			bool logFlag(false);
-			if (x == 317 && y == 137)
+			int dbgX = 313;
+			int dbgY = 94;
+			if (x == dbgX && y == dbgY)
 			{
 				logFlag = true;
-				*m_logger << " x=317,y=137 wx,wy=" << wx << "," << wy << endl;
+				*m_logger << m_nFrameIndex << "------------------\n";
+				*m_logger << " x=" << dbgX << ",y=" << dbgY << " wx,wy=" << wx << "," << wy << endl;
 			}
 
 			if (wx<2 || wx>= m_oImgSize.width-2 || wy<2 || wy>=m_oImgSize.height-2)
