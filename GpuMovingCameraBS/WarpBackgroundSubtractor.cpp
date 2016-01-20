@@ -574,8 +574,8 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	//BC2FFeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],blkWeights,8,thetaSize1,radSize2,thetaSize2);
 	//C2FFeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],radSize1,thetaSize1,radSize2,thetaSize2);
 	//FeaturePointsRefineHistogram(m_oImgSize.width,m_oImgSize.height,m_goodFeatures[0],m_goodFeatures[1],5,36);
-	std::vector<cv::Point2f> sf1,sf0;
-	int numH = BlockDltHomography(m_oImgSize.width,m_oImgSize.height,8,m_goodFeatures[0],m_goodFeatures[1],homographies,blkWeights,sf0,sf1);
+	//std::vector<cv::Point2f> sf1,sf0;
+	//int numH = BlockDltHomography(m_oImgSize.width,m_oImgSize.height,8,m_goodFeatures[0],m_goodFeatures[1],homographies,blkWeights,sf0,sf1);
 	//若匹配的特征点数小于20，重新初始化模型
 	if (nf < 20)
 	{
@@ -594,10 +594,11 @@ bool WarpBackgroundSubtractor::WarpImage(const cv::Mat image, cv::Mat& warpedImg
 	cpuTimer.start();
 
 #endif	
-	/*m_ASAP->CreateSmoothCons(1.0);	
-	m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
-	m_ASAP->Solve();*/
+	//m_ASAP->CreateSmoothCons(1.0);	
+	//m_ASAP->SetControlPts(m_goodFeatures[0],m_goodFeatures[1]);	
+	
 	m_ASAP->SetFeaturePoints(m_goodFeatures[0], m_goodFeatures[1]);
+	m_ASAP->Solve();
 	m_ASAP->Warp(image,warpedImg);
 	m_ASAP->Reset();
 	m_ASAP->getFlow(m_wflow);
@@ -675,9 +676,7 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 	cv::Mat outMask(m_oImgSize,CV_8U);
 	outMask = cv::Scalar(0);
 	w_oLastColorFrame = cv::Scalar(0);
-	/*char filename[30];
-	sprintf(filename,"lastColor%d.jpg",m_nFrameIndex);
-	cv::imwrite(filename,m_oLastColorFrame);*/
+	
 
 	cv::Mat oInputImg;
 	cv::Mat img = _image.getMat();
@@ -708,7 +707,9 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 		return;
 	}
 
-
+	char filename[200];
+	sprintf(filename, "./warpedImg/win%06d.jpg", m_nFrameIndex);
+	cv::imwrite(filename, oInputImg);
 #ifndef REPORT
 	nih::Timer timer;
 	timer.start();
@@ -749,7 +750,7 @@ void WarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputArray
 			int dbgY = 94;
 			if (x == dbgX && y == dbgY)
 			{
-				logFlag = true;
+				//logFlag = true;
 				*m_logger << m_nFrameIndex << "------------------\n";
 				*m_logger << " x=" << dbgX << ",y=" << dbgY << " wx,wy=" << wx << "," << wy << endl;
 			}
@@ -976,7 +977,7 @@ failedcheck3ch:
 	timer.stop();
 	std::cout<<"bs operator "<<timer.seconds()*1000<<std::endl;
 #endif
-	char filename[50];
+	
 	sprintf(filename,".\\cpu\\bin%06d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,oCurrFGMask);
 	/*cv::imshow("mask",oCurrFGMask);
@@ -1792,7 +1793,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 
 #ifndef REPORT
 	d_FGMask.download(oCurrFGMask);
-	char filename[50];
+	char filename[100];
 	sprintf(filename,".\\gpu\\bin%06d.jpg",m_nFrameIndex);
 	cv::imwrite(filename,oCurrFGMask);
 #endif
@@ -1822,7 +1823,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	postProcessSegments(img,oCurrFGMask);
 	/*cv::imshow("after optimize ",oCurrFGMask);
 	cv::waitKey();*/
-	swapModels();
+	//swapModels();
 	cv::Mat refeshMask;
 
 	cv::bitwise_or(m_outMask,oCurrFGMask,refeshMask);
@@ -1845,6 +1846,8 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	gtimer.Stop();
 	std::cout<<"gpu update model "<<gtimer.Elapsed()<<std::endl;
 #endif	//saveModels();
+
+	swapModels();
 }
 void GpuWarpBackgroundSubtractor::loadModels()
 {
