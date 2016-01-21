@@ -1134,6 +1134,7 @@ failedcheck3ch:
 	//	m_nOutPixels = 0;
 	//}
 	//refreshModel(outMask,0.1);
+	
 }
 
 
@@ -1284,12 +1285,12 @@ void WarpBackgroundSubtractor::UpdateModel(const cv::Mat& curImg, const cv::Mat&
 		if (curMask.data[idx_uchar] == 0xff)
 		{
 			//update foreground
-			if((rand()%(size_t)FEEDBACK_T_LOWER)==0) {
-			const size_t s_rand = rand()%m_nBGSamples;
-			for(size_t c=0; c<3; ++c) {
-			*((ushort*)(m_voBGDescSamples[s_rand].data+idx_ushrt_rgb+2*c)) = anCurrIntraDesc[c];
-			*(m_voBGColorSamples[s_rand].data+idx_uchar_rgb+c) = anCurrColor[c];
-			}
+			if ((rand() % (size_t)FEEDBACK_T_LOWER) == 0) {
+				const size_t s_rand = rand() % m_nBGSamples;
+				for (size_t c = 0; c < 3; ++c) {
+					*((ushort*)(m_voBGDescSamples[s_rand].data + idx_ushrt_rgb + 2 * c)) = anCurrIntraDesc[c];
+					*(m_voBGColorSamples[s_rand].data + idx_uchar_rgb + c) = anCurrColor[c];
+				}
 			}
 		}
 		else
@@ -1821,6 +1822,7 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 
 	m_optimizer->Optimize(m_SPComputer,oCurrFGMask,m_matchedId,oCurrFGMask);
 	postProcessSegments(img,oCurrFGMask);
+	swapModels();
 	/*cv::imshow("after optimize ",oCurrFGMask);
 	cv::waitKey();*/
 	//swapModels();
@@ -1846,8 +1848,8 @@ void GpuWarpBackgroundSubtractor::BSOperator(cv::InputArray _image, cv::OutputAr
 	gtimer.Stop();
 	std::cout<<"gpu update model "<<gtimer.Elapsed()<<std::endl;
 #endif	//saveModels();
-
-	swapModels();
+	
+	
 }
 void GpuWarpBackgroundSubtractor::loadModels()
 {
