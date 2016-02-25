@@ -4202,7 +4202,7 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 
 		if (debug)
 		{
-			GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+			GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 0, false);
 
 			sprintf(name, "%s%dHOccMerge1_%d_%d_Region_%2d_%d.jpg", outPutPath, idx, minSId, minBId, (int)(minDist * 100), regSize - 1);
 			cv::imwrite(name, rmask);
@@ -4262,7 +4262,7 @@ void HandleOcculusion(const cv::Mat& img, SuperpixelComputer& computer, const ch
 
 	if (debug)
 	{
-		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1,true);
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1, false);
 		sprintf(name, "%sOccHandled_%d.jpg", outPath, regSize);
 		cv::imwrite(name, rmask);
 	}
@@ -8183,7 +8183,7 @@ void SalGuidedRegMergion(const cv::Mat& img, const char* path, std::vector<Regio
 	if (debug)
 	{
 		cv::Mat rmask;
-		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask);
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1, false);
 		sprintf(name, "%s%dBKMergeF_%d.jpg", outpath, idx, regSalInfos.size() - 1);
 		cv::imwrite(name, rmask);
 	}
