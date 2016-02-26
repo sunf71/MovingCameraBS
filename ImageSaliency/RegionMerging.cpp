@@ -8277,7 +8277,7 @@ void SalGuidedRegMergion(const cv::Mat& img, const char* path, std::vector<Regio
 	{
 		float bkBorderRatio = regSalInfos[regSalInfos.size() - 1].borderRatio + regSalInfos[regSalInfos.size() - 2].borderRatio;
 		cv::Mat rmask;
-		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 0, true);
+		GetRegionMap(img.cols, img.rows, &computer, newLabels, regions, rmask, 1, false);
 		sprintf(name, "%s%dBKMergeF_%d_%d.jpg", outpath, idx, regSalInfos.size() - 1, (int)(bkBorderRatio * 100));
 		cv::imwrite(name, rmask);
 	}
