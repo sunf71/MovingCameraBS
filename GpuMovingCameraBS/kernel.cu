@@ -10,7 +10,7 @@ int main (int argc, char* argv[])
 	//TestRegionMerging(argc, argv);
 	//TestBlockWarping();
 	//TestBlockHomography();
-	//TestFeaturesRefine(argc, argv);
+	TestFeaturesRefine(argc, argv);
 	//TestFeaturesRefineHistogram(argc,argv);
 	//TestSuperpixelDownSample();
 	//TestSuperpielxComputer();
@@ -23,7 +23,7 @@ int main (int argc, char* argv[])
 	//TestRegioinGrowingSegment();
 	//TestMotionEstimate();
 	//TestRandom();
-	GpuSubsenseMain( argc, argv);
+	//GpuSubsenseMain( argc, argv);
 	//MRFOptimization();
 	//TestSuperpixel(argc, argv);
 	//testCudaGpu();

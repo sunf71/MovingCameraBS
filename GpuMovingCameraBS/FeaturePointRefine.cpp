@@ -2013,7 +2013,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 		
 	}
 	avgFlowDist /= num;
-	distThres = std::max(avgFlowDist*0.25, 1.0);
+	distThres = std::max(avgFlowDist*0.5, 1.0);
 	//distThres = 1.0;
 	//std::cout << "AVG Block Flow Dist = " << avgFlowDist << "\n";
 	//int s = N/2;B.push_back(s);
@@ -2117,14 +2117,14 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 		}
 
 	}
-	//static int fidx = 0;
-	//cv::Mat rst;
-	//ShowMergePhase1(_img1,cluster, maxId, f1, f0, rst);
-	//char fileName[100];
-	//sprintf(fileName, "M%d_1.jpg", fidx);
-	//cv::imwrite(fileName, rst);
+	static int fidx = 0;
+	cv::Mat rst;
+	ShowMergePhase1(_img1,cluster, maxId, f1, f0, rst);
+	char fileName[100];
+	sprintf(fileName, "M%d_1.jpg", fidx);
+	cv::imwrite(fileName, rst);
 
-	//第二阶段合并，利用RANSAC距离尝试将其他区域合并到最大区域
+	//第二阶段合并，利用光流区域距离尝试将其他区域合并到最大区域
 	for (size_t i = 0; i <groups.size(); i++)
 	{
 		if (i != maxId && groups[i].size()>0)
@@ -2141,11 +2141,11 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 	}
 
 	
-	//ShowMergePhase2(_img1, cluster, maxId, f1, f0, rst);
-	//
-	//sprintf(fileName, "M%d_2.jpg", fidx);
-	//cv::imwrite(fileName, rst);
-	//fidx++;
+	ShowMergePhase2(_img1, cluster, maxId, f1, f0, rst);
+	
+	sprintf(fileName, "M%d_2.jpg", fidx);
+	cv::imwrite(fileName, rst);
+	fidx++;
 
 	for (size_t i = 0; i < inliers.size(); i++)
 	{
@@ -2154,7 +2154,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 		int idx = (int)(pt.x + 0.5) / _blkWidth;
 		int idy = (int)(pt.y + 0.5) / _blkHeight;
 		int blk = idx + idy*_N;
-		if (_labels[blk] == maxId)
+		if (_labels[blk] == maxId && _IBinliers[i] == 1)
 		{
 			inliers[i] = 1;
 			

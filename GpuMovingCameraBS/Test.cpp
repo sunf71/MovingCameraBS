@@ -5518,9 +5518,11 @@ void TestWarpError(int argc, char**argv)
 void TestMBD()
 {
 
-	Mat img = cv::imread("0055.jpg");
+	Mat img = cv::imread("in000001.jpg");
+	cv::cvtColor(img, img, CV_BGR2Lab);
 	Mat bgr[3];
 	split(img, bgr);
+	
 	Mat U, L, seeds, rst;
 	seeds = Mat::zeros(img.size(), CV_8U);
 	int borderWidth(1);
