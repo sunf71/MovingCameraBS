@@ -5518,13 +5518,17 @@ void TestWarpError(int argc, char**argv)
 void TestMBD()
 {
 
-	Mat img = cv::imread("in000001.jpg");
+	Mat img = cv::imread("5_146_146373.jpg");
+	
 	cv::cvtColor(img, img, CV_BGR2Lab);
 	Mat bgr[3];
 	split(img, bgr);
 	
 	Mat U, L, seeds, rst;
-	seeds = Mat::zeros(img.size(), CV_8U);
+	seeds = cv::imread("seed.jpg");
+	cv::cvtColor(seeds, seeds, CV_BGR2GRAY);
+	cv::threshold(seeds, seeds, 128, 255, CV_THRESH_BINARY);
+	/*seeds = Mat::zeros(img.size(), CV_8U);
 	int borderWidth(1);
 	for (size_t i = 0; i < img.rows; i++)
 	{
@@ -5550,14 +5554,17 @@ void TestMBD()
 			
 		}
 		
-	}
+	}*/
 	Mat fmbd = Mat::zeros(img.size(), CV_32F);
+	nih::Timer cpuTimer;
+	cpuTimer.start();
 	for (size_t c = 0; c < 3; c++)
 	{
 		FastMBD(bgr[c], U, L, 3, seeds, rst);
 		add(rst, fmbd, fmbd);
 	}
-	
+	cpuTimer.stop();
+	std::cout << cpuTimer.seconds() << "\n";
 	//GaussianBlur(fmbd, fmbd, cv::Size(3, 3), 1.0);
 	normalize(fmbd, fmbd, 0, 255, CV_MINMAX, CV_8U);
 
