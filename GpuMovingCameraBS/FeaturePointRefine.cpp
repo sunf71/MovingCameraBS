@@ -2162,6 +2162,7 @@ void BlockGrowRefine::Refine(Points& f1, Points& f0, std::vector<uchar>& inliers
 		else
 			inliers[i] = 0;
 	}
+	
 }
 
 void BlockGrowRefine::Refine(Points& features1, Points& features0)

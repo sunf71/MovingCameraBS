@@ -55,3 +55,4 @@ void TestGpuKLT();
 void TestWarpError(int argc, char* argv[]);
 
 void TestMBD();
+void TestMBDPlusBFR(int argc, char** argv);

@@ -29,7 +29,8 @@ int main (int argc, char* argv[])
 	//testCudaGpu();
 	//TestDescDiff();
 	//TestWarpError(argc, argv);	
-	TestMBD();
+	TestMBDPlusBFR(argc, argv);
+	//TestMBD();
 	return 0;
 
 }

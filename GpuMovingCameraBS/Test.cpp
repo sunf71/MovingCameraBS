@@ -5514,7 +5514,155 @@ void TestWarpError(int argc, char**argv)
 	}
 }
 
+void TestMBDPlusBFR(int argc, char** argv)
+{
+	//利用BFR得到背景种子点seed
+	int start = atoi(argv[1]);
+	int end = atoi(argv[2]);
+	int width = atoi(argv[3]);
+	int height = atoi(argv[4]);
+	int method = atoi(argv[5]);
+	char* path = argv[6];
+	char* outPath = argv[7];
 
+	CreateDir(outPath);
+	SparseOptialFlow sof;
+	int dBinNum(10), aBinNum(55);
+	float threshold(0.1);
+	if (method == 3 && argc == 10)
+	{
+		dBinNum = atoi(argv[8]);
+		aBinNum = atoi(argv[9]);
+	}
+	else if (method == 2 && argc == 9)
+	{
+		threshold = atof(argv[8]);
+	}
+	else if (argc == 9)
+	{
+		aBinNum = atoi(argv[8]);
+	}
+	BlockRelFlowRefine BRFR(width, height, 2);
+	BlockGrowRefine BGR(width, height, 8);
+	cv::Size size2(width * 2, height);
+	char fileName[200];
+	cv::Mat img0, gray0, img1, gray1, gtImg;
+	std::vector<cv::Point2f> features0, features1;
+	std::vector<uchar> inliers;
+	cv::Mat blkImg;
+	
+	char methodName[20];
+	
+	
+	for (int i = start; i <= end; i++)
+	{
+		sprintf(fileName, "%s//in%06d.jpg", path, i);
+		img1 = imread(fileName);
+		sprintf(fileName, "%s//groundtruth//gt%06d.png", path, i);
+		gtImg = imread(fileName);
+		BGR.SetImg(img1);
+		cv::cvtColor(gtImg, gtImg, CV_BGR2GRAY);
+		cv::cvtColor(img1, gray1, CV_BGR2GRAY);
+		if (gray0.empty())
+		{
+			gray0 = gray1.clone();
+			img0 = img1.clone();
+		}
+
+		nih::Timer timer;
+		timer.start();
+		KLTFeaturesMatching(gray1, gray0, features1, features0, 500, 0.05, 10);
+		timer.stop();
+
+
+
+
+		cv::Mat homo;
+		int anchorId(0);
+
+		timer.start();
+		switch (method)
+		{
+		case 1:
+			sprintf(methodName, "Ransac");
+			cv::findHomography(features1, features0, inliers, CV_RANSAC, threshold);
+			break;
+		case 2:
+			sprintf(methodName, "RelFlow");
+			RelFlowRefine(features1, features0, inliers, anchorId, threshold);
+			//RelFlowRefine(width, height, features1, features0, inliers, anchorId);
+			break;
+		case 3:
+			sprintf(methodName, "Histogram");
+			FeaturePointsRefineHistogram(features1, features0, inliers, dBinNum, aBinNum);
+			break;
+		case 4:
+			sprintf(methodName, "BlockRefFlow");
+			//BRFR.Refine(2, features1, features0, inliers, anchorId);
+			BRFR.Refine(features1, features0, inliers);
+			break;
+		case 5:
+			sprintf(methodName, "HistogramO");
+			FeaturePointsRefineHistogramO(features1, features0, inliers, aBinNum);
+			break;
+		case 6:
+			sprintf(methodName, "HistogramZ");
+			FeaturePointsRefineZoom(width, height, features1, features0, inliers, aBinNum);
+			break;
+		case 7:
+			sprintf(methodName, "BlockFlow");
+			//BlockFlowRefine(width, height, features1, features0, inliers);
+			//BlockFlowGrowing(outPath,width, height, features0, features1, inliers, img1);
+			BGR.Refine(features1, features0, inliers);
+			//BGR.IntraBlockVoting(features1, features0);
+			break;
+
+		default:
+			sprintf(methodName, "Ransac");
+			cv::findHomography(features1, features0, inliers, CV_RANSAC, threshold);
+			break;
+		}
+
+		timer.stop();
+		//std::cout << "Refine " << timer.seconds() * 1000 << "ms\n";
+		
+		
+
+		Mat seed = Mat::zeros(height, width, CV_8U);
+		for (size_t i = 0; i < features1.size(); i++)
+		{
+			if (inliers[i] == 1)
+			{
+				seed.at<uchar>( int(features1[i].y + 0.5),int(features1[i].x + 0.5)) = 0xff;
+			}
+		}
+		cv::imshow("seed", seed);
+		
+		//利用seed和MBD得到显著性前景
+		Mat bgr[3];
+		split(img1, bgr);
+		Mat fmbd = Mat::zeros(img1.size(), CV_32F);
+		Mat U, L, rst;
+		nih::Timer cpuTimer;
+		cpuTimer.start();
+		for (size_t c = 0; c < 3; c++)
+		{
+			FastMBD(bgr[c], U, L, 3, seed, rst);
+			add(rst, fmbd, fmbd);
+		}
+		cpuTimer.stop();
+		std::cout << cpuTimer.seconds() << "\n";
+		//GaussianBlur(fmbd, fmbd, cv::Size(3, 3), 1.0);
+		normalize(fmbd, fmbd, 0, 255, CV_MINMAX, CV_8U);
+
+		imshow("mbd", fmbd);
+		cv::waitKey();
+		cv::swap(img0, img1);
+		cv::swap(gray0, gray1);
+	}
+	
+	
+}
 void TestMBD()
 {
 
