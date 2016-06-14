@@ -3267,15 +3267,21 @@ void TestFeaturesRefine(int argc, char* argv[])
 	float avgRatio(0);
 	sprintf(fileName, "%s\\%dOut.txt", outPath, method);
 	std::ofstream of(fileName);
+
 	float TP(0), FP(0), FN(0);
 	for (int i = start; i <= end; i++)
 	{
+		bool gtFlag(false);
 		sprintf(fileName, "%s//in%06d.jpg", path, i);
 		img1 = imread(fileName);
 		sprintf(fileName, "%s//groundtruth//gt%06d.png", path, i);
 		gtImg = imread(fileName);
 		BGR.SetImg(img1);
-		cv::cvtColor(gtImg, gtImg, CV_BGR2GRAY);
+		
+		if (gtImg.size().width > 0)
+			gtFlag = true;
+		if (gtFlag)
+			cv::cvtColor(gtImg, gtImg, CV_BGR2GRAY);
 		cv::cvtColor(img1, gray1, CV_BGR2GRAY);
 		if (gray0.empty())
 		{
@@ -3388,7 +3394,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 	/*	cv::waitKey();*/
 		float errorNum(0);
 		int k(0);
-	
+		
 		for (size_t ii = 0; ii < inliers.size(); ii++)
 		{
 			if (inliers[ii] == 1)
@@ -3400,7 +3406,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 				{
 					int x = features1[k].x + 0.5;
 					int y = features1[k].y + 0.5;
-					if (gtImg.data[y*width + x] == 0xff)
+					if (gtFlag && gtImg.data[y*width + x] == 0xff)
 					{
 						FP++;
 						errorNum++;
@@ -3417,7 +3423,7 @@ void TestFeaturesRefine(int argc, char* argv[])
 			{
 				int x = features1[k].x + 0.5;
 				int y = features1[k].y + 0.5;
-				if (gtImg.data[y*width + x] != 0xff)
+				if (gtFlag && gtImg.data[y*width + x] != 0xff)
 				{
 					FN++;
 				}
@@ -5382,13 +5388,7 @@ void TestWarpError(int argc, char**argv)
 		std::cout << i << "\n";
 		sprintf(fileName, "%s\\in%06d.jpg", path, i);
 		curImg = cv::imread(fileName);
-		sprintf(fileName, "%s\\in%06d_edge.png", path, i);
-		edge = cv::imread(fileName);
-		if (edge.channels() == 3)
-		{
-			cv::cvtColor(edge, edge, CV_BGR2GRAY);
-		}
-		threshold(edge, edge, 50, 255, CV_THRESH_BINARY);
+		
 		cv::resize(curImg, curImg, cv::Size(width, height));
 		cv::cvtColor(curImg, gray1, CV_BGR2GRAY);
 		KLTFeaturesMatching(gray1, gray0, features1, features0, 500);
@@ -5416,26 +5416,10 @@ void TestWarpError(int argc, char**argv)
 		sprintf(fileName, "%swarpErr%d_%d.jpg", outPath, i, method);
 		cv::imwrite(fileName, warpError);
 
-		Mat andMask;
-		cv::bitwise_and(warpError, edge, andMask);
-		imshow("and", andMask);
 		
 		
-		Mat tmp = gray1.clone();
-		for (size_t i = 0; i < height; i++)
-		{
-			uchar* ptr = andMask.ptr<uchar>(i);
-			uchar* tPtr = tmp.ptr<uchar>(i);
-			for (size_t j = 0; j < width; j++)
-			{
-				if (ptr[j] != 255)
-					tPtr[j] = 0;
-
-			}
-		}
-
-		imshow("tmp", tmp);
-		waitKey();
+		
+		
 		cv::Mat result, contourRst;
 		SuperpixelOptimize(spComputer, curImg, warpError, result, contourRst, spStep);
 
@@ -5636,6 +5620,32 @@ void TestMBDPlusBFR(int argc, char** argv)
 				seed.at<uchar>( int(features1[i].y + 0.5),int(features1[i].x + 0.5)) = 0xff;
 			}
 		}
+		int borderWidth(1);
+		for (size_t i = 0; i < height; i++)
+		{
+
+			uchar* ptr = seed.ptr<uchar>(i);
+			if (i < borderWidth || i > width - 1 - borderWidth)
+			{
+				for (size_t j = 0; j < width; j++)
+				{
+					ptr[j] = 255;
+				}
+			}
+			else
+			{
+				for (size_t j = 0; j < borderWidth; j++)
+				{
+					ptr[j] = 255;
+				}
+				for (int j = width - 1; j > width - 1 - borderWidth; j--)
+				{
+					ptr[j] = 255;
+				}
+
+			}
+
+		}
 		cv::imshow("seed", seed);
 		
 		//利用seed和MBD得到显著性前景
@@ -5663,20 +5673,200 @@ void TestMBDPlusBFR(int argc, char** argv)
 	
 	
 }
+typedef pair<float, int> CostfIdx;
+typedef vector<double> vecD;
+void SmoothSaliency(cv::Mat &colorNum1i, cv::Mat &sal1f, float delta, const vector<vector<CostfIdx>> &similar)
+{
+	
+	if (sal1f.cols < 2)
+		return;
+	CV_Assert(sal1f.rows == 1 && sal1f.type() == CV_32FC1);
+	CV_Assert(colorNum1i.size() == sal1f.size() && colorNum1i.type() == CV_32SC1);
+
+	int binN = sal1f.cols;
+	Mat newSal1d = Mat::zeros(1, binN, CV_64FC1);
+	float *sal = (float*)(sal1f.data);
+	double *newSal = (double*)(newSal1d.data);
+	int *pW = (int*)(colorNum1i.data);
+
+	// Distance based smooth
+	int n = max(cvRound(binN * delta), 2);
+	vecD dist(n, 0), val(n), w(n);
+	for (int i = 0; i < binN; i++){
+		const vector<CostfIdx> &similari = similar[i];
+		double totalDist = 0, totoalWeight = 0;
+		for (int j = 0; j < n; j++){
+			int ithIdx = similari[j].second;
+			dist[j] = similari[j].first;
+			val[j] = sal[ithIdx];
+			w[j] = pW[ithIdx];
+			totalDist += dist[j];
+			totoalWeight += w[j];
+		}
+		double valCrnt = 0;
+		for (int j = 0; j < n; j++)
+			valCrnt += val[j] * (totalDist - dist[j]) * w[j];
+
+		newSal[i] = valCrnt / (totalDist * totoalWeight);
+	}
+	normalize(newSal1d, sal1f, 0, 1, NORM_MINMAX, CV_32FC1);
+}
+void GetHC(cv::Mat &binColor3f, cv::Mat &colorNums1i, cv::Mat &_colorSal)
+{
+	
+	Mat weight1f;
+	normalize(colorNums1i, weight1f, 1, 0, NORM_L1, CV_32F);
+
+	int binN = binColor3f.cols;
+	_colorSal = Mat::zeros(1, binN, CV_32F);
+	float* colorSal = (float*)(_colorSal.data);
+	vector<vector<CostfIdx>> similar(binN); // Similar color: how similar and their index
+	Vec3f* color = (Vec3f*)(binColor3f.data);
+	float *w = (float*)(weight1f.data);
+	for (int i = 0; i < binN; i++){
+		vector<CostfIdx> &similari = similar[i];
+		similari.push_back(make_pair(0.f, i));
+		for (int j = 0; j < binN; j++){
+			if (i == j)
+				continue;
+			float dij = vecDist<float, 3>(color[i], color[j]);
+			similari.push_back(make_pair(dij, j));
+			colorSal[i] += w[j] * dij;
+		}
+		sort(similari.begin(), similari.end());
+	}
+	Mat colorNum1i = Mat::ones(_colorSal.size(), CV_32SC1);
+	SmoothSaliency(colorNum1i, _colorSal, 0.25f, similar);
+}
+void BorderGradient(cv::Mat& img, int borderWidth, cv::Mat & brst)
+{
+	SuperpixelComputer sp(img.size(), borderWidth);
+	sp.ComputeSuperpixel(img);
+	cv::Mat rst,dx,dy;
+	sp.GetSuperpixelDownSampleImg(rst);
+	cvtColor(rst, rst, CV_BGR2GRAY);
+	
+	cv::Sobel(rst, dx, -1, 1, 0);
+	cv::Sobel(rst, dy, -1, 0, 1);
+	convertScaleAbs(dx, dx);
+	convertScaleAbs(dy, dy);
+	
+	std::vector<std::vector<uint2>> poses;
+	sp.GetSuperpixelPoses(poses);
+	int spWidth = sp.GetSPWidth();
+	int spHeight = sp.GetSPHeight();
+	brst = Mat::zeros(img.size(), CV_8U);
+	Mat borderMask = brst.clone();
+	for (size_t i = 0; i < img.rows; i++)
+	{
+
+		uchar* ptr = borderMask.ptr<uchar>(i);
+		if (i < borderWidth || i > img.rows - 1 - borderWidth)
+		{
+			for (size_t j = 0; j < img.cols; j++)
+			{
+				ptr[j] = 255;
+			}
+		}
+		else
+		{
+			for (size_t j = 0; j < borderWidth; j++)
+			{
+				ptr[j] = 255;
+			}
+			for (int j = img.cols - 1; j > img.cols - 1 - borderWidth; j--)
+			{
+				ptr[j] = 255;
+			}
+
+		}
+
+	}
+	for (int i = 0; i < spWidth; i++)
+	{
+		uchar v = dx.at<uchar>(0, i);
+		for (int j = 0; j < poses[i].size(); j++)
+		{
+			int x = poses[i][j].x;
+			int y = poses[i][j].y;
+			brst.at<uchar>(y, x) = v;
+		}
+		v = dx.at<uchar>(spHeight - 1, i);
+		for (int j = 0; j < poses[spWidth*(spHeight-1)+i].size(); j++)
+		{
+			int x = poses[spWidth*(spHeight - 1) + i][j].x;
+			int y = poses[spWidth*(spHeight - 1) + i][j].y;
+			brst.at<uchar>(y, x) = v;
+		}
+	}
+	for (int i = 1; i < spHeight-1; i++)
+	{
+		uchar v = dy.at<uchar>(i, 0);
+		for (int j = 0; j < poses[(i)*spWidth].size(); j++)
+		{
+			int x = poses[i*spWidth][j].x;
+			int y = poses[i*spWidth][j].y;
+			brst.at<uchar>(y, x) = v;
+		}
+		v = dy.at<uchar>(i, spWidth - 1);
+		for (int j = 0; j < poses[spWidth*i+spWidth-1].size(); j++)
+		{
+			int x = poses[spWidth*i + spWidth - 1][j].x;
+			int y = poses[spWidth*i + spWidth - 1][j].y;
+			brst.at<uchar>(y, x) = v;
+		}
+	}
+	threshold(brst, brst, 0, 255, CV_THRESH_OTSU);
+	cv::bitwise_not(brst, brst);
+	cv::bitwise_and(brst, borderMask, brst);
+	cv::imshow("brst", brst);
+	sp.GetVisualResult(img, rst);
+	cv::imshow("sp", rst);
+	cv::waitKey();
+
+}
+void BorderHC(cv::Mat& img3i, int borderPx = 10)
+{
+	cv::Mat img3f;
+	img3i.convertTo(img3f, CV_32FC3, 1.0 / 255);
+	// Quantize colors and
+	Mat idx1i, binColor3f, colorNums1i, _colorSal;
+	const int DefaultNums[3] = { 12, 12, 12 };
+	Quantize(img3f, idx1i, binColor3f, colorNums1i, 0.95, DefaultNums);
+	cvtColor(binColor3f, binColor3f, CV_BGR2Lab);
+	GetHC(binColor3f, colorNums1i, _colorSal);
+	float* colorSal = (float*)(_colorSal.data);
+	Mat salHC1f(img3f.size(), CV_32F);
+	for (int r = 0; r < img3f.rows; r++){
+		float* salV = salHC1f.ptr<float>(r);
+		int* _idx = idx1i.ptr<int>(r);
+		for (int c = 0; c < img3f.cols; c++)
+			salV[c] = colorSal[_idx[c]];
+	}
+	GaussianBlur(salHC1f, salHC1f, cv::Size(3, 3), 0);
+	salHC1f(cv::Rect(borderPx, borderPx, img3f.cols - 2 * borderPx, img3f.rows - 2 * borderPx)).setTo(0);
+	normalize(salHC1f, salHC1f, 0, 255, NORM_MINMAX, CV_8U);
+	cv::threshold(salHC1f, salHC1f, 156, 255, CV_THRESH_BINARY);
+	imshow("hc", salHC1f);
+	waitKey(0);
+}
+
 void TestMBD()
 {
 
 	Mat img = cv::imread("5_146_146373.jpg");
-	
+	BorderHC(img);
+	Mat bgseed;
+	BorderGradient(img, 25, bgseed);
 	cv::cvtColor(img, img, CV_BGR2Lab);
 	Mat bgr[3];
 	split(img, bgr);
 	
 	Mat U, L, seeds, rst;
-	seeds = cv::imread("seed.jpg");
+	/*seeds = cv::imread("in000002seed.jpg");
 	cv::cvtColor(seeds, seeds, CV_BGR2GRAY);
-	cv::threshold(seeds, seeds, 128, 255, CV_THRESH_BINARY);
-	/*seeds = Mat::zeros(img.size(), CV_8U);
+	cv::threshold(seeds, seeds, 128, 255, CV_THRESH_BINARY);*/
+	seeds = Mat::zeros(img.size(), CV_8U);
 	int borderWidth(1);
 	for (size_t i = 0; i < img.rows; i++)
 	{
@@ -5702,7 +5892,7 @@ void TestMBD()
 			
 		}
 		
-	}*/
+	}
 	Mat fmbd = Mat::zeros(img.size(), CV_32F);
 	nih::Timer cpuTimer;
 	cpuTimer.start();
@@ -5718,5 +5908,22 @@ void TestMBD()
 
 	imshow("mbd", fmbd);
 
+	cv::threshold(fmbd, fmbd, 0, 255, CV_THRESH_OTSU);
+	imshow("tmbd", fmbd);
+	
+	Mat nfmbd = Mat::zeros(img.size(), CV_32F);
+	
+	for (size_t c = 0; c < 3; c++)
+	{
+		FastMBD(bgr[c], U, L, 3, bgseed, rst);
+		add(rst, nfmbd, nfmbd);
+	}
+	normalize(nfmbd, nfmbd, 0, 255, CV_MINMAX, CV_8U);
+
+	imshow("Nmbd", nfmbd);
+
+	cv::threshold(fmbd, fmbd, 0, 255, CV_THRESH_OTSU);
+	imshow("Ntmbd", nfmbd);
+	
 	waitKey();
 }

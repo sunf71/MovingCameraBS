@@ -18,7 +18,8 @@ public:
 		_bgLabels = NULL;
 		_spHeight = (_height + _step - 1) / _step;
 		_spWidth = (_width + _step - 1) / _step;
-
+		_alpha = 0.9;
+		init();
 	};
 	SuperpixelComputer(const int width, const int height, const int step, const float alpha = 0.9):
 	  _width(width),_height(height),_step(step),_alpha(alpha)
