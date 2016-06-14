@@ -11,8 +11,46 @@
 #include "videoprocessor.h"
 #include "VIBE.h"
 #include "prob_model.h"
+#include <io.h>
+#include <direct.h>
+static inline int CreateDir(char *pszDir)
+{
+	int i = 0;
+	int iRet;
+	int iLen = strlen(pszDir);
+	//在末尾加/
+	if (pszDir[iLen - 1] != '\\' && pszDir[iLen - 1] != '/')
+	{
+		pszDir[iLen] = '/';
+		pszDir[iLen + 1] = '\0';
+	}
+
+	// 创建目录
+	for (i = 0;i < iLen;i ++)
+	{
+		if (pszDir[i] == '\\' || pszDir[i] == '/')
+		{ 
+			pszDir[i] = '\0';
+
+			//如果不存在,创建
+			iRet = _access(pszDir,0);
+			if (iRet != 0)
+			{
+				iRet = _mkdir(pszDir);
+				if (iRet != 0)
+				{
+					return -1;
+				} 
+			}
+			//支持linux,将所有\换成/
+			pszDir[i] = '/';
+		} 
+	}
+
+	return 0;
+}
 using namespace cv;
-void refineSegments(const Mat& img, Mat& mask, Mat& dst)
+void refineSegments(const Mat& img, Mat& mask, Mat& dst ,int niter = 3)
 {
 	int niters = 3;
 
@@ -50,6 +88,41 @@ void refineSegments(const Mat& img, Mat& mask, Mat& dst)
 	Scalar color( 255, 255, 255 );
 	drawContours( dst, contours, largestComp, color, CV_FILLED, 8, hierarchy );
 	cv::cvtColor(dst, dst, CV_BGR2GRAY); 
+}
+inline void postProcessSegments(const Mat& img, Mat& mask)
+{
+	int niters = 1;
+
+	vector<vector<Point> > contours,imgContours;
+	vector<Vec4i> hierarchy,imgHierarchy;
+	
+	Mat temp;
+
+
+	dilate(mask, temp, Mat(), Point(-1,-1), niters);//膨胀，3*3的element，迭代次数为niters
+	erode(temp, temp, Mat(), Point(-1,-1), niters*2);//腐蚀
+	dilate(temp, temp, Mat(), Point(-1,-1), niters);
+	
+	findContours( temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );//找轮廓
+	
+	
+
+	cv::Mat cimg(mask.size(),CV_8UC3);
+	cimg = cv::Scalar(0);
+	double minArea = 10*10;
+	Scalar color( 255, 255, 255 );
+	for( int i = 0; i< contours.size(); i++ )
+	{
+		const vector<Point>& c = contours[i];
+		double area = fabs(contourArea(Mat(c)));
+		if( area > minArea )
+		{
+			drawContours( cimg, contours, i, color, CV_FILLED, 8, hierarchy, 0, Point() );
+			
+		}
+		
+	}
+	cv::cvtColor(cimg,mask,CV_BGR2GRAY);
 }
 Mat InvAffineMatrix(const Mat affine)
 {
@@ -389,8 +462,13 @@ private:
 	std::vector<uchar> _status; // status of tracked features
 	std::vector<float> _err;    // error in tracking
 	IplImage image;
+	char _outPath[200];
 public:
-	MCDBSProcessor():_initFlag(false),_qlevel(0.01), _minDist(10.){}
+	MCDBSProcessor(const char* outPath):_initFlag(false),_qlevel(0.01), _minDist(10.)
+	{
+		sprintf(_outPath,outPath);
+		CreateDir(_outPath);
+	}
 	void preprocess(cv::Mat& input, cv::Mat& output)
 	{
 		GaussianBlur(input,output,cvSize(3,3),0.1);
@@ -457,23 +535,23 @@ public:
 			cv::Mat(prev), // points
 			inliers, // outputted inliers matches
 			CV_RANSAC, // RANSAC method
-			1.);
-		for(int i=0; i<prev.size(); i++)
-		{
-			cv::circle(output,prev[i],2,cv::Scalar(255,0,0));
-			cv::circle(output,points[1][i],2,cv::Scalar(0,255,0));
-			cv::line(output, prev[i],points[1][i],cv::Scalar(255,255,255));
-		}
+			0.5);
+		//for(int i=0; i<prev.size(); i++)
+		//{
+		//	cv::circle(output,prev[i],2,cv::Scalar(255,0,0));
+		//	cv::circle(output,points[1][i],2,cv::Scalar(0,255,0));
+		//	cv::line(output, prev[i],points[1][i],cv::Scalar(255,255,255));
+		//}
 
-		cv::Mat result;
-		cv::warpPerspective(gray, // input image
-			result,			// output image
-			homography,		// homography
-			cv::Size(frame.cols,frame.rows)); // size of output image
+		//cv::Mat result;
+		//cv::warpPerspective(gray, // input image
+		//	result,			// output image
+		//	homography,		// homography
+		//	cv::Size(frame.cols,frame.rows)); // size of output image
 
-		cv::namedWindow("After warping");
-		cv::imshow("After warping",result);
-		imshow("original",frame);
+		//cv::namedWindow("After warping");
+		//cv::imshow("After warping",result);
+		//imshow("original",frame);
 		IplImage iplimage = output;
 		/*std::cout<<homography<<std::endl;
 		double *ptr = (double*)homography.data;
@@ -481,8 +559,9 @@ public:
 		std::cout<<*ptr<<std::endl;*/
 		_model.motionCompensate((double*)homography.data);
 		_model.update(&iplimage);
+		postProcessSegments(frame,output);
 		char fileName[50];
-		sprintf(fileName,"..\\MCD\\result\\input0\\bin%06d.png",frameNo++);
+		sprintf(fileName,"%s\\bin%06d.png",_outPath,frameNo++);
 		imwrite(fileName,output);
 		cv::swap(gray_prev, gray);
 

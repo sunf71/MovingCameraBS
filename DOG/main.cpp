@@ -33,6 +33,7 @@ int main( int argc, char** argv )
   }
 
   image = cv::imread( file, 1 );
+  cv::cvtColor(image, image, CV_BGR2GRAY);
   if(!image.data) {
     return EXIT_FAILURE;
   }
@@ -57,15 +58,15 @@ void filterDoG( int, void* )
 
   // sigma = 0.3*((ksize-1)*0.5 - 1) + 0.8
   int ksize = ceilf((sigmaBig-0.8f)/0.3f)*2 + 3;
-
+  
   cv::Mat gauBig = cv::getGaussianKernel(ksize, sigmaBig, CV_32F);
   cv::Mat gauSmall = cv::getGaussianKernel(ksize, sigmaSmall, CV_32F);
 
   cv::Mat DoG = gauSmall - gauBig;
   cv::filter2D(image, filterResponse, CV_32F, DoG.t());
 
-  //filterResponse = cv::abs(filterResponse);
-
+ filterResponse = cv::abs(filterResponse);
+ cv::normalize(filterResponse, filterResponse, 255, 0, CV_MINMAX, CV_8U);
   std::cout << thresh << " : " << sigmaBig << " : " << sigmaSmall << std::endl;
 
   cv::Mat dst = filterResponse.clone();

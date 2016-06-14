@@ -238,7 +238,7 @@ void SLIC::DrawContoursAroundSegments(
 					}
 				}
 			}
-			if( np > 1 )//change to 2 or 3 for thinner lines
+			if( np > 2 )//change to 2 or 3 for thinner lines
 			{
 				ubuff[mainindex] = color;
 				istaken[mainindex] = true;
@@ -705,12 +705,21 @@ void SLIC::SaveSuperpixelLabels(
 	string temp = fname;
 
 	ofstream outfile;
-	string finalpath = path + temp + string(".dat");
-	outfile.open(finalpath.c_str(), ios::binary);
+	string finalpath = path + temp + string(".txt");
+	outfile.open(finalpath.c_str());
+	for(int i=0; i<height; i++)
+	{
+		for(int j=0; j<width; j++)
+		{
+			outfile<<labels[i*width+j]<<"\t";
+		}
+		outfile<<"\n";
+	}
+	/*outfile.open(finalpath.c_str(), ios::binary);
 	for( int i = 0; i < sz; i++ )
 	{
 		outfile.write((const char*)&labels[i], sizeof(int));
-	}
+	}*/
 	outfile.close();
 }
 

@@ -6,18 +6,32 @@
 #include "DistanceUtils.h"
 #include "RandUtils.h"
 #include <iostream>
+#include <fstream>
+#include "ASAPWarping.h"
+struct EdgePoint
+{
+	EdgePoint(int _x, int _y, uchar _color,float _theta):x(_x),y(_y),theta(_theta),color(_color)
+	{}
+	char color;
+	int x;
+	int y;
+	float theta;//角度，0~180
+};
 class BGSSubsenseM : public BackgroundSubtractorSuBSENSE
 {
 public:
 	BGSSubsenseM():BackgroundSubtractorSuBSENSE(),m_qlevel(0.01),m_minDist(10.){}
 	virtual ~BGSSubsenseM()
 	{
-
+		m_ofstream.close();
 	}
 	//! (re)initiaization method; needs to be called before starting background subtraction (note: also reinitializes the keypoints vector)
 	virtual void initialize(const cv::Mat& oInitImg, const std::vector<cv::KeyPoint>& voKeyPoints);
 	//! refreshes all samples based on the last analyzed frame
 	virtual void refreshModel(float fSamplesRefreshFrac);
+	virtual void refreshModel(const cv::Mat& mask, float fSamplesRefreshFrac);
+	//! refreshes all samples in edge eara
+	virtual void refreshEdgeModel(float fSamplesRefreshFrac);
 	//reset parameters
 	void resetPara();
 	//! primary model update function; the learning param is used to override the internal learning thresholds (ignored when <= 0)
@@ -87,37 +101,38 @@ public:
 			distance += d;
 			if (d < threshold)
 			{
+				
 				const size_t idx_char = (int)currPoints[i].x+(int)currPoints[i].y*mCurr.cols;
 				const size_t idx_flt32 = idx_char*4;
-			
-				float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
-
-				float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
-				//std::cout<<*pfCurrDistThresholdFactor<<std::endl;
-				*pfCurrDistThresholdFactor += 0.1;
-				/*ptr[idx_char] = 128;*/
 				mCurr.data[idx_char] = 0x0;
-				m_features.data[idx_char]=100;
-				if (m_nImgChannels == 3)
-				{
-					const size_t idx_ushrt_rgb = idx_char*2*3;
-					const size_t idx_uchar_rgb = idx_char*3;
-					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
-					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
-					//update model
-					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,anLastIntraDesc,anLastColor);
-					
-				}
-				else
-				{
-					const size_t idx_ushrt = idx_char*2;
-					const size_t idx_uchar = idx_char;
-					const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
-					uchar* anLastColor = m_oLastColorFrame.data+idx_uchar;
-					//update model
-					UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,anLastIntraDesc,anLastColor);
+				//float* pfCurrLearningRate = ((float*)(m_oUpdateRateFrame.data+idx_flt32));
 
-				}
+				//float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+idx_flt32);
+				////std::cout<<*pfCurrDistThresholdFactor<<std::endl;
+				//*pfCurrDistThresholdFactor += 0.1;
+				///*ptr[idx_char] = 128;*/
+				//
+				//m_features.data[idx_char]=100;
+				//if (m_nImgChannels == 3)
+				//{
+				//	const size_t idx_ushrt_rgb = idx_char*2*3;
+				//	const size_t idx_uchar_rgb = idx_char*3;
+				//	const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt_rgb));
+				//	uchar* anLastColor = m_oLastColorFrame.data+idx_uchar_rgb;
+				//	//update model
+				//	UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt_rgb,idx_uchar_rgb,anLastIntraDesc,anLastColor);
+				//	
+				//}
+				//else
+				//{
+				//	const size_t idx_ushrt = idx_char*2;
+				//	const size_t idx_uchar = idx_char;
+				//	const ushort* anLastIntraDesc = ((ushort*)(m_oLastDescFrame.data+idx_ushrt));
+				//	uchar* anLastColor = m_oLastColorFrame.data+idx_uchar;
+				//	//update model
+				//	UpdateBackground(pfCurrLearningRate,x,y,idx_ushrt,idx_uchar,anLastIntraDesc,anLastColor);
+
+				//}
 			}
 			/*else
 			{
@@ -145,7 +160,23 @@ public:
 		//cv::imwrite(filename,gradMat);
 	}
 	void UpdateBackground(float* pfCurrLearningRate, int x, int y,size_t idx_ushrt, size_t idx_uchar, const ushort* nCurrIntraDesc, const uchar* nCurrColor);
+	//更新模型
+	void UpdateModel(const cv::Mat& curImg, const cv::Mat& curMask);
 	void cloneModels();
+	void SwapModels();
+	//局部搜索，在前一帧图像中某个位置(wx,wy)邻域内，搜索一个与目标最接近的像素（梯度和颜色）
+	void LocalSearch(const cv::Mat& img, const int x, const int y,  int& wx,  int& wy, const int s = 2);
+	void ExtractEdgePoint(const cv::Mat& img, const cv::Mat& edge, cv::Mat& edgeThetaMat,std::vector<EdgePoint>& edgePoints);
+	//边缘点匹配
+	void MapEdgePoint(const std::vector<EdgePoint>& ePoints1, const cv::Mat& edge2,const cv::Mat edgeThetamat, const const cv::Mat& transform, float deltaTheta, cv::Mat& matchMask);
+
+	//估算分块单应性矩阵
+	void EstimateHomos();
+	//计算运动补偿后的位置
+	void WarpPt(const cv::Point2i& src, cv::Point2i& dst);
+	void WarpModels();
+	void WarpImage(const cv::Mat img, cv::Mat& warpedImg);
+	void WarpBasedOperator(cv::InputArray _image, cv::OutputArray _fgmask, double learningRateOverride);
 protected:
 	//! points used to compute the homography matrix between two continuous frames
 	std::vector<cv::Point2f> m_points[2];
@@ -156,7 +187,7 @@ protected:
 	std::vector<uchar> m_status; // status of tracked features
 	std::vector<float> m_err;    // error in tracking
 	cv::Mat m_homography; // 
-
+	cv::Mat m_invHomography;
 	std::vector<cv::Mat*> m_modelsPtr;
 	std::vector<cv::KeyPoint> m_voTKeyPoints;// transformed keypoints
 	cv::Mat m_warpMask;
@@ -187,14 +218,33 @@ protected:
 	cv::Mat w_oUnstableRegionMask;
 	//! per-pixel blink detection results ('Z(x)')
 	cv::Mat w_oBlinksFrame;
+	cv::Mat m_oLastStructFrame;
+	std::vector<cv::Mat> m_voBGStructSamples;
+	std::vector<cv::Mat> w_voBGStructSamples;
+	//! copy of previously used pixel intensities used to calculate 'D_last(x)'
+	cv::Mat w_oLastColorFrame;
+	//! copy of previously used descriptors used to calculate 'D_last(x)'
+	cv::Mat w_oLastDescFrame;
+	//std::vector<cv::Mat> w_voBGColorSamples;
+	//std::vector<cv::Mat> w_voBGDescSamples;
 
-	std::vector<cv::Mat> w_voBGColorSamples;
-	std::vector<cv::Mat> w_voBGDescSamples;
-
+	cv::Mat m_preThetaMat,m_thetaMat;
+	std::vector<EdgePoint> m_preEdgePoints, m_edgePoints;
 	size_t m_nOutPixels;
 	cv::Mat m_preEdges;
 	cv::Mat m_edges;
 	cv::Mat m_mixEdges;
 	//保存特征点跟踪情况
-	cv::Mat m_features;
+	cv::Mat m_features,m_preFeatures;
+	cv::Mat m_dx,m_dy;
+	cv::Mat m_preDx, m_preDy;
+	std::ofstream m_ofstream;
+
+	//
+	size_t m_quadWidth;
+	size_t m_quadHeight;
+	std::vector<cv::Mat> m_homos;
+	
+	cv::Mat m_warpedImg;
+	ASAPWarping* m_ASAP;
 };

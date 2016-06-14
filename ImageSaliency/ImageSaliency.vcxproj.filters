@@ -1,0 +1,97 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header">
+      <UniqueIdentifier>{2c4a75a5-9410-4a2c-95ef-74b687f85a25}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{abb04eda-1b4a-4f7f-916e-24f809313004}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Cuda">
+      <UniqueIdentifier>{2c2ffaf8-ac7d-4c6a-b741-e6c028750cef}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\GpuMovingCameraBS\CudaSuperpixel.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\GpuSuperpixel.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\graph.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\SLIC.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\Common.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\Dijkstra.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\DistanceUtils.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\LBP.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Saliency.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\FileNameHelper.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GpuMovingCameraBS\timer.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageFocusness.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="RegionObjectness.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="RegionMerging.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\GpuMovingCameraBS\CudaSuperpixel.cu">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\GpuMovingCameraBS\GpuSuperpixel.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\SuperpixelComputer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\SLIC.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\ComSuperpixel.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\Dijkstra.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Saliency.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\timer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\GpuMovingCameraBS\PictureHandler.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageFocusness.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="RegionObjectness.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="RegionMerging.cpp" />
+  </ItemGroup>
+</Project>

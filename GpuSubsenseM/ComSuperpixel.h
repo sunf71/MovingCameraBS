@@ -1,17 +1,21 @@
 #pragma once
 #include <vector>
-#define safe_delete(X) if (X!=NULL) delete[] X;
+#include "CudaSuperpixel.h"
+#include "Common.h"
 using namespace std;
 
 class ComSuperpixel
 {
 public:
-	ComSuperpixel(){};
+	ComSuperpixel()
+	{
+		m_rvec = m_gvec = m_bvec = NULL;
+	};
 	~ComSuperpixel()
 	{
-		safe_delete(m_rvec);
-		safe_delete(m_gvec);
-		safe_delete(m_bvec);
+		safe_delete_array(m_rvec);
+		safe_delete_array(m_gvec);
+		safe_delete_array(m_bvec);
 	}
 	void DetectRGBEdges(
 		const double*				rvec,
@@ -59,11 +63,13 @@ void GetRGBXYSeeds_ForGivenStep(
 		double d_rgb = sqrt(dr*dr + dg*dg + db*db);
 		double dx = abs(x - kseedsx[labelIdx]);
 		double dy =  abs(y - kseedsy[labelIdx]);
-		double d_xy = sqrt(dx*dx + dy*dy);
-		return (1-m_alpha)*d_rgb + m_alpha*d_xy/(m_radius/2);
+		double d_xy = (dx*dx + dy*dy);
+		return (1-m_alpha)*d_rgb + m_alpha*d_xy/(m_radius);
 	}
-	void Superixel(unsigned * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* lables);
-	void Superixel(unsigned * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
+	void Superpixel(unsigned * rgbBuffer,unsigned width, unsigned height, int num, float alpha,int* lables);
+	void Superpixel(unsigned * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
+	void SuperpixelLattice(unsigned * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables);
+	void SuperpixelLattice(uchar4 * rgbBuffer,unsigned width, unsigned height, int step, float alpha,int& num,int* lables,SLICClusterCenter* centers);
 private:
 	unsigned m_height;
 	unsigned m_width;
